@@ -164,7 +164,10 @@ const corsOptions = {
 
 app.use(helmet());
 app.use(cors(corsOptions));
-app.use(express.json({ limit: '5mb' }));
+
+// 🛠️ SOLUCIÓN AL SOLICITAR IMÁGENES GRANDES: Expandimos el parser a 50MB para soportar fotos en Base64
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // -----------------------------------------------------------------------------
 // Health
@@ -444,6 +447,69 @@ app.post('/api/decks/import', async (req, res) => {
 // FLASHCARDS — scoped to a mazo
 // -----------------------------------------------------------------------------
 
+// POST /api/flashcards/bulk — Crear múltiples flashcards blindado ante imágenes pesadas
+app.post('/api/flashcards/bulk', async (req, res) => {
+  try {
+    const { userId, deckId, batchStyles, cards } = req.body || {};
+    if (!mongoose.isValidObjectId(userId) || !mongoose.isValidObjectId(deckId)) {
+      return res.status(400).json({ error: 'IDs de usuario o mazo inválidos.' });
+    }
+    if (!Array.isArray(cards) || cards.length === 0) {
+      return res.status(400).json({ error: 'No se proporcionaron tarjetas.' });
+    }
+
+    const globalBg = batchStyles?.bgImage || '';
+    const globalAlign = batchStyles?.textAlign || 'center';
+    const globalSize = batchStyles?.fontSize || 'text-base';
+
+    const currentDeck = await Deck.findById(deckId);
+    if (!currentDeck) return res.status(404).json({ error: 'Mazo no encontrado.' });
+
+    const docs = [];
+    for (const c of cards) {
+      if (!c || !c.question?.trim() || !c.answer?.trim()) continue;
+
+      // Lee la imagen de forma tolerante si viene global o en la tarjeta individual
+      const currentBg = c.bgImage || globalBg;
+      let bgImageIndex = -1;
+
+      if (currentBg) {
+        let idx = currentDeck.cardBackgrounds.indexOf(currentBg);
+        if (idx === -1) {
+          currentDeck.cardBackgrounds.push(currentBg);
+          idx = currentDeck.cardBackgrounds.length - 1;
+        }
+        bgImageIndex = idx;
+      }
+
+      docs.push({
+        userId,
+        deckId,
+        question: String(c.question).trim(),
+        answer: String(c.answer).trim(),
+        bgImageIndex,
+        textAlign: ['left', 'center', 'right'].includes(c.textAlign || globalAlign) ? (c.textAlign || globalAlign) : 'center',
+        fontSize: c.fontSize || globalSize,
+      });
+    }
+
+    if (docs.length === 0) {
+      return res.status(400).json({ error: 'Ninguna tarjeta tiene formato válido.' });
+    }
+
+    // Sincroniza los nuevos fondos agregados al pool del mazo
+    await currentDeck.save();
+
+    const inserted = await Flashcard.insertMany(docs);
+    const backgrounds = currentDeck.cardBackgrounds || [];
+
+    return res.status(201).json(inserted.map((c) => serializeFlashcard(c, backgrounds)));
+  } catch (err) {
+    console.error('[flashcards:bulk] error:', err.message);
+    return res.status(500).json({ error: 'Error interno del servidor al crear lote.' });
+  }
+});
+
 // GET /api/flashcards/deck/:deckId — list flashcards of a deck
 app.get('/api/flashcards/deck/:deckId', async (req, res) => {
   try {
@@ -495,51 +561,6 @@ app.post('/api/flashcards', async (req, res) => {
     return res.status(500).json({ error: 'Server error.' });
   }
 });
-
-// POST /api/flashcards/bulk — Crear múltiples flashcards en un solo lote optimizado sin saturar la red
-app.post('/api/flashcards/bulk', async (req, res) => {
-  try {
-    const { userId, deckId, batchStyles, cards } = req.body || {};
-    if (!mongoose.isValidObjectId(userId) || !mongoose.isValidObjectId(deckId)) {
-      return res.status(400).json({ error: 'IDs de usuario o mazo inválidos.' });
-    }
-    if (!Array.isArray(cards) || cards.length === 0) {
-      return res.status(400).json({ error: 'No se proporcionaron tarjetas válidas.' });
-    }
-
-    // Extraemos la configuración visual compartida del lote
-    const { bgImage, textAlign, fontSize } = batchStyles || {};
-
-    // Registramos la imagen en el pool del mazo una sola vez para todo el lote
-    const bgImageIndex = bgImage ? await getOrCreateBgIndex(deckId, bgImage) : -1;
-
-    const docs = cards
-      .filter((c) => c && c.question?.trim() && c.answer?.trim())
-      .map((c) => ({
-        userId,
-        deckId,
-        question: String(c.question).trim(),
-        answer: String(c.answer).trim(),
-        bgImageIndex, // Todas las cartas del lote apuntan al mismo índice deduplicado
-        textAlign: ['left', 'center', 'right'].includes(textAlign) ? textAlign : 'center',
-        fontSize: typeof fontSize === 'string' ? fontSize : 'text-base',
-      }));
-
-    if (docs.length === 0) {
-      return res.status(400).json({ error: 'Ninguna tarjeta provista tiene un formato válido.' });
-    }
-
-    const inserted = await Flashcard.insertMany(docs);
-    const currentDeck = await Deck.findById(deckId);
-    const backgrounds = currentDeck ? currentDeck.cardBackgrounds : [];
-
-    return res.status(201).json(inserted.map((c) => serializeFlashcard(c, backgrounds)));
-  } catch (err) {
-    console.error('[flashcards:bulk] error:', err.message);
-    return res.status(500).json({ error: 'Error interno del servidor al crear lote.' });
-  }
-});
-
 
 // PUT /api/flashcards/:id — edit a flashcard
 app.put('/api/flashcards/:id', async (req, res) => {
