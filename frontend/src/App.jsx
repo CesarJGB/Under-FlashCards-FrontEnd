@@ -22,12 +22,17 @@ import {
   AlignCenter,
   AlignRight,
   SlidersHorizontal,
+  // 🔑 Iconos agregados para que no se caiga el Modo Repaso:
+  BookOpen,
+  ChevronLeft,
+  ChevronRight,
+  RotateCw,
 } from 'lucide-react';
 
 // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS,
 // THIS BREAKS THE AUTH. Values come from .env (Vite import.meta.env).
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL; // 🔑 Corregido a VITE_
 
 const COLOR_SWATCHES = [
   '#ffffff',
