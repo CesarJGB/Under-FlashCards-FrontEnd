@@ -144,7 +144,7 @@ const corsOptions = {
 
 app.use(helmet());
 app.use(cors(corsOptions));
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: '5mb' }));
 
 // -----------------------------------------------------------------------------
 // Health
@@ -340,6 +340,74 @@ app.delete('/api/decks/:id', async (req, res) => {
     return res.json({ success: true, id });
   } catch (err) {
     console.error('[decks:delete] error:', err.message);
+    return res.status(500).json({ error: 'Server error.' });
+  }
+});
+
+// GET /api/decks/:id/export — deck + its flashcards as a portable JSON
+app.get('/api/decks/:id/export', async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ error: 'Invalid deck id.' });
+    }
+    const deck = await Deck.findById(id);
+    if (!deck) return res.status(404).json({ error: 'Deck not found.' });
+    const cards = await Flashcard.find({ deckId: id }).sort({ createdAt: -1 });
+    return res.json({
+      deck: serializeDeck(deck, cards.length),
+      cards: cards.map(serializeFlashcard),
+    });
+  } catch (err) {
+    console.error('[decks:export] error:', err.message);
+    return res.status(500).json({ error: 'Server error.' });
+  }
+});
+
+// POST /api/decks/import — create a new deck (owned by userId) + its cards
+app.post('/api/decks/import', async (req, res) => {
+  try {
+    const { userId, deck, cards } = req.body || {};
+    if (!mongoose.isValidObjectId(userId)) {
+      return res.status(400).json({ error: 'Invalid user id.' });
+    }
+    if (!deck || !deck.title?.trim()) {
+      return res.status(400).json({ error: 'Invalid deck payload.' });
+    }
+
+    const newDeck = await Deck.create({
+      userId,
+      title: deck.title.trim(),
+      coverColor: deck.coverColor || '#ffffff',
+      coverImage: typeof deck.coverImage === 'string' ? deck.coverImage : '',
+    });
+
+    let insertedCount = 0;
+    if (Array.isArray(cards) && cards.length) {
+      const docs = cards
+        .filter((c) => c && c.question && c.answer)
+        .map((c) => ({
+          userId,
+          deckId: newDeck._id,
+          question: String(c.question),
+          answer: String(c.answer),
+          ...(typeof c.bgImage === 'string' ? { bgImage: c.bgImage } : {}),
+          ...(['left', 'center', 'right'].includes(c.textAlign) ? { textAlign: c.textAlign } : {}),
+          ...(typeof c.fontSize === 'string' ? { fontSize: c.fontSize } : {}),
+          ...(typeof c.easeFactor === 'number' ? { easeFactor: c.easeFactor } : {}),
+        }));
+      if (docs.length) {
+        const inserted = await Flashcard.insertMany(docs);
+        insertedCount = inserted.length;
+      }
+    }
+
+    return res.status(201).json({
+      success: true,
+      deck: serializeDeck(newDeck, insertedCount),
+    });
+  } catch (err) {
+    console.error('[decks:import] error:', err.message);
     return res.status(500).json({ error: 'Server error.' });
   }
 });

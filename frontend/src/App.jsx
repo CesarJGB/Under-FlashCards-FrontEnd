@@ -22,17 +22,18 @@ import {
   AlignCenter,
   AlignRight,
   SlidersHorizontal,
-  // 🔑 Iconos agregados para que no se caiga el Modo Repaso:
-  BookOpen,
   ChevronLeft,
   ChevronRight,
+  BookOpen,
   RotateCw,
+  Download,
+  Upload,
 } from 'lucide-react';
 
 // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS,
 // THIS BREAKS THE AUTH. Values come from .env (Vite import.meta.env).
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL; // 🔑 Corregido a VITE_
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
 const COLOR_SWATCHES = [
   '#ffffff',
@@ -404,10 +405,11 @@ function ReviewMode({ cards, loading }) {
 
         {/* Tarjeta */}
         <div
+          key={index}
           onTouchStart={onTouchStart}
           onTouchEnd={onTouchEnd}
           style={cardStyle}
-          className="relative rounded-3xl border border-slate-200 shadow-lg overflow-hidden bg-white min-h-[340px] flex flex-col select-none"
+          className="relative rounded-3xl border border-slate-200 shadow-lg overflow-hidden bg-white min-h-[340px] flex flex-col select-none animate-[slideIn_0.2s_ease-out]"
           data-testid="review-card"
         >
           {/* Barra de progreso */}
@@ -549,6 +551,26 @@ function DeckInterior({ deck, userId, onBack }) {
     setBgImage(await fileToBase64(file));
   };
 
+  const handleExport = async () => {
+    setError('');
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/decks/${deck.id}/export`);
+      if (!res.ok) throw new Error('No se pudo exportar el mazo.');
+      const data = await res.json();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${(deck.title || 'mazo').replace(/[^\w\s-]/g, '').trim() || 'mazo'}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!question.trim() || !answer.trim()) return;
@@ -613,15 +635,26 @@ function DeckInterior({ deck, userId, onBack }) {
 
   return (
     <div data-testid="deck-interior">
-      <button
-        onClick={onBack}
-        className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-slate-900"
-        data-testid="back-to-library"
-      >
-        <ArrowLeft className="w-4 h-4" />
-        Volver a la Biblioteca
-      </button>
+      <div className="flex items-center justify-between gap-3">
+        <button
+          onClick={onBack}
+          className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-slate-900"
+          data-testid="back-to-library"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Volver a la Biblioteca
+        </button>
+        <button
+          onClick={handleExport}
+          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+          data-testid="export-deck-button"
+        >
+          <Download className="w-4 h-4" />
+          Exportar mazo
+        </button>
+      </div>
 
+      {mode === 'edit' && (
       <div
         className="mt-4 rounded-2xl p-6 border border-slate-200"
         style={
@@ -641,6 +674,7 @@ function DeckInterior({ deck, userId, onBack }) {
           {deck.title}
         </h2>
       </div>
+      )}
 
       {/* Selector de modo */}
       <div className="mt-5 inline-flex rounded-xl border border-slate-200 bg-white p-1" data-testid="mode-tabs">
@@ -903,6 +937,8 @@ function LibrarySection({ userId }) {
   const [error, setError] = useState('');
   const [modal, setModal] = useState(null);
   const [currentDeck, setCurrentDeck] = useState(null);
+  const [importing, setImporting] = useState(false);
+  const fileInputRef = useRef(null);
 
   const loadDecks = useCallback(async () => {
     setLoading(true);
@@ -950,6 +986,30 @@ function LibrarySection({ userId }) {
     }
   };
 
+  const handleImport = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setError('');
+    setImporting(true);
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      if (!parsed?.deck?.title) throw new Error('Formato de archivo inválido.');
+      const res = await fetch(`${BACKEND_URL}/api/decks/import`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, deck: parsed.deck, cards: parsed.cards || [] }),
+      });
+      if (!res.ok) throw new Error('No se pudo importar el mazo.');
+      await loadDecks();
+    } catch (err) {
+      setError(err.message || 'Archivo inválido o no se pudo importar.');
+    } finally {
+      setImporting(false);
+    }
+  };
+
   if (currentDeck) {
     return (
       <DeckInterior
@@ -970,13 +1030,32 @@ function LibrarySection({ userId }) {
           <h2 className="text-2xl font-bold text-slate-900">Biblioteca</h2>
           <p className="text-slate-500 mt-1">Tus mazos de estudio.</p>
         </div>
-        <button
-          onClick={() => setModal({})}
-          className="inline-flex items-center gap-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-medium px-5 py-2.5"
-          data-testid="create-deck-button"
-        >
-          <Plus className="w-4 h-4" /> Nuevo mazo
-        </button>
+        <div className="flex items-center gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json"
+            onChange={handleImport}
+            className="hidden"
+            data-testid="import-file-input"
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={importing}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-slate-700 font-medium hover:bg-slate-50 disabled:opacity-50 transition-colors"
+            data-testid="import-deck-button"
+          >
+            {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+            Importar mazo
+          </button>
+          <button
+            onClick={() => setModal({})}
+            className="inline-flex items-center gap-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-medium px-5 py-2.5"
+            data-testid="create-deck-button"
+          >
+            <Plus className="w-4 h-4" /> Nuevo mazo
+          </button>
+        </div>
       </div>
 
       {error && <p className="mt-4 text-sm text-red-600" data-testid="library-error">{error}</p>}
