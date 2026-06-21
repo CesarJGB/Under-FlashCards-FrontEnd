@@ -51,5 +51,11 @@ Full-stack Flashcards MVP. Scope chosen by user: **Google Sign-In only** (no fla
 - Mecánica flip: por defecto muestra Pregunta; botón "Voltear tarjeta" revela Respuesta con fade-in. Contador "Tarjeta X de Y", barra de progreso superior, flechas flotantes (escritorio + móvil) y swipes táctiles (onTouchStart/onTouchEnd, >50px). Al cambiar de tarjeta, la respuesta se reinicia a oculto.
 - Solo frontend; backend, auth y VITE_BACKEND_URL intactos. Build de producción verificado (vite build OK, 1565 módulos).
 
+## Implemented (2026-06-21) — Export/Import JSON + fix scroll Repaso
+- Backend: `express.json({ limit: '5mb' })`. Nuevas rutas `GET /api/decks/:id/export` ({deck, cards}) y `POST /api/decks/import` (crea mazo con userId actual + `Flashcard.insertMany` reasignando userId/deckId, preserva estilos). Verificado por curl (export→import round-trip, 400 en payload inválido).
+- Frontend: `BACKEND_URL` ahora usa `import.meta.env.VITE_BACKEND_URL` (agregado `VITE_BACKEND_URL` al .env junto a REACT_APP_BACKEND_URL). Botón "Exportar mazo" (icono Download) en DeckInterior (descarga [titulo].json). Botón "Importar mazo" (icono Upload) + `<input type=file accept=.json>` oculto en LibrarySection (parsea y POST import, recarga mazos).
+- Fix scroll Repaso: el banner grande del mazo SOLO se muestra en Modo Edición (oculto en review → vista compacta). ReviewMode: tarjeta con `key={index}` + `animate-[slideIn_0.2s_ease-out]` (keyframe slideIn en index.css) para animación fluida al pasar.
+- Auth de Google, CORS y traducción al español intactos. Build de producción OK.
+
 ## Backlog (P1/P2)
 - Flashcard CRUD (create/list/study), persistence (DB), spaced-repetition, decks, session JWT for the app, sign-out token revocation.
