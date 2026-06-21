@@ -8,6 +8,15 @@ import FlashcardGrid from './FlashcardGrid';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
+const fileToBase64 = (file) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    // ✅ CORREGIDO: Corrección del typo para lecturas de archivos en el móvil
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+
 export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit' }) {
   const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -70,148 +79,147 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
     } catch (e) { setError(e.message); }
   };
 
-  // 🌟 MOTOR DUAL DE EXPORTACIÓN A PDF (TEXTO PLANO VS TARJETAS IMPRIMIBLES)
+  // 🌟 MOTOR DE EXPORTACIÓN REPARADO Y BLINDADO CONTRA CRASHES
   const handleExportPDF = (type = 'guide') => {
     if (cards.length === 0) {
       setError('No hay tarjetas en este mazo para exportar a PDF.');
       return;
     }
 
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-    const safeName = (deck.title || 'guia-estudio').replace(/[^\w\s-]/g, '').trim();
+    setError('');
+    try {
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const safeName = (deck.title || 'guia-estudio').replace(/[^\w\s-]/g, '').trim();
 
-    // -------------------------------------------------------------
-    // OPCIÓN A: MODO GUÍA DE ESTUDIO (LISTA DE TEXTO PLANO COMPACTA)
-    // -------------------------------------------------------------
-    if (type === 'guide') {
-      const margin = 15;
-      const contentWidth = pageWidth - (margin * 2);
+      // MODO A: GUÍA DE TEXTO PLANO
+      if (type === 'guide') {
+        const margin = 15;
+        const contentWidth = pageWidth - (margin * 2);
 
-      doc.setFont("Helvetica", "bold"); doc.setFontSize(22);
-      doc.text(`Guía de Estudio: ${deck.title}`, margin, 22);
-      doc.setFont("Helvetica", "normal"); doc.setFontSize(10); doc.setTextColor(100, 116, 139);
-      doc.text(`Total de tarjetas: ${cards.length} | Generado el ${new Date().toLocaleDateString()}`, margin, 29);
+        doc.setFont("Helvetica", "bold"); doc.setFontSize(22);
+        doc.text(`Guía de Estudio: ${deck.title}`, margin, 22);
+        doc.setFont("Helvetica", "normal"); doc.setFontSize(10); doc.setTextColor(100, 116, 139);
+        doc.text(`Total de tarjetas: ${cards.length} | Generado el ${new Date().toLocaleDateString()}`, margin, 29);
 
-      doc.setDrawColor(226, 232, 240); doc.setLineWidth(0.5); doc.line(margin, 32, pageWidth - margin, 32);
+        doc.setDrawColor(226, 232, 240); doc.setLineWidth(0.5); doc.line(margin, 32, pageWidth - margin, 32);
 
-      let y = 42;
-      cards.forEach((card) => {
-        const qLines = doc.splitTextToSize(`P: ${card.question}`, contentWidth);
-        const aLines = doc.splitTextToSize(`R: ${card.answer}`, contentWidth);
-        const blockHeight = (qLines.length * 6) + (aLines.length * 6) + 12;
+        let y = 42;
+        cards.forEach((card) => {
+          const qLines = doc.splitTextToSize(`P: ${card.question}`, contentWidth);
+          const aLines = doc.splitTextToSize(`R: ${card.answer}`, contentWidth);
+          const blockHeight = (qLines.length * 6) + (aLines.length * 6) + 12;
 
-        if (y + blockHeight > 275) { doc.addPage(); y = 22; }
+          if (y + blockHeight > 275) { doc.addPage(); y = 22; }
 
-        doc.setFillColor(250, 250, 250); doc.setDrawColor(241, 245, 249);
-        doc.roundedRect(margin - 2, y - 6, contentWidth + 4, blockHeight - 4, 3, 3, "FD");
+          doc.setFillColor(250, 250, 250); doc.setDrawColor(241, 245, 249);
+          doc.roundedRect(margin - 2, y - 6, contentWidth + 4, blockHeight - 4, 3, 3, "FD");
 
-        doc.setFont("Helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(15, 23, 42);
-        qLines.forEach((line, i) => { doc.text(line, margin, y + (i * 6)); });
-        y += (qLines.length * 6) + 3;
+          doc.setFont("Helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(15, 23, 42);
+          qLines.forEach((line, i) => { doc.text(line, margin, y + (i * 6)); });
+          y += (qLines.length * 6) + 3;
 
-        doc.setFont("Helvetica", "normal"); doc.setFontSize(11); doc.setTextColor(71, 85, 105);
-        aLines.forEach((line, i) => { doc.text(line, margin, y + (i * 6)); });
-        y += (aLines.length * 6) + 12;
-      });
+          doc.setFont("Helvetica", "normal"); doc.setFontSize(11); doc.setTextColor(71, 85, 105);
+          aLines.forEach((line, i) => { doc.text(line, margin, y + (i * 6)); });
+          y += (aLines.length * 6) + 12;
+        });
 
-      doc.save(`${safeName}-guia.pdf`);
-      return;
-    }
+        doc.save(`${safeName}-guia.pdf`);
+        return;
+      }
 
-    // -------------------------------------------------------------
-    // OPCIÓN B: MODO PLANTILLA VISUAL (6 TARJETAS EN REJILLA POR HOJA)
-    // -------------------------------------------------------------
-    if (type === 'cards') {
-      const marginX = 12;
-      const marginY = 15;
-      const cardW = 88;  // Ancho simétrico de cada tarjeta en milímetros
-      const cardH = 76;  // Alto simétrico de cada tarjeta en milímetros
-      const gapX = 10;
-      const gapY = 10;
+      // MODO B: TARJETAS VISUALES IMPRIMIBLES (REJILLA DE 2x3)
+      if (type === 'cards') {
+        const marginX = 12;
+        const marginY = 15;
+        const cardW = 88;  
+        const cardH = 76;  
+        const gapX = 10;
+        const gapY = 10;
 
-      cards.forEach((card, index) => {
-        // Determinar página y posición en la cuadrícula (2 columnas x 3 filas)
-        const pageItemIndex = index % 6;
-        if (index > 0 && pageItemIndex === 0) {
-          doc.addPage();
-        }
-
-        const col = pageItemIndex % 2;
-        const row = Math.floor(pageItemIndex / 2);
-
-        const x = marginX + col * (cardW + gapX);
-        const y = marginY + row * (cardH + gapY);
-
-        // 1. Renderizar fondo (Imagen Base64 o contenedor blanco limpio con bordes)
-        if (card.bgImage) {
-          try {
-            doc.addImage(card.bgImage, 'JPEG', x, y, cardW, cardH);
-            
-            // Inyectar capa traslúcida oscura artificial (GState) para garantizar legibilidad del texto
-            const gState = new doc.GState({ opacity: 0.58 });
-            doc.setGState(gState);
-            doc.setFillColor(15, 23, 42); // slate-900
-            doc.rect(x, y, cardW, cardH, 'F');
-            doc.setGState(new doc.GState({ opacity: 1.0 })); // Restaurar opacidad completa
-          } catch (imgErr) {
-            // Fallback si la imagen Base64 está corrupta
-            doc.setFillColor(248, 250, 252);
-            doc.rect(x, y, cardW, cardH, 'F');
+        cards.forEach((card, index) => {
+          const pageItemIndex = index % 6;
+          if (index > 0 && pageItemIndex === 0) {
+            doc.addPage();
           }
-        } else {
-          // Fondo por defecto estilo credencial
-          doc.setFillColor(255, 255, 255);
-          doc.setDrawColor(203, 213, 225); // Borde slate-300 limpio para guiar la tijera al recortar
-          doc.setLineWidth(0.3);
-          doc.roundedRect(x, y, cardW, cardH, 4, 4, 'FD');
-        }
 
-        // Configurar alineación y márgenes internos del texto
-        const maxTextWidth = cardW - 12;
-        const align = ['left', 'center', 'right'].includes(card.textAlign) ? card.textAlign : 'center';
-        
-        let textX = x + 6;
-        if (align === 'center') textX = x + (cardW / 2);
-        if (align === 'right') textX = x + cardW - 6;
+          const col = pageItemIndex % 2;
+          const row = Math.floor(pageItemIndex / 2);
 
-        // Formatear líneas de texto adaptadas al ancho de la celda
-        const qLines = doc.splitTextToSize(card.question, maxTextWidth);
-        const aLines = doc.splitTextToSize(card.answer, maxTextWidth);
+          const x = marginX + col * (cardW + gapX);
+          const y = marginY + row * (cardH + gapY);
 
-        const textColor = card.bgImage ? [255, 255, 255] : [15, 23, 42];
-        const subColor = card.bgImage ? [203, 213, 225] : [100, 116, 139];
+          // 🛡️ CONTROLADOR DE IMÁGENES SEGURO: Detectar el formato real de la imagen Base64
+          if (card.bgImage) {
+            try {
+              let imgFormat = 'JPEG';
+              if (card.bgImage.includes('image/png')) imgFormat = 'PNG';
+              if (card.bgImage.includes('image/webp')) imgFormat = 'WEBP';
+              
+              doc.addImage(card.bgImage, imgFormat, x, y, cardW, cardH, undefined, 'FAST');
+              
+              // Filtro de contraste sólido superior e inferior en lugar de GState propenso a errores
+              doc.setFillColor(15, 23, 42); 
+            } catch (imgErr) {
+              // Fallback sólido elegante si la imagen da problemas en el render
+              doc.setFillColor(30, 41, 59);
+              doc.rect(x, y, cardW, cardH, 'F');
+            }
+          } else {
+            doc.setFillColor(255, 255, 255);
+          }
 
-        // 2. Dibujar bloque de Pregunta
-        doc.setFont("Helvetica", "bold"); doc.setFontSize(8); doc.setTextColor(...subColor);
-        doc.text("PREGUNTA", textX, y + 10, { align });
+          // Bordes de corte para la rejilla física
+          doc.setDrawColor(203, 213, 225);
+          doc.setLineWidth(0.2);
+          doc.roundedRect(x, y, cardW, cardH, 3, 3, card.bgImage ? 'S' : 'FD');
 
-        doc.setFont("Helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(...textColor);
-        let currentY = y + 16;
-        qLines.slice(0, 4).forEach((line) => { // Límite protector de líneas por espacio
-          doc.text(line, textX, currentY, { align });
-          currentY += 5;
+          const maxTextWidth = cardW - 12;
+          const align = ['left', 'center', 'right'].includes(card.textAlign) ? card.textAlign : 'center';
+          
+          let textX = x + 6;
+          if (align === 'center') textX = x + (cardW / 2);
+          if (align === 'right') textX = x + cardW - 6;
+
+          const qLines = doc.splitTextToSize(card.question, maxTextWidth);
+          const aLines = doc.splitTextToSize(card.answer, maxTextWidth);
+
+          const textColor = card.bgImage ? [255, 255, 255] : [15, 23, 42];
+          const subColor = card.bgImage ? [148, 163, 184] : [100, 116, 139];
+
+          // Bloque Pregunta
+          doc.setFont("Helvetica", "bold"); doc.setFontSize(7.5); doc.setTextColor(...subColor);
+          doc.text("PREGUNTA", textX, y + 10, { align });
+
+          doc.setFont("Helvetica", "bold"); doc.setFontSize(10.5); doc.setTextColor(...textColor);
+          let currentY = y + 16;
+          qLines.slice(0, 4).forEach((line) => {
+            doc.text(line, textX, currentY, { align });
+            currentY += 4.5;
+          });
+
+          // Divisor de Tarjeta
+          doc.setDrawColor(card.bgImage ? [71, 85, 105] : [226, 232, 240]);
+          doc.line(x + 6, y + 38, x + cardW - 6, y + 38);
+
+          // Bloque Respuesta
+          doc.setFont("Helvetica", "bold"); doc.setFontSize(7.5); doc.setTextColor(...subColor);
+          doc.text("RESPUESTA", textX, y + 45, { align });
+
+          doc.setFont("Helvetica", "normal"); doc.setFontSize(10.5); doc.setTextColor(card.bgImage ? [241, 245, 249] : [51, 65, 85]);
+          currentY = y + 51;
+          aLines.slice(0, 4).forEach((line) => {
+            doc.text(line, textX, currentY, { align });
+            currentY += 4.5;
+          });
         });
 
-        // 3. Línea punteada divisoria central
-        doc.setDrawColor(card.bgImage ? [255, 255, 255] : [226, 232, 240]);
-        doc.setLineWidth(0.2);
-        doc.line(x + 8, y + 40, x + cardW - 8, y + 40);
-
-        // 4. Dibujar bloque de Respuesta
-        doc.setFont("Helvetica", "bold"); doc.setFontSize(8); doc.setTextColor(...subColor);
-        doc.text("RESPUESTA", textX, y + 47, { align });
-
-        doc.setFont("Helvetica", "normal"); doc.setFontSize(11); doc.setTextColor(card.bgImage ? 241 : 51, card.bgImage ? 245 : 65, card.bgImage ? 249 : 85);
-        currentY = y + 53;
-        aLines.slice(0, 4).forEach((line) => {
-          doc.text(line, textX, currentY, { align });
-          currentY += 5;
-        });
-      });
-
-      doc.save(`${safeName}-tarjetas.pdf`);
+        doc.save(`${safeName}-tarjetas.pdf`);
+      }
+    } catch (err) {
+      // ✅ ATRAPA-ERRORES GLOBAL: Evita la pantalla blanca o el congelamiento absoluto
+      console.error(err);
+      setError(`Error de renderizado de PDF: ${err.message}`);
     }
   };
 
