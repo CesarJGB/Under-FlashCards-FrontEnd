@@ -325,7 +325,7 @@ function ReviewMode({ cards, loading }) {
   const [showAnswer, setShowAnswer] = useState(false);
   const touchStartX = useRef(null);
 
-  // EFECTO MÁGICO: Congela por completo el scroll vertical en móviles mientras estudias
+  // EFECTO MÁGICO: Bloquea el scroll del body del navegador al repasar
   useEffect(() => {
     const originalOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -340,7 +340,7 @@ function ReviewMode({ cards, loading }) {
 
   if (loading) {
     return (
-      <div className="mt-8 flex items-center gap-2 text-slate-400" data-testid="review-loading">
+      <div className="mt-4 flex items-center gap-2 text-slate-400" data-testid="review-loading">
         <Loader2 className="w-4 h-4 animate-spin" /> Cargando…
       </div>
     );
@@ -349,7 +349,7 @@ function ReviewMode({ cards, loading }) {
   if (cards.length === 0) {
     return (
       <div
-        className="mt-8 text-center border border-dashed border-slate-300 rounded-2xl py-16 text-slate-400"
+        className="mt-4 text-center border border-dashed border-slate-300 rounded-2xl py-12 text-slate-400"
         data-testid="review-empty"
       >
         <BookOpen className="w-8 h-8 mx-auto mb-2" />
@@ -390,12 +390,12 @@ function ReviewMode({ cards, loading }) {
   };
 
   return (
-    <div className="mt-8" data-testid="review-mode">
-      <p className="text-center text-sm font-medium text-slate-500" data-testid="review-counter">
+    <div className="mt-4 w-full max-w-xl mx-auto px-2" data-testid="review-mode">
+      <p className="text-center text-xs font-medium text-slate-500" data-testid="review-counter">
         Tarjeta {index + 1} de {cards.length}
       </p>
 
-      <div className="relative mt-4 max-w-2xl mx-auto">
+      <div className="relative mt-3 w-full">
         {/* Flechas (escritorio) */}
         <button
           onClick={goPrev}
@@ -412,13 +412,13 @@ function ReviewMode({ cards, loading }) {
           <ChevronRight className="w-5 h-5 text-slate-700" />
         </button>
 
-        {/* Tarjeta con control estricto de gestos horizontales en Chrome */}
+        {/* Tarjeta optimizada contra cortes de borde en Chrome móvil */}
         <div
           key={index}
           onTouchStart={onTouchStart}
           onTouchEnd={onTouchEnd}
           style={cardStyle}
-          className="relative rounded-3xl border border-slate-200 shadow-lg overflow-hidden bg-white min-h-[340px] flex flex-col select-none animate-[slideIn_0.2s_ease-out] touch-pan-x overscroll-none"
+          className="relative w-full rounded-2xl border border-slate-200 shadow-md overflow-hidden bg-white min-h-[290px] sm:min-h-[340px] flex flex-col select-none animate-[slideIn_0.2s_ease-out] touch-pan-x overscroll-none"
           data-testid="review-card"
         >
           {/* Barra de progreso */}
@@ -435,15 +435,15 @@ function ReviewMode({ cards, loading }) {
           {/* Detalle del llavero */}
           <span className="absolute top-4 left-1/2 -translate-x-1/2 w-10 h-2.5 rounded-full bg-slate-400/40 z-10" />
 
-          <div className="relative z-10 flex-1 flex flex-col justify-center p-8 pt-10">
+          <div className="relative z-10 flex-1 flex flex-col justify-center p-6 pt-8">
             <p
-              className={`text-xs font-semibold uppercase tracking-widest ${alignClass} ${
+              className={`text-[10px] font-semibold uppercase tracking-widest ${alignClass} ${
                 hasBg ? 'text-white/70' : 'text-slate-400'
               }`}
             >
               {showAnswer ? 'Respuesta' : 'Pregunta'}
             </p>
-            <div key={`${index}-${showAnswer}`} className="mt-3 animate-[fadeIn_0.25s_ease]">
+            <div key={`${index}-${showAnswer}`} className="mt-2 animate-[fadeIn_0.25s_ease]">
               <p
                 className={`font-semibold whitespace-pre-wrap ${sizeClass} ${alignClass} ${
                   hasBg ? 'text-white' : 'text-slate-900'
@@ -455,10 +455,10 @@ function ReviewMode({ cards, loading }) {
             </div>
           </div>
 
-          <div className="relative z-10 p-6 pt-0">
+          <div className="relative z-10 p-5 pt-0">
             <button
               onClick={() => setShowAnswer((s) => !s)}
-              className={`w-full inline-flex items-center justify-center gap-2 rounded-xl py-3 font-medium transition-colors ${
+              className={`w-full inline-flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-medium transition-colors ${
                 hasBg ? 'bg-white/90 text-slate-900 hover:bg-white' : 'bg-slate-900 text-white hover:bg-slate-800'
               }`}
               data-testid="flip-card-button"
@@ -470,17 +470,17 @@ function ReviewMode({ cards, loading }) {
         </div>
 
         {/* Flechas (móvil) */}
-        <div className="sm:hidden mt-4 flex justify-between">
+        <div className="sm:hidden mt-3 flex justify-between px-2">
           <button
             onClick={goPrev}
-            className="w-11 h-11 flex items-center justify-center rounded-full bg-white border border-slate-200 shadow"
+            className="w-10 h-10 flex items-center justify-center rounded-full bg-white border border-slate-200 shadow"
             data-testid="review-prev-mobile"
           >
             <ChevronLeft className="w-5 h-5 text-slate-700" />
           </button>
           <button
             onClick={goNext}
-            className="w-11 h-11 flex items-center justify-center rounded-full bg-white border border-slate-200 shadow"
+            className="w-10 h-10 flex items-center justify-center rounded-full bg-white border border-slate-200 shadow"
             data-testid="review-next-mobile"
           >
             <ChevronRight className="w-5 h-5 text-slate-700" />
@@ -648,19 +648,22 @@ function DeckInterior({ deck, userId, onBack }) {
           <ArrowLeft className="w-4 h-4" />
           Volver a la Biblioteca
         </button>
-        <button
-          onClick={handleExport}
-          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
-          data-testid="export-deck-button"
-        >
-          <Download className="w-4 h-4" />
-          Exportar mazo
-        </button>
+        {/* CORRECCIÓN: El botón exportar solo se renderiza si estás en modo edición */}
+        {mode === 'edit' && (
+          <button
+            onClick={handleExport}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+            data-testid="export-deck-button"
+          >
+            <Download className="w-4 h-4" />
+            Exportar mazo
+          </button>
+        )}
       </div>
 
       {mode === 'edit' && (
       <div
-        className="mt-4 rounded-2xl p-6 border border-slate-200"
+        className="mt-3 rounded-2xl p-5 border border-slate-200"
         style={
           deck.coverImage
             ? { backgroundImage: `url(${deck.coverImage})`, backgroundSize: 'cover', backgroundPosition: 'center' }
@@ -674,19 +677,19 @@ function DeckInterior({ deck, userId, onBack }) {
         >
           <Layers className="w-3.5 h-3.5" /> Mazo
         </span>
-        <h2 className={`mt-2 text-2xl font-extrabold drop-shadow ${headerDark ? 'text-white' : 'text-slate-900'}`}>
+        <h2 className={`mt-1.5 text-xl font-extrabold drop-shadow ${headerDark ? 'text-white' : 'text-slate-900'}`}>
           {deck.title}
         </h2>
       </div>
       )}
 
-      {/* Selector de modo — AJUSTADO: max-w-2xl mx-auto y flex justify-center para centrado simétrico absoluto */}
-      <div className="mt-5 max-w-2xl mx-auto flex justify-center">
-        <div className="inline-flex rounded-xl border border-slate-200 bg-white p-1" data-testid="mode-tabs">
+      {/* Selector de modo perfectamente alineado y encogido con la carta de repaso */}
+      <div className="mt-4 w-full max-w-xl mx-auto flex justify-center px-2">
+        <div className="inline-flex rounded-xl border border-slate-200 bg-white p-1 w-full sm:w-auto" data-testid="mode-tabs">
           <button
             type="button"
             onClick={() => setMode('edit')}
-            className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+            className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
               mode === 'edit' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'
             }`}
             data-testid="mode-edit-tab"
@@ -696,7 +699,7 @@ function DeckInterior({ deck, userId, onBack }) {
           <button
             type="button"
             onClick={() => setMode('review')}
-            className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+            className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
               mode === 'review' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'
             }`}
             data-testid="mode-review-tab"
@@ -713,31 +716,31 @@ function DeckInterior({ deck, userId, onBack }) {
       {/* Editor */}
       <form
         onSubmit={handleSubmit}
-        className="mt-6 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm"
+        className="mt-4 bg-white border border-slate-200 rounded-2xl p-5 shadow-sm"
         data-testid="flashcard-form"
       >
-        <p className="text-sm font-semibold text-slate-700 mb-3">
+        <p className="text-sm font-semibold text-slate-700 mb-2">
           {editingId ? 'Editar tarjeta' : 'Nueva tarjeta'}
         </p>
 
-        <div className="grid sm:grid-cols-2 gap-4">
+        <div className="grid sm:grid-cols-2 gap-3">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">Pregunta</label>
+            <label className="block text-xs font-medium text-slate-500 mb-1">Pregunta</label>
             <textarea
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
               placeholder="¿Cuál es la capital de Francia?"
-              className="min-h-[100px] w-full resize-y rounded-xl border border-slate-200 px-4 py-2.5 outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400"
+              className="min-h-[90px] w-full resize-y rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400"
               data-testid="flashcard-question-input"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">Respuesta</label>
+            <label className="block text-xs font-medium text-slate-500 mb-1">Respuesta</label>
             <textarea
               value={answer}
               onChange={(e) => setAnswer(e.target.value)}
               placeholder="París"
-              className="min-h-[100px] w-full resize-y rounded-xl border border-slate-200 px-4 py-2.5 outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400"
+              className="min-h-[90px] w-full resize-y rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400"
               data-testid="flashcard-answer-input"
             />
           </div>
@@ -747,24 +750,24 @@ function DeckInterior({ deck, userId, onBack }) {
         <button
           type="button"
           onClick={() => setShowStyles((s) => !s)}
-          className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors"
+          className="mt-3 inline-flex items-center gap-2 text-xs font-medium text-slate-500 hover:text-slate-900 transition-colors"
           data-testid="toggle-styles-button"
         >
-          <SlidersHorizontal className="w-4 h-4" />
+          <SlidersHorizontal className="w-3.5 h-3.5" />
           Opciones de estilo
         </button>
 
         {showStyles && (
-          <div className="mt-4 grid sm:grid-cols-3 gap-5" data-testid="style-controls">
+          <div className="mt-3 grid sm:grid-cols-3 gap-4 border-t border-slate-100 pt-3" data-testid="style-controls">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Tamaño de letra</p>
-            <div className="flex flex-wrap gap-1.5" data-testid="font-size-controls">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1.5">Tamaño de letra</p>
+            <div className="flex flex-wrap gap-1" data-testid="font-size-controls">
               {FONT_SIZES.map((f) => (
                 <button
                   key={f.value}
                   type="button"
                   onClick={() => setFontSize(f.value)}
-                  className={`rounded-lg px-2.5 py-1.5 text-xs font-medium border transition-colors ${
+                  className={`rounded-lg px-2 py-1 text-xs font-medium border transition-colors ${
                     fontSize === f.value
                       ? 'bg-slate-900 text-white border-slate-900'
                       : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
@@ -778,32 +781,32 @@ function DeckInterior({ deck, userId, onBack }) {
           </div>
 
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Alineación</p>
-            <div className="flex gap-1.5" data-testid="align-controls">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1.5">Alineación</p>
+            <div className="flex gap-1" data-testid="align-controls">
               {ALIGNS.map(({ value, label, Icon }) => (
                 <button
                   key={value}
                   type="button"
                   title={label}
                   onClick={() => setTextAlign(value)}
-                  className={`rounded-lg p-2 border transition-colors ${
+                  className={`rounded-lg p-1.5 border transition-colors ${
                     textAlign === value
                       ? 'bg-slate-900 text-white border-slate-900'
                       : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
                   }`}
                   data-testid={`align-${value}`}
                 >
-                  <Icon className="w-4 h-4" />
+                  <Icon className="w-3.5 h-3.5" />
                 </button>
               ))}
             </div>
           </div>
 
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Fondo</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1.5">Fondo</p>
             <div className="flex items-center gap-2">
-              <label className="inline-flex items-center gap-2 cursor-pointer rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-700 hover:bg-slate-50">
-                <ImagePlus className="w-4 h-4" />
+              <label className="inline-flex items-center gap-1.5 cursor-pointer rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-slate-700 hover:bg-slate-50">
+                <ImagePlus className="w-3.5 h-3.5" />
                 Imagen
                 <input
                   type="file"
@@ -828,49 +831,49 @@ function DeckInterior({ deck, userId, onBack }) {
         </div>
         )}
 
-        <div className="mt-5 flex gap-2">
+        <div className="mt-4 flex gap-2">
           <button
             type="submit"
             disabled={saving || !question.trim() || !answer.trim()}
-            className="inline-flex items-center gap-2 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white font-medium px-5 py-2.5"
+            className="inline-flex items-center gap-2 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white text-sm font-medium px-4 py-2"
             data-testid="flashcard-submit-button"
           >
-            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : editingId ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+            {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : editingId ? <Check className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
             {editingId ? 'Guardar cambios' : 'Agregar tarjeta'}
           </button>
           {editingId && (
             <button
               type="button"
               onClick={resetForm}
-              className="rounded-xl border border-slate-200 px-4 py-2.5 text-slate-700 hover:bg-slate-50"
+              className="rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
               data-testid="flashcard-cancel-edit"
             >
               Cancelar
             </button>
           )}
         </div>
-        {error && <p className="mt-3 text-sm text-red-600" data-testid="deck-interior-error">{error}</p>}
+        {error && <p className="mt-2 text-xs text-red-600" data-testid="deck-interior-error">{error}</p>}
       </form>
 
       {/* Grid de tarjetas */}
-      <div className="mt-8 flex items-center justify-between">
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Tarjetas</h3>
-        <span className="text-sm font-medium text-slate-400" data-testid="flashcard-count">
+      <div className="mt-6 flex items-center justify-between">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400">Tarjetas</h3>
+        <span className="text-xs font-medium text-slate-400" data-testid="flashcard-count">
           {cards.length} en total
         </span>
       </div>
 
       {loading ? (
-        <div className="mt-6 flex items-center gap-2 text-slate-400" data-testid="cards-loading">
+        <div className="mt-4 flex items-center gap-2 text-slate-400" data-testid="cards-loading">
           <Loader2 className="w-4 h-4 animate-spin" /> Cargando…
         </div>
       ) : cards.length === 0 ? (
-        <div className="mt-6 text-center border border-dashed border-slate-300 rounded-2xl py-12 text-slate-400" data-testid="cards-empty">
-          <Layers className="w-8 h-8 mx-auto mb-2" />
+        <div className="mt-4 text-center border border-dashed border-slate-300 rounded-2xl py-10 text-slate-400" data-testid="cards-empty">
+          <Layers className="w-6 h-6 mx-auto mb-1.5" />
           Aún no hay tarjetas en este mazo.
         </div>
       ) : (
-        <div className="mt-6 grid sm:grid-cols-2 lg:grid-cols-3 gap-4" data-testid="cards-grid">
+        <div className="mt-4 grid sm:grid-cols-2 lg:grid-cols-3 gap-4" data-testid="cards-grid">
           {cards.map((card) => {
             const hasBg = !!card.bgImage;
             const alignClass = ALIGN_CLASS[card.textAlign] || 'text-center';
@@ -885,10 +888,9 @@ function DeckInterior({ deck, userId, onBack }) {
                 className="relative rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow overflow-hidden bg-white"
                 data-testid="flashcard-item"
               >
-                {/* Overlay oscuro para legibilidad cuando hay imagen */}
                 {hasBg && <span className="absolute inset-0 bg-black/55" data-testid="flashcard-overlay" />}
 
-                <div className="relative z-10 p-5 pt-7">
+                <div className="relative z-10 p-4 pt-6">
                   <span className="absolute top-2 left-1/2 -translate-x-1/2 w-7 h-1.5 rounded-full bg-slate-400/40" />
                   <div className="flex justify-end gap-1 mb-1">
                     <button
@@ -907,19 +909,19 @@ function DeckInterior({ deck, userId, onBack }) {
                     </button>
                   </div>
 
-                  <p className={`text-xs font-semibold uppercase tracking-wide ${hasBg ? 'text-white/70' : 'text-slate-400'}`}>
+                  <p className={`text-[10px] font-semibold uppercase tracking-wide ${hasBg ? 'text-white/70' : 'text-slate-400'}`}>
                     Pregunta
                   </p>
-                  <p className={`mt-1 font-semibold whitespace-pre-wrap ${sizeClass} ${alignClass} ${hasBg ? 'text-white' : 'text-slate-900'}`}>
+                  <p className={`mt-0.5 font-semibold whitespace-pre-wrap ${sizeClass} ${alignClass} ${hasBg ? 'text-white' : 'text-slate-900'}`}>
                     {card.question}
                   </p>
 
-                  <div className={`my-4 border-t border-dashed ${hasBg ? 'border-white/30' : 'border-slate-200'}`} />
+                  <div className={`my-3 border-t border-dashed ${hasBg ? 'border-white/30' : 'border-slate-200'}`} />
 
-                  <p className={`text-xs font-semibold uppercase tracking-wide ${hasBg ? 'text-white/70' : 'text-slate-400'}`}>
+                  <p className={`text-[10px] font-semibold uppercase tracking-wide ${hasBg ? 'text-white/70' : 'text-slate-400'}`}>
                     Respuesta
                   </p>
-                  <p className={`mt-1 whitespace-pre-wrap ${sizeClass} ${alignClass} ${hasBg ? 'text-white/90' : 'text-slate-700'}`}>
+                  <p className={`mt-0.5 whitespace-pre-wrap ${sizeClass} ${alignClass} ${hasBg ? 'text-white/90' : 'text-slate-700'}`}>
                     {card.answer}
                   </p>
                 </div>
@@ -1101,7 +1103,7 @@ function LibrarySection({ userId }) {
 // -----------------------------------------------------------------------------
 function SettingsSection({ userId }) {
   const [apiKey, setApiKey] = useState('');
-  const [masked, setMasked] = useState('');
+  const [masked, setMask = useState('');
   const [hasKey, setHasKey] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -1114,7 +1116,7 @@ function SettingsSection({ userId }) {
         if (res.ok) {
           const data = await res.json();
           setHasKey(data.hasApiKey);
-          setMasked(data.apiKeyMasked || '');
+          setMask(data.apiKeyMasked || '');
         }
       } catch {
         /* ignore */
@@ -1136,7 +1138,7 @@ function SettingsSection({ userId }) {
       if (!res.ok) throw new Error('No se pudo guardar la clave.');
       const data = await res.json();
       setHasKey(data.hasApiKey);
-      setMasked(data.apiKeyMasked || '');
+      setMask(data.apiKeyMasked || '');
       setApiKey('');
       setSaved(true);
     } catch (e) {
@@ -1268,21 +1270,8 @@ function DashboardScreen({ user, verified, onLogout }) {
           </div>
         </div>
 
-        <div className="max-w-5xl mx-auto px-6 py-8">
-          <div className="flex items-center justify-end mb-4">
-            <span
-              className={`inline-flex items-center gap-1.5 text-xs font-medium rounded-full px-2.5 py-1 ${
-                verified
-                  ? 'bg-green-50 text-green-700 border border-green-100'
-                  : 'bg-amber-50 text-amber-700 border border-amber-100'
-              }`}
-              data-testid="verification-badge"
-            >
-              <ShieldCheck className="w-3.5 h-3.5" />
-              {verified ? 'Sesión verificada' : 'Verificando…'}
-            </span>
-          </div>
-
+        {/* CORRECCIÓN: Quitamos el div superior de la insignia de verificación y comprimimos el padding lateral/vertical */}
+        <div className="max-w-5xl mx-auto px-4 py-4 md:px-6 md:py-8">
           {tab === 'library' ? (
             <LibrarySection userId={user.id} />
           ) : (
