@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
 import {
@@ -312,6 +312,170 @@ function DeckCard({ deck, onOpen, onEdit, onDelete }) {
 }
 
 // -----------------------------------------------------------------------------
+// Modo Repaso — carrusel de estudio
+// -----------------------------------------------------------------------------
+function ReviewMode({ cards, loading }) {
+  const [index, setIndex] = useState(0);
+  const [showAnswer, setShowAnswer] = useState(false);
+  const touchStartX = useRef(null);
+
+  useEffect(() => {
+    if (index > cards.length - 1) setIndex(Math.max(0, cards.length - 1));
+  }, [cards.length, index]);
+
+  if (loading) {
+    return (
+      <div className="mt-8 flex items-center gap-2 text-slate-400" data-testid="review-loading">
+        <Loader2 className="w-4 h-4 animate-spin" /> Cargando…
+      </div>
+    );
+  }
+
+  if (cards.length === 0) {
+    return (
+      <div
+        className="mt-8 text-center border border-dashed border-slate-300 rounded-2xl py-16 text-slate-400"
+        data-testid="review-empty"
+      >
+        <BookOpen className="w-8 h-8 mx-auto mb-2" />
+        No hay tarjetas para repasar en este mazo
+      </div>
+    );
+  }
+
+  const card = cards[index];
+  const hasBg = !!card.bgImage;
+  const alignClass = ALIGN_CLASS[card.textAlign] || 'text-center';
+  const sizeClass = card.fontSize || 'text-base';
+  const cardStyle = hasBg
+    ? { backgroundImage: `url(${card.bgImage})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+    : {};
+  const progress = ((index + 1) / cards.length) * 100;
+
+  const goPrev = () => {
+    setIndex((i) => (i - 1 + cards.length) % cards.length);
+    setShowAnswer(false);
+  };
+  const goNext = () => {
+    setIndex((i) => (i + 1) % cards.length);
+    setShowAnswer(false);
+  };
+
+  const onTouchStart = (e) => {
+    touchStartX.current = e.changedTouches[0].clientX;
+  };
+  const onTouchEnd = (e) => {
+    if (touchStartX.current == null) return;
+    const dx = e.changedTouches[0].clientX - touchStartX.current;
+    if (Math.abs(dx) > 50) {
+      if (dx < 0) goNext();
+      else goPrev();
+    }
+    touchStartX.current = null;
+  };
+
+  return (
+    <div className="mt-8" data-testid="review-mode">
+      <p className="text-center text-sm font-medium text-slate-500" data-testid="review-counter">
+        Tarjeta {index + 1} de {cards.length}
+      </p>
+
+      <div className="relative mt-4 max-w-2xl mx-auto">
+        {/* Flechas (escritorio) */}
+        <button
+          onClick={goPrev}
+          className="hidden sm:flex absolute -left-5 top-1/2 -translate-y-1/2 z-20 w-10 h-10 items-center justify-center rounded-full bg-white border border-slate-200 shadow hover:bg-slate-50 transition-colors"
+          data-testid="review-prev"
+        >
+          <ChevronLeft className="w-5 h-5 text-slate-700" />
+        </button>
+        <button
+          onClick={goNext}
+          className="hidden sm:flex absolute -right-5 top-1/2 -translate-y-1/2 z-20 w-10 h-10 items-center justify-center rounded-full bg-white border border-slate-200 shadow hover:bg-slate-50 transition-colors"
+          data-testid="review-next"
+        >
+          <ChevronRight className="w-5 h-5 text-slate-700" />
+        </button>
+
+        {/* Tarjeta */}
+        <div
+          onTouchStart={onTouchStart}
+          onTouchEnd={onTouchEnd}
+          style={cardStyle}
+          className="relative rounded-3xl border border-slate-200 shadow-lg overflow-hidden bg-white min-h-[340px] flex flex-col select-none"
+          data-testid="review-card"
+        >
+          {/* Barra de progreso */}
+          <div className="absolute top-0 inset-x-0 h-1.5 bg-black/10 z-20">
+            <div
+              className="h-full bg-slate-900/80 transition-all duration-300"
+              style={{ width: `${progress}%` }}
+              data-testid="review-progress"
+            />
+          </div>
+
+          {hasBg && <span className="absolute inset-0 bg-black/55" />}
+
+          {/* Detalle del llavero */}
+          <span className="absolute top-4 left-1/2 -translate-x-1/2 w-10 h-2.5 rounded-full bg-slate-400/40 z-10" />
+
+          <div className="relative z-10 flex-1 flex flex-col justify-center p-8 pt-10">
+            <p
+              className={`text-xs font-semibold uppercase tracking-widest ${alignClass} ${
+                hasBg ? 'text-white/70' : 'text-slate-400'
+              }`}
+            >
+              {showAnswer ? 'Respuesta' : 'Pregunta'}
+            </p>
+            <div key={`${index}-${showAnswer}`} className="mt-3 animate-[fadeIn_0.25s_ease]">
+              <p
+                className={`font-semibold whitespace-pre-wrap ${sizeClass} ${alignClass} ${
+                  hasBg ? 'text-white' : 'text-slate-900'
+                }`}
+                data-testid="review-text"
+              >
+                {showAnswer ? card.answer : card.question}
+              </p>
+            </div>
+          </div>
+
+          <div className="relative z-10 p-6 pt-0">
+            <button
+              onClick={() => setShowAnswer((s) => !s)}
+              className={`w-full inline-flex items-center justify-center gap-2 rounded-xl py-3 font-medium transition-colors ${
+                hasBg ? 'bg-white/90 text-slate-900 hover:bg-white' : 'bg-slate-900 text-white hover:bg-slate-800'
+              }`}
+              data-testid="flip-card-button"
+            >
+              <RotateCw className="w-4 h-4" />
+              {showAnswer ? 'Mostrar Pregunta' : 'Voltear tarjeta'}
+            </button>
+          </div>
+        </div>
+
+        {/* Flechas (móvil) */}
+        <div className="sm:hidden mt-4 flex justify-between">
+          <button
+            onClick={goPrev}
+            className="w-11 h-11 flex items-center justify-center rounded-full bg-white border border-slate-200 shadow"
+            data-testid="review-prev-mobile"
+          >
+            <ChevronLeft className="w-5 h-5 text-slate-700" />
+          </button>
+          <button
+            onClick={goNext}
+            className="w-11 h-11 flex items-center justify-center rounded-full bg-white border border-slate-200 shadow"
+            data-testid="review-next-mobile"
+          >
+            <ChevronRight className="w-5 h-5 text-slate-700" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
 // Deck interior — editor con estilos + grid de tarjetas
 // -----------------------------------------------------------------------------
 function DeckInterior({ deck, userId, onBack }) {
@@ -332,6 +496,7 @@ function DeckInterior({ deck, userId, onBack }) {
   const [editingId, setEditingId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [mode, setMode] = useState('edit'); // 'edit' | 'review'
 
   const loadCards = useCallback(async () => {
     setLoading(true);
@@ -472,6 +637,34 @@ function DeckInterior({ deck, userId, onBack }) {
         </h2>
       </div>
 
+      {/* Selector de modo */}
+      <div className="mt-5 inline-flex rounded-xl border border-slate-200 bg-white p-1" data-testid="mode-tabs">
+        <button
+          type="button"
+          onClick={() => setMode('edit')}
+          className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+            mode === 'edit' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'
+          }`}
+          data-testid="mode-edit-tab"
+        >
+          <Pencil className="w-4 h-4" /> Modo Edición
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode('review')}
+          className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+            mode === 'review' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'
+          }`}
+          data-testid="mode-review-tab"
+        >
+          <BookOpen className="w-4 h-4" /> Modo Repaso
+        </button>
+      </div>
+
+      {mode === 'review' && <ReviewMode cards={cards} loading={loading} />}
+
+      {mode === 'edit' && (
+      <>
       {/* Editor */}
       <form
         onSubmit={handleSubmit}
@@ -689,6 +882,8 @@ function DeckInterior({ deck, userId, onBack }) {
             );
           })}
         </div>
+      )}
+      </>
       )}
     </div>
   );
