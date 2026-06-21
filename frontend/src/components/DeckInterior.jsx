@@ -51,6 +51,27 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
     setFontSize(defaultStyles.fontSize); setEditingId(null);
   };
 
+  // 🌟 REINCORPORADO: El exportador que faltaba y causaba el ReferenceError
+  const handleExport = async () => {
+    setError('');
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/decks/${deck.id}/export`);
+      if (!res.ok) throw new Error('No se pudo exportar el mazo.');
+      const data = await res.json();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${(deck.title || 'mazo').replace(/[^\w\s-]/g, '').trim() || 'mazo'}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
@@ -86,11 +107,8 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
           body: JSON.stringify({ userId, deckId: deck.id, batchStyles: { bgImage, textAlign, fontSize }, cards: parsedCards }),
         });
         if (!res.ok) throw new Error('No se pudo guardar el lote.');
-        
-        // ✅ CORREGIDO: Resolvemos el JSON de forma externa antes del setCards
         const batchData = await res.json();
         setCards((prev) => [...batchData, ...prev]);
-        
         resetForm(); setIsBulk(false);
       } catch (err) { setError(err.message); } finally { setSaving(false); }
       return;
@@ -117,11 +135,8 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
           body: JSON.stringify({ userId, deckId: deck.id, ...body }),
         });
         if (!res.ok) throw new Error('No se pudo crear.');
-        
-        // ✅ CORREGIDO: Resolvemos el JSON de forma externa antes del setCards
         const newCard = await res.json();
         setCards((prev) => [newCard, ...prev]);
-        
         setQuestion(''); setAnswer('');
       }
     } catch (e) { setError(e.message); } finally { setSaving(false); }
