@@ -496,6 +496,52 @@ app.post('/api/flashcards', async (req, res) => {
   }
 });
 
+// POST /api/flashcards/bulk — Crear múltiples flashcards en un solo lote optimizado
+app.post('/api/flashcards/bulk', async (req, res) => {
+  try {
+    const { userId, deckId, cards } = req.body || {};
+    if (!mongoose.isValidObjectId(userId) || !mongoose.isValidObjectId(deckId)) {
+      return res.status(400).json({ error: 'IDs de usuario o mazo inválidos.' });
+    }
+    if (!Array.isArray(cards) || cards.length === 0) {
+      return res.status(400).json({ error: 'No se proporcionaron tarjetas válidas.' });
+    }
+
+    // Resolvemos el índice de fondo una sola vez tomando el de la primera tarjeta con imagen
+    const firstWithBg = cards.find((c) => c.bgImage);
+    const bgImageIndex = firstWithBg ? await getOrCreateBgIndex(deckId, firstWithBg.bgImage) : -1;
+
+    // Estructuramos el lote asignando los punteros e índices correspondientes
+    const docs = cards
+      .filter((c) => c && c.question?.trim() && c.answer?.trim())
+      .map((c) => ({
+        userId,
+        deckId,
+        question: String(c.question).trim(),
+        answer: String(c.answer).trim(),
+        bgImageIndex: c.bgImage ? bgImageIndex : -1,
+        textAlign: ['left', 'center', 'right'].includes(c.textAlign) ? c.textAlign : 'center',
+        fontSize: typeof c.fontSize === 'string' ? c.fontSize : 'text-base',
+      }));
+
+    if (docs.length === 0) {
+      return res.status(400).json({ error: 'Ninguna tarjeta provista tiene un formato válido.' });
+    }
+
+    // Inserción masiva ultra rápida en la base de datos
+    const inserted = await Flashcard.insertMany(docs);
+
+    // Traemos el mazo para inflar las respuestas con su pool de imágenes
+    const deck = await Deck.findById(deckId);
+    const backgrounds = deck ? deck.cardBackgrounds : [];
+
+    return res.status(201).json(inserted.map((c) => serializeFlashcard(c, backgrounds)));
+  } catch (err) {
+    console.error('[flashcards:bulk] error:', err.message);
+    return res.status(500).json({ error: 'Error interno del servidor al crear lote.' });
+  }
+});
+
 // PUT /api/flashcards/:id — edit a flashcard
 app.put('/api/flashcards/:id', async (req, res) => {
   try {
