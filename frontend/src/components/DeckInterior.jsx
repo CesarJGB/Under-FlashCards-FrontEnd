@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Loader2 } from 'lucide-react';
+import { jsPDF } from 'jspdf'; // 🌟 IMPORTACIÓN DE LA LIBRERÍA
 import ReviewMode from './ReviewMode';
 import DeckHeader from './DeckHeader';
 import FlashcardCreator from './FlashcardCreator';
@@ -51,7 +52,6 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
     setFontSize(defaultStyles.fontSize); setEditingId(null);
   };
 
-  // 🌟 REINCORPORADO: El exportador que faltaba y causaba el ReferenceError
   const handleExport = async () => {
     setError('');
     try {
@@ -67,9 +67,83 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
-    } catch (e) {
-      setError(e.message);
+    } catch (e) { setError(e.message); }
+  };
+
+  // 🌟 CONSTRUCTOR DE GUÍA DE ESTUDIO EN PDF (MODO EDICIÓN ASOCIADO)
+  const handleExportPDF = () => {
+    if (cards.length === 0) {
+      setError('No hay tarjetas en este mazo para exportar a PDF.');
+      return;
     }
+
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth(); // Ancho de página estándar
+    const margin = 15;
+    const contentWidth = pageWidth - (margin * 2);
+
+    // Encabezado del Documento
+    doc.setFont("Helvetica", "bold");
+    doc.setFontSize(22);
+    doc.text(`Guía de Estudio: ${deck.title}`, margin, 22);
+
+    doc.setFont("Helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(100, 116, 139); // Color Gris Slate
+    doc.text(`Total de tarjetas: ${cards.length} | Generado el ${new Date().toLocaleDateString()}`, margin, 29);
+
+    // Línea divisoria elegante
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.5);
+    doc.line(margin, 32, pageWidth - margin, 32);
+
+    let y = 42; // Coordenada vertical de inicio de contenido
+
+    cards.forEach((card, index) => {
+      // Divide el texto largo en líneas que se ajusten al ancho físico de la hoja
+      const qLines = doc.splitTextToSize(`P: ${card.question}`, contentWidth);
+      const aLines = doc.splitTextToSize(`R: ${card.answer}`, contentWidth);
+      
+      // Calcula la altura total que consumirá este bloque de tarjeta
+      const blockHeight = (qLines.length * 6) + (aLines.length * 6) + 12;
+
+      // 🚨 CONTROL DE DESBORDAMIENTO: Si el bloque no cabe en la hoja actual, añade una página limpia
+      if (y + blockHeight > 275) {
+        doc.addPage();
+        y = 22; // Reinicia el cursor arriba en la nueva hoja
+      }
+
+      // Dibujar recuadro contenedor sutil para separar las tarjetas visualmente
+      doc.setFillColor(250, 250, 250);
+      doc.setDrawColor(241, 245, 249);
+      doc.roundedRect(margin - 2, y - 6, contentWidth + 4, blockHeight - 4, 3, 3, "FD");
+
+      // Imprimir Pregunta
+      doc.setFont("Helvetica", "bold");
+      doc.setFontSize(11);
+      doc.setTextColor(15, 23, 42); // Slate oscuro
+      qLines.forEach((line, i) => {
+        doc.text(line, margin, y + (i * 6));
+      });
+      
+      y += (qLines.length * 6) + 3;
+
+      // Imprimir Respuesta
+      doc.setFont("Helvetica", "normal");
+      doc.setFontSize(11);
+      doc.setTextColor(71, 85, 105); // Slate medio
+      aLines.forEach((line, i) => {
+        doc.text(line, margin, y + (i * 6));
+      });
+
+      // Espaciado de separación para el próximo bloque
+      y += (aLines.length * 6) + 12;
+    </center>
+    });
+
+    // Descarga automática del archivo PDF terminado
+    const safeName = (deck.title || 'guia-estudio').replace(/[^\w\s-]/g, '').trim();
+    doc.save(`${safeName}.pdf`);
   };
 
   const handleSubmit = async (e) => {
@@ -77,7 +151,6 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
     setSaving(true);
     setError('');
 
-    // LÓGICA MASIVA
     if (isBulk && !editingId) {
       const lines = bulkText.split('\n');
       const parsedCards = [];
@@ -114,7 +187,6 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
       return;
     }
 
-    // LÓGICA TARJETA ÚNICA
     if (!question.trim() || !answer.trim()) { setSaving(false); return; }
     const body = { question, answer, bgImage, textAlign, fontSize };
     try {
@@ -159,7 +231,15 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
 
   return (
     <div data-testid="deck-interior">
-      <DeckHeader deck={deck} mode={mode} setMode={setMode} onBack={onBack} onExport={handleExport} />
+      {/* 🌟 ENLAZADO: Pasamos handleExportPDF al encabezado */}
+      <DeckHeader 
+        deck={deck} 
+        mode={mode} 
+        setMode={setMode} 
+        onBack={onBack} 
+        onExport={handleExport} 
+        onExportPDF={handleExportPDF} 
+      />
 
       {loading ? (
         <div className="mt-12 flex flex-col items-center justify-center gap-3 text-slate-400 py-12">
