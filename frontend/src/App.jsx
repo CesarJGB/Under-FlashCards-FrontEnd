@@ -325,6 +325,15 @@ function ReviewMode({ cards, loading }) {
   const [showAnswer, setShowAnswer] = useState(false);
   const touchStartX = useRef(null);
 
+  // EFECTO MÁGICO: Congela por completo el scroll vertical en móviles mientras estudias
+  useEffect(() => {
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = originalOverflow || 'unset';
+    };
+  }, []);
+
   useEffect(() => {
     if (index > cards.length - 1) setIndex(Math.max(0, cards.length - 1));
   }, [cards.length, index]);
@@ -403,13 +412,13 @@ function ReviewMode({ cards, loading }) {
           <ChevronRight className="w-5 h-5 text-slate-700" />
         </button>
 
-        {/* Tarjeta */}
+        {/* Tarjeta con control estricto de gestos horizontales en Chrome */}
         <div
           key={index}
           onTouchStart={onTouchStart}
           onTouchEnd={onTouchEnd}
           style={cardStyle}
-          className="relative rounded-3xl border border-slate-200 shadow-lg overflow-hidden bg-white min-h-[340px] flex flex-col select-none animate-[slideIn_0.2s_ease-out]"
+          className="relative rounded-3xl border border-slate-200 shadow-lg overflow-hidden bg-white min-h-[340px] flex flex-col select-none animate-[slideIn_0.2s_ease-out] touch-pan-x overscroll-none"
           data-testid="review-card"
         >
           {/* Barra de progreso */}
@@ -494,7 +503,6 @@ function DeckInterior({ deck, userId, onBack }) {
   const [textAlign, setTextAlign] = useState('center');
   const [fontSize, setFontSize] = useState('text-base');
   const [showStyles, setShowStyles] = useState(false);
-  // Estilos "pegajosos" para crear tarjetas en lote sin reconfigurar.
   const [defaultStyles, setDefaultStyles] = useState({
     bgImage: '',
     textAlign: 'center',
@@ -503,7 +511,7 @@ function DeckInterior({ deck, userId, onBack }) {
   const [editingId, setEditingId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [mode, setMode] = useState('edit'); // 'edit' | 'review'
+  const [mode, setMode] = useState('edit');
 
   const loadCards = useCallback(async () => {
     setLoading(true);
@@ -526,14 +534,12 @@ function DeckInterior({ deck, userId, onBack }) {
   const resetForm = () => {
     setQuestion('');
     setAnswer('');
-    // Recupera los estilos predeterminados persistentes (no los de la tarjeta editada).
     setBgImage(defaultStyles.bgImage);
     setTextAlign(defaultStyles.textAlign);
     setFontSize(defaultStyles.fontSize);
     setEditingId(null);
   };
 
-  // Mientras se crea (no se edita), recuerda los estilos elegidos como predeterminados.
   useEffect(() => {
     if (editingId === null) {
       setDefaultStyles({ bgImage, textAlign, fontSize });
@@ -587,7 +593,6 @@ function DeckInterior({ deck, userId, onBack }) {
         if (!res.ok) throw new Error('No se pudo actualizar la tarjeta.');
         const updated = await res.json();
         setCards((prev) => prev.map((c) => (c.id === editingId ? updated : c)));
-        // Al terminar la edición, recupera los estilos predeterminados persistentes.
         resetForm();
       } else {
         const res = await fetch(`${BACKEND_URL}/api/flashcards`, {
@@ -598,7 +603,6 @@ function DeckInterior({ deck, userId, onBack }) {
         if (!res.ok) throw new Error('No se pudo crear la tarjeta.');
         const created = await res.json();
         setCards((prev) => [created, ...prev]);
-        // Crear en lote: limpia solo el texto y MANTÉN los estilos.
         setQuestion('');
         setAnswer('');
       }
@@ -676,30 +680,30 @@ function DeckInterior({ deck, userId, onBack }) {
       </div>
       )}
 
-      {/* Selector de modo */}
-      <div className="mt-5 flex justify-center">
-      <div className="inline-flex rounded-xl border border-slate-200 bg-white p-1" data-testid="mode-tabs">
-        <button
-          type="button"
-          onClick={() => setMode('edit')}
-          className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-            mode === 'edit' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'
-          }`}
-          data-testid="mode-edit-tab"
-        >
-          <Pencil className="w-4 h-4" /> Modo Edición
-        </button>
-        <button
-          type="button"
-          onClick={() => setMode('review')}
-          className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-            mode === 'review' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'
-          }`}
-          data-testid="mode-review-tab"
-        >
-          <BookOpen className="w-4 h-4" /> Modo Repaso
-        </button>
-      </div>
+      {/* Selector de modo — AJUSTADO: max-w-2xl mx-auto y flex justify-center para centrado simétrico absoluto */}
+      <div className="mt-5 max-w-2xl mx-auto flex justify-center">
+        <div className="inline-flex rounded-xl border border-slate-200 bg-white p-1" data-testid="mode-tabs">
+          <button
+            type="button"
+            onClick={() => setMode('edit')}
+            className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+              mode === 'edit' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'
+            }`}
+            data-testid="mode-edit-tab"
+          >
+            <Pencil className="w-4 h-4" /> Modo Edición
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode('review')}
+            className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+              mode === 'review' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'
+            }`}
+            data-testid="mode-review-tab"
+          >
+            <BookOpen className="w-4 h-4" /> Modo Repaso
+          </button>
+        </div>
       </div>
 
       {mode === 'review' && <ReviewMode cards={cards} loading={loading} />}
