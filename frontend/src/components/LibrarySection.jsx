@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Upload, Plus, Library, Loader2 } from 'lucide-react';
+import { Upload, Plus, Library, Loader2, Sparkles } from 'lucide-react';
 import DeckCard from './DeckCard';
 import DeckModal from './DeckModal';
 import DeckInterior from './DeckInterior';
@@ -14,6 +14,9 @@ export default function LibrarySection({ userId }) {
   const [currentDeck, setCurrentDeck] = useState(null);
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef(null);
+
+  // Estado para controlar la apertura del menú flotante expansible (FAB)
+  const [fabOpen, setFabOpen] = useState(false);
 
   const loadDecks = useCallback(async () => {
     setLoading(true);
@@ -99,37 +102,22 @@ export default function LibrarySection({ userId }) {
   }
 
   return (
-    <div data-testid="library-section">
+    <div data-testid="library-section" className="relative min-h-[60vh]">
+      {/* Entrada de archivos nativa e invisible */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".json"
+        onChange={handleImport}
+        className="hidden"
+        data-testid="import-file-input"
+      />
+
+      {/* Cabecera limpia y minimalista sin botones estorbosos */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-slate-900">Biblioteca</h2>
           <p className="text-slate-500 mt-1">Tus mazos de estudio.</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".json"
-            onChange={handleImport}
-            className="hidden"
-            data-testid="import-file-input"
-          />
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={importing}
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-slate-700 font-medium hover:bg-slate-50 disabled:opacity-50 transition-colors"
-            data-testid="import-deck-button"
-          >
-            {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-            Importar mazo
-          </button>
-          <button
-            onClick={() => setModal({})}
-            className="inline-flex items-center gap-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-medium px-5 py-2.5"
-            data-testid="create-deck-button"
-          >
-            <Plus className="w-4 h-4" /> Nuevo mazo
-          </button>
         </div>
       </div>
 
@@ -142,10 +130,10 @@ export default function LibrarySection({ userId }) {
       ) : decks.length === 0 ? (
         <div className="mt-8 text-center border border-dashed border-slate-300 rounded-2xl py-16 text-slate-400" data-testid="decks-empty">
           <Library className="w-8 h-8 mx-auto mb-2" />
-          Aún no tienes mazos. Crea tu primer mazo.
+          Aún no tienes mazos. Crea tu primer mazo usando el botón inferior.
         </div>
       ) : (
-        <div className="mt-8 grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" data-testid="decks-grid">
+        <div className="mt-8 grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pb-12" data-testid="decks-grid">
           {decks.map((deck) => (
             <DeckCard
               key={deck.id}
@@ -161,6 +149,66 @@ export default function LibrarySection({ userId }) {
       {modal && (
         <DeckModal initial={modal.editing} onClose={() => setModal(null)} onSave={handleSaveDeck} />
       )}
+
+      {/* 📱 MENU ACCION FLOTANTE INTELIGENTE (FAB) */}
+      <div className="fixed bottom-20 right-4 md:bottom-8 md:right-8 z-50 flex flex-col items-end gap-2">
+        {/* Capa traslúcida que cubre la pantalla al abrirse para cerrar el menú si tocas fuera */}
+        {fabOpen && (
+          <div
+            onClick={() => setFabOpen(false)}
+            className="fixed inset-0 bg-slate-900/10 backdrop-blur-xs z-40 animate-[fadeIn_0.15s_ease]"
+          />
+        )}
+
+        {/* Lista de sub-botones flotantes verticales */}
+        {fabOpen && (
+          <div className="flex flex-col items-end gap-2 z-50 mb-2 animate-[slideUp_0.15s_ease-out]">
+            {/* Opción Futura: Generar con IA */}
+            <button
+              onClick={() => { setFabOpen(false); /* Tu función de IA irá aquí */ }}
+              className="flex items-center gap-2.5 bg-slate-800 text-white px-3.5 py-2 rounded-2xl text-xs font-bold shadow-lg hover:bg-slate-700 active:scale-95 transition-all border border-slate-700/50"
+            >
+              <span>Generar con IA</span>
+              <div className="w-7 h-7 bg-slate-700/60 rounded-xl flex items-center justify-center shadow-inner">
+                <Sparkles className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+              </div>
+            </button>
+
+            {/* Opción: Importar mazo */}
+            <button
+              onClick={() => { setFabOpen(false); fileInputRef.current?.click(); }}
+              disabled={importing}
+              className="flex items-center gap-2.5 bg-white text-slate-700 border border-slate-200/80 px-3.5 py-2 rounded-2xl text-xs font-bold shadow-lg hover:bg-slate-50 active:scale-95 transition-all"
+            >
+              <span>Importar mazo</span>
+              <div className="w-7 h-7 bg-slate-50 rounded-xl flex items-center justify-center border border-slate-100">
+                {importing ? <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-500" /> : <Upload className="w-3.5 h-3.5 text-slate-500" />}
+              </div>
+            </button>
+
+            {/* Opción: Nuevo mazo */}
+            <button
+              onClick={() => { setFabOpen(false); setModal({}); }}
+              className="flex items-center gap-2.5 bg-white text-slate-700 border border-slate-200/80 px-3.5 py-2 rounded-2xl text-xs font-bold shadow-lg hover:bg-slate-50 active:scale-95 transition-all"
+            >
+              <span>Nuevo mazo</span>
+              <div className="w-7 h-7 bg-slate-50 rounded-xl flex items-center justify-center border border-slate-100">
+                <Plus className="w-3.5 h-3.5 text-slate-500" />
+              </div>
+            </button>
+          </div>
+        )}
+
+        {/* Botón Disparador Principal (Rota 45 grados y se transforma) */}
+        <button
+          onClick={() => setFabOpen(!fabOpen)}
+          className={`w-12 h-12 rounded-full flex items-center justify-center text-white shadow-xl z-50 transition-all duration-200 active:scale-90 ${
+            fabOpen ? 'bg-slate-800 rotate-45' : 'bg-slate-900 hover:bg-slate-800 hover:scale-105'
+          }`}
+        >
+          <Plus className="w-5 h-5" />
+        </button>
+      </div>
     </div>
   );
 }
