@@ -62,6 +62,8 @@ const deckSchema = new mongoose.Schema(
     coverImage: { type: String, default: '' },
     // 📸 EL POOL: Guarda cada imagen base64 ÚNICA del mazo una sola vez para optimizar espacio
     cardBackgrounds: { type: [String], default: [] },
+    // ⭐ FAVORITOS: Guardado correctamente dentro de la estructura del esquema
+    isStarred: { type: Boolean, default: false },
   },
   { timestamps: true }
 );
@@ -121,6 +123,7 @@ const serializeDeck = (d, cardCount) => ({
   coverImage: d.coverImage,
   cardCount: typeof cardCount === 'number' ? cardCount : undefined,
   cardBackgrounds: d.cardBackgrounds || [], // Lo exponemos para portabilidad de importación/exportación
+  isStarred: d.isStarred || false,
   createdAt: d.createdAt,
 });
 
@@ -328,18 +331,19 @@ app.post('/api/decks', async (req, res) => {
   }
 });
 
-// PUT /api/decks/:id — update a deck
+// PUT /api/decks/:id — update a deck (CON ISSTARRED CORREGIDO E INTEGRADO)
 app.put('/api/decks/:id', async (req, res) => {
   try {
     const { id } = req.params;
     if (!mongoose.isValidObjectId(id)) {
       return res.status(400).json({ error: 'Invalid deck id.' });
     }
-    const { title, coverColor, coverImage } = req.body || {};
+    const { title, coverColor, coverImage, isStarred } = req.body || {};
     const update = {};
     if (typeof title === 'string') update.title = title.trim();
     if (typeof coverColor === 'string') update.coverColor = coverColor;
     if (typeof coverImage === 'string') update.coverImage = coverImage;
+    if (typeof isStarred === 'boolean') update.isStarred = isStarred;
 
     const deck = await Deck.findByIdAndUpdate(id, { $set: update }, { new: true });
     if (!deck) return res.status(404).json({ error: 'Deck not found.' });
@@ -469,7 +473,6 @@ app.post('/api/flashcards/bulk', async (req, res) => {
     for (const c of cards) {
       if (!c || !c.question?.trim() || !c.answer?.trim()) continue;
 
-      // Lee la imagen de forma tolerante si viene global o en la tarjeta individual
       const currentBg = c.bgImage || globalBg;
       let bgImageIndex = -1;
 
@@ -497,7 +500,6 @@ app.post('/api/flashcards/bulk', async (req, res) => {
       return res.status(400).json({ error: 'Ninguna tarjeta tiene formato válido.' });
     }
 
-    // Sincroniza los nuevos fondos agregados al pool del mazo
     await currentDeck.save();
 
     const inserted = await Flashcard.insertMany(docs);
@@ -573,42 +575,4 @@ app.put('/api/flashcards/:id', async (req, res) => {
     const update = {};
     if (typeof question === 'string') update.question = question.trim();
     if (typeof answer === 'string') update.answer = answer.trim();
-    if (['left', 'center', 'right'].includes(textAlign)) update.textAlign = textAlign;
-    if (typeof fontSize === 'string') update.fontSize = fontSize;
-
-    const currentCard = await Flashcard.findById(id);
-    if (!currentCard) return res.status(404).json({ error: 'Flashcard not found.' });
-
-    if (typeof bgImage === 'string') {
-      update.bgImageIndex = await getOrCreateBgIndex(currentCard.deckId, bgImage);
-    }
-
-    const card = await Flashcard.findByIdAndUpdate(id, { $set: update }, { new: true });
-    const deck = await Deck.findById(card.deckId);
-    return res.json(serializeFlashcard(card, deck ? deck.cardBackgrounds : []));
-  } catch (err) {
-    console.error('[flashcards:put] error:', err.message);
-    return res.status(500).json({ error: 'Server error.' });
-  }
-});
-
-// DELETE /api/flashcards/:id — delete a flashcard
-app.delete('/api/flashcards/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    if (!mongoose.isValidObjectId(id)) {
-      return res.status(400).json({ error: 'Invalid flashcard id.' });
-    }
-    const card = await Flashcard.findByIdAndDelete(id);
-    if (!card) return res.status(404).json({ error: 'Flashcard not found.' });
-    return res.json({ success: true, id });
-  } catch (err) {
-    console.error('[flashcards:delete] error:', err.message);
-    return res.status(500).json({ error: 'Server error.' });
-  }
-});
-
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Flashcards backend listening on port ${PORT}`);
-  console.log(`Allowed CORS origins: ${allowedOrigins.join(', ')}`);
-});
+    if (
