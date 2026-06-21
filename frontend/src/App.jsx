@@ -113,10 +113,11 @@ function DeckModal({ initial, onClose, onSave }) {
   const handleFile = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 1.5 * 1024 * 1024) {
-      setError('Image too large (max 1.5MB).');
-      return;
-    }
+    if (file.size > 700 * 1024) { // 700 KB máximo para asegurar el paso por el backend
+  setError('Image too large (max 700KB).');
+  return;
+}
+
     setError('');
     setCoverImage(await fileToBase64(file));
   };
