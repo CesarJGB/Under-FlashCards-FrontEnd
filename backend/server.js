@@ -485,7 +485,7 @@ app.post('/api/flashcards', async (req, res) => {
       answer: answer.trim(),
       bgImageIndex,
       ...(['left', 'center', 'right'].includes(textAlign) ? { textAlign } : {}),
-      ...(typeof fontSize === 'string' ? { fontSize: c?.fontSize || fontSize } : {}),
+      ...(typeof fontSize === 'string' ? { fontSize } : {}),
     });
 
     const deck = await Deck.findById(deckId);
