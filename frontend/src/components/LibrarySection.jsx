@@ -113,7 +113,7 @@ export default function LibrarySection({ userId }) {
         data-testid="import-file-input"
       />
 
-      {/* Cabecera limpia y minimalista sin botones estorbosos */}
+      {/* Cabecera limpia */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-slate-900">Biblioteca</h2>
@@ -150,9 +150,9 @@ export default function LibrarySection({ userId }) {
         <DeckModal initial={modal.editing} onClose={() => setModal(null)} onSave={handleSaveDeck} />
       )}
 
-      {/* 📱 MENU ACCION FLOTANTE INTELIGENTE (FAB) */}
+      {/* 📱 MENU ACCION FLOTANTE SIMÉTRICO (FAB) */}
       <div className="fixed bottom-20 right-4 md:bottom-8 md:right-8 z-50 flex flex-col items-end gap-2">
-        {/* Capa traslúcida que cubre la pantalla al abrirse para cerrar el menú si tocas fuera */}
+        {/* Capa traslúcida de fondo */}
         {fabOpen && (
           <div
             onClick={() => setFabOpen(false)}
@@ -160,13 +160,13 @@ export default function LibrarySection({ userId }) {
           />
         )}
 
-        {/* Lista de sub-botones flotantes verticales */}
+        {/* Lista de sub-botones con geometría idéntica */}
         {fabOpen && (
           <div className="flex flex-col items-end gap-2 z-50 mb-2 animate-[slideUp_0.15s_ease-out]">
-            {/* Opción Futura: Generar con IA */}
+            {/* Botón: Generar con IA (Alineación y tamaño idéntico) */}
             <button
               onClick={() => { setFabOpen(false); /* Tu función de IA irá aquí */ }}
-              className="flex items-center gap-2.5 bg-slate-800 text-white px-3.5 py-2 rounded-2xl text-xs font-bold shadow-lg hover:bg-slate-700 active:scale-95 transition-all border border-slate-700/50"
+              className="w-44 flex items-center justify-between bg-slate-800 text-white pl-3.5 pr-1.5 py-1.5 rounded-2xl text-xs font-bold shadow-lg hover:bg-slate-700 active:scale-95 transition-all border border-slate-700/50"
             >
               <span>Generar con IA</span>
               <div className="w-7 h-7 bg-slate-700/60 rounded-xl flex items-center justify-center shadow-inner">
@@ -174,11 +174,11 @@ export default function LibrarySection({ userId }) {
               </div>
             </button>
 
-            {/* Opción: Importar mazo */}
+            {/* Botón: Importar mazo (Alineación y tamaño idéntico) */}
             <button
               onClick={() => { setFabOpen(false); fileInputRef.current?.click(); }}
               disabled={importing}
-              className="flex items-center gap-2.5 bg-white text-slate-700 border border-slate-200/80 px-3.5 py-2 rounded-2xl text-xs font-bold shadow-lg hover:bg-slate-50 active:scale-95 transition-all"
+              className="w-44 flex items-center justify-between bg-white text-slate-700 border border-slate-200/80 pl-3.5 pr-1.5 py-1.5 rounded-2xl text-xs font-bold shadow-lg hover:bg-slate-50 active:scale-95 transition-all"
             >
               <span>Importar mazo</span>
               <div className="w-7 h-7 bg-slate-50 rounded-xl flex items-center justify-center border border-slate-100">
@@ -186,10 +186,10 @@ export default function LibrarySection({ userId }) {
               </div>
             </button>
 
-            {/* Opción: Nuevo mazo */}
+            {/* Botón: Nuevo mazo (Alineación y tamaño idéntico) */}
             <button
               onClick={() => { setFabOpen(false); setModal({}); }}
-              className="flex items-center gap-2.5 bg-white text-slate-700 border border-slate-200/80 px-3.5 py-2 rounded-2xl text-xs font-bold shadow-lg hover:bg-slate-50 active:scale-95 transition-all"
+              className="w-44 flex items-center justify-between bg-white text-slate-700 border border-slate-200/80 pl-3.5 pr-1.5 py-1.5 rounded-2xl text-xs font-bold shadow-lg hover:bg-slate-50 active:scale-95 transition-all"
             >
               <span>Nuevo mazo</span>
               <div className="w-7 h-7 bg-slate-50 rounded-xl flex items-center justify-center border border-slate-100">
@@ -199,16 +199,8 @@ export default function LibrarySection({ userId }) {
           </div>
         )}
 
-        {/* Botón Disparador Principal (Rota 45 grados y se transforma) */}
+        {/* Botón Disparador Principal */}
         <button
           onClick={() => setFabOpen(!fabOpen)}
           className={`w-12 h-12 rounded-full flex items-center justify-center text-white shadow-xl z-50 transition-all duration-200 active:scale-90 ${
-            fabOpen ? 'bg-slate-800 rotate-45' : 'bg-slate-900 hover:bg-slate-800 hover:scale-105'
-          }`}
-        >
-          <Plus className="w-5 h-5" />
-        </button>
-      </div>
-    </div>
-  );
-}
+            fabOpen ? 'bg
