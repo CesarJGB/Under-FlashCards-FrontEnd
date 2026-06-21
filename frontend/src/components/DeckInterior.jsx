@@ -86,7 +86,11 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
           body: JSON.stringify({ userId, deckId: deck.id, batchStyles: { bgImage, textAlign, fontSize }, cards: parsedCards }),
         });
         if (!res.ok) throw new Error('No se pudo guardar el lote.');
-        setCards((prev) => [...await res.json(), ...prev]);
+        
+        // ✅ CORREGIDO: Resolvemos el JSON de forma externa antes del setCards
+        const batchData = await res.json();
+        setCards((prev) => [...batchData, ...prev]);
+        
         resetForm(); setIsBulk(false);
       } catch (err) { setError(err.message); } finally { setSaving(false); }
       return;
@@ -113,7 +117,11 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
           body: JSON.stringify({ userId, deckId: deck.id, ...body }),
         });
         if (!res.ok) throw new Error('No se pudo crear.');
-        setCards((prev) => [await res.json(), ...prev]);
+        
+        // ✅ CORREGIDO: Resolvemos el JSON de forma externa antes del setCards
+        const newCard = await res.json();
+        setCards((prev) => [newCard, ...prev]);
+        
         setQuestion(''); setAnswer('');
       }
     } catch (e) { setError(e.message); } finally { setSaving(false); }
