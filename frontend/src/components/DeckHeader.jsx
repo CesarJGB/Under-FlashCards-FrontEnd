@@ -1,6 +1,21 @@
-import { ArrowLeft, Download, Layers, Pencil, BookOpen, FileText } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { ArrowLeft, Download, Layers, Pencil, BookOpen, FileText, ChevronDown, AlignLeft } from 'lucide-react';
 
 export default function DeckHeader({ deck, mode, setMode, onBack, onExport, onExportPDF }) {
+  const [pdfMenuOpen, setPdfMenuOpen] = useState(false);
+  const menuRef = useRef(null);
+
+  // Cerrar el menú flotante si el usuario toca fuera de él
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setPdfMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   const isDark = (hex) => {
     if (!hex || hex.length < 7) return false;
     const r = parseInt(hex.slice(1, 3), 16);
@@ -21,17 +36,38 @@ export default function DeckHeader({ deck, mode, setMode, onBack, onExport, onEx
           <ArrowLeft className="w-4 h-4" />
           Volver a la Biblioteca
         </button>
+        
         {mode === 'edit' && (
-          <div className="flex gap-2">
-            {/* 📄 NUEVO: Botón de Exportación a PDF */}
+          <div className="flex gap-2 relative" ref={menuRef}>
+            {/* 📥 BOTÓN DESPLEGABLE INTERACTIVO DE PDF */}
             <button
-              onClick={onExportPDF}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors shadow-sm"
-              title="Descargar guía de estudio en PDF"
+              onClick={() => setPdfMenuOpen(!pdfMenuOpen)}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors shadow-sm active:scale-95 animate-[fadeIn_0.15s_ease]"
             >
               <FileText className="w-4 h-4 text-slate-500" />
               <span className="hidden sm:inline">Descargar PDF</span>
+              <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${pdfMenuOpen ? 'rotate-180' : ''}`} />
             </button>
+
+            {/* Menú de opciones flotante */}
+            {pdfMenuOpen && (
+              <div className="absolute right-0 top-full mt-2 w-56 rounded-2xl bg-white border border-slate-200 p-1.5 shadow-xl z-50 animate-[slideUp_0.12s_ease-out]">
+                <button
+                  onClick={() => { setPdfMenuOpen(false); onExportPDF('guide'); }}
+                  className="w-full text-left px-3.5 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 rounded-xl flex flex-col gap-0.5"
+                >
+                  <span>📝 Guía de Texto Plano</span>
+                  <span className="text-[10px] font-normal text-slate-400">Formato de lista limpia y compacta</span>
+                </button>
+                <button
+                  onClick={() => { setPdfMenuOpen(false); onExportPDF('cards'); }}
+                  className="w-full text-left px-3.5 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 rounded-xl flex flex-col gap-0.5 border-t border-slate-100 mt-1 pt-2"
+                >
+                  <span>🎴 Tarjetas Visuales Completas</span>
+                  <span className="text-[10px] font-normal text-slate-400">Con fondos, estilos y rejilla imprimible</span>
+                </button>
+              </div>
+            )}
             
             <button
               onClick={onExport}
