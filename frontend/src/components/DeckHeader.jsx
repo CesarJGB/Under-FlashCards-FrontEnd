@@ -1,6 +1,6 @@
-import { ArrowLeft, Download, Layers, Pencil, BookOpen } from 'lucide-react';
+import { ArrowLeft, Download, Layers, Pencil, BookOpen, FileText } from 'lucide-react';
 
-export default function DeckHeader({ deck, mode, setMode, onBack, onExport }) {
+export default function DeckHeader({ deck, mode, setMode, onBack, onExport, onExportPDF }) {
   const isDark = (hex) => {
     if (!hex || hex.length < 7) return false;
     const r = parseInt(hex.slice(1, 3), 16);
@@ -22,13 +22,25 @@ export default function DeckHeader({ deck, mode, setMode, onBack, onExport }) {
           Volver a la Biblioteca
         </button>
         {mode === 'edit' && (
-          <button
-            onClick={onExport}
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
-          >
-            <Download className="w-4 h-4" />
-            Exportar mazo
-          </button>
+          <div className="flex gap-2">
+            {/* 📄 NUEVO: Botón de Exportación a PDF */}
+            <button
+              onClick={onExportPDF}
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors shadow-sm"
+              title="Descargar guía de estudio en PDF"
+            >
+              <FileText className="w-4 h-4 text-slate-500" />
+              <span className="hidden sm:inline">Descargar PDF</span>
+            </button>
+            
+            <button
+              onClick={onExport}
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors shadow-sm"
+            >
+              <Download className="w-4 h-4 text-slate-500" />
+              <span className="hidden sm:inline">Exportar JSON</span>
+            </button>
+          </div>
         )}
       </div>
 
