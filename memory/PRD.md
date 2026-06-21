@@ -40,5 +40,10 @@ Full-stack Flashcards MVP. Scope chosen by user: **Google Sign-In only** (no fla
 - Grid de tarjetas: aplica bgImage con cover/center + overlay oscuro (bg-black/55) para legibilidad, y aplica textAlign/fontSize a pregunta y respuesta.
 - Auth de Google y CORS intactos. Fix menor: orden de @import en index.css.
 
+## Implemented (2026-06-21) — UX formulario de tarjetas (DeckInterior)
+- Progressive disclosure: estado `showStyles` (default false) + botón "Opciones de estilo" (icono SlidersHorizontal) que muestra/oculta el bloque de Tamaño/Alineación/Fondo.
+- Sticky settings: estado `defaultStyles`; un useEffect lo actualiza con los estilos actuales mientras `editingId===null`. Al crear con éxito se limpian solo question/answer (se mantienen estilos para crear en lote). `resetForm()` restaura los controles a `defaultStyles`, de modo que tras Guardar/Cancelar una edición no se quedan los estilos de la tarjeta editada.
+- Solo se modificó el frontend; backend, auth y VITE_BACKEND_URL intactos.
+
 ## Backlog (P1/P2)
 - Flashcard CRUD (create/list/study), persistence (DB), spaced-repetition, decks, session JWT for the app, sign-out token revocation.
