@@ -33,5 +33,12 @@ Full-stack Flashcards MVP. Scope chosen by user: **Google Sign-In only** (no fla
 - Frontend: 'Study' tab renamed to **Biblioteca**. Library = deck grid (cover color/image + title + count) + create/edit modal (title, color swatches/custom, file→base64). Deck interior view (currentDeck state) with physical study-card aesthetic, create/edit/delete flashcards, and "Volver a la Biblioteca".
 - Respected: Google auth logic, .env and CORS allow-list unchanged. Only additive change: 'DELETE' added to CORS allowed methods so the new DELETE routes work cross-origin in production.
 
+## Implemented (2026-06-21) — Refinamiento UX/UI
+- Flashcard schema: nuevos campos `bgImage` (base64 opcional), `textAlign` (enum left/center/right, default center), `fontSize` (default text-base). POST/PUT y serializeFlashcard actualizados (textAlign inválido cae a default). Verificado por curl.
+- Frontend traducido al español (Biblioteca, Ajustes, Cerrar sesión, etc.).
+- Editor de tarjeta: `<textarea>` expansibles (min-h-[100px] resize-y) + controles de Tamaño de letra (text-sm/base/lg/xl), Alineación (izq/centro/der) e imagen de Fondo (file→base64, límite 700KB, botón quitar).
+- Grid de tarjetas: aplica bgImage con cover/center + overlay oscuro (bg-black/55) para legibilidad, y aplica textAlign/fontSize a pregunta y respuesta.
+- Auth de Google y CORS intactos. Fix menor: orden de @import en index.css.
+
 ## Backlog (P1/P2)
 - Flashcard CRUD (create/list/study), persistence (DB), spaced-repetition, decks, session JWT for the app, sign-out token revocation.

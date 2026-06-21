@@ -81,6 +81,9 @@ const flashcardSchema = new mongoose.Schema(
     question: { type: String, required: true, trim: true },
     answer: { type: String, required: true, trim: true },
     easeFactor: { type: Number, default: 2.5 },
+    bgImage: { type: String, default: '' },
+    textAlign: { type: String, enum: ['left', 'center', 'right'], default: 'center' },
+    fontSize: { type: String, default: 'text-base' },
   },
   { timestamps: true }
 );
@@ -100,6 +103,9 @@ const serializeFlashcard = (c) => ({
   question: c.question,
   answer: c.answer,
   easeFactor: c.easeFactor,
+  bgImage: c.bgImage,
+  textAlign: c.textAlign,
+  fontSize: c.fontSize,
   createdAt: c.createdAt,
 });
 
@@ -360,7 +366,7 @@ app.get('/api/flashcards/deck/:deckId', async (req, res) => {
 // POST /api/flashcards — create a flashcard (requires deckId)
 app.post('/api/flashcards', async (req, res) => {
   try {
-    const { userId, deckId, question, answer } = req.body || {};
+    const { userId, deckId, question, answer, bgImage, textAlign, fontSize } = req.body || {};
     if (!mongoose.isValidObjectId(userId)) {
       return res.status(400).json({ error: 'Invalid user id.' });
     }
@@ -375,6 +381,9 @@ app.post('/api/flashcards', async (req, res) => {
       deckId,
       question: question.trim(),
       answer: answer.trim(),
+      ...(typeof bgImage === 'string' ? { bgImage } : {}),
+      ...(['left', 'center', 'right'].includes(textAlign) ? { textAlign } : {}),
+      ...(typeof fontSize === 'string' ? { fontSize } : {}),
     });
     return res.status(201).json(serializeFlashcard(card));
   } catch (err) {
@@ -390,10 +399,13 @@ app.put('/api/flashcards/:id', async (req, res) => {
     if (!mongoose.isValidObjectId(id)) {
       return res.status(400).json({ error: 'Invalid flashcard id.' });
     }
-    const { question, answer } = req.body || {};
+    const { question, answer, bgImage, textAlign, fontSize } = req.body || {};
     const update = {};
     if (typeof question === 'string') update.question = question.trim();
     if (typeof answer === 'string') update.answer = answer.trim();
+    if (typeof bgImage === 'string') update.bgImage = bgImage;
+    if (['left', 'center', 'right'].includes(textAlign)) update.textAlign = textAlign;
+    if (typeof fontSize === 'string') update.fontSize = fontSize;
 
     const card = await Flashcard.findByIdAndUpdate(id, { $set: update }, { new: true });
     if (!card) return res.status(404).json({ error: 'Flashcard not found.' });
