@@ -78,7 +78,7 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
     } catch (e) { setError(e.message); }
   };
 
-  // 🌟 SISTEMA DE TELEMETRÍA Y DIAGNÓSTICO PARA EL MÓVIL
+  // Motor de Exportación a PDF con Filtro de Contraste Reparado
   const handleExportPDF = (type = 'guide') => {
     if (cards.length === 0) {
       setError('No hay tarjetas en este mazo para exportar a PDF.');
@@ -86,17 +86,10 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
     }
 
     setError('');
-    
-    // Caja negra de rastreo
-    let traceLog = [];
-    let currentCardIndex = -1;
-
     try {
       const doc = new jsPDF();
       const pageWidth = doc.internal.pageSize.getWidth();
       const safeName = (deck.title || 'guia-estudio').replace(/[^\w\s-]/g, '').trim();
-
-      traceLog.push(`[1] Inicializado jsPDF. Ancho página: ${pageWidth}`);
 
       // MODO A: GUÍA DE TEXTO PLANO
       if (type === 'guide') {
@@ -111,8 +104,7 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
         doc.setDrawColor(226, 232, 240); doc.setLineWidth(0.5); doc.line(margin, 32, pageWidth - margin, 32);
 
         let y = 42;
-        cards.forEach((card, idx) => {
-          currentCardIndex = idx;
+        cards.forEach((card) => {
           const qLines = doc.splitTextToSize(`P: ${card.question}`, contentWidth);
           const aLines = doc.splitTextToSize(`R: ${card.answer}`, contentWidth);
           const blockHeight = (qLines.length * 6) + (aLines.length * 6) + 12;
@@ -144,15 +136,10 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
         const gapX = 10;
         const gapY = 10;
 
-        traceLog.push(`[2] Entrando a modo Rejilla 2x3`);
-
         cards.forEach((card, index) => {
-          currentCardIndex = index;
           const pageItemIndex = index % 6;
-          
           if (index > 0 && pageItemIndex === 0) {
             doc.addPage();
-            traceLog.push(`[Card ${index + 1}] Salto de página añadido`);
           }
 
           const col = pageItemIndex % 2;
@@ -161,39 +148,34 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
           const x = marginX + col * (cardW + gapX);
           const y = marginY + row * (cardH + gapY);
 
-          traceLog.push(`[Card ${index + 1}] Coordenadas calculadas: x=${x.toFixed(1)}, y=${y.toFixed(1)}`);
-
-          // Procesar Fondos
           if (card.bgImage) {
-            let imgFormat = 'JPEG';
-            if (card.bgImage.includes('image/png')) imgFormat = 'PNG';
-            if (card.bgImage.includes('image/webp')) imgFormat = 'WEBP';
-            
-            traceLog.push(`[Card ${index + 1}] Detectada imagen Base64 formato: ${imgFormat}`);
-            
             try {
-              // Simplificación extrema de parámetros para blindar jsPDF
-              doc.addImage(card.bgImage, imgFormat, x, y, cardW, cardH);
-              traceLog.push(`[Card ${index + 1}] addImage ejecutado exitosamente`);
+              let imgFormat = 'JPEG';
+              if (card.bgImage.includes('image/png')) imgFormat = 'PNG';
+              if (card.bgImage.includes('image/webp')) imgFormat = 'WEBP';
+              
+              // 1. Dibujar la imagen base original
+              doc.addImage(card.bgImage, imgFormat, x, y, cardW, cardH, undefined, 'FAST');
+              
+              // 🌟 2. FILTRO DE CONTRASTE: Aplicamos una capa negra al 55% de opacidad sobre la foto
+              doc.saveGraphicsState();
+              doc.setGState(new doc.GState({ opacity: 0.55 }));
+              doc.setFillColor(15, 23, 42); // Slate 900 / Negro traslúcido
+              doc.rect(x, y, cardW, cardH, 'F');
+              doc.restoreGraphicsState(); // Restaura la opacidad al 100% para que las letras no salgan transparentes
             } catch (imgErr) {
-              traceLog.push(`[Card ${index + 1}] FALLÓ addImage, aplicando contingencia de color sólido`);
               doc.setFillColor(30, 41, 59);
               doc.rect(x, y, cardW, cardH, 'F');
             }
           } else {
-            traceLog.push(`[Card ${index + 1}] Tarjeta sin fondo, aplicando color blanco`);
             doc.setFillColor(255, 255, 255);
           }
 
-          // Dibujar contorno de corte
-          traceLog.push(`[Card ${index + 1}] Dibujando recuadro contenedor`);
+          // Contorno exterior guía para el recorte
           doc.setDrawColor(203, 213, 225);
           doc.setLineWidth(0.2);
-          
-          // Usamos rect tradicional en lugar de roundedRect por si la versión de jsPDF no soporta radios nativos
           doc.rect(x, y, cardW, cardH, card.bgImage ? 'S' : 'FD');
 
-          // Configurar Textos y Alineación
           const maxTextWidth = cardW - 12;
           const align = ['left', 'center', 'right'].includes(card.textAlign) ? card.textAlign : 'center';
           
@@ -201,66 +183,45 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
           if (align === 'center') textX = x + (cardW / 2);
           if (align === 'right') textX = x + cardW - 6;
 
-          traceLog.push(`[Card ${index + 1}] Separando texto. Alineación: ${align}, textX: ${textX.toFixed(1)}`);
-          
           const qLines = doc.splitTextToSize(card.question || '', maxTextWidth);
           const aLines = doc.splitTextToSize(card.answer || '', maxTextWidth);
 
-          // Configurar paletas de colores crudos (Garantiza que no vayan arrays vacíos)
-          const sColor = card.bgImage ? [148, 163, 184] : [100, 116, 139];
-          const tColor = card.bgImage ? [255, 255, 255] : [15, 23, 42];
-          const rColor = card.bgImage ? [241, 245, 249] : [51, 65, 85];
+          const textColor = card.bgImage ? [255, 255, 255] : [15, 23, 42];
+          const subColor = card.bgImage ? [148, 163, 184] : [100, 116, 139];
+          const answerColor = card.bgImage ? [241, 245, 249] : [51, 65, 85];
 
-          traceLog.push(`[Card ${index + 1}] Escribiendo bloque PREGUNTA`);
-          doc.setFont("Helvetica", "bold"); doc.setFontSize(7); 
-          doc.setTextColor(sColor[0], sColor[1], sColor[2]);
-          doc.text("PREGUNTA", textX, y + 9, { align });
+          // Bloque Pregunta
+          doc.setFont("Helvetica", "bold"); doc.setFontSize(7.5); doc.setTextColor(subColor[0], subColor[1], subColor[2]);
+          doc.text("PREGUNTA", textX, y + 11, { align });
 
-          doc.setFont("Helvetica", "bold"); doc.setFontSize(10); 
-          doc.setTextColor(tColor[0], tColor[1], tColor[2]);
-          let currentY = y + 15;
+          doc.setFont("Helvetica", "bold"); doc.setFontSize(10.5); doc.setTextColor(textColor[0], textColor[1], textColor[2]);
+          let currentY = y + 17;
           qLines.slice(0, 4).forEach((line) => {
             doc.text(line, textX, currentY, { align });
             currentY += 4.5;
           });
 
-          traceLog.push(`[Card ${index + 1}] Dibujando divisor central`);
+          // Divisor de Tarjeta
           doc.setDrawColor(card.bgImage ? 71 : 226, card.bgImage ? 85 : 232, card.bgImage ? 105 : 240);
-          doc.line(x + 6, y + 37, x + cardW - 6, y + 37);
+          doc.line(x + 6, y + 38, x + cardW - 6, y + 38);
 
-          traceLog.push(`[Card ${index + 1}] Escribiendo bloque RESPUESTA`);
-          doc.setFont("Helvetica", "bold"); doc.setFontSize(7); 
-          doc.setTextColor(sColor[0], sColor[1], sColor[2]);
-          doc.text("RESPUESTA", textX, y + 44, { align });
+          // Bloque Respuesta
+          doc.setFont("Helvetica", "bold"); doc.setFontSize(7.5); doc.setTextColor(subColor[0], subColor[1], subColor[2]);
+          doc.text("RESPUESTA", textX, y + 45, { align });
 
-          doc.setFont("Helvetica", "normal"); doc.setFontSize(10); 
-          doc.setTextColor(rColor[0], rColor[1], rColor[2]);
-          currentY = y + 50;
+          doc.setFont("Helvetica", "normal"); doc.setFontSize(10.5); doc.setTextColor(answerColor[0], answerColor[1], answerColor[2]);
+          currentY = y + 51;
           aLines.slice(0, 4).forEach((line) => {
             doc.text(line, textX, currentY, { align });
             currentY += 4.5;
           });
-          
-          traceLog.push(`[Card ${index + 1}] Finalizada con éxito`);
         });
 
-        traceLog.push(`[3] Intentando disparar guardado del PDF`);
         doc.save(`${safeName}-tarjetas.pdf`);
-        traceLog.push(`[4] PDF descargado.`);
       }
     } catch (err) {
-      // 🚨 IMPRESIÓN DEL REPORTE CAJA NEGRA EN LA PANTALLA
       console.error(err);
-      const cardInfo = currentCardIndex >= 0 ? cards[currentCardIndex] : null;
-      
-      setError(
-        `❌ DIAGNÓSTICO DE ERROR:\n` +
-        `Mensaje: ${err.message}\n` +
-        `Índice tarjeta rota: ${currentCardIndex + 1} de ${cards.length}\n` +
-        `Contenido Pregunta: "${cardInfo ? cardInfo.question.substring(0, 20) : 'N/A'}..."\n` +
-        `Tiene fondo: ${cardInfo ? !!cardInfo.bgImage : 'N/A'}\n\n` +
-        `Rastreo de pasos:\n${traceLog.join('\n')}`
-      );
+      setError(`Error de renderizado de PDF: ${err.message}`);
     }
   };
 
@@ -342,7 +303,7 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
     try {
       const res = await fetch(`${BACKEND_URL}/api/flashcards/${card.id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error();
-      setCards((prev) => prev.filter((c) => d.id !== card.id));
+      setCards((prev) => prev.filter((c) => c.id !== card.id));
       if (editingId === card.id) resetForm();
     } catch { /* error */ }
   };
@@ -380,14 +341,6 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
                 <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400">Tarjetas</h3>
                 <span className="text-xs font-medium text-slate-400">{cards.length} en total</span>
               </div>
-              
-              {/* Contenedor adaptado para pintar de forma limpia los saltos de línea de la caja negra si truena */}
-              {error && error.includes('DIAGNÓSTICO') && (
-                <pre className="mt-4 p-4 bg-red-50 border border-red-200 rounded-2xl text-left font-mono text-[10px] text-red-700 overflow-x-auto whitespace-pre-wrap leading-relaxed shadow-inner">
-                  {error}
-                </pre>
-              )}
-              
               <FlashcardGrid cards={cards} onEdit={handleEdit} onDelete={handleDelete} />
             </>
           )}
