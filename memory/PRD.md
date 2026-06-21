@@ -45,5 +45,11 @@ Full-stack Flashcards MVP. Scope chosen by user: **Google Sign-In only** (no fla
 - Sticky settings: estado `defaultStyles`; un useEffect lo actualiza con los estilos actuales mientras `editingId===null`. Al crear con éxito se limpian solo question/answer (se mantienen estilos para crear en lote). `resetForm()` restaura los controles a `defaultStyles`, de modo que tras Guardar/Cancelar una edición no se quedan los estilos de la tarjeta editada.
 - Solo se modificó el frontend; backend, auth y VITE_BACKEND_URL intactos.
 
+## Implemented (2026-06-21) — Modo Repaso (carrusel) en DeckInterior
+- Selector de pestañas debajo del título: 'Modo Edición' (form + grid) y 'Modo Repaso'. Componente `ReviewMode`.
+- Repaso: si no hay tarjetas → "No hay tarjetas para repasar en este mazo"; si hay, una sola tarjeta grande central con detalle de llavero, respetando bgImage (con overlay oscuro), textAlign y fontSize de la BD.
+- Mecánica flip: por defecto muestra Pregunta; botón "Voltear tarjeta" revela Respuesta con fade-in. Contador "Tarjeta X de Y", barra de progreso superior, flechas flotantes (escritorio + móvil) y swipes táctiles (onTouchStart/onTouchEnd, >50px). Al cambiar de tarjeta, la respuesta se reinicia a oculto.
+- Solo frontend; backend, auth y VITE_BACKEND_URL intactos. Build de producción verificado (vite build OK, 1565 módulos).
+
 ## Backlog (P1/P2)
 - Flashcard CRUD (create/list/study), persistence (DB), spaced-repetition, decks, session JWT for the app, sign-out token revocation.
