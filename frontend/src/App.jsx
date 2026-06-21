@@ -1103,7 +1103,7 @@ function LibrarySection({ userId }) {
 // -----------------------------------------------------------------------------
 function SettingsSection({ userId }) {
   const [apiKey, setApiKey] = useState('');
-  const [masked, setMask = useState('');
+  const [masked, setMasked] = useState('');
   const [hasKey, setHasKey] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
