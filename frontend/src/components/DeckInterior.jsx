@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Loader2 } from 'lucide-react';
-import { jsPDF } from 'jspdf'; // 🌟 IMPORTACIÓN DE LA LIBRERÍA
+import { jsPDF } from 'jspdf';
 import ReviewMode from './ReviewMode';
 import DeckHeader from './DeckHeader';
 import FlashcardCreator from './FlashcardCreator';
@@ -70,7 +70,7 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
     } catch (e) { setError(e.message); }
   };
 
-  // 🌟 CONSTRUCTOR DE GUÍA DE ESTUDIO EN PDF (MODO EDICIÓN ASOCIADO)
+  // Constructor de Guía de Estudio en PDF
   const handleExportPDF = () => {
     if (cards.length === 0) {
       setError('No hay tarjetas en este mazo para exportar a PDF.');
@@ -78,7 +78,7 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
     }
 
     const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth(); // Ancho de página estándar
+    const pageWidth = doc.internal.pageSize.getWidth();
     const margin = 15;
     const contentWidth = pageWidth - (margin * 2);
 
@@ -89,7 +89,7 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
 
     doc.setFont("Helvetica", "normal");
     doc.setFontSize(10);
-    doc.setTextColor(100, 116, 139); // Color Gris Slate
+    doc.setTextColor(100, 116, 139);
     doc.text(`Total de tarjetas: ${cards.length} | Generado el ${new Date().toLocaleDateString()}`, margin, 29);
 
     // Línea divisoria elegante
@@ -97,23 +97,21 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
     doc.setLineWidth(0.5);
     doc.line(margin, 32, pageWidth - margin, 32);
 
-    let y = 42; // Coordenada vertical de inicio de contenido
+    let y = 42;
 
     cards.forEach((card, index) => {
-      // Divide el texto largo en líneas que se ajusten al ancho físico de la hoja
       const qLines = doc.splitTextToSize(`P: ${card.question}`, contentWidth);
       const aLines = doc.splitTextToSize(`R: ${card.answer}`, contentWidth);
       
-      // Calcula la altura total que consumirá este bloque de tarjeta
       const blockHeight = (qLines.length * 6) + (aLines.length * 6) + 12;
 
-      // 🚨 CONTROL DE DESBORDAMIENTO: Si el bloque no cabe en la hoja actual, añade una página limpia
+      // Control de desbordamiento de página
       if (y + blockHeight > 275) {
         doc.addPage();
-        y = 22; // Reinicia el cursor arriba en la nueva hoja
+        y = 22;
       }
 
-      // Dibujar recuadro contenedor sutil para separar las tarjetas visualmente
+      // Dibujar contenedor para separar tarjetas
       doc.setFillColor(250, 250, 250);
       doc.setDrawColor(241, 245, 249);
       doc.roundedRect(margin - 2, y - 6, contentWidth + 4, blockHeight - 4, 3, 3, "FD");
@@ -121,7 +119,7 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
       // Imprimir Pregunta
       doc.setFont("Helvetica", "bold");
       doc.setFontSize(11);
-      doc.setTextColor(15, 23, 42); // Slate oscuro
+      doc.setTextColor(15, 23, 42);
       qLines.forEach((line, i) => {
         doc.text(line, margin, y + (i * 6));
       });
@@ -131,17 +129,16 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
       // Imprimir Respuesta
       doc.setFont("Helvetica", "normal");
       doc.setFontSize(11);
-      doc.setTextColor(71, 85, 105); // Slate medio
+      doc.setTextColor(71, 85, 105);
       aLines.forEach((line, i) => {
         doc.text(line, margin, y + (i * 6));
       });
 
-      // Espaciado de separación para el próximo bloque
+      // Espaciado de separación corregido sin etiquetas HTML coladas
       y += (aLines.length * 6) + 12;
-    </center>
     });
 
-    // Descarga automática del archivo PDF terminado
+    // Descarga automática del archivo PDF
     const safeName = (deck.title || 'guia-estudio').replace(/[^\w\s-]/g, '').trim();
     doc.save(`${safeName}.pdf`);
   };
@@ -231,7 +228,6 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
 
   return (
     <div data-testid="deck-interior">
-      {/* 🌟 ENLAZADO: Pasamos handleExportPDF al encabezado */}
       <DeckHeader 
         deck={deck} 
         mode={mode} 
