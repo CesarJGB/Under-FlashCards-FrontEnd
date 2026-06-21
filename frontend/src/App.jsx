@@ -14,7 +14,6 @@ const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 function DashboardScreen({ user, onLogout }) {
   const [tab, setTab] = useState('home');
 
-  // ⚡ ALINEACIÓN DE ARQUITECTURA: Elevamos los mazos al núcleo global para compartir caché
   const [decks, setDecks] = useState(() => {
     const cached = localStorage.getItem(`decks_${user.id}`);
     return cached ? JSON.parse(cached) : [];
@@ -24,7 +23,6 @@ function DashboardScreen({ user, onLogout }) {
     return !cached;
   });
 
-  // Estados de navegación interna compartidos
   const [currentDeck, setCurrentDeck] = useState(null);
   const [initialMode, setInitialMode] = useState('edit');
 
@@ -47,7 +45,15 @@ function DashboardScreen({ user, onLogout }) {
     loadDecks();
   }, [loadDecks]);
 
-  // ⚡ ENRUTADOR MÁGICO: Abre el mazo directamente en Modo Repaso cambiando de pestaña
+  // ⚡ GESTOR DE PESTAÑAS: Si tocan explícitamente una pestaña, limpiamos el estado del mazo para reiniciar la vista principal
+  const handleTabChange = (id) => {
+    if (id === 'library') {
+      setCurrentDeck(null);
+      setInitialMode('edit');
+    }
+    setTab(id);
+  };
+
   const handleOpenReviewFromHome = (deck) => {
     setInitialMode('review');
     setCurrentDeck(deck);
@@ -56,7 +62,7 @@ function DashboardScreen({ user, onLogout }) {
 
   const navItem = (id, label, Icon) => (
     <button
-      onClick={() => setTab(id)}
+      onClick={() => handleTabChange(id)}
       className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors ${
         tab === id ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'
       }`}
@@ -132,15 +138,15 @@ function DashboardScreen({ user, onLogout }) {
           {tab === 'settings' && <SettingsSection userId={user.id} />}
         </div>
 
-        {/* BARRA INFERIOR MÓVIL */}
+        {/* BARRA INFERIOR MÓVIL (Conectada a handleTabChange) */}
         <div className="md:hidden fixed bottom-0 inset-x-0 bg-white/90 backdrop-blur-md border-t border-slate-200/80 px-6 py-2 flex justify-around items-center z-40 shadow-[0_-4px_12px_rgba(0,0,0,0.03)]">
-          <button onClick={() => setTab('home')} className={`flex flex-col items-center justify-center gap-0.5 flex-1 py-1 transition-colors ${tab === 'home' ? 'text-slate-900 font-bold' : 'text-slate-400'}`}>
+          <button onClick={() => handleTabChange('home')} className={`flex flex-col items-center justify-center gap-0.5 flex-1 py-1 transition-colors ${tab === 'home' ? 'text-slate-900 font-bold' : 'text-slate-400'}`}>
             <Home className="w-5 h-5" /> <span className="text-[10px]">Inicio</span>
           </button>
-          <button onClick={() => setTab('library')} className={`flex flex-col items-center justify-center gap-0.5 flex-1 py-1 transition-colors ${tab === 'library' ? 'text-slate-900 font-bold' : 'text-slate-400'}`}>
+          <button onClick={() => handleTabChange('library')} className={`flex flex-col items-center justify-center gap-0.5 flex-1 py-1 transition-colors ${tab === 'library' ? 'text-slate-900 font-bold' : 'text-slate-400'}`}>
             <Library className="w-5 h-5" /> <span className="text-[10px]">Archivos</span>
           </button>
-          <button onClick={() => setTab('settings')} className={`flex flex-col items-center justify-center gap-0.5 flex-1 py-1 transition-colors ${tab === 'settings' ? 'text-slate-900 font-bold' : 'text-slate-400'}`}>
+          <button onClick={() => handleTabChange('settings')} className={`flex flex-col items-center justify-center gap-0.5 flex-1 py-1 transition-colors ${tab === 'settings' ? 'text-slate-900 font-bold' : 'text-slate-400'}`}>
             <Settings className="w-5 h-5" /> <span className="text-[10px]">Ajustes</span>
           </button>
         </div>
