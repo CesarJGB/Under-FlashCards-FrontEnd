@@ -21,6 +21,7 @@ import {
   AlignLeft,
   AlignCenter,
   AlignRight,
+  SlidersHorizontal,
 } from 'lucide-react';
 
 // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS,
@@ -321,6 +322,13 @@ function DeckInterior({ deck, userId, onBack }) {
   const [bgImage, setBgImage] = useState('');
   const [textAlign, setTextAlign] = useState('center');
   const [fontSize, setFontSize] = useState('text-base');
+  const [showStyles, setShowStyles] = useState(false);
+  // Estilos "pegajosos" para crear tarjetas en lote sin reconfigurar.
+  const [defaultStyles, setDefaultStyles] = useState({
+    bgImage: '',
+    textAlign: 'center',
+    fontSize: 'text-base',
+  });
   const [editingId, setEditingId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -346,11 +354,19 @@ function DeckInterior({ deck, userId, onBack }) {
   const resetForm = () => {
     setQuestion('');
     setAnswer('');
-    setBgImage('');
-    setTextAlign('center');
-    setFontSize('text-base');
+    // Recupera los estilos predeterminados persistentes (no los de la tarjeta editada).
+    setBgImage(defaultStyles.bgImage);
+    setTextAlign(defaultStyles.textAlign);
+    setFontSize(defaultStyles.fontSize);
     setEditingId(null);
   };
+
+  // Mientras se crea (no se edita), recuerda los estilos elegidos como predeterminados.
+  useEffect(() => {
+    if (editingId === null) {
+      setDefaultStyles({ bgImage, textAlign, fontSize });
+    }
+  }, [bgImage, textAlign, fontSize, editingId]);
 
   const handleBgFile = async (e) => {
     const file = e.target.files?.[0];
@@ -379,6 +395,8 @@ function DeckInterior({ deck, userId, onBack }) {
         if (!res.ok) throw new Error('No se pudo actualizar la tarjeta.');
         const updated = await res.json();
         setCards((prev) => prev.map((c) => (c.id === editingId ? updated : c)));
+        // Al terminar la edición, recupera los estilos predeterminados persistentes.
+        resetForm();
       } else {
         const res = await fetch(`${BACKEND_URL}/api/flashcards`, {
           method: 'POST',
@@ -388,8 +406,10 @@ function DeckInterior({ deck, userId, onBack }) {
         if (!res.ok) throw new Error('No se pudo crear la tarjeta.');
         const created = await res.json();
         setCards((prev) => [created, ...prev]);
+        // Crear en lote: limpia solo el texto y MANTÉN los estilos.
+        setQuestion('');
+        setAnswer('');
       }
-      resetForm();
     } catch (e) {
       setError(e.message);
     } finally {
@@ -485,8 +505,19 @@ function DeckInterior({ deck, userId, onBack }) {
           </div>
         </div>
 
-        {/* Controles de estilo */}
-        <div className="mt-5 grid sm:grid-cols-3 gap-5">
+        {/* Opciones de estilo (progressive disclosure) */}
+        <button
+          type="button"
+          onClick={() => setShowStyles((s) => !s)}
+          className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors"
+          data-testid="toggle-styles-button"
+        >
+          <SlidersHorizontal className="w-4 h-4" />
+          Opciones de estilo
+        </button>
+
+        {showStyles && (
+          <div className="mt-4 grid sm:grid-cols-3 gap-5" data-testid="style-controls">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Tamaño de letra</p>
             <div className="flex flex-wrap gap-1.5" data-testid="font-size-controls">
@@ -557,6 +588,7 @@ function DeckInterior({ deck, userId, onBack }) {
             </div>
           </div>
         </div>
+        )}
 
         <div className="mt-5 flex gap-2">
           <button
