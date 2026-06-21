@@ -35,7 +35,7 @@ const ALIGN_CLASS = { left: 'text-left', center: 'text-center', right: 'text-rig
 const fileToBase64 = (file) =>
   new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
+    reader.onload = () => resolve(resolve.result);
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
@@ -278,25 +278,28 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
         )}
       </div>
 
-      <div
-        className="mt-3 rounded-2xl p-5 border border-slate-200"
-        style={
-          deck.coverImage
-            ? { backgroundImage: `url(${deck.coverImage})`, backgroundSize: 'cover', backgroundPosition: 'center' }
-            : { backgroundColor: deck.coverColor }
-        }
-      >
-        <span
-          className={`inline-flex items-center gap-1.5 text-xs font-semibold rounded-full px-2.5 py-1 ${
-            headerDark ? 'bg-white/85 text-slate-900' : 'bg-slate-900/10 text-slate-900'
-          }`}
+      {/* 🌟 FILTRO PREVISTO: El banner del título ahora se oculta de forma estricta en el modo repaso */}
+      {mode === 'edit' && (
+        <div
+          className="mt-3 rounded-2xl p-5 border border-slate-200"
+          style={
+            deck.coverImage
+              ? { backgroundImage: `url(${deck.coverImage})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+              : { backgroundColor: deck.coverColor }
+          }
         >
-          <Layers className="w-3.5 h-3.5" /> Mazo
-        </span>
-        <h2 className={`mt-1.5 text-xl font-extrabold drop-shadow ${headerDark ? 'text-white' : 'text-slate-900'}`}>
-          {deck.title}
-        </h2>
-      </div>
+          <span
+            className={`inline-flex items-center gap-1.5 text-xs font-semibold rounded-full px-2.5 py-1 ${
+              headerDark ? 'bg-white/85 text-slate-900' : 'bg-slate-900/10 text-slate-900'
+            }`}
+          >
+            <Layers className="w-3.5 h-3.5" /> Mazo
+          </span>
+          <h2 className={`mt-1.5 text-xl font-extrabold drop-shadow ${headerDark ? 'text-white' : 'text-slate-900'}`}>
+            {deck.title}
+          </h2>
+        </div>
+      )}
 
       <div className="mt-4 w-full max-w-xl mx-auto flex justify-center px-2">
         <div className="inline-flex rounded-xl border border-slate-200 bg-white p-1 w-full sm:w-auto" data-testid="mode-tabs">
@@ -321,7 +324,6 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
         </div>
       </div>
 
-      {/* 🌟 BLINDAJE ANTE PANTALLA EN BLANCO: Si la red está activa, impedimos que ReviewMode rompa la app */}
       {loading ? (
         <div className="mt-12 flex flex-col items-center justify-center gap-3 text-slate-400 py-12">
           <Loader2 className="w-6 h-6 animate-spin text-slate-600" />
