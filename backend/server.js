@@ -60,6 +60,8 @@ const deckSchema = new mongoose.Schema(
     coverColor: { type: String, default: '#ffffff' },
     // Optional cover image stored as a base64 data URL.
     coverImage: { type: String, default: '' },
+    // 📸 EL POOL: Guarda cada imagen base64 ÚNICA del mazo una sola vez para optimizar espacio
+    cardBackgrounds: { type: [String], default: [] },
   },
   { timestamps: true }
 );
@@ -81,7 +83,8 @@ const flashcardSchema = new mongoose.Schema(
     question: { type: String, required: true, trim: true },
     answer: { type: String, required: true, trim: true },
     easeFactor: { type: Number, default: 2.5 },
-    bgImage: { type: String, default: '' },
+    // 🔍 INDEXACIÓN INTELIGENTE: Cambiamos el string gigante por un puntero numérico al pool del mazo
+    bgImageIndex: { type: Number, default: -1 },
     textAlign: { type: String, enum: ['left', 'center', 'right'], default: 'center' },
     fontSize: { type: String, default: 'text-base' },
   },
@@ -96,14 +99,15 @@ const Flashcard = mongoose.model('Flashcard', flashcardSchema);
 const maskKey = (key) =>
   key ? `${'•'.repeat(Math.max(0, key.length - 4))}${key.slice(-4)}` : '';
 
-const serializeFlashcard = (c) => ({
+// Infla el índice numérico convirtiéndolo dinámicamente en la cadena Base64 real para el frontend
+const serializeFlashcard = (c, cardBackgrounds = []) => ({
   id: c._id,
   userId: c.userId,
   deckId: c.deckId,
   question: c.question,
   answer: c.answer,
   easeFactor: c.easeFactor,
-  bgImage: c.bgImage,
+  bgImage: (cardBackgrounds && c.bgImageIndex >= 0) ? (cardBackgrounds[c.bgImageIndex] || '') : '',
   textAlign: c.textAlign,
   fontSize: c.fontSize,
   createdAt: c.createdAt,
@@ -116,8 +120,24 @@ const serializeDeck = (d, cardCount) => ({
   coverColor: d.coverColor,
   coverImage: d.coverImage,
   cardCount: typeof cardCount === 'number' ? cardCount : undefined,
+  cardBackgrounds: d.cardBackgrounds || [], // Lo exponemos para portabilidad de importación/exportación
   createdAt: d.createdAt,
 });
+
+// FUNCIÓN MÁGICA DE DEDUPLICACIÓN: Retorna el índice si ya existe, o mete el activo al pool si es nuevo
+async function getOrCreateBgIndex(deckId, bgImageString) {
+  if (!bgImageString) return -1;
+  const deck = await Deck.findById(deckId);
+  if (!deck) return -1;
+
+  let index = deck.cardBackgrounds.indexOf(bgImageString);
+  if (index === -1) {
+    deck.cardBackgrounds.push(bgImageString);
+    await deck.save();
+    index = deck.cardBackgrounds.length - 1;
+  }
+  return index;
+}
 
 const oauthClient = new OAuth2Client(GOOGLE_CLIENT_ID);
 
@@ -356,7 +376,14 @@ app.get('/api/decks/:id/export', async (req, res) => {
     const cards = await Flashcard.find({ deckId: id }).sort({ createdAt: -1 });
     return res.json({
       deck: serializeDeck(deck, cards.length),
-      cards: cards.map(serializeFlashcard),
+      cards: cards.map((c) => ({
+        question: c.question,
+        answer: c.answer,
+        bgImageIndex: c.bgImageIndex,
+        textAlign: c.textAlign,
+        fontSize: c.fontSize,
+        easeFactor: c.easeFactor,
+      })),
     });
   } catch (err) {
     console.error('[decks:export] error:', err.message);
@@ -380,6 +407,7 @@ app.post('/api/decks/import', async (req, res) => {
       title: deck.title.trim(),
       coverColor: deck.coverColor || '#ffffff',
       coverImage: typeof deck.coverImage === 'string' ? deck.coverImage : '',
+      cardBackgrounds: Array.isArray(deck.cardBackgrounds) ? deck.cardBackgrounds : [],
     });
 
     let insertedCount = 0;
@@ -391,7 +419,7 @@ app.post('/api/decks/import', async (req, res) => {
           deckId: newDeck._id,
           question: String(c.question),
           answer: String(c.answer),
-          ...(typeof c.bgImage === 'string' ? { bgImage: c.bgImage } : {}),
+          bgImageIndex: typeof c.bgImageIndex === 'number' ? c.bgImageIndex : -1,
           ...(['left', 'center', 'right'].includes(c.textAlign) ? { textAlign: c.textAlign } : {}),
           ...(typeof c.fontSize === 'string' ? { fontSize: c.fontSize } : {}),
           ...(typeof c.easeFactor === 'number' ? { easeFactor: c.easeFactor } : {}),
@@ -413,7 +441,7 @@ app.post('/api/decks/import', async (req, res) => {
 });
 
 // -----------------------------------------------------------------------------
-// FLASHCARDS — scoped to a deck
+// FLASHCARDS — scoped to a mazo
 // -----------------------------------------------------------------------------
 
 // GET /api/flashcards/deck/:deckId — list flashcards of a deck
@@ -423,8 +451,11 @@ app.get('/api/flashcards/deck/:deckId', async (req, res) => {
     if (!mongoose.isValidObjectId(deckId)) {
       return res.status(400).json({ error: 'Invalid deck id.' });
     }
+    const deck = await Deck.findById(deckId);
+    const backgrounds = deck ? deck.cardBackgrounds : [];
+
     const cards = await Flashcard.find({ deckId }).sort({ createdAt: -1 });
-    return res.json(cards.map(serializeFlashcard));
+    return res.json(cards.map((c) => serializeFlashcard(c, backgrounds)));
   } catch (err) {
     console.error('[flashcards:get-deck] error:', err.message);
     return res.status(500).json({ error: 'Server error.' });
@@ -444,16 +475,21 @@ app.post('/api/flashcards', async (req, res) => {
     if (!question?.trim() || !answer?.trim()) {
       return res.status(400).json({ error: 'Question and answer are required.' });
     }
+
+    const bgImageIndex = await getOrCreateBgIndex(deckId, bgImage);
+
     const card = await Flashcard.create({
       userId,
       deckId,
       question: question.trim(),
       answer: answer.trim(),
-      ...(typeof bgImage === 'string' ? { bgImage } : {}),
+      bgImageIndex,
       ...(['left', 'center', 'right'].includes(textAlign) ? { textAlign } : {}),
-      ...(typeof fontSize === 'string' ? { fontSize } : {}),
+      ...(typeof fontSize === 'string' ? { fontSize: c?.fontSize || fontSize } : {}),
     });
-    return res.status(201).json(serializeFlashcard(card));
+
+    const deck = await Deck.findById(deckId);
+    return res.status(201).json(serializeFlashcard(card, deck ? deck.cardBackgrounds : []));
   } catch (err) {
     console.error('[flashcards:post] error:', err.message);
     return res.status(500).json({ error: 'Server error.' });
@@ -471,13 +507,19 @@ app.put('/api/flashcards/:id', async (req, res) => {
     const update = {};
     if (typeof question === 'string') update.question = question.trim();
     if (typeof answer === 'string') update.answer = answer.trim();
-    if (typeof bgImage === 'string') update.bgImage = bgImage;
     if (['left', 'center', 'right'].includes(textAlign)) update.textAlign = textAlign;
     if (typeof fontSize === 'string') update.fontSize = fontSize;
 
+    const currentCard = await Flashcard.findById(id);
+    if (!currentCard) return res.status(404).json({ error: 'Flashcard not found.' });
+
+    if (typeof bgImage === 'string') {
+      update.bgImageIndex = await getOrCreateBgIndex(currentCard.deckId, bgImage);
+    }
+
     const card = await Flashcard.findByIdAndUpdate(id, { $set: update }, { new: true });
-    if (!card) return res.status(404).json({ error: 'Flashcard not found.' });
-    return res.json(serializeFlashcard(card));
+    const deck = await Deck.findById(card.deckId);
+    return res.json(serializeFlashcard(card, deck ? deck.cardBackgrounds : []));
   } catch (err) {
     console.error('[flashcards:put] error:', err.message);
     return res.status(500).json({ error: 'Server error.' });
