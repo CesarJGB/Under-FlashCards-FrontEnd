@@ -40,7 +40,8 @@ const fileToBase64 = (file) =>
     reader.readAsDataURL(file);
   });
 
-export default function DeckInterior({ deck, userId, onBack }) {
+// 🌟 COORDINACIÓN DE NAVEGACIÓN: Añadimos initialMode a las propiedades recibidas
+export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit' }) {
   const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(true);
   const [question, setQuestion] = useState('');
@@ -50,7 +51,6 @@ export default function DeckInterior({ deck, userId, onBack }) {
   const [fontSize, setFontSize] = useState('text-base');
   const [showStyles, setShowStyles] = useState(false);
   
-  // Estados para la funcionalidad de importación por texto plano sin IA interna
   const [isBulk, setIsBulk] = useState(false);
   const [bulkText, setBulkText] = useState('');
 
@@ -62,7 +62,14 @@ export default function DeckInterior({ deck, userId, onBack }) {
   const [editingId, setEditingId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [mode, setMode] = useState('edit');
+  
+  // 🌟 COORDINACIÓN DE NAVEGACIÓN: Inicializamos el estado usando la propiedad dinámica
+  const [mode, setMode] = useState(initialMode);
+
+  // 🌟 EFECTO PROTECTOR: Fuerza la actualización de la pestaña interna si cambia la petición del padre
+  useEffect(() => {
+    if (initialMode) setMode(initialMode);
+  }, [initialMode]);
 
   const loadCards = useCallback(async () => {
     setLoading(true);
@@ -134,7 +141,6 @@ export default function DeckInterior({ deck, userId, onBack }) {
     setSaving(true);
     setError('');
 
-       // LÓGICA DE PROCESAMIENTO MASIVO EN LOTE (MUDADA A BATCHSTYLES)
     if (isBulk && !editingId) {
       const lines = bulkText.split('\n');
       const parsedCards = [];
@@ -151,7 +157,6 @@ export default function DeckInterior({ deck, userId, onBack }) {
             parsedCards.push({
               question: currentQuestion,
               answer: currentAnswer
-              // YA NO PARAMETRIZAMOS LOS ESTILOS AQUÍ PARA EVITAR DUPLICAR EL BASE64
             });
             currentQuestion = '';
           }
@@ -168,7 +173,6 @@ export default function DeckInterior({ deck, userId, onBack }) {
         const res = await fetch(`${BACKEND_URL}/api/flashcards/bulk`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          // ENVIAMOS LA IMAGEN UNA SOLA VEZ EN BATCHSTYLES ARRIBA DE LAS TARJETAS
           body: JSON.stringify({ 
             userId, 
             deckId: deck.id, 
@@ -189,8 +193,6 @@ export default function DeckInterior({ deck, userId, onBack }) {
       return;
     }
 
-
-    // LÓGICA TRADICIONAL DE TARJETA ÚNICA
     if (!question.trim() || !answer.trim()) { setSaving(false); return; }
     const body = { question, answer, bgImage, textAlign, fontSize };
     try {
@@ -349,7 +351,6 @@ export default function DeckInterior({ deck, userId, onBack }) {
         </div>
 
         {isBulk && !editingId ? (
-          // INTERFAZ EN LOTE (TEXTAREA ÚNICO)
           <div className="animate-[fadeIn_0.2s_ease]">
             <label className="block text-xs font-medium text-slate-500 mb-1.5">
               Pega tu texto estructurado abajo:
@@ -365,7 +366,6 @@ export default function DeckInterior({ deck, userId, onBack }) {
             </p>
           </div>
         ) : (
-          // INTERFAZ TRADICIONAL (TARJETA ÚNICA)
           <div className="grid sm:grid-cols-2 gap-3 animate-[fadeIn_0.2s_ease]">
             <div>
               <label className="block text-xs font-medium text-slate-500 mb-1">Pregunta</label>
