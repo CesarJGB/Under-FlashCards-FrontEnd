@@ -14,8 +14,6 @@ export default function LibrarySection({ userId }) {
   const [currentDeck, setCurrentDeck] = useState(null);
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef(null);
-
-  // Estado para controlar la apertura del menú flotante expansible (FAB)
   const [fabOpen, setFabOpen] = useState(false);
 
   const loadDecks = useCallback(async () => {
@@ -103,7 +101,6 @@ export default function LibrarySection({ userId }) {
 
   return (
     <div data-testid="library-section" className="relative min-h-[60vh]">
-      {/* Entrada de archivos nativa e invisible */}
       <input
         ref={fileInputRef}
         type="file"
@@ -113,7 +110,6 @@ export default function LibrarySection({ userId }) {
         data-testid="import-file-input"
       />
 
-      {/* Cabecera limpia */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-slate-900">Biblioteca</h2>
@@ -152,7 +148,6 @@ export default function LibrarySection({ userId }) {
 
       {/* 📱 MENU ACCION FLOTANTE SIMÉTRICO (FAB) */}
       <div className="fixed bottom-20 right-4 md:bottom-8 md:right-8 z-50 flex flex-col items-end gap-2">
-        {/* Capa traslúcida de fondo */}
         {fabOpen && (
           <div
             onClick={() => setFabOpen(false)}
@@ -160,12 +155,10 @@ export default function LibrarySection({ userId }) {
           />
         )}
 
-        {/* Lista de sub-botones con geometría idéntica */}
         {fabOpen && (
           <div className="flex flex-col items-end gap-2 z-50 mb-2 animate-[slideUp_0.15s_ease-out]">
-            {/* Botón: Generar con IA (Alineación y tamaño idéntico) */}
             <button
-              onClick={() => { setFabOpen(false); /* Tu función de IA irá aquí */ }}
+              onClick={() => { setFabOpen(false); }}
               className="w-44 flex items-center justify-between bg-slate-800 text-white pl-3.5 pr-1.5 py-1.5 rounded-2xl text-xs font-bold shadow-lg hover:bg-slate-700 active:scale-95 transition-all border border-slate-700/50"
             >
               <span>Generar con IA</span>
@@ -174,7 +167,6 @@ export default function LibrarySection({ userId }) {
               </div>
             </button>
 
-            {/* Botón: Importar mazo (Alineación y tamaño idéntico) */}
             <button
               onClick={() => { setFabOpen(false); fileInputRef.current?.click(); }}
               disabled={importing}
@@ -186,7 +178,6 @@ export default function LibrarySection({ userId }) {
               </div>
             </button>
 
-            {/* Botón: Nuevo mazo (Alineación y tamaño idéntico) */}
             <button
               onClick={() => { setFabOpen(false); setModal({}); }}
               className="w-44 flex items-center justify-between bg-white text-slate-700 border border-slate-200/80 pl-3.5 pr-1.5 py-1.5 rounded-2xl text-xs font-bold shadow-lg hover:bg-slate-50 active:scale-95 transition-all"
@@ -203,4 +194,12 @@ export default function LibrarySection({ userId }) {
         <button
           onClick={() => setFabOpen(!fabOpen)}
           className={`w-12 h-12 rounded-full flex items-center justify-center text-white shadow-xl z-50 transition-all duration-200 active:scale-90 ${
-            fabOpen ? 'bg
+            fabOpen ? 'bg-slate-800 rotate-45' : 'bg-slate-900 hover:bg-slate-800 hover:scale-105'
+          }`}
+        >
+          <Plus className="w-5 h-5" />
+        </button>
+      </div>
+    </div>
+  );
+}
