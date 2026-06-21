@@ -40,7 +40,6 @@ const fileToBase64 = (file) =>
     reader.readAsDataURL(file);
   });
 
-// 🌟 COORDINACIÓN DE NAVEGACIÓN: Añadimos initialMode a las propiedades recibidas
 export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit' }) {
   const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -63,10 +62,8 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   
-  // 🌟 COORDINACIÓN DE NAVEGACIÓN: Inicializamos el estado usando la propiedad dinámica
   const [mode, setMode] = useState(initialMode);
 
-  // 🌟 EFECTO PROTECTOR: Fuerza la actualización de la pestaña interna si cambia la petición del padre
   useEffect(() => {
     if (initialMode) setMode(initialMode);
   }, [initialMode]);
@@ -281,7 +278,6 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
         )}
       </div>
 
-      {mode === 'edit' && (
       <div
         className="mt-3 rounded-2xl p-5 border border-slate-200"
         style={
@@ -301,7 +297,6 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
           {deck.title}
         </h2>
       </div>
-      )}
 
       <div className="mt-4 w-full max-w-xl mx-auto flex justify-center px-2">
         <div className="inline-flex rounded-xl border border-slate-200 bg-white p-1 w-full sm:w-auto" data-testid="mode-tabs">
@@ -326,254 +321,260 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
         </div>
       </div>
 
-      {mode === 'review' && <ReviewMode cards={cards} loading={loading} />}
-
-      {mode === 'edit' && (
-      <>
-      <form
-        onSubmit={handleSubmit}
-        className="mt-4 bg-white border border-slate-200 rounded-2xl p-5 shadow-sm"
-        data-testid="flashcard-form"
-      >
-        <div className="flex items-center justify-between mb-3 border-b border-slate-50 pb-2">
-          <p className="text-sm font-bold text-slate-700">
-            {editingId ? 'Editar tarjeta' : isBulk ? 'Creación masiva por bloque de texto' : 'Nueva tarjeta'}
-          </p>
-          {!editingId && (
-            <button
-              type="button"
-              onClick={() => { setIsBulk(!isBulk); setError(''); }}
-              className="text-xs font-semibold text-slate-500 hover:text-slate-900 underline transition-colors"
-            >
-              {isBulk ? 'Volver a tarjeta única' : 'Cambiar a creación en lote'}
-            </button>
-          )}
-        </div>
-
-        {isBulk && !editingId ? (
-          <div className="animate-[fadeIn_0.2s_ease]">
-            <label className="block text-xs font-medium text-slate-500 mb-1.5">
-              Pega tu texto estructurado abajo:
-            </label>
-            <textarea
-              value={bulkText}
-              onChange={(e) => setBulkText(e.target.value)}
-              placeholder={"P: ¿Qué día fue teóricamente ayer?\nR: 20 de junio\n\nP: ¿Cuál es el número atómico del Hidrógeno?\nR: 1"}
-              className="min-h-[160px] w-full font-mono text-xs rounded-xl border border-slate-200 px-3 py-2.5 outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 placeholder:text-slate-300"
-            />
-            <p className="mt-1.5 text-[10px] text-slate-400 leading-relaxed">
-              * Puedes pedirle a cualquier IA externa que te formatee tus temas usando exactamente <code className="bg-slate-100 px-1 rounded font-mono">P:</code> para la pregunta y <code className="bg-slate-100 px-1 rounded font-mono">R:</code> para la respuesta. Cada par creará una carta automáticamente.
-            </p>
-          </div>
-        ) : (
-          <div className="grid sm:grid-cols-2 gap-3 animate-[fadeIn_0.2s_ease]">
-            <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1">Pregunta</label>
-              <textarea
-                value={question}
-                onChange={(e) => setQuestion(e.target.value)}
-                placeholder="¿Cuál es la capital de Francia?"
-                className="min-h-[90px] w-full resize-y rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400"
-                data-testid="flashcard-question-input"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1">Respuesta</label>
-              <textarea
-                value={answer}
-                onChange={(e) => setAnswer(e.target.value)}
-                placeholder="París"
-                className="min-h-[90px] w-full resize-y rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400"
-                data-testid="flashcard-answer-input"
-              />
-            </div>
-          </div>
-        )}
-
-        <button
-          type="button"
-          onClick={() => setShowStyles((s) => !s)}
-          className="mt-3 inline-flex items-center gap-2 text-xs font-medium text-slate-500 hover:text-slate-900 transition-colors"
-          data-testid="toggle-styles-button"
-        >
-          <SlidersHorizontal className="w-3.5 h-3.5" />
-          Opciones de estilo {isBulk && '(Se aplicarán a todo el lote)'}
-        </button>
-
-        {showStyles && (
-          <div className="mt-3 grid sm:grid-cols-3 gap-4 border-t border-slate-100 pt-3" data-testid="style-controls">
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1.5">Tamaño de letra</p>
-            <div className="flex flex-wrap gap-1" data-testid="font-size-controls">
-              {FONT_SIZES.map((f) => (
-                <button
-                  key={f.value}
-                  type="button"
-                  onClick={() => setFontSize(f.value)}
-                  className={`rounded-lg px-2 py-1 text-xs font-medium border transition-colors ${
-                    fontSize === f.value
-                      ? 'bg-slate-900 text-white border-slate-900'
-                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                  }`}
-                >
-                  {f.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1.5">Alineación</p>
-            <div className="flex gap-1" data-testid="align-controls">
-              {ALIGNS.map(({ value, label, Icon }) => (
-                <button
-                  key={value}
-                  type="button"
-                  title={label}
-                  onClick={() => setTextAlign(value)}
-                  className={`rounded-lg p-1.5 border transition-colors ${
-                    textAlign === value
-                      ? 'bg-slate-900 text-white border-slate-900'
-                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                  }`}
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1.5">Fondo</p>
-            <div className="flex items-center gap-2">
-              <label className="inline-flex items-center gap-1.5 cursor-pointer rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-slate-700 hover:bg-slate-50">
-                <ImagePlus className="w-3.5 h-3.5" />
-                Imagen
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleBgFile}
-                  className="hidden"
-                  data-testid="flashcard-bg-input"
-                />
-              </label>
-              {bgImage && (
-                <button
-                  type="button"
-                  onClick={() => setBgImage('')}
-                  className="text-xs text-red-600 hover:underline"
-                >
-                  Quitar
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-        )}
-
-        <div className="mt-4 flex gap-2">
-          <button
-            type="submit"
-            disabled={saving || (isBulk ? !bulkText.trim() : (!question.trim() || !answer.trim()))}
-            className="inline-flex items-center gap-2 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white text-sm font-medium px-4 py-2"
-          >
-            {saving ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : editingId ? (
-              <Check className="w-3.5 h-3.5" />
-            ) : (
-              <Plus className="w-3.5 h-3.5" />
-            )}
-            {editingId ? 'Guardar cambios' : isBulk ? 'Generar lote de tarjetas' : 'Agregar tarjeta'}
-          </button>
-          {editingId && (
-            <button
-              type="button"
-              onClick={resetForm}
-              className="rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
-            >
-              Cancelar
-            </button>
-          )}
-        </div>
-        {error && <p className="mt-2 text-xs text-red-600" data-testid="deck-interior-error">{error}</p>}
-      </form>
-
-      <div className="mt-6 flex items-center justify-between">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400">Tarjetas</h3>
-        <span className="text-xs font-medium text-slate-400" data-testid="flashcard-count">
-          {cards.length} en total
-        </span>
-      </div>
-
+      {/* 🌟 BLINDAJE ANTE PANTALLA EN BLANCO: Si la red está activa, impedimos que ReviewMode rompa la app */}
       {loading ? (
-        <div className="mt-4 flex items-center gap-2 text-slate-400" data-testid="cards-loading">
-          <Loader2 className="w-4 h-4 animate-spin" /> Cargando…
-        </div>
-      ) : cards.length === 0 ? (
-        <div className="mt-4 text-center border border-dashed border-slate-300 rounded-2xl py-10 text-slate-400" data-testid="cards-empty">
-          <Layers className="w-6 h-6 mx-auto mb-1.5" />
-          Aún no hay tarjetas en este mazo.
+        <div className="mt-12 flex flex-col items-center justify-center gap-3 text-slate-400 py-12">
+          <Loader2 className="w-6 h-6 animate-spin text-slate-600" />
+          <p className="text-sm font-medium">Preparando tus tarjetas de estudio…</p>
         </div>
       ) : (
-        <div className="mt-4 grid sm:grid-cols-2 lg:grid-cols-3 gap-4" data-testid="cards-grid">
-          {cards.map((card) => {
-            const hasBg = !!card.bgImage;
-            const alignClass = ALIGN_CLASS[card.textAlign] || 'text-center';
-            const sizeClass = card.fontSize || 'text-base';
-            const cardStyle = hasBg
-              ? { backgroundImage: `url(${card.bgImage})`, backgroundSize: 'cover', backgroundPosition: 'center' }
-              : {};
-            return (
-              <div
-                key={card.id}
-                style={cardStyle}
-                className="relative rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow overflow-hidden bg-white"
-                data-testid="flashcard-item"
-              >
-                {hasBg && <span className="absolute inset-0 bg-black/55" data-testid="flashcard-overlay" />}
+        <>
+          {mode === 'review' && <ReviewMode cards={cards} loading={loading} />}
 
-                <div className="relative z-10 p-4 pt-6">
-                  <span className="absolute top-2 left-1/2 -translate-x-1/2 w-7 h-1.5 rounded-full bg-slate-400/40" />
-                  <div className="flex justify-end gap-1 mb-1">
-                    <button
-                      onClick={() => handleEdit(card)}
-                      className={`p-1.5 rounded-lg ${hasBg ? 'text-white hover:bg-white/20' : 'text-slate-500 hover:bg-slate-100'}`}
-                      data-testid="flashcard-edit-button"
-                    >
-                      <Pencil className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(card)}
-                      className={`p-1.5 rounded-lg ${hasBg ? 'text-red-300 hover:bg-white/20' : 'text-red-600 hover:bg-red-50'}`}
-                      data-testid="flashcard-delete-button"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
+          {mode === 'edit' && (
+            <>
+            <form
+              onSubmit={handleSubmit}
+              className="mt-4 bg-white border border-slate-200 rounded-2xl p-5 shadow-sm"
+              data-testid="flashcard-form"
+            >
+              <div className="flex items-center justify-between mb-3 border-b border-slate-50 pb-2">
+                <p className="text-sm font-bold text-slate-700">
+                  {editingId ? 'Editar tarjeta' : isBulk ? 'Creación masiva por bloque de texto' : 'Nueva tarjeta'}
+                </p>
+                {!editingId && (
+                  <button
+                    type="button"
+                    onClick={() => { setIsBulk(!isBulk); setError(''); }}
+                    className="text-xs font-semibold text-slate-500 hover:text-slate-900 underline transition-colors"
+                  >
+                    {isBulk ? 'Volver a tarjeta única' : 'Cambiar a creación en lote'}
+                  </button>
+                )}
+              </div>
 
-                  <p className={`text-[10px] font-semibold uppercase tracking-wide ${hasBg ? 'text-white/70' : 'text-slate-400'}`}>
-                    Pregunta
-                  </p>
-                  <p className={`mt-0.5 font-semibold whitespace-pre-wrap ${sizeClass} ${alignClass} ${hasBg ? 'text-white' : 'text-slate-900'}`}>
-                    {card.question}
-                  </p>
-
-                  <div className={`my-3 border-t border-dashed ${hasBg ? 'border-white/30' : 'border-slate-200'}`} />
-
-                  <p className={`text-[10px] font-semibold uppercase tracking-wide ${hasBg ? 'text-white/70' : 'text-slate-400'}`}>
-                    Respuesta
-                  </p>
-                  <p className={`mt-0.5 whitespace-pre-wrap ${sizeClass} ${alignClass} ${hasBg ? 'text-white/90' : 'text-slate-700'}`}>
-                    {card.answer}
+              {isBulk && !editingId ? (
+                <div className="animate-[fadeIn_0.2s_ease]">
+                  <label className="block text-xs font-medium text-slate-500 mb-1.5">
+                    Pega tu texto estructurado abajo:
+                  </label>
+                  <textarea
+                    value={bulkText}
+                    onChange={(e) => setBulkText(e.target.value)}
+                    placeholder={"P: ¿Qué día fue teóricamente ayer?\nR: 20 de junio\n\nP: ¿Cuál es el número atómico del Hidrógeno?\nR: 1"}
+                    className="min-h-[160px] w-full font-mono text-xs rounded-xl border border-slate-200 px-3 py-2.5 outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 placeholder:text-slate-300"
+                  />
+                  <p className="mt-1.5 text-[10px] text-slate-400 leading-relaxed">
+                    * Puedes pedirle a cualquier IA externa que te formatee tus temas usando exactamente <code className="bg-slate-100 px-1 rounded font-mono">P:</code> para la pregunta y <code className="bg-slate-100 px-1 rounded font-mono">R:</code> para la respuesta. Cada par creará una carta automáticamente.
                   </p>
                 </div>
+              ) : (
+                <div className="grid sm:grid-cols-2 gap-3 animate-[fadeIn_0.2s_ease]">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Pregunta</label>
+                    <textarea
+                      value={question}
+                      onChange={(e) => setQuestion(e.target.value)}
+                      placeholder="¿Cuál es la capital de Francia?"
+                      className="min-h-[90px] w-full resize-y rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400"
+                      data-testid="flashcard-question-input"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Respuesta</label>
+                    <textarea
+                      value={answer}
+                      onChange={(e) => setAnswer(e.target.value)}
+                      placeholder="París"
+                      className="min-h-[90px] w-full resize-y rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400"
+                      data-testid="flashcard-answer-input"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setShowStyles((s) => !s)}
+                className="mt-3 inline-flex items-center gap-2 text-xs font-medium text-slate-500 hover:text-slate-900 transition-colors"
+                data-testid="toggle-styles-button"
+              >
+                <SlidersHorizontal className="w-3.5 h-3.5" />
+                Opciones de estilo {isBulk && '(Se aplicarán a todo el lote)'}
+              </button>
+
+              {showStyles && (
+                <div className="mt-3 grid sm:grid-cols-3 gap-4 border-t border-slate-100 pt-3" data-testid="style-controls">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1.5">Tamaño de letra</p>
+                  <div className="flex flex-wrap gap-1" data-testid="font-size-controls">
+                    {FONT_SIZES.map((f) => (
+                      <button
+                        key={f.value}
+                        type="button"
+                        onClick={() => setFontSize(f.value)}
+                        className={`rounded-lg px-2 py-1 text-xs font-medium border transition-colors ${
+                          fontSize === f.value
+                            ? 'bg-slate-900 text-white border-slate-900'
+                            : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1.5">Alineación</p>
+                  <div className="flex gap-1" data-testid="align-controls">
+                    {ALIGNS.map(({ value, label, Icon }) => (
+                      <button
+                        key={value}
+                        type="button"
+                        title={label}
+                        onClick={() => setTextAlign(value)}
+                        className={`rounded-lg p-1.5 border transition-colors ${
+                          textAlign === value
+                            ? 'bg-slate-900 text-white border-slate-900'
+                            : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        <Icon className="w-3.5 h-3.5" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1.5">Fondo</p>
+                  <div className="flex items-center gap-2">
+                    <label className="inline-flex items-center gap-1.5 cursor-pointer rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-slate-700 hover:bg-slate-50">
+                      <ImagePlus className="w-3.5 h-3.5" />
+                      Imagen
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleBgFile}
+                        className="hidden"
+                        data-testid="flashcard-bg-input"
+                      />
+                    </label>
+                    {bgImage && (
+                      <button
+                        type="button"
+                        onClick={() => setBgImage('')}
+                        className="text-xs text-red-600 hover:underline"
+                      >
+                        Quitar
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
-            );
-          })}
-        </div>
-      )}
-      </>
+              )}
+
+              <div className="mt-4 flex gap-2">
+                <button
+                  type="submit"
+                  disabled={saving || (isBulk ? !bulkText.trim() : (!question.trim() || !answer.trim()))}
+                  className="inline-flex items-center gap-2 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white text-sm font-medium px-4 py-2"
+                >
+                  {saving ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : editingId ? (
+                    <Check className="w-3.5 h-3.5" />
+                  ) : (
+                    <Plus className="w-3.5 h-3.5" />
+                  )}
+                  {editingId ? 'Guardar cambios' : isBulk ? 'Generar lote de tarjetas' : 'Agregar tarjeta'}
+                </button>
+                {editingId && (
+                  <button
+                    type="button"
+                    onClick={resetForm}
+                    className="rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                  >
+                    Cancelar
+                  </button>
+                )}
+              </div>
+              {error && <p className="mt-2 text-xs text-red-600" data-testid="deck-interior-error">{error}</p>}
+            </form>
+
+            <div className="mt-6 flex items-center justify-between">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400">Tarjetas</h3>
+              <span className="text-xs font-medium text-slate-400" data-testid="flashcard-count">
+                {cards.length} en total
+              </span>
+            </div>
+
+            {cards.length === 0 ? (
+              <div className="mt-4 text-center border border-dashed border-slate-300 rounded-2xl py-10 text-slate-400" data-testid="cards-empty">
+                <Layers className="w-6 h-6 mx-auto mb-1.5" />
+                Aún no hay tarjetas en este mazo.
+              </div>
+            ) : (
+              <div className="mt-4 grid sm:grid-cols-2 lg:grid-cols-3 gap-4" data-testid="cards-grid">
+                {cards.map((card) => {
+                  const hasBg = !!card.bgImage;
+                  const alignClass = ALIGN_CLASS[card.textAlign] || 'text-center';
+                  const sizeClass = card.fontSize || 'text-base';
+                  const cardStyle = hasBg
+                    ? { backgroundImage: `url(${card.bgImage})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+                    : {};
+                  return (
+                    <div
+                      key={card.id}
+                      style={cardStyle}
+                      className="relative rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow overflow-hidden bg-white"
+                      data-testid="flashcard-item"
+                    >
+                      {hasBg && <span className="absolute inset-0 bg-black/55" data-testid="flashcard-overlay" />}
+
+                      <div className="relative z-10 p-4 pt-6">
+                        <span className="absolute top-2 left-1/2 -translate-x-1/2 w-7 h-1.5 rounded-full bg-slate-400/40" />
+                        <div className="flex justify-end gap-1 mb-1">
+                          <button
+                            onClick={() => handleEdit(card)}
+                            className={`p-1.5 rounded-lg ${hasBg ? 'text-white hover:bg-white/20' : 'text-slate-500 hover:bg-slate-100'}`}
+                            data-testid="flashcard-edit-button"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(card)}
+                            className={`p-1.5 rounded-lg ${hasBg ? 'text-red-300 hover:bg-white/20' : 'text-red-600 hover:bg-red-50'}`}
+                            data-testid="flashcard-delete-button"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+
+                        <p className={`text-[10px] font-semibold uppercase tracking-wide ${hasBg ? 'text-white/70' : 'text-slate-400'}`}>
+                          Pregunta
+                        </p>
+                        <p className={`mt-0.5 font-semibold whitespace-pre-wrap ${sizeClass} ${alignClass} ${hasBg ? 'text-white' : 'text-slate-900'}`}>
+                          {card.question}
+                        </p>
+
+                        <div className={`my-3 border-t border-dashed ${hasBg ? 'border-white/30' : 'border-slate-200'}`} />
+
+                        <p className={`text-[10px] font-semibold uppercase tracking-wide ${hasBg ? 'text-white/70' : 'text-slate-400'}`}>
+                          Respuesta
+                        </p>
+                        <p className={`mt-0.5 whitespace-pre-wrap ${sizeClass} ${alignClass} ${hasBg ? 'text-white/90' : 'text-slate-700'}`}>
+                          {card.answer}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
+          )}
+        </>
       )}
     </div>
   );
