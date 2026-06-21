@@ -20,5 +20,11 @@ Full-stack Flashcards MVP. Scope chosen by user: **Google Sign-In only** (no fla
 - Live preview backend runs on Node/Express (port 8001) via an added supervisor program `node-backend`; the Python `backend` program is stopped.
 - Full OAuth popup completion needs a real Google account (not automatable); backend verification validated independently.
 
+## Implemented (2026-06-21) — Dashboard + MongoDB
+- Mongoose connected (MONGO_URL, dbName=DB_NAME). Models: User (googleId, email, name, picture, aiApiKey) and Flashcard (userId ref, question, answer, easeFactor default 2.5).
+- Auth now upserts the user and returns Mongo `_id` as `userId`; frontend passes it on every request.
+- Routes: GET /api/flashcards/:userId, POST /api/flashcards, PUT /api/user/settings, GET /api/user/:userId (settings state, masked key). All validated via curl.
+- DashboardScreen replaces ProfileScreen: sidebar (Study/Settings), Study = create form + responsive card grid, Settings = AI API key input (PUT). aiApiKey stored plain (masked in responses; encryption TODO).
+
 ## Backlog (P1/P2)
 - Flashcard CRUD (create/list/study), persistence (DB), spaced-repetition, decks, session JWT for the app, sign-out token revocation.
