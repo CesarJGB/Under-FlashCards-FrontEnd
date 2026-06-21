@@ -26,5 +26,12 @@ Full-stack Flashcards MVP. Scope chosen by user: **Google Sign-In only** (no fla
 - Routes: GET /api/flashcards/:userId, POST /api/flashcards, PUT /api/user/settings, GET /api/user/:userId (settings state, masked key). All validated via curl.
 - DashboardScreen replaces ProfileScreen: sidebar (Study/Settings), Study = create form + responsive card grid, Settings = AI API key input (PUT). aiApiKey stored plain (masked in responses; encryption TODO).
 
+## Implemented (2026-06-21) — Biblioteca de Mazos (Decks)
+- New **Deck** model (userId, title, coverColor default #ffffff, coverImage base64 optional). **Flashcard** now requires `deckId` (ref Deck).
+- Deck CRUD: GET /api/decks/:userId (with cardCount), POST /api/decks, PUT /api/decks/:id, DELETE /api/decks/:id (cascade-deletes its flashcards).
+- Flashcard routes: GET /api/flashcards/deck/:deckId, POST (requires deckId), PUT /api/flashcards/:id, DELETE /api/flashcards/:id. All validated via curl.
+- Frontend: 'Study' tab renamed to **Biblioteca**. Library = deck grid (cover color/image + title + count) + create/edit modal (title, color swatches/custom, file→base64). Deck interior view (currentDeck state) with physical study-card aesthetic, create/edit/delete flashcards, and "Volver a la Biblioteca".
+- Respected: Google auth logic, .env and CORS allow-list unchanged. Only additive change: 'DELETE' added to CORS allowed methods so the new DELETE routes work cross-origin in production.
+
 ## Backlog (P1/P2)
 - Flashcard CRUD (create/list/study), persistence (DB), spaced-repetition, decks, session JWT for the app, sign-out token revocation.
