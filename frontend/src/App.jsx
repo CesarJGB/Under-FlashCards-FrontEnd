@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
-import { LogOut, Sparkles, Library, Settings, AlertCircle } from 'lucide-react';
+import { LogOut, Sparkles, Library, Settings, AlertCircle, Home } from 'lucide-react';
 
 import LoginScreen from './components/LoginScreen';
+import HomeSection from './components/HomeSection';
 import LibrarySection from './components/LibrarySection';
 import SettingsSection from './components/SettingsSection';
 
@@ -11,7 +12,8 @@ const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
 function DashboardScreen({ user, onLogout }) {
-  const [tab, setTab] = useState('library');
+  // La pestaña por defecto ahora es el Home (Inicio)
+  const [tab, setTab] = useState('home');
 
   const navItem = (id, label, Icon) => (
     <button
@@ -28,7 +30,7 @@ function DashboardScreen({ user, onLogout }) {
 
   return (
     <div className="min-h-screen w-full bg-slate-50 flex" data-testid="dashboard-screen">
-      {/* Sidebar de escritorio */}
+      {/* SIDEBAR (Escritorio - Queda intacto a la izquierda) */}
       <aside className="hidden md:flex w-72 shrink-0 flex-col bg-white border-r border-slate-200 p-5">
         <div className="flex items-center gap-2 px-1 mb-8">
           <div className="w-9 h-9 rounded-xl bg-slate-900 flex items-center justify-center">
@@ -38,7 +40,8 @@ function DashboardScreen({ user, onLogout }) {
         </div>
 
         <nav className="space-y-1.5">
-          {navItem('library', 'Biblioteca', Library)}
+          {navItem('home', 'Inicio', Home)}
+          {navItem('library', 'Archivos', Library)}
           {navItem('settings', 'Ajustes', Settings)}
         </nav>
 
@@ -71,30 +74,56 @@ function DashboardScreen({ user, onLogout }) {
         </div>
       </aside>
 
-      {/* Navegación móvil */}
-      <main className="flex-1 min-w-0">
-        <div className="md:hidden sticky top-0 z-10 bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between">
-          <span className="font-extrabold text-slate-900">Flashcards</span>
-          <div className="flex gap-3">
-            <button onClick={() => setTab('library')} data-testid="nav-library-mobile">
-              <Library className={`w-5 h-5 ${tab === 'library' ? 'text-slate-900' : 'text-slate-400'}`} />
-            </button>
-            <button onClick={() => setTab('settings')} data-testid="nav-settings-mobile">
-              <Settings className={`w-5 h-5 ${tab === 'settings' ? 'text-slate-900' : 'text-slate-400'}`} />
-            </button>
-            <button onClick={onLogout} data-testid="logout-button-mobile">
-              <LogOut className="w-5 h-5 text-slate-400" />
-            </button>
-          </div>
+      {/* CONTENEDOR PRINCIPAL */}
+      <main className="flex-1 min-w-0 relative">
+        {/* BARRA SUPERIOR MÓVIL: Simplificada, solo muestra la marca y botón de logout */}
+        <div className="md:hidden sticky top-0 z-30 bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between shadow-sm">
+          <span className="font-extrabold text-slate-900 flex items-center gap-1.5">
+            <Sparkles className="w-4 h-4 text-slate-900 fill-slate-900" /> Flashcards
+          </span>
+          <button onClick={onLogout} className="p-1 text-slate-400 hover:text-red-600 transition-colors" data-testid="logout-button-mobile">
+            <LogOut className="w-4 h-4" />
+          </button>
         </div>
 
-        {/* Panel de Contenido Dinámico modularizado */}
-        <div className="max-w-5xl mx-auto px-4 py-4 md:px-6 md:py-8">
-          {tab === 'library' ? (
-            <LibrarySection userId={user.id} />
-          ) : (
-            <SettingsSection userId={user.id} />
-          )}
+        {/* CONTENIDO DE LA APP: pb-20 añadido en móviles para que la barra inferior no tape nada */}
+        <div className="max-w-5xl mx-auto px-4 py-4 pb-20 md:pb-8 md:px-6 md:py-8">
+          {tab === 'home' && <HomeSection user={user} />}
+          {tab === 'library' && <LibrarySection userId={user.id} />}
+          {tab === 'settings' && <SettingsSection userId={user.id} />}
+        </div>
+
+        {/* 📱 BARRA DE NAVEGACIÓN INFERIOR (Fija en móviles tipo Dock) */}
+        <div className="md:hidden fixed bottom-0 inset-x-0 bg-white/90 backdrop-blur-md border-t border-slate-200/80 px-6 py-2 flex justify-around items-center z-40 shadow-[0_-4px_12px_rgba(0,0,0,0.03)]">
+          <button
+            onClick={() => setTab('home')}
+            className={`flex flex-col items-center justify-center gap-0.5 flex-1 py-1 transition-colors ${
+              tab === 'home' ? 'text-slate-900 font-bold' : 'text-slate-400'
+            }`}
+          >
+            <Home className="w-5 h-5" />
+            <span className="text-[10px]">Inicio</span>
+          </button>
+
+          <button
+            onClick={() => setTab('library')}
+            className={`flex flex-col items-center justify-center gap-0.5 flex-1 py-1 transition-colors ${
+              tab === 'library' ? 'text-slate-900 font-bold' : 'text-slate-400'
+            }`}
+          >
+            <Library className="w-5 h-5" />
+            <span className="text-[10px]">Archivos</span>
+          </button>
+
+          <button
+            onClick={() => setTab('settings')}
+            className={`flex flex-col items-center justify-center gap-0.5 flex-1 py-1 transition-colors ${
+              tab === 'settings' ? 'text-slate-900 font-bold' : 'text-slate-400'
+            }`}
+          >
+            <Settings className="w-5 h-5" />
+            <span className="text-[10px]">Ajustes</span>
+          </button>
         </div>
       </main>
     </div>
