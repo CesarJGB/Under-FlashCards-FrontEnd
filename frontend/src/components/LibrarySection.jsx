@@ -7,8 +7,18 @@ import DeckInterior from './DeckInterior';
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
 export default function LibrarySection({ userId }) {
-  const [decks, setDecks] = useState([]);
-  const [loading, setLoading] = useState(true);
+  // ⚡ OPTIMIZACIÓN: Inicializa los mazos directo desde el caché local si existen
+  const [decks, setDecks] = useState(() => {
+    const cached = localStorage.getItem(`decks_${userId}`);
+    return cached ? JSON.parse(cached) : [];
+  });
+
+  // ⚡ OPTIMIZACIÓN: Si ya hay caché, no mostramos el spinner de carga inicial
+  const [loading, setLoading] = useState(() => {
+    const cached = localStorage.getItem(`decks_${userId}`);
+    return !cached; 
+  });
+
   const [error, setError] = useState('');
   const [modal, setModal] = useState(null);
   const [currentDeck, setCurrentDeck] = useState(null);
@@ -16,19 +26,25 @@ export default function LibrarySection({ userId }) {
   const fileInputRef = useRef(null);
   const [fabOpen, setFabOpen] = useState(false);
 
-  const loadDecks = useCallback(async () => {
-    setLoading(true);
+  // Carga silenciosa en segundo plano (Stale-While-Revalidate)
+  const loadDecks = useCallback(async (showSpinner = false) => {
+    if (showSpinner) setLoading(true);
     setError('');
     try {
       const res = await fetch(`${BACKEND_URL}/api/decks/${userId}`);
       if (!res.ok) throw new Error('No se pudieron cargar los mazos.');
-      setDecks(await res.json());
+      const data = await res.json();
+      
+      setDecks(data);
+      // Actualiza el almacenamiento local con los datos más recientes del servidor
+      localStorage.setItem(`decks_${userId}`, JSON.stringify(data));
     } catch (e) {
-      setError(e.message);
+      // Si la red falla pero tenemos datos locales, no bloqueamos al estudiante
+      if (decks.length === 0) setError(e.message);
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, [userId, decks.length]);
 
   useEffect(() => {
     loadDecks();
@@ -45,9 +61,13 @@ export default function LibrarySection({ userId }) {
     });
     if (!res.ok) throw new Error('No se pudo guardar el mazo.');
     const saved = await res.json();
-    setDecks((prev) =>
-      editing ? prev.map((d) => (d.id === saved.id ? { ...d, ...saved } : d)) : [saved, ...prev]
-    );
+    
+    const updatedDecks = editing 
+      ? decks.map((d) => (d.id === saved.id ? { ...d, ...saved } : d))
+      : [saved, ...decks];
+
+    setDecks(updatedDecks);
+    localStorage.setItem(`decks_${userId}`, JSON.stringify(updatedDecks));
     setModal(null);
   };
 
@@ -56,7 +76,10 @@ export default function LibrarySection({ userId }) {
     try {
       const res = await fetch(`${BACKEND_URL}/api/decks/${deck.id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('No se pudo eliminar el mazo.');
-      setDecks((prev) => prev.filter((d) => d.id !== deck.id));
+      
+      const updatedDecks = decks.filter((d) => d.id !== deck.id);
+      setDecks(updatedDecks);
+      localStorage.setItem(`decks_${userId}`, JSON.stringify(updatedDecks));
     } catch (e) {
       setError(e.message);
     }
@@ -78,7 +101,9 @@ export default function LibrarySection({ userId }) {
         body: JSON.stringify({ userId, deck: parsed.deck, cards: parsed.cards || [] }),
       });
       if (!res.ok) throw new Error('No se pudo importar el mazo.');
-      await loadDecks();
+      
+      // Forzamos recarga desde el servidor para traer el mazo importado con sus contadores reales
+      await loadDecks(true);
     } catch (err) {
       setError(err.message || 'Archivo inválido o no se pudo importar.');
     } finally {
@@ -190,7 +215,6 @@ export default function LibrarySection({ userId }) {
           </div>
         )}
 
-        {/* Botón Disparador Principal */}
         <button
           onClick={() => setFabOpen(!fabOpen)}
           className={`w-12 h-12 rounded-full flex items-center justify-center text-white shadow-xl z-50 transition-all duration-200 active:scale-90 ${
