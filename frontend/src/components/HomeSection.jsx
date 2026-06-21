@@ -1,7 +1,6 @@
-import { Sparkles, BookOpen, Clock, Flame } from 'lucide-react';
+import { Sparkles, BookOpen, Flame, Star } from 'lucide-react';
 
-export default function HomeSection({ user }) {
-  // Obtener un saludo dinámico según la hora del día
+export default function HomeSection({ user, decks, onOpenReview }) {
   const getGreeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return '¡Buenos días';
@@ -9,11 +8,13 @@ export default function HomeSection({ user }) {
     return '¡Buenas noches';
   };
 
+  // Filtramos la lista global de mazos para obtener solo los destacados
+  const starredDecks = decks.filter((d) => d.isStarred);
+
   return (
     <div className="animate-[fadeIn_0.2s_ease]" data-testid="home-section">
-      {/* Tarjeta de Perfil de Usuario Premium */}
+      {/* Tarjeta de Perfil */}
       <div className="bg-slate-900 rounded-3xl p-6 text-white shadow-xl relative overflow-hidden">
-        {/* Decoración geométrica sutil de fondo */}
         <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/5 rounded-full blur-2xl pointer-events-none" />
         <div className="absolute -left-10 -bottom-10 w-40 h-40 bg-slate-800 rounded-full blur-xl pointer-events-none" />
 
@@ -37,7 +38,43 @@ export default function HomeSection({ user }) {
         </div>
       </div>
 
-      {/* Tarjetas de Estadísticas Rápidas (Placeholders listos para repetición espaciada) */}
+      {/* 🌟 APARTADO DE MAZOS FAVORITOS (ACCESO DIRECTO A REPASO) */}
+      <div className="mt-6">
+        <h3 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-1.5">
+          <Star className="w-4 h-4 text-amber-500 fill-amber-500" /> Mazos Favoritos
+        </h3>
+        {starredDecks.length === 0 ? (
+          <div className="text-center border border-dashed border-slate-300 rounded-2xl p-6 text-slate-400 text-xs">
+            Aún no tienes mazos marcados como favoritos. Ve a la pestaña de Archivos y toca la estrella de tus carpetas preferidas.
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {starredDecks.map((deck) => {
+              const bgStyle = deck.coverImage
+                ? { backgroundImage: `url(${deck.coverImage})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+                : { backgroundColor: deck.coverColor };
+              return (
+                <button
+                  key={deck.id}
+                  onClick={() => onOpenReview(deck)}
+                  style={bgStyle}
+                  className="relative text-left h-24 rounded-2xl border border-slate-200 p-4 overflow-hidden shadow-sm hover:shadow-md active:scale-95 transition-all group flex flex-col justify-end"
+                >
+                  <span className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/30 to-black/10" />
+                  <div className="relative z-10 text-white min-w-0 w-full">
+                    <p className="font-bold text-xs truncate drop-shadow-sm">{deck.title}</p>
+                    <p className="text-[9px] text-white/85 font-medium mt-0.5 flex items-center gap-1">
+                      <BookOpen className="w-3 h-3 text-amber-400" /> Repasar ahora
+                    </p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Tarjetas de Estadísticas Rápidas */}
       <div className="mt-6 grid grid-cols-2 gap-3">
         <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm flex items-center gap-3">
           <div className="w-9 h-9 bg-slate-100 text-slate-800 rounded-xl flex items-center justify-center shrink-0">
@@ -58,14 +95,6 @@ export default function HomeSection({ user }) {
             <p className="text-sm font-extrabold text-slate-900 mt-0.5">1 Día</p>
           </div>
         </div>
-      </div>
-
-      {/* Panel informativo inferior */}
-      <div className="mt-5 bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-        <h3 className="text-sm font-bold text-slate-900 mb-1">¿Qué estudiar hoy?</h3>
-        <p className="text-xs text-slate-500 leading-relaxed">
-          Dirígete a la pestaña de **Archivos** en la barra inferior para abrir tu biblioteca, repasar tus mazos existentes o crear tarjetas en lote rápidamente.
-        </p>
       </div>
     </div>
   );
