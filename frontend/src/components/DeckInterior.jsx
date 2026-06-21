@@ -11,7 +11,6 @@ const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 const fileToBase64 = (file) =>
   new Promise((resolve, reject) => {
     const reader = new FileReader();
-    // ✅ CORREGIDO: Corrección del typo para lecturas de archivos en el móvil
     reader.onload = () => resolve(reader.result);
     reader.onerror = reject;
     reader.readAsDataURL(file);
@@ -79,7 +78,7 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
     } catch (e) { setError(e.message); }
   };
 
-  // 🌟 MOTOR DE EXPORTACIÓN REPARADO Y BLINDADO CONTRA CRASHES
+  // Motor de Exportación a PDF Corregido
   const handleExportPDF = (type = 'guide') => {
     if (cards.length === 0) {
       setError('No hay tarjetas en este mazo para exportar a PDF.');
@@ -149,7 +148,6 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
           const x = marginX + col * (cardW + gapX);
           const y = marginY + row * (cardH + gapY);
 
-          // 🛡️ CONTROLADOR DE IMÁGENES SEGURO: Detectar el formato real de la imagen Base64
           if (card.bgImage) {
             try {
               let imgFormat = 'JPEG';
@@ -157,11 +155,8 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
               if (card.bgImage.includes('image/webp')) imgFormat = 'WEBP';
               
               doc.addImage(card.bgImage, imgFormat, x, y, cardW, cardH, undefined, 'FAST');
-              
-              // Filtro de contraste sólido superior e inferior en lugar de GState propenso a errores
               doc.setFillColor(15, 23, 42); 
             } catch (imgErr) {
-              // Fallback sólido elegante si la imagen da problemas en el render
               doc.setFillColor(30, 41, 59);
               doc.rect(x, y, cardW, cardH, 'F');
             }
@@ -169,7 +164,6 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
             doc.setFillColor(255, 255, 255);
           }
 
-          // Bordes de corte para la rejilla física
           doc.setDrawColor(203, 213, 225);
           doc.setLineWidth(0.2);
           doc.roundedRect(x, y, cardW, cardH, 3, 3, card.bgImage ? 'S' : 'FD');
@@ -186,6 +180,8 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
 
           const textColor = card.bgImage ? [255, 255, 255] : [15, 23, 42];
           const subColor = card.bgImage ? [148, 163, 184] : [100, 116, 139];
+          // 🌟 VARIABLE CENTRALIZADA: Preparada para la desestructuración limpia
+          const answerColor = card.bgImage ? [241, 245, 249] : [51, 65, 85];
 
           // Bloque Pregunta
           doc.setFont("Helvetica", "bold"); doc.setFontSize(7.5); doc.setTextColor(...subColor);
@@ -206,7 +202,8 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
           doc.setFont("Helvetica", "bold"); doc.setFontSize(7.5); doc.setTextColor(...subColor);
           doc.text("RESPUESTA", textX, y + 45, { align });
 
-          doc.setFont("Helvetica", "normal"); doc.setFontSize(10.5); doc.setTextColor(card.bgImage ? [241, 245, 249] : [51, 65, 85]);
+          // 🌟 RESOLUCIÓN DEL ERROR: Agregamos las tres elipsis (...), desbancando el fallo f2
+          doc.setFont("Helvetica", "normal"); doc.setFontSize(10.5); doc.setTextColor(...answerColor);
           currentY = y + 51;
           aLines.slice(0, 4).forEach((line) => {
             doc.text(line, textX, currentY, { align });
@@ -217,7 +214,6 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
         doc.save(`${safeName}-tarjetas.pdf`);
       }
     } catch (err) {
-      // ✅ ATRAPA-ERRORES GLOBAL: Evita la pantalla blanca o el congelamiento absoluto
       console.error(err);
       setError(`Error de renderizado de PDF: ${err.message}`);
     }
