@@ -18,6 +18,9 @@ import {
   Trash2,
   ImagePlus,
   X,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
 } from 'lucide-react';
 
 // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS,
@@ -36,6 +39,20 @@ const COLOR_SWATCHES = [
   '#1f2937',
 ];
 
+// Literal Tailwind classes so the JIT keeps them in the build.
+const FONT_SIZES = [
+  { label: 'Pequeña', value: 'text-sm' },
+  { label: 'Normal', value: 'text-base' },
+  { label: 'Grande', value: 'text-lg' },
+  { label: 'Extra Grande', value: 'text-xl' },
+];
+const ALIGNS = [
+  { label: 'Izquierda', value: 'left', Icon: AlignLeft },
+  { label: 'Centro', value: 'center', Icon: AlignCenter },
+  { label: 'Derecha', value: 'right', Icon: AlignRight },
+];
+const ALIGN_CLASS = { left: 'text-left', center: 'text-center', right: 'text-right' };
+
 const fileToBase64 = (file) =>
   new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -44,7 +61,6 @@ const fileToBase64 = (file) =>
     reader.readAsDataURL(file);
   });
 
-// Pick readable text color over a light/dark cover color.
 const isDark = (hex) => {
   if (!hex || hex.length < 7) return false;
   const r = parseInt(hex.slice(1, 3), 16);
@@ -54,7 +70,7 @@ const isDark = (hex) => {
 };
 
 // -----------------------------------------------------------------------------
-// Login screen
+// Login
 // -----------------------------------------------------------------------------
 function LoginScreen({ onSuccess, onError, error }) {
   return (
@@ -68,12 +84,12 @@ function LoginScreen({ onSuccess, onError, error }) {
             <Sparkles className="w-7 h-7 text-white" />
           </div>
           <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">Flashcards</h1>
-          <p className="mt-2 text-slate-500">Sign in to start studying smarter.</p>
+          <p className="mt-2 text-slate-500">Inicia sesión para estudiar mejor.</p>
         </div>
 
         <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-8">
           <p className="text-sm font-medium text-slate-700 text-center mb-6">
-            Continue with your Google account
+            Continúa con tu cuenta de Google
           </p>
           <div className="flex justify-center" data-testid="google-login-button">
             <GoogleLogin
@@ -83,6 +99,7 @@ function LoginScreen({ onSuccess, onError, error }) {
               size="large"
               shape="pill"
               text="continue_with"
+              locale="es"
             />
           </div>
           {error && (
@@ -113,11 +130,10 @@ function DeckModal({ initial, onClose, onSave }) {
   const handleFile = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 700 * 1024) { // 700 KB máximo para asegurar el paso por el backend
-  setError('Image too large (max 700KB).');
-  return;
-}
-
+    if (file.size > 1.5 * 1024 * 1024) {
+      setError('La imagen es muy grande (máx. 1.5MB).');
+      return;
+    }
     setError('');
     setCoverImage(await fileToBase64(file));
   };
@@ -130,7 +146,7 @@ function DeckModal({ initial, onClose, onSave }) {
     try {
       await onSave({ title: title.trim(), coverColor, coverImage });
     } catch (err) {
-      setError(err.message || 'Could not save deck.');
+      setError(err.message || 'No se pudo guardar el mazo.');
       setSaving(false);
     }
   };
@@ -143,7 +159,7 @@ function DeckModal({ initial, onClose, onSave }) {
       <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-6">
         <div className="flex items-center justify-between mb-5">
           <h3 className="text-lg font-bold text-slate-900">
-            {initial ? 'Edit deck' : 'New deck'}
+            {initial ? 'Editar mazo' : 'Nuevo mazo'}
           </h3>
           <button onClick={onClose} data-testid="deck-modal-close" className="text-slate-400 hover:text-slate-700">
             <X className="w-5 h-5" />
@@ -151,16 +167,16 @@ function DeckModal({ initial, onClose, onSave }) {
         </div>
 
         <form onSubmit={handleSubmit}>
-          <label className="block text-sm font-medium text-slate-700 mb-1.5">Title</label>
+          <label className="block text-sm font-medium text-slate-700 mb-1.5">Título</label>
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="Biology 101"
+            placeholder="Biología 101"
             className="w-full rounded-xl border border-slate-200 px-4 py-2.5 outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400"
             data-testid="deck-title-input"
           />
 
-          <label className="block text-sm font-medium text-slate-700 mt-4 mb-2">Cover color</label>
+          <label className="block text-sm font-medium text-slate-700 mt-4 mb-2">Color de portada</label>
           <div className="flex flex-wrap items-center gap-2" data-testid="deck-color-picker">
             {COLOR_SWATCHES.map((c) => (
               <button
@@ -182,11 +198,11 @@ function DeckModal({ initial, onClose, onSave }) {
             />
           </div>
 
-          <label className="block text-sm font-medium text-slate-700 mt-4 mb-2">Cover image (optional)</label>
+          <label className="block text-sm font-medium text-slate-700 mt-4 mb-2">Imagen de portada (opcional)</label>
           <div className="flex items-center gap-3">
             <label className="inline-flex items-center gap-2 cursor-pointer rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">
               <ImagePlus className="w-4 h-4" />
-              Upload
+              Subir
               <input
                 type="file"
                 accept="image/*"
@@ -197,14 +213,14 @@ function DeckModal({ initial, onClose, onSave }) {
             </label>
             {coverImage && (
               <div className="flex items-center gap-2">
-                <img src={coverImage} alt="cover" className="w-10 h-10 rounded-lg object-cover" />
+                <img src={coverImage} alt="portada" className="w-10 h-10 rounded-lg object-cover" />
                 <button
                   type="button"
                   onClick={() => setCoverImage('')}
                   className="text-xs text-red-600 hover:underline"
                   data-testid="deck-image-remove"
                 >
-                  Remove
+                  Quitar
                 </button>
               </div>
             )}
@@ -218,7 +234,7 @@ function DeckModal({ initial, onClose, onSave }) {
               onClick={onClose}
               className="rounded-xl border border-slate-200 px-4 py-2.5 text-slate-700 hover:bg-slate-50"
             >
-              Cancel
+              Cancelar
             </button>
             <button
               type="submit"
@@ -227,7 +243,7 @@ function DeckModal({ initial, onClose, onSave }) {
               data-testid="deck-save-button"
             >
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-              Save
+              Guardar
             </button>
           </div>
         </form>
@@ -237,7 +253,7 @@ function DeckModal({ initial, onClose, onSave }) {
 }
 
 // -----------------------------------------------------------------------------
-// Deck cover card (library grid)
+// Deck cover card
 // -----------------------------------------------------------------------------
 function DeckCard({ deck, onOpen, onEdit, onDelete }) {
   const dark = deck.coverImage ? true : isDark(deck.coverColor);
@@ -252,7 +268,6 @@ function DeckCard({ deck, onOpen, onEdit, onDelete }) {
       className="group relative text-left h-44 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all overflow-hidden"
       data-testid="deck-card"
     >
-      {/* punch-hole detail to evoke a physical study keyring */}
       <span className="absolute top-3 left-1/2 -translate-x-1/2 w-8 h-2 rounded-full bg-black/15" />
       <span className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/55 to-transparent" />
 
@@ -282,7 +297,7 @@ function DeckCard({ deck, onOpen, onEdit, onDelete }) {
           {deck.title}
         </p>
         <p className="text-xs text-white/80">
-          {deck.cardCount ?? 0} {deck.cardCount === 1 ? 'card' : 'cards'}
+          {deck.cardCount ?? 0} {deck.cardCount === 1 ? 'tarjeta' : 'tarjetas'}
         </p>
       </div>
 
@@ -296,13 +311,16 @@ function DeckCard({ deck, onOpen, onEdit, onDelete }) {
 }
 
 // -----------------------------------------------------------------------------
-// Deck interior — physical card vibe + flashcard CRUD
+// Deck interior — editor con estilos + grid de tarjetas
 // -----------------------------------------------------------------------------
 function DeckInterior({ deck, userId, onBack }) {
   const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(true);
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState('');
+  const [bgImage, setBgImage] = useState('');
+  const [textAlign, setTextAlign] = useState('center');
+  const [fontSize, setFontSize] = useState('text-base');
   const [editingId, setEditingId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -312,7 +330,7 @@ function DeckInterior({ deck, userId, onBack }) {
     setError('');
     try {
       const res = await fetch(`${BACKEND_URL}/api/flashcards/deck/${deck.id}`);
-      if (!res.ok) throw new Error('Could not load flashcards.');
+      if (!res.ok) throw new Error('No se pudieron cargar las tarjetas.');
       setCards(await res.json());
     } catch (e) {
       setError(e.message);
@@ -328,7 +346,21 @@ function DeckInterior({ deck, userId, onBack }) {
   const resetForm = () => {
     setQuestion('');
     setAnswer('');
+    setBgImage('');
+    setTextAlign('center');
+    setFontSize('text-base');
     setEditingId(null);
+  };
+
+  const handleBgFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 700 * 1024) {
+      setError('La imagen es muy grande (máx. 700KB).');
+      return;
+    }
+    setError('');
+    setBgImage(await fileToBase64(file));
   };
 
   const handleSubmit = async (e) => {
@@ -336,23 +368,24 @@ function DeckInterior({ deck, userId, onBack }) {
     if (!question.trim() || !answer.trim()) return;
     setSaving(true);
     setError('');
+    const body = { question, answer, bgImage, textAlign, fontSize };
     try {
       if (editingId) {
         const res = await fetch(`${BACKEND_URL}/api/flashcards/${editingId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ question, answer }),
+          body: JSON.stringify(body),
         });
-        if (!res.ok) throw new Error('Could not update flashcard.');
+        if (!res.ok) throw new Error('No se pudo actualizar la tarjeta.');
         const updated = await res.json();
         setCards((prev) => prev.map((c) => (c.id === editingId ? updated : c)));
       } else {
         const res = await fetch(`${BACKEND_URL}/api/flashcards`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId, deckId: deck.id, question, answer }),
+          body: JSON.stringify({ userId, deckId: deck.id, ...body }),
         });
-        if (!res.ok) throw new Error('Could not create flashcard.');
+        if (!res.ok) throw new Error('No se pudo crear la tarjeta.');
         const created = await res.json();
         setCards((prev) => [created, ...prev]);
       }
@@ -368,19 +401,25 @@ function DeckInterior({ deck, userId, onBack }) {
     setEditingId(card.id);
     setQuestion(card.question);
     setAnswer(card.answer);
+    setBgImage(card.bgImage || '');
+    setTextAlign(card.textAlign || 'center');
+    setFontSize(card.fontSize || 'text-base');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleDelete = async (card) => {
     setError('');
     try {
       const res = await fetch(`${BACKEND_URL}/api/flashcards/${card.id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Could not delete flashcard.');
+      if (!res.ok) throw new Error('No se pudo eliminar la tarjeta.');
       setCards((prev) => prev.filter((c) => c.id !== card.id));
       if (editingId === card.id) resetForm();
     } catch (e) {
       setError(e.message);
     }
   };
+
+  const headerDark = deck.coverImage || isDark(deck.coverColor);
 
   return (
     <div data-testid="deck-interior">
@@ -403,46 +442,123 @@ function DeckInterior({ deck, userId, onBack }) {
       >
         <span
           className={`inline-flex items-center gap-1.5 text-xs font-semibold rounded-full px-2.5 py-1 ${
-            deck.coverImage || isDark(deck.coverColor) ? 'bg-white/85 text-slate-900' : 'bg-slate-900/10 text-slate-900'
+            headerDark ? 'bg-white/85 text-slate-900' : 'bg-slate-900/10 text-slate-900'
           }`}
         >
-          <Layers className="w-3.5 h-3.5" /> Deck
+          <Layers className="w-3.5 h-3.5" /> Mazo
         </span>
-        <h2
-          className={`mt-2 text-2xl font-extrabold drop-shadow ${
-            deck.coverImage || isDark(deck.coverColor) ? 'text-white' : 'text-slate-900'
-          }`}
-        >
+        <h2 className={`mt-2 text-2xl font-extrabold drop-shadow ${headerDark ? 'text-white' : 'text-slate-900'}`}>
           {deck.title}
         </h2>
       </div>
 
-      {/* Create / edit form */}
+      {/* Editor */}
       <form
         onSubmit={handleSubmit}
         className="mt-6 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm"
         data-testid="flashcard-form"
       >
         <p className="text-sm font-semibold text-slate-700 mb-3">
-          {editingId ? 'Edit flashcard' : 'New flashcard'}
+          {editingId ? 'Editar tarjeta' : 'Nueva tarjeta'}
         </p>
+
         <div className="grid sm:grid-cols-2 gap-4">
-          <input
-            value={question}
-            onChange={(e) => setQuestion(e.target.value)}
-            placeholder="Question"
-            className="w-full rounded-xl border border-slate-200 px-4 py-2.5 outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400"
-            data-testid="flashcard-question-input"
-          />
-          <input
-            value={answer}
-            onChange={(e) => setAnswer(e.target.value)}
-            placeholder="Answer"
-            className="w-full rounded-xl border border-slate-200 px-4 py-2.5 outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400"
-            data-testid="flashcard-answer-input"
-          />
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">Pregunta</label>
+            <textarea
+              value={question}
+              onChange={(e) => setQuestion(e.target.value)}
+              placeholder="¿Cuál es la capital de Francia?"
+              className="min-h-[100px] w-full resize-y rounded-xl border border-slate-200 px-4 py-2.5 outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400"
+              data-testid="flashcard-question-input"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">Respuesta</label>
+            <textarea
+              value={answer}
+              onChange={(e) => setAnswer(e.target.value)}
+              placeholder="París"
+              className="min-h-[100px] w-full resize-y rounded-xl border border-slate-200 px-4 py-2.5 outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400"
+              data-testid="flashcard-answer-input"
+            />
+          </div>
         </div>
-        <div className="mt-4 flex gap-2">
+
+        {/* Controles de estilo */}
+        <div className="mt-5 grid sm:grid-cols-3 gap-5">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Tamaño de letra</p>
+            <div className="flex flex-wrap gap-1.5" data-testid="font-size-controls">
+              {FONT_SIZES.map((f) => (
+                <button
+                  key={f.value}
+                  type="button"
+                  onClick={() => setFontSize(f.value)}
+                  className={`rounded-lg px-2.5 py-1.5 text-xs font-medium border transition-colors ${
+                    fontSize === f.value
+                      ? 'bg-slate-900 text-white border-slate-900'
+                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                  }`}
+                  data-testid={`font-size-${f.value}`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Alineación</p>
+            <div className="flex gap-1.5" data-testid="align-controls">
+              {ALIGNS.map(({ value, label, Icon }) => (
+                <button
+                  key={value}
+                  type="button"
+                  title={label}
+                  onClick={() => setTextAlign(value)}
+                  className={`rounded-lg p-2 border transition-colors ${
+                    textAlign === value
+                      ? 'bg-slate-900 text-white border-slate-900'
+                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                  }`}
+                  data-testid={`align-${value}`}
+                >
+                  <Icon className="w-4 h-4" />
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Fondo</p>
+            <div className="flex items-center gap-2">
+              <label className="inline-flex items-center gap-2 cursor-pointer rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-700 hover:bg-slate-50">
+                <ImagePlus className="w-4 h-4" />
+                Imagen
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleBgFile}
+                  className="hidden"
+                  data-testid="flashcard-bg-input"
+                />
+              </label>
+              {bgImage && (
+                <button
+                  type="button"
+                  onClick={() => setBgImage('')}
+                  className="text-xs text-red-600 hover:underline"
+                  data-testid="flashcard-bg-remove"
+                >
+                  Quitar
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-5 flex gap-2">
           <button
             type="submit"
             disabled={saving || !question.trim() || !answer.trim()}
@@ -450,7 +566,7 @@ function DeckInterior({ deck, userId, onBack }) {
             data-testid="flashcard-submit-button"
           >
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : editingId ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-            {editingId ? 'Save changes' : 'Add flashcard'}
+            {editingId ? 'Guardar cambios' : 'Agregar tarjeta'}
           </button>
           {editingId && (
             <button
@@ -459,62 +575,87 @@ function DeckInterior({ deck, userId, onBack }) {
               className="rounded-xl border border-slate-200 px-4 py-2.5 text-slate-700 hover:bg-slate-50"
               data-testid="flashcard-cancel-edit"
             >
-              Cancel
+              Cancelar
             </button>
           )}
         </div>
         {error && <p className="mt-3 text-sm text-red-600" data-testid="deck-interior-error">{error}</p>}
       </form>
 
-      {/* Flashcards list — physical study-card style */}
+      {/* Grid de tarjetas */}
       <div className="mt-8 flex items-center justify-between">
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Cards</h3>
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Tarjetas</h3>
         <span className="text-sm font-medium text-slate-400" data-testid="flashcard-count">
-          {cards.length} total
+          {cards.length} en total
         </span>
       </div>
 
       {loading ? (
         <div className="mt-6 flex items-center gap-2 text-slate-400" data-testid="cards-loading">
-          <Loader2 className="w-4 h-4 animate-spin" /> Loading…
+          <Loader2 className="w-4 h-4 animate-spin" /> Cargando…
         </div>
       ) : cards.length === 0 ? (
         <div className="mt-6 text-center border border-dashed border-slate-300 rounded-2xl py-12 text-slate-400" data-testid="cards-empty">
           <Layers className="w-8 h-8 mx-auto mb-2" />
-          No cards in this deck yet.
+          Aún no hay tarjetas en este mazo.
         </div>
       ) : (
         <div className="mt-6 grid sm:grid-cols-2 lg:grid-cols-3 gap-4" data-testid="cards-grid">
-          {cards.map((card) => (
-            <div
-              key={card.id}
-              className="relative bg-white border border-slate-200 rounded-2xl p-5 pt-7 shadow-sm hover:shadow-md transition-shadow"
-              data-testid="flashcard-item"
-            >
-              <span className="absolute top-2 left-1/2 -translate-x-1/2 w-7 h-1.5 rounded-full bg-slate-200" />
-              <div className="flex justify-end gap-1 mb-1">
-                <button
-                  onClick={() => handleEdit(card)}
-                  className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100"
-                  data-testid="flashcard-edit-button"
-                >
-                  <Pencil className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  onClick={() => handleDelete(card)}
-                  className="p-1.5 rounded-lg text-red-600 hover:bg-red-50"
-                  data-testid="flashcard-delete-button"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
+          {cards.map((card) => {
+            const hasBg = !!card.bgImage;
+            const alignClass = ALIGN_CLASS[card.textAlign] || 'text-center';
+            const sizeClass = card.fontSize || 'text-base';
+            const cardStyle = hasBg
+              ? { backgroundImage: `url(${card.bgImage})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+              : {};
+            return (
+              <div
+                key={card.id}
+                style={cardStyle}
+                className="relative rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow overflow-hidden bg-white"
+                data-testid="flashcard-item"
+              >
+                {/* Overlay oscuro para legibilidad cuando hay imagen */}
+                {hasBg && <span className="absolute inset-0 bg-black/55" data-testid="flashcard-overlay" />}
+
+                <div className="relative z-10 p-5 pt-7">
+                  <span className="absolute top-2 left-1/2 -translate-x-1/2 w-7 h-1.5 rounded-full bg-slate-400/40" />
+                  <div className="flex justify-end gap-1 mb-1">
+                    <button
+                      onClick={() => handleEdit(card)}
+                      className={`p-1.5 rounded-lg ${hasBg ? 'text-white hover:bg-white/20' : 'text-slate-500 hover:bg-slate-100'}`}
+                      data-testid="flashcard-edit-button"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(card)}
+                      className={`p-1.5 rounded-lg ${hasBg ? 'text-red-300 hover:bg-white/20' : 'text-red-600 hover:bg-red-50'}`}
+                      data-testid="flashcard-delete-button"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  <p className={`text-xs font-semibold uppercase tracking-wide ${hasBg ? 'text-white/70' : 'text-slate-400'}`}>
+                    Pregunta
+                  </p>
+                  <p className={`mt-1 font-semibold whitespace-pre-wrap ${sizeClass} ${alignClass} ${hasBg ? 'text-white' : 'text-slate-900'}`}>
+                    {card.question}
+                  </p>
+
+                  <div className={`my-4 border-t border-dashed ${hasBg ? 'border-white/30' : 'border-slate-200'}`} />
+
+                  <p className={`text-xs font-semibold uppercase tracking-wide ${hasBg ? 'text-white/70' : 'text-slate-400'}`}>
+                    Respuesta
+                  </p>
+                  <p className={`mt-1 whitespace-pre-wrap ${sizeClass} ${alignClass} ${hasBg ? 'text-white/90' : 'text-slate-700'}`}>
+                    {card.answer}
+                  </p>
+                </div>
               </div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Question</p>
-              <p className="mt-1 font-semibold text-slate-900">{card.question}</p>
-              <div className="my-4 border-t border-dashed border-slate-200" />
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Answer</p>
-              <p className="mt-1 text-slate-700">{card.answer}</p>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
@@ -522,13 +663,13 @@ function DeckInterior({ deck, userId, onBack }) {
 }
 
 // -----------------------------------------------------------------------------
-// Library section — deck grid + modal + interior routing
+// Biblioteca
 // -----------------------------------------------------------------------------
 function LibrarySection({ userId }) {
   const [decks, setDecks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [modal, setModal] = useState(null); // { editing?: deck }
+  const [modal, setModal] = useState(null);
   const [currentDeck, setCurrentDeck] = useState(null);
 
   const loadDecks = useCallback(async () => {
@@ -536,7 +677,7 @@ function LibrarySection({ userId }) {
     setError('');
     try {
       const res = await fetch(`${BACKEND_URL}/api/decks/${userId}`);
-      if (!res.ok) throw new Error('Could not load decks.');
+      if (!res.ok) throw new Error('No se pudieron cargar los mazos.');
       setDecks(await res.json());
     } catch (e) {
       setError(e.message);
@@ -558,7 +699,7 @@ function LibrarySection({ userId }) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(editing ? payload : { userId, ...payload }),
     });
-    if (!res.ok) throw new Error('Could not save deck.');
+    if (!res.ok) throw new Error('No se pudo guardar el mazo.');
     const saved = await res.json();
     setDecks((prev) =>
       editing ? prev.map((d) => (d.id === saved.id ? { ...d, ...saved } : d)) : [saved, ...prev]
@@ -567,10 +708,10 @@ function LibrarySection({ userId }) {
   };
 
   const handleDeleteDeck = async (deck) => {
-    if (!window.confirm(`Delete deck "${deck.title}" and all its cards?`)) return;
+    if (!window.confirm(`¿Eliminar el mazo "${deck.title}" y todas sus tarjetas?`)) return;
     try {
       const res = await fetch(`${BACKEND_URL}/api/decks/${deck.id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Could not delete deck.');
+      if (!res.ok) throw new Error('No se pudo eliminar el mazo.');
       setDecks((prev) => prev.filter((d) => d.id !== deck.id));
     } catch (e) {
       setError(e.message);
@@ -595,14 +736,14 @@ function LibrarySection({ userId }) {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-slate-900">Biblioteca</h2>
-          <p className="text-slate-500 mt-1">Your study decks.</p>
+          <p className="text-slate-500 mt-1">Tus mazos de estudio.</p>
         </div>
         <button
           onClick={() => setModal({})}
           className="inline-flex items-center gap-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-medium px-5 py-2.5"
           data-testid="create-deck-button"
         >
-          <Plus className="w-4 h-4" /> New deck
+          <Plus className="w-4 h-4" /> Nuevo mazo
         </button>
       </div>
 
@@ -610,12 +751,12 @@ function LibrarySection({ userId }) {
 
       {loading ? (
         <div className="mt-8 flex items-center gap-2 text-slate-400" data-testid="decks-loading">
-          <Loader2 className="w-4 h-4 animate-spin" /> Loading…
+          <Loader2 className="w-4 h-4 animate-spin" /> Cargando…
         </div>
       ) : decks.length === 0 ? (
         <div className="mt-8 text-center border border-dashed border-slate-300 rounded-2xl py-16 text-slate-400" data-testid="decks-empty">
           <Library className="w-8 h-8 mx-auto mb-2" />
-          No decks yet. Create your first deck.
+          Aún no tienes mazos. Crea tu primer mazo.
         </div>
       ) : (
         <div className="mt-8 grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" data-testid="decks-grid">
@@ -632,18 +773,14 @@ function LibrarySection({ userId }) {
       )}
 
       {modal && (
-        <DeckModal
-          initial={modal.editing}
-          onClose={() => setModal(null)}
-          onSave={handleSaveDeck}
-        />
+        <DeckModal initial={modal.editing} onClose={() => setModal(null)} onSave={handleSaveDeck} />
       )}
     </div>
   );
 }
 
 // -----------------------------------------------------------------------------
-// Settings section: AI API key
+// Ajustes
 // -----------------------------------------------------------------------------
 function SettingsSection({ userId }) {
   const [apiKey, setApiKey] = useState('');
@@ -679,7 +816,7 @@ function SettingsSection({ userId }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, aiApiKey: apiKey }),
       });
-      if (!res.ok) throw new Error('Could not save the API key.');
+      if (!res.ok) throw new Error('No se pudo guardar la clave.');
       const data = await res.json();
       setHasKey(data.hasApiKey);
       setMasked(data.apiKeyMasked || '');
@@ -694,28 +831,28 @@ function SettingsSection({ userId }) {
 
   return (
     <div data-testid="settings-section">
-      <h2 className="text-2xl font-bold text-slate-900">Settings</h2>
-      <p className="text-slate-500 mt-1">Manage your personal AI API key.</p>
+      <h2 className="text-2xl font-bold text-slate-900">Ajustes</h2>
+      <p className="text-slate-500 mt-1">Administra tu clave de API de IA.</p>
 
       <form
         onSubmit={handleSave}
         className="mt-6 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm max-w-xl"
         data-testid="settings-form"
       >
-        <label className="block text-sm font-medium text-slate-700 mb-1.5">AI API Key</label>
+        <label className="block text-sm font-medium text-slate-700 mb-1.5">Clave de API de IA</label>
         <div className="relative">
           <KeyRound className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="password"
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
-            placeholder={hasKey ? `Saved: ${masked}` : 'sk-...'}
+            placeholder={hasKey ? `Guardada: ${masked}` : 'sk-...'}
             className="w-full rounded-xl border border-slate-200 pl-9 pr-4 py-2.5 outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400"
             data-testid="api-key-input"
           />
         </div>
         <p className="mt-2 text-xs text-slate-400">
-          Stored securely on the server and never shown again in full.
+          Se guarda de forma segura en el servidor y nunca se muestra completa de nuevo.
         </p>
 
         <button
@@ -725,10 +862,10 @@ function SettingsSection({ userId }) {
           data-testid="api-key-save-button"
         >
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-          Save key
+          Guardar clave
         </button>
 
-        {saved && <p className="mt-3 text-sm text-green-600" data-testid="settings-saved">API key saved.</p>}
+        {saved && <p className="mt-3 text-sm text-green-600" data-testid="settings-saved">Clave guardada.</p>}
         {error && <p className="mt-3 text-sm text-red-600" data-testid="settings-error">{error}</p>}
       </form>
     </div>
@@ -766,7 +903,7 @@ function DashboardScreen({ user, verified, onLogout }) {
 
         <nav className="space-y-1.5">
           {navItem('library', 'Biblioteca', Library)}
-          {navItem('settings', 'Settings', Settings)}
+          {navItem('settings', 'Ajustes', Settings)}
         </nav>
 
         <div className="mt-auto pt-5 border-t border-slate-100">
@@ -793,7 +930,7 @@ function DashboardScreen({ user, verified, onLogout }) {
             data-testid="logout-button"
           >
             <LogOut className="w-4 h-4" />
-            Sign out
+            Cerrar sesión
           </button>
         </div>
       </aside>
@@ -825,7 +962,7 @@ function DashboardScreen({ user, verified, onLogout }) {
               data-testid="verification-badge"
             >
               <ShieldCheck className="w-3.5 h-3.5" />
-              {verified ? 'Verified session' : 'Verifying…'}
+              {verified ? 'Sesión verificada' : 'Verificando…'}
             </span>
           </div>
 
@@ -841,7 +978,7 @@ function DashboardScreen({ user, verified, onLogout }) {
 }
 
 // -----------------------------------------------------------------------------
-// Auth shell (unchanged logic)
+// Auth shell (lógica de autenticación SIN cambios)
 // -----------------------------------------------------------------------------
 function FlashcardsApp() {
   const [user, setUser] = useState(null);
@@ -852,13 +989,13 @@ function FlashcardsApp() {
     setError('');
     const credential = credentialResponse?.credential;
     if (!credential) {
-      setError('No credential received from Google.');
+      setError('No se recibió la credencial de Google.');
       return;
     }
     try {
       jwtDecode(credential);
     } catch {
-      setError('Could not read Google token.');
+      setError('No se pudo leer el token de Google.');
       return;
     }
     try {
@@ -869,18 +1006,18 @@ function FlashcardsApp() {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || 'Server verification failed.');
+        throw new Error(data.error || 'Falló la verificación en el servidor.');
       }
       const data = await res.json();
       setUser(data.user);
       setVerified(true);
     } catch (e) {
       setVerified(false);
-      setError(e.message || 'Backend verification failed.');
+      setError(e.message || 'Falló la verificación en el servidor.');
     }
   };
 
-  const handleError = () => setError('Google sign-in was cancelled or failed.');
+  const handleError = () => setError('El inicio de sesión con Google se canceló o falló.');
 
   const handleLogout = () => {
     setUser(null);
@@ -903,10 +1040,10 @@ export default function App() {
           data-testid="missing-client-id"
         >
           <AlertCircle className="w-8 h-8 text-amber-500 mx-auto mb-3" />
-          <h1 className="text-lg font-bold text-slate-900">Google Client ID missing</h1>
+          <h1 className="text-lg font-bold text-slate-900">Falta el Google Client ID</h1>
           <p className="mt-2 text-sm text-slate-500">
-            Set <code className="font-mono">VITE_GOOGLE_CLIENT_ID</code> in your frontend{' '}
-            <code className="font-mono">.env</code> file.
+            Define <code className="font-mono">VITE_GOOGLE_CLIENT_ID</code> en el archivo{' '}
+            <code className="font-mono">.env</code> del frontend.
           </p>
         </div>
       </div>
