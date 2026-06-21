@@ -1,4 +1,4 @@
-import { Pencil, Trash2, Layers } from 'lucide-react';
+import { Pencil, Trash2, Layers, Star } from 'lucide-react';
 
 const isDark = (hex) => {
   if (!hex || hex.length < 7) return false;
@@ -8,7 +8,7 @@ const isDark = (hex) => {
   return (r * 299 + g * 587 + b * 114) / 1000 < 140;
 };
 
-export default function DeckCard({ deck, onOpen, onEdit, onDelete }) {
+export default function DeckCard({ deck, onOpen, onEdit, onDelete, onToggleStar }) {
   const dark = deck.coverImage ? true : isDark(deck.coverColor);
   const bgStyle = deck.coverImage
     ? { backgroundImage: `url(${deck.coverImage})`, backgroundSize: 'cover', backgroundPosition: 'center' }
@@ -22,6 +22,20 @@ export default function DeckCard({ deck, onOpen, onEdit, onDelete }) {
     >
       <span className="absolute top-3 left-1/2 -translate-x-1/2 w-8 h-2 rounded-full bg-black/15" />
       <span className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/55 to-transparent" />
+
+      {/* ⭐ BOTÓN DE ESTRELLA (FAVORITO) */}
+      <span
+        role="button"
+        tabIndex={0}
+        onClick={(e) => { e.stopPropagation(); onToggleStar(deck); }}
+        className={`absolute top-2 left-2 p-1.5 rounded-lg transition-all z-10 ${
+          deck.isStarred 
+            ? 'bg-white/90 text-amber-500 shadow-sm scale-100' 
+            : 'bg-white/70 text-slate-400 opacity-0 group-hover:opacity-100 hover:bg-white hover:text-slate-600'
+        }`}
+      >
+        <Star className={`w-3.5 h-3.5 ${deck.isStarred ? 'fill-amber-500' : ''}`} />
+      </span>
 
       <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
         <span
