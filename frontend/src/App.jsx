@@ -677,7 +677,8 @@ function DeckInterior({ deck, userId, onBack }) {
       )}
 
       {/* Selector de modo */}
-      <div className="mt-5 inline-flex rounded-xl border border-slate-200 bg-white p-1" data-testid="mode-tabs">
+      <div className="mt-5 flex justify-center">
+      <div className="inline-flex rounded-xl border border-slate-200 bg-white p-1" data-testid="mode-tabs">
         <button
           type="button"
           onClick={() => setMode('edit')}
@@ -698,6 +699,7 @@ function DeckInterior({ deck, userId, onBack }) {
         >
           <BookOpen className="w-4 h-4" /> Modo Repaso
         </button>
+      </div>
       </div>
 
       {mode === 'review' && <ReviewMode cards={cards} loading={loading} />}
