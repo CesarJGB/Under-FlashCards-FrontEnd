@@ -331,7 +331,7 @@ app.post('/api/decks', async (req, res) => {
   }
 });
 
-// PUT /api/decks/:id — update a deck (CON ISSTARRED CORREGIDO E INTEGRADO)
+// PUT /api/decks/:id — update a deck
 app.put('/api/decks/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -354,7 +354,7 @@ app.put('/api/decks/:id', async (req, res) => {
   }
 });
 
-// DELETE /api/decks/:id — delete a deck and its flashcards
+// DELETE /api/decks/:id — delete a mazo and its flashcards
 app.delete('/api/decks/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -371,7 +371,7 @@ app.delete('/api/decks/:id', async (req, res) => {
   }
 });
 
-// GET /api/decks/:id/export — deck + its flashcards as a portable JSON
+// GET /api/decks/:id/export — mazo + its flashcards as a portable JSON
 app.get('/api/decks/:id/export', async (req, res) => {
   try {
     const { id } = req.params;
@@ -398,7 +398,7 @@ app.get('/api/decks/:id/export', async (req, res) => {
   }
 });
 
-// POST /api/decks/import — create a new deck (owned by userId) + its cards
+// POST /api/decks/import — create a new mazo (owned by userId) + its cards
 app.post('/api/decks/import', async (req, res) => {
   try {
     const { userId, deck, cards } = req.body || {};
@@ -517,7 +517,7 @@ app.get('/api/flashcards/deck/:deckId', async (req, res) => {
   try {
     const { deckId } = req.params;
     if (!mongoose.isValidObjectId(deckId)) {
-      return res.status(400).json({ error: 'Invalid deck id.' });
+      return res.status(400).json({ error: 'Invalid mazo id.' });
     }
     const deck = await Deck.findById(deckId);
     const backgrounds = deck ? deck.cardBackgrounds : [];
@@ -538,7 +538,7 @@ app.post('/api/flashcards', async (req, res) => {
       return res.status(400).json({ error: 'Invalid user id.' });
     }
     if (!mongoose.isValidObjectId(deckId)) {
-      return res.status(400).json({ error: 'Invalid deck id.' });
+      return res.status(400).json({ error: 'Invalid mazo id.' });
     }
     if (!question?.trim() || !answer?.trim()) {
       return res.status(400).json({ error: 'Question and answer are required.' });
@@ -575,4 +575,42 @@ app.put('/api/flashcards/:id', async (req, res) => {
     const update = {};
     if (typeof question === 'string') update.question = question.trim();
     if (typeof answer === 'string') update.answer = answer.trim();
-    if (
+    if (['left', 'center', 'right'].includes(textAlign)) update.textAlign = textAlign;
+    if (typeof fontSize === 'string') update.fontSize = fontSize;
+
+    const currentCard = await Flashcard.findById(id);
+    if (!currentCard) return res.status(404).json({ error: 'Flashcard not found.' });
+
+    if (typeof bgImage === 'string') {
+      update.bgImageIndex = await getOrCreateBgIndex(currentCard.deckId, bgImage);
+    }
+
+    const card = await Flashcard.findByIdAndUpdate(id, { $set: update }, { new: true });
+    const deck = await Deck.findById(card.deckId);
+    return res.json(serializeFlashcard(card, deck ? deck.cardBackgrounds : []));
+  } catch (err) {
+    console.error('[flashcards:put] error:', err.message);
+    return res.status(500).json({ error: 'Server error.' });
+  }
+});
+
+// DELETE /api/flashcards/:id — delete a flashcard
+app.delete('/api/flashcards/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ error: 'Invalid flashcard id.' });
+    }
+    const card = await Flashcard.findByIdAndDelete(id);
+    if (!card) return res.status(404).json({ error: 'Flashcard not found.' });
+    return res.json({ success: true, id });
+  } catch (err) {
+    console.error('[flashcards:delete] error:', err.message);
+    return res.status(500).json({ error: 'Server error.' });
+  }
+});
+
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Flashcards backend listening on port ${PORT}`);
+  console.log(`Allowed CORS origins: ${allowedOrigins.join(', ')}`);
+});
