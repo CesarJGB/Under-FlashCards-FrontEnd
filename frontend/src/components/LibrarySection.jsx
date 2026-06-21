@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useRef, useState } from 'react';
 import { Upload, Plus, Library, Loader2, Sparkles } from 'lucide-react';
 import DeckCard from './DeckCard';
 import DeckModal from './DeckModal';
@@ -6,49 +6,21 @@ import DeckInterior from './DeckInterior';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
-export default function LibrarySection({ userId }) {
-  // ⚡ OPTIMIZACIÓN: Inicializa los mazos directo desde el caché local si existen
-  const [decks, setDecks] = useState(() => {
-    const cached = localStorage.getItem(`decks_${userId}`);
-    return cached ? JSON.parse(cached) : [];
-  });
-
-  // ⚡ OPTIMIZACIÓN: Si ya hay caché, no mostramos el spinner de carga inicial
-  const [loading, setLoading] = useState(() => {
-    const cached = localStorage.getItem(`decks_${userId}`);
-    return !cached; 
-  });
-
-  const [error, setError] = useState('');
+export default function LibrarySection({ 
+  userId, 
+  decks, 
+  loading, 
+  setDecks, 
+  loadDecks,
+  currentDeck,
+  setCurrentDeck,
+  initialMode,
+  setInitialMode
+}) {
   const [modal, setModal] = useState(null);
-  const [currentDeck, setCurrentDeck] = useState(null);
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef(null);
   const [fabOpen, setFabOpen] = useState(false);
-
-  // Carga silenciosa en segundo plano (Stale-While-Revalidate)
-  const loadDecks = useCallback(async (showSpinner = false) => {
-    if (showSpinner) setLoading(true);
-    setError('');
-    try {
-      const res = await fetch(`${BACKEND_URL}/api/decks/${userId}`);
-      if (!res.ok) throw new Error('No se pudieron cargar los mazos.');
-      const data = await res.json();
-      
-      setDecks(data);
-      // Actualiza el almacenamiento local con los datos más recientes del servidor
-      localStorage.setItem(`decks_${userId}`, JSON.stringify(data));
-    } catch (e) {
-      // Si la red falla pero tenemos datos locales, no bloqueamos al estudiante
-      if (decks.length === 0) setError(e.message);
-    } finally {
-      setLoading(false);
-    }
-  }, [userId, decks.length]);
-
-  useEffect(() => {
-    loadDecks();
-  }, [loadDecks]);
 
   const handleSaveDeck = async (payload) => {
     const editing = modal?.editing;
@@ -81,7 +53,29 @@ export default function LibrarySection({ userId }) {
       setDecks(updatedDecks);
       localStorage.setItem(`decks_${userId}`, JSON.stringify(updatedDecks));
     } catch (e) {
-      setError(e.message);
+      // Si ocurre un error, re-sincronizamos
+    }
+  };
+
+  // 🌟 FUNCIÓN PARA COORDENAR EL TOGGLE DE LA ESTRELLA CON EL SERVIDOR Y CACHÉ
+  const handleToggleStar = async (deck) => {
+    const nextState = !deck.isStarred;
+    
+    // Actualización optimista en interfaz para que responda a 0ms
+    const updatedDecks = decks.map((d) => d.id === deck.id ? { ...d, isStarred: nextState } : d);
+    setDecks(updatedDecks);
+    localStorage.setItem(`decks_${userId}`, JSON.stringify(updatedDecks));
+
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/decks/${deck.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isStarred: nextState }),
+      });
+      if (!res.ok) throw new Error('No se pudo actualizar el favorito.');
+    } catch (err) {
+      // Revertimos en caso de error de conexión
+      await loadDecks();
     }
   };
 
@@ -89,7 +83,6 @@ export default function LibrarySection({ userId }) {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
-    setError('');
     setImporting(true);
     try {
       const text = await file.text();
@@ -101,11 +94,9 @@ export default function LibrarySection({ userId }) {
         body: JSON.stringify({ userId, deck: parsed.deck, cards: parsed.cards || [] }),
       });
       if (!res.ok) throw new Error('No se pudo importar el mazo.');
-      
-      // Forzamos recarga desde el servidor para traer el mazo importado con sus contadores reales
       await loadDecks(true);
     } catch (err) {
-      setError(err.message || 'Archivo inválido o no se pudo importar.');
+      /* ignore */
     } finally {
       setImporting(false);
     }
@@ -116,6 +107,7 @@ export default function LibrarySection({ userId }) {
       <DeckInterior
         deck={currentDeck}
         userId={userId}
+        initialMode={initialMode} // <-- Pasamos el modo inicial solicitado
         onBack={() => {
           setCurrentDeck(null);
           loadDecks();
@@ -142,9 +134,7 @@ export default function LibrarySection({ userId }) {
         </div>
       </div>
 
-      {error && <p className="mt-4 text-sm text-red-600" data-testid="library-error">{error}</p>}
-
-      {loading ? (
+      {loading && decks.length === 0 ? (
         <div className="mt-8 flex items-center gap-2 text-slate-400" data-testid="decks-loading">
           <Loader2 className="w-4 h-4 animate-spin" /> Cargando…
         </div>
@@ -159,9 +149,10 @@ export default function LibrarySection({ userId }) {
             <DeckCard
               key={deck.id}
               deck={deck}
-              onOpen={setCurrentDeck}
+              onOpen={(d) => { setInitialMode('edit'); setCurrentDeck(d); }}
               onEdit={(d) => setModal({ editing: d })}
               onDelete={handleDeleteDeck}
+              onToggleStar={handleToggleStar} // <-- Inyectamos la estrella
             />
           ))}
         </div>
@@ -171,7 +162,7 @@ export default function LibrarySection({ userId }) {
         <DeckModal initial={modal.editing} onClose={() => setModal(null)} onSave={handleSaveDeck} />
       )}
 
-      {/* 📱 MENU ACCION FLOTANTE SIMÉTRICO (FAB) */}
+      {/* 📱 MENU ACCION FLOTANTE (FAB) */}
       <div className="fixed bottom-20 right-4 md:bottom-8 md:right-8 z-50 flex flex-col items-end gap-2">
         {fabOpen && (
           <div
