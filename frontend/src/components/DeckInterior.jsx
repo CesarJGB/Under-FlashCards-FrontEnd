@@ -134,7 +134,7 @@ export default function DeckInterior({ deck, userId, onBack }) {
     setSaving(true);
     setError('');
 
-    // LÓGICA DE PROCESAMIENTO MASIVO EN LOTE
+       // LÓGICA DE PROCESAMIENTO MASIVO EN LOTE (MUDADA A BATCHSTYLES)
     if (isBulk && !editingId) {
       const lines = bulkText.split('\n');
       const parsedCards = [];
@@ -142,22 +142,18 @@ export default function DeckInterior({ deck, userId, onBack }) {
 
       lines.forEach((line) => {
         const cleanLine = line.trim();
-        // Detecta líneas que inicien con P: o p: (ignorando espacios libres antes de los dos puntos)
         if (/^[pP]\s*:/i.test(cleanLine)) {
           currentQuestion = cleanLine.replace(/^[pP]\s*:/i, '').trim();
         } 
-        // Detecta líneas que inicien con R: o r: y consolida el par de la tarjeta
         else if (/^[rR]\s*:/i.test(cleanLine)) {
           const currentAnswer = cleanLine.replace(/^[rR]\s*:/i, '').trim();
           if (currentQuestion && currentAnswer) {
             parsedCards.push({
               question: currentQuestion,
-              answer: currentAnswer,
-              bgImage, // Aplica la configuración default/ad-hoc del editor de lote
-              textAlign,
-              fontSize
+              answer: currentAnswer
+              // YA NO PARAMETRIZAMOS LOS ESTILOS AQUÍ PARA EVITAR DUPLICAR EL BASE64
             });
-            currentQuestion = ''; // Resetea el puntero para la siguiente iteración
+            currentQuestion = '';
           }
         }
       });
@@ -172,7 +168,13 @@ export default function DeckInterior({ deck, userId, onBack }) {
         const res = await fetch(`${BACKEND_URL}/api/flashcards/bulk`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId, deckId: deck.id, cards: parsedCards }),
+          // ENVIAMOS LA IMAGEN UNA SOLA VEZ EN BATCHSTYLES ARRIBA DE LAS TARJETAS
+          body: JSON.stringify({ 
+            userId, 
+            deckId: deck.id, 
+            batchStyles: { bgImage, textAlign, fontSize }, 
+            cards: parsedCards 
+          }),
         });
         if (!res.ok) throw new Error('No se pudo guardar el lote de tarjetas.');
         const createdBatch = await res.json();
@@ -186,6 +188,7 @@ export default function DeckInterior({ deck, userId, onBack }) {
       }
       return;
     }
+
 
     // LÓGICA TRADICIONAL DE TARJETA ÚNICA
     if (!question.trim() || !answer.trim()) { setSaving(false); return; }
