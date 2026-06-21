@@ -49,6 +49,11 @@ export default function DeckInterior({ deck, userId, onBack }) {
   const [textAlign, setTextAlign] = useState('center');
   const [fontSize, setFontSize] = useState('text-base');
   const [showStyles, setShowStyles] = useState(false);
+  
+  // Estados para la funcionalidad de importación por texto plano sin IA interna
+  const [isBulk, setIsBulk] = useState(false);
+  const [bulkText, setBulkText] = useState('');
+
   const [defaultStyles, setDefaultStyles] = useState({
     bgImage: '',
     textAlign: 'center',
@@ -80,6 +85,7 @@ export default function DeckInterior({ deck, userId, onBack }) {
   const resetForm = () => {
     setQuestion('');
     setAnswer('');
+    setBulkText('');
     setBgImage(defaultStyles.bgImage);
     setTextAlign(defaultStyles.textAlign);
     setFontSize(defaultStyles.fontSize);
@@ -125,9 +131,64 @@ export default function DeckInterior({ deck, userId, onBack }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!question.trim() || !answer.trim()) return;
     setSaving(true);
     setError('');
+
+    // LÓGICA DE PROCESAMIENTO MASIVO EN LOTE
+    if (isBulk && !editingId) {
+      const lines = bulkText.split('\n');
+      const parsedCards = [];
+      let currentQuestion = '';
+
+      lines.forEach((line) => {
+        const cleanLine = line.trim();
+        // Detecta líneas que inicien con P: o p: (ignorando espacios libres antes de los dos puntos)
+        if (/^[pP]\s*:/i.test(cleanLine)) {
+          currentQuestion = cleanLine.replace(/^[pP]\s*:/i, '').trim();
+        } 
+        // Detecta líneas que inicien con R: o r: y consolida el par de la tarjeta
+        else if (/^[rR]\s*:/i.test(cleanLine)) {
+          const currentAnswer = cleanLine.replace(/^[rR]\s*:/i, '').trim();
+          if (currentQuestion && currentAnswer) {
+            parsedCards.push({
+              question: currentQuestion,
+              answer: currentAnswer,
+              bgImage, // Aplica la configuración default/ad-hoc del editor de lote
+              textAlign,
+              fontSize
+            });
+            currentQuestion = ''; // Resetea el puntero para la siguiente iteración
+          }
+        }
+      });
+
+      if (parsedCards.length === 0) {
+        setError('No se encontraron bloques con el formato correcto (P: ... R: ...)');
+        setSaving(false);
+        return;
+      }
+
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/flashcards/bulk`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId, deckId: deck.id, cards: parsedCards }),
+        });
+        if (!res.ok) throw new Error('No se pudo guardar el lote de tarjetas.');
+        const createdBatch = await res.json();
+        setCards((prev) => [...createdBatch, ...prev]);
+        resetForm();
+        setIsBulk(false);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+
+    // LÓGICA TRADICIONAL DE TARJETA ÚNICA
+    if (!question.trim() || !answer.trim()) { setSaving(false); return; }
     const body = { question, answer, bgImage, textAlign, fontSize };
     try {
       if (editingId) {
@@ -160,6 +221,7 @@ export default function DeckInterior({ deck, userId, onBack }) {
   };
 
   const handleEdit = (card) => {
+    setIsBulk(false);
     setEditingId(card.id);
     setQuestion(card.question);
     setAnswer(card.answer);
@@ -244,7 +306,6 @@ export default function DeckInterior({ deck, userId, onBack }) {
             className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
               mode === 'edit' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'
             }`}
-            data-testid="mode-edit-tab"
           >
             <Pencil className="w-4 h-4" /> Modo Edición
           </button>
@@ -254,7 +315,6 @@ export default function DeckInterior({ deck, userId, onBack }) {
             className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
               mode === 'review' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'
             }`}
-            data-testid="mode-review-tab"
           >
             <BookOpen className="w-4 h-4" /> Modo Repaso
           </button>
@@ -270,32 +330,62 @@ export default function DeckInterior({ deck, userId, onBack }) {
         className="mt-4 bg-white border border-slate-200 rounded-2xl p-5 shadow-sm"
         data-testid="flashcard-form"
       >
-        <p className="text-sm font-semibold text-slate-700 mb-2">
-          {editingId ? 'Editar tarjeta' : 'Nueva tarjeta'}
-        </p>
-
-        <div className="grid sm:grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1">Pregunta</label>
-            <textarea
-              value={question}
-              onChange={(e) => setQuestion(e.target.value)}
-              placeholder="¿Cuál es la capital de Francia?"
-              className="min-h-[90px] w-full resize-y rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400"
-              data-testid="flashcard-question-input"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1">Respuesta</label>
-            <textarea
-              value={answer}
-              onChange={(e) => setAnswer(e.target.value)}
-              placeholder="París"
-              className="min-h-[90px] w-full resize-y rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400"
-              data-testid="flashcard-answer-input"
-            />
-          </div>
+        <div className="flex items-center justify-between mb-3 border-b border-slate-50 pb-2">
+          <p className="text-sm font-bold text-slate-700">
+            {editingId ? 'Editar tarjeta' : isBulk ? 'Creación masiva por bloque de texto' : 'Nueva tarjeta'}
+          </p>
+          {!editingId && (
+            <button
+              type="button"
+              onClick={() => { setIsBulk(!isBulk); setError(''); }}
+              className="text-xs font-semibold text-slate-500 hover:text-slate-900 underline transition-colors"
+            >
+              {isBulk ? 'Volver a tarjeta única' : 'Cambiar a creación en lote'}
+            </button>
+          )}
         </div>
+
+        {isBulk && !editingId ? (
+          // INTERFAZ EN LOTE (TEXTAREA ÚNICO)
+          <div className="animate-[fadeIn_0.2s_ease]">
+            <label className="block text-xs font-medium text-slate-500 mb-1.5">
+              Pega tu texto estructurado abajo:
+            </label>
+            <textarea
+              value={bulkText}
+              onChange={(e) => setBulkText(e.target.value)}
+              placeholder={"P: ¿Qué día fue teóricamente ayer?\nR: 20 de junio\n\nP: ¿Cuál es el número atómico del Hidrógeno?\nR: 1"}
+              className="min-h-[160px] w-full font-mono text-xs rounded-xl border border-slate-200 px-3 py-2.5 outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 placeholder:text-slate-300"
+            />
+            <p className="mt-1.5 text-[10px] text-slate-400 leading-relaxed">
+              * Puedes pedirle a cualquier IA externa que te formatee tus temas usando exactamente <code className="bg-slate-100 px-1 rounded font-mono">P:</code> para la pregunta y <code className="bg-slate-100 px-1 rounded font-mono">R:</code> para la respuesta. Cada par creará una carta automáticamente.
+            </p>
+          </div>
+        ) : (
+          // INTERFAZ TRADICIONAL (TARJETA ÚNICA)
+          <div className="grid sm:grid-cols-2 gap-3 animate-[fadeIn_0.2s_ease]">
+            <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1">Pregunta</label>
+              <textarea
+                value={question}
+                onChange={(e) => setQuestion(e.target.value)}
+                placeholder="¿Cuál es la capital de Francia?"
+                className="min-h-[90px] w-full resize-y rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400"
+                data-testid="flashcard-question-input"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1">Respuesta</label>
+              <textarea
+                value={answer}
+                onChange={(e) => setAnswer(e.target.value)}
+                placeholder="París"
+                className="min-h-[90px] w-full resize-y rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400"
+                data-testid="flashcard-answer-input"
+              />
+            </div>
+          </div>
+        )}
 
         <button
           type="button"
@@ -304,7 +394,7 @@ export default function DeckInterior({ deck, userId, onBack }) {
           data-testid="toggle-styles-button"
         >
           <SlidersHorizontal className="w-3.5 h-3.5" />
-          Opciones de estilo
+          Opciones de estilo {isBulk && '(Se aplicarán a todo el lote)'}
         </button>
 
         {showStyles && (
@@ -322,7 +412,6 @@ export default function DeckInterior({ deck, userId, onBack }) {
                       ? 'bg-slate-900 text-white border-slate-900'
                       : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
                   }`}
-                  data-testid={`font-size-${f.value}`}
                 >
                   {f.label}
                 </button>
@@ -344,7 +433,6 @@ export default function DeckInterior({ deck, userId, onBack }) {
                       ? 'bg-slate-900 text-white border-slate-900'
                       : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
                   }`}
-                  data-testid={`align-${value}`}
                 >
                   <Icon className="w-3.5 h-3.5" />
                 </button>
@@ -371,7 +459,6 @@ export default function DeckInterior({ deck, userId, onBack }) {
                   type="button"
                   onClick={() => setBgImage('')}
                   className="text-xs text-red-600 hover:underline"
-                  data-testid="flashcard-bg-remove"
                 >
                   Quitar
                 </button>
@@ -384,19 +471,23 @@ export default function DeckInterior({ deck, userId, onBack }) {
         <div className="mt-4 flex gap-2">
           <button
             type="submit"
-            disabled={saving || !question.trim() || !answer.trim()}
+            disabled={saving || (isBulk ? !bulkText.trim() : (!question.trim() || !answer.trim()))}
             className="inline-flex items-center gap-2 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white text-sm font-medium px-4 py-2"
-            data-testid="flashcard-submit-button"
           >
-            {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : editingId ? <Check className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
-            {editingId ? 'Guardar cambios' : 'Agregar tarjeta'}
+            {saving ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : editingId ? (
+              <Check className="w-3.5 h-3.5" />
+            ) : (
+              <Plus className="w-3.5 h-3.5" />
+            )}
+            {editingId ? 'Guardar cambios' : isBulk ? 'Generar lote de tarjetas' : 'Agregar tarjeta'}
           </button>
           {editingId && (
             <button
               type="button"
               onClick={resetForm}
               className="rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
-              data-testid="flashcard-cancel-edit"
             >
               Cancelar
             </button>
