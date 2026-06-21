@@ -496,10 +496,10 @@ app.post('/api/flashcards', async (req, res) => {
   }
 });
 
-// POST /api/flashcards/bulk — Crear múltiples flashcards en un solo lote optimizado
+// POST /api/flashcards/bulk — Crear múltiples flashcards en un solo lote optimizado sin saturar la red
 app.post('/api/flashcards/bulk', async (req, res) => {
   try {
-    const { userId, deckId, cards } = req.body || {};
+    const { userId, deckId, batchStyles, cards } = req.body || {};
     if (!mongoose.isValidObjectId(userId) || !mongoose.isValidObjectId(deckId)) {
       return res.status(400).json({ error: 'IDs de usuario o mazo inválidos.' });
     }
@@ -507,11 +507,12 @@ app.post('/api/flashcards/bulk', async (req, res) => {
       return res.status(400).json({ error: 'No se proporcionaron tarjetas válidas.' });
     }
 
-    // Resolvemos el índice de fondo una sola vez tomando el de la primera tarjeta con imagen
-    const firstWithBg = cards.find((c) => c.bgImage);
-    const bgImageIndex = firstWithBg ? await getOrCreateBgIndex(deckId, firstWithBg.bgImage) : -1;
+    // Extraemos la configuración visual compartida del lote
+    const { bgImage, textAlign, fontSize } = batchStyles || {};
 
-    // Estructuramos el lote asignando los punteros e índices correspondientes
+    // Registramos la imagen en el pool del mazo una sola vez para todo el lote
+    const bgImageIndex = bgImage ? await getOrCreateBgIndex(deckId, bgImage) : -1;
+
     const docs = cards
       .filter((c) => c && c.question?.trim() && c.answer?.trim())
       .map((c) => ({
@@ -519,21 +520,18 @@ app.post('/api/flashcards/bulk', async (req, res) => {
         deckId,
         question: String(c.question).trim(),
         answer: String(c.answer).trim(),
-        bgImageIndex: c.bgImage ? bgImageIndex : -1,
-        textAlign: ['left', 'center', 'right'].includes(c.textAlign) ? c.textAlign : 'center',
-        fontSize: typeof c.fontSize === 'string' ? c.fontSize : 'text-base',
+        bgImageIndex, // Todas las cartas del lote apuntan al mismo índice deduplicado
+        textAlign: ['left', 'center', 'right'].includes(textAlign) ? textAlign : 'center',
+        fontSize: typeof fontSize === 'string' ? fontSize : 'text-base',
       }));
 
     if (docs.length === 0) {
       return res.status(400).json({ error: 'Ninguna tarjeta provista tiene un formato válido.' });
     }
 
-    // Inserción masiva ultra rápida en la base de datos
     const inserted = await Flashcard.insertMany(docs);
-
-    // Traemos el mazo para inflar las respuestas con su pool de imágenes
-    const deck = await Deck.findById(deckId);
-    const backgrounds = deck ? deck.cardBackgrounds : [];
+    const currentDeck = await Deck.findById(deckId);
+    const backgrounds = currentDeck ? currentDeck.cardBackgrounds : [];
 
     return res.status(201).json(inserted.map((c) => serializeFlashcard(c, backgrounds)));
   } catch (err) {
@@ -541,6 +539,7 @@ app.post('/api/flashcards/bulk', async (req, res) => {
     return res.status(500).json({ error: 'Error interno del servidor al crear lote.' });
   }
 });
+
 
 // PUT /api/flashcards/:id — edit a flashcard
 app.put('/api/flashcards/:id', async (req, res) => {
