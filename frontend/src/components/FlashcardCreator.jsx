@@ -16,8 +16,9 @@ import {
   Eye,
   EyeOff,
   Pipette,
-  Image, // Para indicar adjuntos de contenido
-  X      // Para remover imágenes
+  Image, 
+  X,
+  Trash2 // 🚀 Añadido para el control del botón de borrado rápido
 } from 'lucide-react';
 
 const ALIGNS = [
@@ -38,7 +39,6 @@ const SWATCHES = [
   { label: 'Azul', value: '#3b82f6' },
 ];
 
-// Motor helper de compresión de imágenes en el cliente (Ancho max: 600px, Calidad: 70%)
 const compressImage = (file) => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -74,8 +74,9 @@ export default function FlashcardCreator({
   fontSize, setFontSize, showStyles, setShowStyles,
   isBulk, setIsBulk, bulkText, setBulkText,
   editingId, saving, error, setError, onSubmit, onCancel,
-  // Nuevos props obligatorios para gestionar la imagen de contenido interactiva
-  contentImage, setContentImage, imageSide, setImageSide
+  contentImage, setContentImage, imageSide, setImageSide,
+  // Recibir los nuevos parámetros de comunicación
+  onFastDelete, hasCards
 }) {
 
   const [showPreview, setShowPreview] = useState(false);
@@ -134,7 +135,6 @@ export default function FlashcardCreator({
     reader.readAsDataURL(file);
   };
 
-  // Manejador optimizado para compresión instantánea de imágenes de contenido
   const handleContentImageFile = async (e, side) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -146,7 +146,7 @@ export default function FlashcardCreator({
     } catch (err) {
       setError(err.message || 'Error al procesar la imagen de contenido.');
     }
-    e.target.value = ''; // Reset input target
+    e.target.value = '';
   };
 
   const removeContentImage = () => {
@@ -276,7 +276,6 @@ export default function FlashcardCreator({
       ) : (
         <>
           <div className="grid sm:grid-cols-2 gap-4 animate-[fadeIn_0.2s_ease]">
-            {/* BLOQUE PREGUNTA */}
             <div className="flex flex-col">
               <label className="block text-xs font-medium text-slate-500 mb-1">Pregunta</label>
               <textarea
@@ -285,7 +284,6 @@ export default function FlashcardCreator({
                 placeholder="¿Cuál es la capital de Francia?"
                 className="min-h-[90px] w-full resize-y rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400"
               />
-              {/* Sección Control de Imagen Contenido - Pregunta */}
               <div className="mt-2 flex items-center min-h-[36px]">
                 {contentImage && imageSide === 'question' ? (
                   <div className="flex items-center gap-2 bg-slate-50 border border-slate-200/80 rounded-xl p-1 pr-2.5 max-w-full animate-[slideUp_0.1s_ease]">
@@ -304,7 +302,6 @@ export default function FlashcardCreator({
               </div>
             </div>
 
-            {/* BLOQUE RESPUESTA */}
             <div className="flex flex-col">
               <label className="block text-xs font-medium text-slate-500 mb-1">Respuesta</label>
               <textarea
@@ -313,7 +310,6 @@ export default function FlashcardCreator({
                 placeholder="París"
                 className="min-h-[90px] w-full resize-y rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400"
               />
-              {/* Sección Control de Imagen Contenido - Respuesta */}
               <div className="mt-2 flex items-center min-h-[36px]">
                 {contentImage && imageSide === 'answer' ? (
                   <div className="flex items-center gap-2 bg-slate-50 border border-slate-200/80 rounded-xl p-1 pr-2.5 max-w-full animate-[slideUp_0.1s_ease]">
@@ -359,7 +355,6 @@ export default function FlashcardCreator({
             )}
           </div>
 
-          {/* PANEL DE PREVISUALIZACIÓN EN VIVO */}
           {showPreview && (
             <div className="mt-4 border border-slate-200 rounded-2xl p-4 bg-slate-50/70 space-y-4 animate-[fadeIn_0.15s_ease] shadow-inner">
               <div className="flex items-center justify-between border-b border-slate-200/60 pb-1.5">
@@ -387,7 +382,6 @@ export default function FlashcardCreator({
                       {question.trim() || 'Escribe tu pregunta...'}
                     </p>
                     
-                    {/* Render de Imagen de Contenido en Pregunta (Preview) */}
                     {contentImage && imageSide === 'question' && (
                       <div className="mt-2 flex justify-center">
                         <img src={contentImage} alt="Preview contenido P" className="max-h-24 rounded-lg object-contain border border-slate-200/60 bg-slate-50 p-0.5 shadow-2xs" />
@@ -407,7 +401,6 @@ export default function FlashcardCreator({
                       {answer.trim() || 'Escribe tu respuesta...'}
                     </p>
 
-                    {/* Render de Imagen de Contenido en Respuesta (Preview) */}
                     {contentImage && imageSide === 'answer' && (
                       <div className="mt-2 flex justify-center">
                         <img src={contentImage} alt="Preview contenido R" className="max-h-24 rounded-lg object-contain border border-slate-200/60 bg-slate-50 p-0.5 shadow-2xs" />
@@ -456,7 +449,6 @@ export default function FlashcardCreator({
             </div>
           )}
 
-          {/* PANEL TRADICIONAL RÁPIDO */}
           {!showPreview && showStyles && (
             <div className="mt-3 border-t border-slate-100 pt-3 space-y-3 animate-[fadeIn_0.12s_ease]">
               <div className="grid grid-cols-2 gap-3 bg-slate-100/50 p-3 rounded-xl border border-slate-200/40">
@@ -494,20 +486,41 @@ export default function FlashcardCreator({
         </>
       )}
 
-      <div className="mt-4 flex gap-2 border-t border-slate-100 pt-3">
-        <button
-          type="submit"
-          disabled={saving || (isBulk ? !bulkText.trim() : (!question.trim() || !answer.trim()))}
-          className="inline-flex items-center gap-2 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 transition-transform active:scale-95 shadow-sm"
-        >
-          {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : editingId ? <Check className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
-          {editingId ? 'Guardar cambios' : isBulk ? 'Generar lote de tarjetas' : 'Agregar tarjeta'}
-        </button>
-        {editingId && (
-          <button type="button" onClick={onCancel} className="rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">
-            Cancelar
+      {/* 🛠️ CONTENEDOR DE ACCIONES INFERIOR REORDENADO Y SINCRONIZADO */}
+      <div className="mt-4 flex justify-between items-center gap-2 border-t border-slate-100 pt-3">
+        
+        {/* 🟥 LADO IZQUIERDO: Botón de Borrado Rápido (Solo visible si hay tarjetas y no estamos editando) */}
+        {!editingId && onFastDelete && hasCards ? (
+          <button
+            type="button"
+            onClick={onFastDelete}
+            className="inline-flex items-center gap-1.5 text-xs font-bold px-3.5 py-2 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all active:scale-95 shadow-2xs cursor-pointer"
+          >
+            <Trash2 className="w-3.5 h-3.5 text-red-500" />
+            <span>Borrado Rápido</span>
           </button>
+        ) : (
+          <div /> // Div invisible para forzar el flex push del de creación hacia la derecha
         )}
+
+        {/* 🟩 LADO DERECHO: Grupo de creación / Guardado tradicional */}
+        <div className="flex gap-2">
+          {editingId && (
+            <button type="button" onClick={onCancel} className="rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors">
+              Cancelar
+            </button>
+          )}
+          
+          <button
+            type="submit"
+            disabled={saving || (isBulk ? !bulkText.trim() : (!question.trim() || !answer.trim()))}
+            className="inline-flex items-center gap-2 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 transition-transform active:scale-95 shadow-sm cursor-pointer"
+          >
+            {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : editingId ? <Check className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+            {editingId ? 'Guardar cambios' : isBulk ? 'Generar lote de tarjetas' : 'Agregar tarjeta'}
+          </button>
+        </div>
+
       </div>
       {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
     </form>
