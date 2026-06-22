@@ -2,17 +2,8 @@
 import { useState } from 'react';
 import { Pencil, Trash2, Star, MoreHorizontal } from 'lucide-react';
 
-const isDark = (hex) => {
-  if (!hex || hex.length < 7) return false;
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return (r * 299 + g * 587 + b * 114) / 1000 < 140;
-};
-
 export default function DeckCard({ deck, onOpen, onEdit, onDelete, onToggleStar, isList = false }) {
   const [showMenu, setShowMenu] = useState(false);
-  const dark = deck.coverImage ? true : isDark(deck.coverColor);
   
   const bgStyle = deck.coverImage
     ? { backgroundImage: `url(${deck.coverImage})`, backgroundSize: 'cover', backgroundPosition: 'center' }
@@ -38,9 +29,9 @@ export default function DeckCard({ deck, onOpen, onEdit, onDelete, onToggleStar,
       style={currentBgStyle}
       className={containerClasses}
     >
-      {/* Capa de gradiente sutil con redondeado inferior (Solo Modo Grid) */}
+      {/* 🎨 Capa de gradiente inferior optimizada para contraste de texto blanco */}
       {!isList && (
-        <span className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/60 via-black/20 to-transparent pointer-events-none rounded-b-2xl" />
+        <span className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/65 via-black/25 to-transparent pointer-events-none rounded-b-2xl z-0" />
       )}
 
       {/* INTERCEPTOR GLOBAL PARA CERRAR EL MENU DROPDOWN */}
@@ -68,7 +59,6 @@ export default function DeckCard({ deck, onOpen, onEdit, onDelete, onToggleStar,
           </div>
 
           <div className="flex items-center gap-1 shrink-0 z-30" onClick={(e) => e.stopPropagation()}>
-            {/* ✨ CORREGIDO: Cambiado de statement "if" a expresión lógica de JSX con operador "&&" */}
             {deck.isStarred && (
               <button
                 type="button"
@@ -116,7 +106,7 @@ export default function DeckCard({ deck, onOpen, onEdit, onDelete, onToggleStar,
           </div>
         </>
       ) : (
-        /* --- MODO CUADRÍCULA --- */
+        /* --- MODO CUADRÍCULA (REDISEÑO DE ALTA LEGIBILIDAD) --- */
         <>
           {/* ⭐ Botón de Estrella Indicador */}
           {deck.isStarred && (
@@ -130,7 +120,7 @@ export default function DeckCard({ deck, onOpen, onEdit, onDelete, onToggleStar,
             </button>
           )}
 
-          {/* ⚙️ BOTÓN DE TRES PUNTOS HORIZONTALES */}
+          {/* ⚙️ Botón de Opciones */}
           <div className="absolute top-2.5 right-2.5 z-30" onClick={(e) => e.stopPropagation()}>
             <button
               type="button"
@@ -140,7 +130,6 @@ export default function DeckCard({ deck, onOpen, onEdit, onDelete, onToggleStar,
               <MoreHorizontal className="w-3.5 h-3.5" />
             </button>
 
-            {/* Menú Desplegable */}
             {showMenu && (
               <div className="absolute right-0 mt-1 w-36 bg-white border border-slate-200 rounded-xl shadow-xl p-1 flex flex-col gap-0.5 animate-[fadeIn_0.08s_ease] z-50">
                 <button
@@ -169,19 +158,15 @@ export default function DeckCard({ deck, onOpen, onEdit, onDelete, onToggleStar,
             )}
           </div>
 
-          {/* Información del Mazo */}
-          <div className="p-3 w-full z-0 min-w-0">
+          {/* 📝 Información del Mazo: Tipografía Premium de Alta Visibilidad */}
+          <div className="p-3.5 w-full z-10 min-w-0 relative">
             <p 
-              className={`font-bold drop-shadow-xs truncate text-sm ${
-                dark 
-                  ? 'text-white' 
-                  : 'text-slate-900 bg-white/60 backdrop-blur-md px-2 py-0.5 rounded-lg inline-block max-w-full shadow-3xs'
-              }`}
+              className="font-bold text-white text-sm truncate drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]"
               title={deck.title}
             >
               {deck.title}
             </p>
-            <p className={`text-[10px] sm:text-[11px] mt-0.5 font-semibold ${dark ? 'text-white/85' : 'text-slate-500'}`}>
+            <p className="text-[11px] mt-0.5 font-semibold text-white/85 drop-shadow-[0_1px_1px_rgba(0,0,0,0.4)]">
               {deck.cardCount ?? 0} {deck.cardCount === 1 ? 'tarjeta' : 'tarjetas'}
             </p>
           </div>
