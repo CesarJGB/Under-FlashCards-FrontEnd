@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { SlidersHorizontal, Loader2, Plus, Check, Eye, EyeOff, Trash2, AlignLeft, AlignCenter, AlignRight } from 'lucide-react';
 
-// 🚀 Importación de tus nuevos archivos modulares desde la carpeta creator
+// Importación de tus archivos modulares desde la carpeta creator
 import FormInputs from './creator/FormInputs';
 import StylePanel from './creator/StylePanel';
 import LivePreview from './creator/LivePreview';
@@ -32,7 +32,6 @@ export default function FlashcardCreator({
 
   const [showPreview, setShowPreview] = useState(false);
 
-  // 🧠 MOTOR DE PARSEO DE ESTILOS TIPOGRÁFICOS
   const parseCurrentStyles = () => {
     if (fontSize && fontSize.startsWith('{')) {
       try { 
@@ -110,27 +109,18 @@ export default function FlashcardCreator({
         )}
       </div>
 
-      {/* 📝 BLOQUE 1: Campos de entrada de texto e imágenes (Delegado) */}
+      {/* 📝 CAMPOS DE ENTRADA (DELEGADO) */}
       <FormInputs 
-        isBulk={isBulk} 
-        question={question} 
-        setQuestion={setQuestion} 
-        answer={answer} 
-        setAnswer={setAnswer} 
-        bulkText={bulkText} 
-        setBulkText={setBulkText}
-        contentImage={contentImage} 
-        imageSide={imageSide} 
-        handleContentImageFile={handleContentImageFile} 
-        removeContentImage={() => { setContentImage(''); setImageSide(''); }}
+        isBulk={isBulk} question={question} setQuestion={setQuestion} answer={answer} setAnswer={setAnswer} bulkText={bulkText} setBulkText={setBulkText}
+        contentImage={contentImage} imageSide={imageSide} handleContentImageFile={handleContentImageFile} removeContentImage={() => { setContentImage(''); setImageSide(''); }}
       />
 
-      {/* 🌟 FILA SUPERIOR: Alternadores Rápidos de Interfaz (Simetría Perfecta de Rejilla) */}
-      <div className="mt-3 grid grid-cols-2 gap-3">
+      {/* 👁️ FILA SUPERIOR: CONFIGURACIÓN (Centrado estricto y Rejilla Simétrica) */}
+      <div className="mt-4 grid grid-cols-2 gap-3">
         <button 
           type="button" 
           onClick={() => { setShowPreview(!showPreview); setShowStyles(false); }} 
-          className={`inline-flex items-center justify-center gap-2 text-xs font-bold rounded-xl py-2.5 border transition-all active:scale-[0.98] shadow-3xs cursor-pointer ${
+          className={`flex w-full items-center justify-center gap-2 text-xs font-bold rounded-xl h-11 border transition-all active:scale-[0.98] shadow-3xs cursor-pointer ${
             showPreview ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
           }`}
         >
@@ -142,7 +132,7 @@ export default function FlashcardCreator({
           type="button" 
           onClick={() => { if (!showPreview) setShowStyles(!showStyles); }} 
           disabled={showPreview} 
-          className={`inline-flex items-center justify-center gap-2 text-xs font-bold rounded-xl py-2.5 border transition-all active:scale-[0.98] shadow-3xs cursor-pointer ${
+          className={`flex w-full items-center justify-center gap-2 text-xs font-bold rounded-xl h-11 border transition-all active:scale-[0.98] shadow-3xs cursor-pointer ${
             showPreview 
               ? 'opacity-40 cursor-not-allowed bg-slate-50 text-slate-400 border-slate-200' 
               : showStyles 
@@ -155,7 +145,7 @@ export default function FlashcardCreator({
         </button>
       </div>
 
-      {/* 🎴 BLOQUE 2: Simulador interactivo en tiempo real (Delegado) */}
+      {/* 🎴 SIMULADOR DE PREVISUALIZACIÓN */}
       {showPreview && (
         <LivePreview 
           question={question} answer={answer} bgImage={bgImage} textAlign={textAlign} styles={styles} contentImage={contentImage} imageSide={imageSide}
@@ -163,7 +153,7 @@ export default function FlashcardCreator({
         />
       )}
 
-      {/* 🎨 BLOQUE 3: Ajustes avanzados de diseño (Delegado) */}
+      {/* 🎨 PANEL DE DISEÑO */}
       {!showPreview && showStyles && (
         <StylePanel 
           ALIGNS={ALIGNS} SWATCHES={SWATCHES} textAlign={textAlign} setTextAlign={setTextAlign} bgImage={bgImage} setBgImage={setBgImage}
@@ -171,47 +161,47 @@ export default function FlashcardCreator({
         />
       )}
 
-      {/* 🌟 FILA INFERIOR: Botones de acción principales (Simetría de proporciones unificada) */}
-      <div className="mt-4 flex items-center justify-between gap-3 border-t border-slate-100 pt-3.5">
+      {/* 🚀 FILA INFERIOR: ACCIONES CORE (Clon exacto de la rejilla superior) */}
+      <div className="mt-3 grid grid-cols-2 gap-3 border-t border-slate-100 pt-3.5">
         
-        {/* Lado Izquierdo: Borrado Rápido */}
-        {!editingId && onFastDelete && hasCards ? (
+        {/* Columna Izquierda: Condicional entre Cancelar o Borrado Rápido */}
+        {editingId ? (
+          <button 
+            type="button" 
+            onClick={onCancel} 
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 h-11 text-xs font-bold text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-all active:scale-[0.98] shadow-3xs cursor-pointer"
+          >
+            <span>Cancelar</span>
+          </button>
+        ) : onFastDelete && hasCards ? (
           <button 
             type="button" 
             onClick={onFastDelete} 
-            className="flex-1 inline-flex items-center justify-center gap-2 text-xs font-bold py-2.5 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all active:scale-[0.98] shadow-3xs cursor-pointer"
+            className="flex w-full items-center justify-center gap-2 text-xs font-bold h-11 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all active:scale-[0.98] shadow-3xs cursor-pointer"
           >
             <Trash2 className="w-4 h-4 text-red-500 shrink-0" />
             <span>Borrado Rápido</span>
           </button>
-        ) : (!editingId && <div className="flex-1" />)}
+        ) : (
+          /* Bloque fantasma invisible para conservar la geometría perfecta de la celda de la rejilla */
+          <div className="w-full h-11" />
+        )}
 
-        {/* Lado Derecho: Guardado / Creación */}
-        <div className="flex-1 flex gap-2">
-          {editingId && (
-            <button 
-              type="button" 
-              onClick={onCancel} 
-              className="flex-1 rounded-xl border border-slate-200 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors active:scale-[0.98]"
-            >
-              Cancelar
-            </button>
+        {/* Columna Derecha: Agregar Tarjeta o Guardar Cambios */}
+        <button
+          type="submit"
+          disabled={saving || (isBulk ? !bulkText.trim() : (!question.trim() || !answer.trim()))}
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white text-xs font-bold h-11 transition-all active:scale-[0.98] shadow-sm cursor-pointer"
+        >
+          {saving ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : editingId ? (
+            <Check className="w-4 h-4 shrink-0" />
+          ) : (
+            <Plus className="w-4 h-4 shrink-0" />
           )}
-          <button
-            type="submit"
-            disabled={saving || (isBulk ? !bulkText.trim() : (!question.trim() || !answer.trim()))}
-            className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white text-xs font-bold py-2.5 transition-all active:scale-[0.98] shadow-sm cursor-pointer"
-          >
-            {saving ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : editingId ? (
-              <Check className="w-4 h-4 shrink-0" />
-            ) : (
-              <Plus className="w-4 h-4 shrink-0" />
-            )}
-            <span>{editingId ? 'Guardar cambios' : isBulk ? 'Generar lote' : 'Agregar tarjeta'}</span>
-          </button>
-        </div>
+          <span>{editingId ? 'Guardar cambios' : isBulk ? 'Generar lote' : 'Agregar tarjeta'}</span>
+        </button>
 
       </div>
       {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
