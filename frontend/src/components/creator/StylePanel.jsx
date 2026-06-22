@@ -5,7 +5,7 @@ import { ImagePlus, Plus, Minus, Bold, Italic, Palette, Pipette } from 'lucide-r
 export default function StylePanel({ ALIGNS, SWATCHES, textAlign, setTextAlign, bgImage, setBgImage, styles, updateStyle, handleBgFile }) {
   const [qColorOpen, setQColorOpen] = useState(false);
   const [aColorOpen, setAColorOpen] = useState(false);
-  const [bgColorOpen, setBgColorOpen] = useState(false); // 🚀 Estado para el selector de fondo
+  const [bgColorOpen, setBgColorOpen] = useState(false); // Estado del selector de fondo sólida
 
   const renderStyleGroup = (title, prefix, colorOpen, setColorOpen) => {
     const sizeKey = `${prefix}Size`;
@@ -54,20 +54,22 @@ export default function StylePanel({ ALIGNS, SWATCHES, textAlign, setTextAlign, 
   return (
     <div className="mt-3 space-y-3 animate-[fadeIn_0.12s_ease]">
       <div className="grid grid-cols-2 gap-3 bg-slate-100/50 p-3 rounded-xl border border-slate-200/40">
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1">Alineación</p>
-          <div className="flex gap-1">
+        
+        {/* Lado Izquierdo: Alineación */}
+        <div className="flex flex-col items-center justify-center text-center">
+          <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1.5 w-full">Alineación</p>
+          <div className="flex gap-1 justify-center">
             {ALIGNS.map(({ value, label, Icon }) => (
               <button key={value} type="button" title={label} onClick={() => setTextAlign(value)} className={`rounded-lg p-1.5 border transition-colors ${textAlign === value ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}><Icon className="w-3.5 h-3.5" /></button>
             ))}
           </div>
         </div>
         
-        {/* 🌟 CONFIGURACIÓN DE FONDO: Imagen + Selector de Color integrado */}
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1">Fondo</p>
-          <div className="flex items-center gap-2">
-            <label className="inline-flex items-center gap-1.5 cursor-pointer rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 hover:bg-slate-50 shadow-xs">
+        {/* 🌟 Lado Derecho: Controles de Fondo Centrados con Corrección de Desplegable */}
+        <div className="flex flex-col items-center justify-center text-center">
+          <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1.5 w-full">Fondo</p>
+          <div className="flex items-center justify-center gap-2">
+            <label className="inline-flex items-center gap-1.5 cursor-pointer rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 hover:bg-slate-50 shadow-xs shrink-0">
               <ImagePlus className="w-3.5 h-3.5 text-slate-500" /> <span>Imagen</span>
               <input type="file" accept="image/*" onChange={handleBgFile} className="hidden" />
             </label>
@@ -75,7 +77,7 @@ export default function StylePanel({ ALIGNS, SWATCHES, textAlign, setTextAlign, 
 
             <div className="w-[1px] h-5 bg-slate-200 mx-0.5 shrink-0" />
 
-            {/* 🎨 Selector de Color de fondo premium */}
+            {/* Selector de Color de Fondo Sólido */}
             <div className="relative">
               <button
                 type="button"
@@ -92,7 +94,8 @@ export default function StylePanel({ ALIGNS, SWATCHES, textAlign, setTextAlign, 
               {bgColorOpen && (
                 <>
                   <div className="fixed inset-0 z-30" onClick={() => setBgColorOpen(false)} />
-                  <div className="absolute left-0 sm:right-0 sm:left-auto mt-2 bg-white border border-slate-200 p-2 rounded-2xl shadow-xl z-40 grid grid-cols-4 gap-2 w-[168px] animate-[slideUp_0.1s_ease-out]">
+                  {/* 🚀 SOLUCIÓN: right-0 mt-2 orienta la caja de muestras hacia adentro de la carta */}
+                  <div className="absolute right-0 mt-2 bg-white border border-slate-200 p-2 rounded-2xl shadow-xl z-40 grid grid-cols-4 gap-2 w-[168px] animate-[slideUp_0.1s_ease-out]">
                     {SWATCHES.map((c) => (
                       <button
                         key={c.value} 
@@ -123,6 +126,7 @@ export default function StylePanel({ ALIGNS, SWATCHES, textAlign, setTextAlign, 
           </div>
         </div>
       </div>
+      
       <div className="grid sm:grid-cols-2 gap-3">
         {renderStyleGroup('Estilo de la Pregunta', 'q', qColorOpen, setQColorOpen)}
         {renderStyleGroup('Estilo de la Respuesta', 'a', aColorOpen, setAColorOpen)}
