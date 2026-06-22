@@ -1,4 +1,5 @@
-import { Pencil, Trash2, Layers } from 'lucide-react';
+// ARCHIVO: frontend/src/components/FlashcardGrid.jsx
+import { Pencil, Trash2, Layers, Image } from 'lucide-react';
 
 const ALIGN_CLASS = { left: 'text-left', center: 'text-center', right: 'text-right' };
 
@@ -62,20 +63,36 @@ export default function FlashcardGrid({ cards, onEdit, onDelete }) {
 
             <div className="relative z-10 p-4 pt-6">
               <span className="absolute top-2 left-1/2 -translate-x-1/2 w-7 h-1.5 rounded-full bg-slate-400/40" />
+              
               <div className="flex justify-end gap-1 mb-1">
-                <button onClick={() => onEdit(card)} className={`p-1.5 rounded-lg ${hasBg ? 'text-white hover:bg-white/20' : 'text-slate-500 hover:bg-slate-100'}`}>
+                <button onClick={() => onEdit(card)} className={`p-1.5 rounded-lg transition-colors ${hasBg ? 'text-white hover:bg-white/20' : 'text-slate-500 hover:bg-slate-100'}`}>
                   <Pencil className="w-3.5 h-3.5" />
                 </button>
-                <button onClick={() => onDelete(card)} className={`p-1.5 rounded-lg ${hasBg ? 'text-red-300 hover:bg-white/20' : 'text-red-600 hover:bg-red-50'}`}>
+                <button onClick={() => onDelete(card)} className={`p-1.5 rounded-lg transition-colors ${hasBg ? 'text-red-300 hover:bg-white/20' : 'text-red-600 hover:bg-red-50'}`}>
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
               </div>
 
               {/* 🎴 SECCIÓN DE PREGUNTA MODULAR CORREGIDA */}
-              <p className={`text-[9px] font-bold uppercase tracking-wide ${hasBg ? 'text-white/60' : 'text-slate-400'}`}>Pregunta</p>
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <p className={`text-[9px] font-bold uppercase tracking-wide ${hasBg ? 'text-white/60' : 'text-slate-400'}`}>
+                  Pregunta
+                </p>
+                {/* Indicador visual inteligente si la pregunta lleva imagen */}
+                {card.contentImage && card.imageSide === 'question' && (
+                  <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[8px] font-extrabold tracking-normal uppercase border animate-[fadeIn_0.15s_ease] ${
+                    hasBg 
+                      ? 'bg-white/20 text-white border-white/10 shadow-xs' 
+                      : 'bg-slate-100 text-slate-600 border-slate-200/60'
+                  }`}>
+                    <Image className="w-2.5 h-2.5 shrink-0" /> Imagen
+                  </span>
+                )}
+              </div>
+              
               <p 
                 style={finalQStyle}
-                className={`mt-0.5 whitespace-pre-wrap ${alignClass} ${qSizeClass} ${st.qBold ? 'font-bold' : 'font-normal'} ${st.qItalic ? 'italic' : ''} ${hasBg && !st.qColor ? 'text-white' : 'text-slate-900'}`}
+                className={`mt-1 whitespace-pre-wrap ${alignClass} ${qSizeClass} ${st.qBold ? 'font-bold' : 'font-normal'} ${st.qItalic ? 'italic' : ''} ${hasBg && !st.qColor ? 'text-white' : 'text-slate-900'}`}
               >
                 {card.question}
               </p>
@@ -83,10 +100,25 @@ export default function FlashcardGrid({ cards, onEdit, onDelete }) {
               <div className={`my-3 border-t border-dashed ${hasBg ? 'border-white/30' : 'border-slate-200'}`} />
 
               {/* 🎴 SECCIÓN DE RESPUESTA MODULAR CORREGIDA */}
-              <p className={`text-[9px] font-bold uppercase tracking-wide ${hasBg ? 'text-white/60' : 'text-slate-400'}`}>Respuesta</p>
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <p className={`text-[9px] font-bold uppercase tracking-wide ${hasBg ? 'text-white/60' : 'text-slate-400'}`}>
+                  Respuesta
+                </p>
+                {/* Indicador visual inteligente si la respuesta lleva imagen */}
+                {card.contentImage && card.imageSide === 'answer' && (
+                  <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[8px] font-extrabold tracking-normal uppercase border animate-[fadeIn_0.15s_ease] ${
+                    hasBg 
+                      ? 'bg-white/20 text-white border-white/10 shadow-xs' 
+                      : 'bg-slate-100 text-slate-600 border-slate-200/60'
+                  }`}>
+                    <Image className="w-2.5 h-2.5 shrink-0" /> Imagen
+                  </span>
+                )}
+              </div>
+
               <p 
                 style={finalAStyle}
-                className={`mt-0.5 whitespace-pre-wrap ${alignClass} ${aSizeClass} ${st.aBold ? 'font-bold' : 'font-normal'} ${st.aItalic ? 'italic' : ''} ${hasBg && !st.aColor ? 'text-white/90' : 'text-slate-700'}`}
+                className={`mt-1 whitespace-pre-wrap ${alignClass} ${aSizeClass} ${st.aBold ? 'font-bold' : 'font-normal'} ${st.aItalic ? 'italic' : ''} ${hasBg && !st.aColor ? 'text-white/90' : 'text-slate-700'}`}
               >
                 {card.answer}
               </p>
