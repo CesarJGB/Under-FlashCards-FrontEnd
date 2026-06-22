@@ -6,10 +6,10 @@ export default function DeckHeader({ deck, mode, setMode, onBack, onExport, onEx
   const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200 min-h-[60px]">
+    <div className="flex flex-col gap-3.5 pb-4 border-b border-slate-200">
       
-      {/* 1. LADO IZQUIERDO: Botón clásico de regreso limpio a la biblioteca */}
-      <div className="sm:w-1/3 flex justify-start">
+      {/* 1. FILA SUPERIOR (MÓVIL): Visible solo en pantallas pequeñas para dar aire al diseño */}
+      <div className="flex sm:hidden justify-start">
         <button 
           onClick={onBack} 
           className="inline-flex items-center gap-2 px-3.5 py-2 border border-slate-200 bg-white text-slate-600 hover:text-slate-900 rounded-xl text-xs font-bold shadow-3xs transition-all active:scale-95 group cursor-pointer"
@@ -19,99 +19,110 @@ export default function DeckHeader({ deck, mode, setMode, onBack, onExport, onEx
         </button>
       </div>
 
-      {/* 2. EJE CENTRAL: Selector de Modos ampliado y alineado */}
-      <div className="sm:w-1/3 flex justify-center">
-        <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200/40 items-center">
+      {/* 2. FILA DE CONTROLES UNIFICADA: Forzado horizontal estricto en el mismo nivel Y */}
+      <div className="flex items-center justify-between gap-4 w-full sm:grid sm:grid-cols-3">
+        
+        {/* LADO IZQUIERDO (ESCRITORIO): Oculto en móvil, se alinea a la izquierda en sm+ */}
+        <div className="hidden sm:flex justify-start">
           <button 
-            onClick={() => setMode('edit')} 
-            className={`px-6 py-2 text-xs font-bold rounded-lg transition-all ${
-              mode === 'edit' || mode === 'fast-delete' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-500 hover:text-slate-900'
-            }`}
+            onClick={onBack} 
+            className="inline-flex items-center gap-2 px-3.5 py-2 border border-slate-200 bg-white text-slate-600 hover:text-slate-900 rounded-xl text-xs font-bold shadow-3xs transition-all active:scale-95 group cursor-pointer"
           >
-            Editor
-          </button>
-          <button 
-            onClick={() => setMode('review')} 
-            className={`px-6 py-2 text-xs font-bold rounded-lg transition-all ${
-              mode === 'review' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-500 hover:text-slate-900'
-            }`}
-          >
-            Repasar
+            <ArrowLeft className="w-3.5 h-3.5 text-slate-500 group-hover:text-slate-800 transition-colors" />
+            <span>Volver a la biblioteca</span>
           </button>
         </div>
-      </div>
 
-      {/* 3. LADO DERECHO: Botón de Opciones compacto e iconográfico (Desaparece en Repaso) */}
-      <div className="sm:w-1/3 flex justify-end items-center">
-        {mode !== 'review' ? (
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setIsOpen(!isOpen)}
-              title="Opciones del mazo"
-              className="p-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl shadow-sm transition-all active:scale-95 flex items-center justify-center cursor-pointer aspect-square"
+        {/* EJE CENTRAL: Se mantiene alineado al centro horizontal de la misma fila */}
+        <div className="flex justify-center flex-1 sm:flex-initial">
+          <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200/40 items-center">
+            <button 
+              onClick={() => setMode('edit')} 
+              className={`px-6 py-2 text-xs font-bold rounded-lg transition-all ${
+                mode === 'edit' || mode === 'fast-delete' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-500 hover:text-slate-900'
+              }`}
             >
-              <Download className="w-4 h-4" />
+              Editor
             </button>
-
-            {isOpen && (
-              <>
-                {/* Capa de cierre al hacer clic afuera */}
-                <div className="fixed inset-0 z-30" onClick={() => setIsOpen(false)} />
-                
-                <div className="absolute right-0 mt-2 w-72 bg-white border border-slate-200 rounded-2xl shadow-xl z-40 p-1.5 animate-[slideUp_0.12s_ease-out] flex flex-col gap-0.5">
-                  
-                  {/* Opción A: Guía de estudio */}
-                  <button
-                    type="button"
-                    onClick={() => { onExportPDF('guide'); setIsOpen(false); }}
-                    className="w-full text-left p-2.5 hover:bg-slate-50 rounded-xl transition-colors flex items-start gap-2.5 group cursor-pointer"
-                  >
-                    <FileText className="w-4 h-4 text-slate-400 group-hover:text-slate-900 mt-0.5 shrink-0 transition-colors" />
-                    <div>
-                      <p className="text-xs font-bold text-slate-800 group-hover:text-slate-950">Guía de estudio</p>
-                      <p className="text-[10px] text-slate-400 font-medium mt-0.5 leading-relaxed">Descarga un archivo PDF continuo con formato de lista para lectura estática.</p>
-                    </div>
-                  </button>
-
-                  {/* Opción B: Tarjetas imprimibles */}
-                  <button
-                    type="button"
-                    onClick={() => { onExportPDF('cards'); setIsOpen(false); }}
-                    className="w-full text-left p-2.5 hover:bg-slate-50 rounded-xl transition-colors flex items-start gap-2.5 group cursor-pointer"
-                  >
-                    <Download className="w-4 h-4 text-slate-400 group-hover:text-slate-900 mt-0.5 shrink-0 transition-colors" />
-                    <div>
-                      <p className="text-xs font-bold text-slate-800 group-hover:text-slate-950">Tarjetas imprimibles</p>
-                      <p className="text-[10px] text-slate-400 font-medium mt-0.5 leading-relaxed">Genera un PDF con cuadrículas de tamaño real listas para imprimir y recortar.</p>
-                    </div>
-                  </button>
-
-                  <div className="my-1 border-t border-slate-100" />
-
-                  {/* Opción C: Exportar copia JSON */}
-                  <button
-                    type="button"
-                    onClick={() => { onExport(); setIsOpen(false); }}
-                    className="w-full text-left p-2.5 hover:bg-slate-50 rounded-xl transition-colors flex items-start gap-2.5 group cursor-pointer"
-                  >
-                    <FileJson className="w-4 h-4 text-slate-400 group-hover:text-slate-900 mt-0.5 shrink-0 transition-colors" />
-                    <div>
-                      <p className="text-xs font-bold text-slate-800 group-hover:text-slate-950">Exportar mazo</p>
-                      <p className="text-[10px] text-slate-400 font-medium mt-0.5 leading-relaxed">Descarga una copia de seguridad en formato JSON con todas las tarjetas de este mazo.</p>
-                    </div>
-                  </button>
-
-                </div>
-              </>
-            )}
+            <button 
+              onClick={() => setMode('review')} 
+              className={`px-6 py-2 text-xs font-bold rounded-lg transition-all ${
+                mode === 'review' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-500 hover:text-slate-900'
+              }`}
+            >
+              Repasar
+            </button>
           </div>
-        ) : (
-          /* Bloque fantasma invisible para bloquear la simetría del flex-layout en Repaso */
-          <div className="w-9 h-9 hidden sm:block" />
-        )}
-      </div>
+        </div>
 
+        {/* LADO DERECHO: Botón de Opciones alineado milimétricamente en el mismo plano */}
+        <div className="flex justify-end items-center shrink-0 min-w-[40px]">
+          {mode !== 'review' ? (
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setIsOpen(!isOpen)}
+                title="Opciones del mazo"
+                className="p-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl shadow-sm transition-all active:scale-95 flex items-center justify-center cursor-pointer aspect-square animate-[fadeIn_0.1s_ease]"
+              >
+                <Download className="w-4 h-4" />
+              </button>
+
+              {isOpen && (
+                <>
+                  <div className="fixed inset-0 z-30" onClick={() => setIsOpen(false)} />
+                  
+                  <div className="absolute right-0 mt-2 w-72 bg-white border border-slate-200 rounded-2xl shadow-xl z-40 p-1.5 animate-[slideUp_0.12s_ease-out] flex flex-col gap-0.5">
+                    
+                    <button
+                      type="button"
+                      onClick={() => { onExportPDF('guide'); setIsOpen(false); }}
+                      className="w-full text-left p-2.5 hover:bg-slate-50 rounded-xl transition-colors flex items-start gap-2.5 group cursor-pointer"
+                    >
+                      <FileText className="w-4 h-4 text-slate-400 group-hover:text-slate-900 mt-0.5 shrink-0 transition-colors" />
+                      <div>
+                        <p className="text-xs font-bold text-slate-800 group-hover:text-slate-950">Guía de estudio</p>
+                        <p className="text-[10px] text-slate-400 font-medium mt-0.5 leading-relaxed">Descarga un archivo PDF continuo con formato de lista para lectura estática.</p>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => { onExportPDF('cards'); setIsOpen(false); }}
+                      className="w-full text-left p-2.5 hover:bg-slate-50 rounded-xl transition-colors flex items-start gap-2.5 group cursor-pointer"
+                    >
+                      <Download className="w-4 h-4 text-slate-400 group-hover:text-slate-900 mt-0.5 shrink-0 transition-colors" />
+                      <div>
+                        <p className="text-xs font-bold text-slate-800 group-hover:text-slate-950">Tarjetas imprimibles</p>
+                        <p className="text-[10px] text-slate-400 font-medium mt-0.5 leading-relaxed">Genera un PDF con cuadrículas de tamaño real listas para imprimir y recortar.</p>
+                      </div>
+                    </button>
+
+                    <div className="my-1 border-t border-slate-100" />
+
+                    <button
+                      type="button"
+                      onClick={() => { onExport(); setIsOpen(false); }}
+                      className="w-full text-left p-2.5 hover:bg-slate-50 rounded-xl transition-colors flex items-start gap-2.5 group cursor-pointer"
+                    >
+                      <FileJson className="w-4 h-4 text-slate-400 group-hover:text-slate-900 mt-0.5 shrink-0 transition-colors" />
+                      <div>
+                        <p className="text-xs font-bold text-slate-800 group-hover:text-slate-950">Exportar mazo</p>
+                        <p className="text-[10px] text-slate-400 font-medium mt-0.5 leading-relaxed">Descarga una copia de seguridad en formato JSON con todas las tarjetas de este mazo.</p>
+                      </div>
+                    </button>
+
+                  </div>
+                </>
+              )}
+            </div>
+          ) : (
+            /* Caja espaciadora simétrica para conservar la centralización en Repaso */
+            <div className="w-[42px] h-[42px] hidden sm:block" />
+          )}
+        </div>
+
+      </div>
     </div>
   );
 }
