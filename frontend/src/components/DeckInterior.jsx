@@ -1,10 +1,12 @@
+// ARCHIVO: frontend/src/components/DeckInterior.jsx
 import { useState, useEffect, useCallback } from 'react';
-import { Loader2, ChevronDown, ChevronUp } from 'lucide-react'; 
+import { Loader2, ChevronDown, ChevronUp, Trash2 } from 'lucide-react'; 
 import { jsPDF } from 'jspdf';
 import ReviewMode from './ReviewMode';
 import DeckHeader from './DeckHeader';
 import FlashcardCreator from './FlashcardCreator';
 import FlashcardGrid from './FlashcardGrid';
+import FastDeleteMode from './FastDeleteMode'; // 🚀 Importación del nuevo módulo Tinder-Swipe
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
@@ -337,6 +339,16 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
       ) : (
         <>
           {mode === 'review' && <ReviewMode cards={cards} loading={loading} />}
+          
+          {/* 🚀 MODO DE BORRADO RÁPIDO: Intercepta el flujo visual antes del creador tradicional */}
+          {mode === 'fast-delete' && (
+            <FastDeleteMode 
+              cards={cards} 
+              onDelete={handleDelete} 
+              onClose={() => setMode('edit')} 
+            />
+          )}
+
           {mode === 'edit' && (
             <>
               <FlashcardCreator
@@ -350,11 +362,25 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
                 imageSide={imageSide} setImageSide={setImageSide}
               />
               
+              {/* 🛠️ ACCESO DIRECTO AL MODO DE BORRADO RÁPIDO */}
+              {cards.length > 0 && (
+                <div className="mt-5 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setMode('fast-delete')}
+                    className="inline-flex items-center gap-1.5 text-xs font-bold px-3.5 py-2 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all active:scale-95 shadow-2xs cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                    <span>Modo Borrado Rápido</span>
+                  </button>
+                </div>
+              )}
+
               {/* 🌟 ACORDEÓN DESPLEGABLE DE TARJETAS CREADAS */}
               <button
                 type="button"
                 onClick={() => setShowGrid(!showGrid)}
-                className="mt-6 w-full flex items-center justify-between bg-white border border-slate-200 hover:bg-slate-50 rounded-2xl px-5 py-3.5 transition-colors shadow-xs active:scale-[0.99]"
+                className="mt-3 w-full flex items-center justify-between bg-white border border-slate-200 hover:bg-slate-50 rounded-2xl px-5 py-3.5 transition-colors shadow-xs active:scale-[0.99]"
               >
                 <div className="flex items-center gap-2.5">
                   <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
