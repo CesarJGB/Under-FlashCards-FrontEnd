@@ -22,7 +22,7 @@ const hexToRgb = (hex) => {
   return null;
 };
 
-// 🧠 DESEMPAQUETADOR RETROCOMPATIBLE: Ahora rescata también el color 'bgColor'
+// 🧠 DESEMPAQUETADOR RETROCOMPATIBLE: Rescata las fuentes, tamaños y el color 'bgColor'
 const parseCardStyles = (fontSizeField) => {
   if (fontSizeField && fontSizeField.startsWith('{')) {
     try {
@@ -30,7 +30,7 @@ const parseCardStyles = (fontSizeField) => {
       return {
         qSize: p.qSize || 'text-base', qBold: p.qBold ?? true, qItalic: p.qItalic ?? false, qColor: p.qColor || '',
         aSize: p.aSize || 'text-base', aBold: p.aBold ?? false, aItalic: p.aItalic ?? false, aColor: p.aColor || '',
-        bgColor: p.bgColor || '' // 🚀 Rescatado con éxito
+        bgColor: p.bgColor || ''
       };
     } catch (e) {}
   }
@@ -79,14 +79,12 @@ export const exportDeckToPDF = (deckTitle, cards, type = 'guide') => {
       const st = parseCardStyles(card.fontSize);
       const bgRgb = hexToRgb(st.bgColor);
 
-      // 🎨 Contraste Inteligente para Guía: Si el fondo sólido es oscuro, cambia las letras base a blanco
       let isDarkBg = false;
       if (bgRgb) {
         const luma = 0.2126 * bgRgb.r + 0.7152 * bgRgb.g + 0.0722 * bgRgb.b;
         isDarkBg = luma < 140;
       }
 
-      // Renderizar el contenedor pintando el color de fondo elegido
       if (bgRgb) {
         doc.setFillColor(bgRgb.r, bgRgb.g, bgRgb.b);
       } else {
@@ -160,7 +158,7 @@ export const exportDeckToPDF = (deckTitle, cards, type = 'guide') => {
       const st = parseCardStyles(card.fontSize);
       const bgRgb = hexToRgb(st.bgColor);
 
-      // 🎨 RENDER DE FONDOS: Da prioridad a la imagen de mazo y usa el color sólido como base
+      // RENDER DE FONDOS: Da prioridad a la imagen de mazo y usa el color sólido como base
       if (card.bgImage) {
         try {
           let imgFormat = card.bgImage.includes('image/png') ? 'PNG' : card.bgImage.includes('image/webp') ? 'WEBP' : 'JPEG';
@@ -185,7 +183,7 @@ export const exportDeckToPDF = (deckTitle, cards, type = 'guide') => {
       if (align === 'center') textX = x + (cardW / 2);
       if (align === 'right') textX = x + cardW - 6;
 
-      // ⚖️ CALCULAR LUMINANCIA DE CONTROL: Invierte las fuentes automáticamente si el fondo es oscuro
+      // CALCULAR LUMINANCIA DE CONTROL: Invierte las fuentes automáticamente si el fondo es oscuro
       let useWhiteText = !!card.bgImage;
       if (!useWhiteText && bgRgb) {
         const luma = 0.2126 * bgRgb.r + 0.7152 * bgRgb.g + 0.0722 * bgRgb.b;
@@ -202,7 +200,7 @@ export const exportDeckToPDF = (deckTitle, cards, type = 'guide') => {
       const aLines = doc.splitTextToSize(card.answer || '', aMaxW);
 
       // =======================================================================
-      // ⚖️ ALGORITMO DE FILTRADO Y DIVISOR INTERMEDIO MÓVIL
+      // ALGORITMO DE FILTRADO Y DIVISOR INTERMEDIO MÓVIL
       // =======================================================================
       let dividerY = y + 38;
 
@@ -222,7 +220,8 @@ export const exportDeckToPDF = (deckTitle, cards, type = 'guide') => {
 
       // Pintar marco contenedor
       doc.setDrawColor(203, 213, 225); doc.setLineWidth(0.2);
-      doc.rect(x, y, cardW, cardH, (card.bgImage || bgRgb) ? 'S' : 'FD');
+      // 🚀 CORRECCIÓN CRÍTICA: card.bgImage ? 'S' : 'FD' para asegurar que el color sólido pinte de fondo
+      doc.rect(x, y, cardW, cardH, card.bgImage ? 'S' : 'FD');
 
       // Dibujar línea discontinua equilibrada
       doc.setDrawColor(card.bgImage ? 100 : 210, card.bgImage ? 116 : 225, card.bgImage ? 139 : 235);
