@@ -12,7 +12,7 @@ export const exportDeckToPDF = (deckTitle, cards, type = 'guide') => {
 
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
-  const safeName = (deckTitle || 'guia-estudio').replace(/[^\w\s-]/g, '').trim();
+  const safeName = (deckTitle || 'mazo').replace(/[^\w\s-]/g, '').trim();
 
   // =======================================================================
   // FORMATO A: GUÍA DE ESTUDIO (LISTADO VERTICAL CONTINUO)
@@ -33,43 +33,44 @@ export const exportDeckToPDF = (deckTitle, cards, type = 'guide') => {
       const qLines = doc.splitTextToSize(`P: ${card.question}`, contentWidth);
       const aLines = doc.splitTextToSize(`R: ${card.answer}`, contentWidth);
       
-      let imgHeight = card.contentImage ? 34 : 0;
-      const blockHeight = (qLines.length * 6) + (aLines.length * 6) + 14 + imgHeight;
+      // 📏 Ajuste de altura estricto para evitar saltos de página huérfanos
+      let imgHeight = card.contentImage ? 32 : 0;
+      const blockHeight = (qLines.length * 5.5) + (aLines.length * 5.5) + 10 + imgHeight;
 
       if (y + blockHeight > 275) { doc.addPage(); y = 22; }
 
       doc.setFillColor(250, 250, 250); doc.setDrawColor(241, 245, 249);
-      doc.roundedRect(margin - 2, y - 6, contentWidth + 4, blockHeight - 4, 3, 3, "FD");
+      doc.roundedRect(margin - 2, y - 6, contentWidth + 4, blockHeight - 2, 3, 3, "FD");
 
+      // Render Pregunta
       doc.setFont("Helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(15, 23, 42);
-      qLines.forEach((line, i) => { doc.text(line, margin, y + (i * 6)); });
-      y += (qLines.length * 6) + 3;
+      qLines.forEach((line, i) => { doc.text(line, margin, y + (i * 5.5)); });
+      y += (qLines.length * 5.5) + 1;
 
+      // 🖼️ Imagen en Pregunta: Eliminado espacio muerto redundante
       if (card.contentImage && card.imageSide === 'question') {
         try {
-          let imgFormat = 'JPEG';
-          if (card.contentImage.includes('image/png')) imgFormat = 'PNG';
-          if (card.contentImage.includes('image/webp')) imgFormat = 'WEBP';
-          doc.addImage(card.contentImage, imgFormat, margin, y, 45, 30, undefined, 'FAST');
+          let imgFormat = card.contentImage.includes('image/png') ? 'PNG' : card.contentImage.includes('image/webp') ? 'WEBP' : 'JPEG';
+          doc.addImage(card.contentImage, imgFormat, margin, y + 1, 45, 28, undefined, 'FAST');
         } catch (e) { console.error(e); }
-        y += 32;
+        y += 30;
       }
 
+      // Render Respuesta
       doc.setFont("Helvetica", "normal"); doc.setFontSize(11); doc.setTextColor(71, 85, 105);
-      aLines.forEach((line, i) => { doc.text(line, margin, y + (i * 6)); });
-      y += (aLines.length * 6) + 4;
+      aLines.forEach((line, i) => { doc.text(line, margin, y + (i * 5.5)); });
+      y += (aLines.length * 5.5) + 2;
 
+      // 🖼️ Imagen en Respuesta: Ajuste milimétrico continuo
       if (card.contentImage && card.imageSide === 'answer') {
         try {
-          let imgFormat = 'JPEG';
-          if (card.contentImage.includes('image/png')) imgFormat = 'PNG';
-          if (card.contentImage.includes('image/webp')) imgFormat = 'WEBP';
-          doc.addImage(card.contentImage, imgFormat, margin, y, 45, 30, undefined, 'FAST');
+          let imgFormat = card.contentImage.includes('image/png') ? 'PNG' : card.contentImage.includes('image/webp') ? 'WEBP' : 'JPEG';
+          doc.addImage(card.contentImage, imgFormat, margin, y + 1, 45, 28, undefined, 'FAST');
         } catch (e) { console.error(e); }
-        y += 32;
+        y += 30;
       }
       
-      y += 8; 
+      y += 8; // Separación inter-bloques compacta
     });
 
     doc.save(`${safeName}-guia.pdf`);
@@ -101,10 +102,7 @@ export const exportDeckToPDF = (deckTitle, cards, type = 'guide') => {
 
       if (card.bgImage) {
         try {
-          let imgFormat = 'JPEG';
-          if (card.bgImage.includes('image/png')) imgFormat = 'PNG';
-          if (card.bgImage.includes('image/webp')) imgFormat = 'WEBP';
-          
+          let imgFormat = card.bgImage.includes('image/png') ? 'PNG' : card.bgImage.includes('image/webp') ? 'WEBP' : 'JPEG';
           doc.addImage(card.bgImage, imgFormat, x, y, cardW, cardH, undefined, 'FAST');
           doc.saveGraphicsState();
           doc.setGState(new doc.GState({ opacity: 0.55 }));
@@ -132,66 +130,82 @@ export const exportDeckToPDF = (deckTitle, cards, type = 'guide') => {
       const subColor = card.bgImage ? [148, 163, 184] : [100, 116, 139];
       const answerColor = card.bgImage ? [241, 245, 249] : [51, 65, 85];
 
-      const imgW = 26;
-      const imgH = 17;
-      const imgX = x + (cardW - imgW) / 2;
-
       const qMaxW = cardW - 12;
       const aMaxW = cardW - 12;
 
       const qLines = doc.splitTextToSize(card.question || '', qMaxW);
       const aLines = doc.splitTextToSize(card.answer || '', aMaxW);
 
-      // --- Pregunta ---
+      // =======================================================================
+      // 🎴 SECCIÓN SUPERIOR: PREGUNTA
+      // =======================================================================
       doc.setFont("Helvetica", "bold"); doc.setFontSize(7.5); doc.setTextColor(subColor[0], subColor[1], subColor[2]);
-      doc.text("PREGUNTA", textX, y + 11, { align });
+      doc.text("PREGUNTA", textX, y + 10, { align });
 
       if (card.contentImage && card.imageSide === 'question') {
+        // 🌟 ESCALADO INTELIGENTE: Si el texto es corto, expandimos la imagen
+        const isShortText = qLines.length <= 1;
+        const imgW = isShortText ? 34 : 24;
+        const imgH = isShortText ? 19 : 13;
+        const imgX = x + (cardW - imgW) / 2;
+
         doc.setFont("Helvetica", "bold"); doc.setFontSize(9.5); doc.setTextColor(textColor[0], textColor[1], textColor[2]);
-        let currentY = y + 15.5;
-        qLines.slice(0, 1).forEach((line) => {
+        
+        // Renderizar el texto disponible arriba
+        let currentY = isShortText ? y + 14.5 : y + 14;
+        qLines.slice(0, isShortText ? 1 : 2).forEach((line) => {
           doc.text(line, textX, currentY, { align });
+          currentY += 4.5;
         });
         
         try {
-          let imgFormat = 'JPEG';
-          if (card.contentImage.includes('image/png')) imgFormat = 'PNG';
-          if (card.contentImage.includes('image/webp')) imgFormat = 'WEBP';
-          doc.addImage(card.contentImage, imgFormat, imgX, y + 19, imgW, imgH, undefined, 'FAST');
+          let imgFormat = card.contentImage.includes('image/png') ? 'PNG' : card.contentImage.includes('image/webp') ? 'WEBP' : 'JPEG';
+          // Se posiciona al centro de forma dinámica sin colisionar
+          doc.addImage(card.contentImage, imgFormat, imgX, isShortText ? y + 17.5 : y + 23, imgW, imgH, undefined, 'FAST');
         } catch (e) { console.error(e); }
       } else {
+        // Flujo regular sin imagen adjunta (soporta hasta 4 líneas de texto)
         doc.setFont("Helvetica", "bold"); doc.setFontSize(10.5); doc.setTextColor(textColor[0], textColor[1], textColor[2]);
-        let currentY = y + 17;
+        let currentY = y + 16.5;
         qLines.slice(0, 4).forEach((line) => {
           doc.text(line, textX, currentY, { align });
           currentY += 4.5;
         });
       }
 
-      // Separador
+      // Línea divisora central fija
       doc.setDrawColor(card.bgImage ? 71 : 226, card.bgImage ? 85 : 232, card.bgImage ? 105 : 240);
       doc.line(x + 6, y + 38, x + cardW - 6, y + 38);
 
-      // --- Respuesta ---
+      // =======================================================================
+      // 🎴 SECCIÓN INFERIOR: RESPUESTA
+      // =======================================================================
       doc.setFont("Helvetica", "bold"); doc.setFontSize(7.5); doc.setTextColor(subColor[0], subColor[1], subColor[2]);
-      doc.text("RESPUESTA", textX, y + 45, { align });
+      doc.text("RESPUESTA", textX, y + 44, { align });
 
       if (card.contentImage && card.imageSide === 'answer') {
+        // 🌟 ESCALADO INTELIGENTE: Adaptación proporcional para la respuesta
+        const isShortText = aLines.length <= 1;
+        const imgW = isShortText ? 34 : 24;
+        const imgH = isShortText ? 19 : 13;
+        const imgX = x + (cardW - imgW) / 2;
+
         doc.setFont("Helvetica", "normal"); doc.setFontSize(9.5); doc.setTextColor(answerColor[0], answerColor[1], answerColor[2]);
-        let currentY = y + 49.5;
-        aLines.slice(0, 1).forEach((line) => {
+        
+        let currentY = isShortText ? y + 48.5 : y + 48;
+        aLines.slice(0, isShortText ? 1 : 2).forEach((line) => {
           doc.text(line, textX, currentY, { align });
+          currentY += 4.5;
         });
 
         try {
-          let imgFormat = 'JPEG';
-          if (card.contentImage.includes('image/png')) imgFormat = 'PNG';
-          if (card.contentImage.includes('image/webp')) imgFormat = 'WEBP';
-          doc.addImage(card.contentImage, imgFormat, imgX, y + 53, imgW, imgH, undefined, 'FAST');
+          let imgFormat = card.contentImage.includes('image/png') ? 'PNG' : card.contentImage.includes('image/webp') ? 'WEBP' : 'JPEG';
+          doc.addImage(card.contentImage, imgFormat, imgX, isShortText ? y + 51.5 : y + 57, imgW, imgH, undefined, 'FAST');
         } catch (e) { console.error(e); }
       } else {
+        // Flujo regular sin imagen adjunta
         doc.setFont("Helvetica", "normal"); doc.setFontSize(10.5); doc.setTextColor(answerColor[0], answerColor[1], answerColor[2]);
-        let currentY = y + 51;
+        let currentY = y + 50.5;
         aLines.slice(0, 4).forEach((line) => {
           doc.text(line, textX, currentY, { align });
           currentY += 4.5;
