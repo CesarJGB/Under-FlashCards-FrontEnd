@@ -1,7 +1,12 @@
 // ARCHIVO: frontend/src/components/creator/LivePreview.jsx
+import { useState } from 'react';
+import { ImagePlus, Palette, Pipette } from 'lucide-react';
+
 const ALIGN_CLASS = { left: 'text-left', center: 'text-center', right: 'text-right' };
 
 export default function LivePreview({ question, answer, bgImage, textAlign, styles, contentImage, imageSide, ALIGNS, SWATCHES, setTextAlign, handleBgFile, updateStyle }) {
+  const [bgColorOpen, setBgColorOpen] = useState(false);
+
   return (
     <div className="mt-4 border border-slate-200 rounded-2xl p-4 bg-slate-50/70 space-y-4 animate-[fadeIn_0.15s_ease] shadow-inner">
       <div className="flex items-center justify-between border-b border-slate-200/60 pb-1.5">
@@ -10,9 +15,15 @@ export default function LivePreview({ question, answer, bgImage, textAlign, styl
       </div>
       
       <div className="flex justify-center py-2 bg-white/40 border border-slate-200/40 rounded-xl">
+        {/* 🌟 ACTUALIZADO: Inyección de styles.bgColor en el background de la carta simulada */}
         <div 
-          style={bgImage ? { backgroundImage: `url(${bgImage})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}}
-          className="relative w-full max-w-[320px] min-h-[220px] rounded-2xl border border-slate-200 shadow-md overflow-hidden bg-white flex flex-col p-4 justify-center"
+          style={{
+            backgroundColor: styles.bgColor || '#ffffff',
+            backgroundImage: bgImage ? `url(${bgImage})` : undefined, 
+            backgroundSize: 'cover', 
+            backgroundPosition: 'center'
+          }}
+          className="relative w-full max-w-[320px] min-h-[220px] rounded-2xl border border-slate-200 shadow-md overflow-hidden flex flex-col p-4 justify-center"
         >
           {bgImage && <span className="absolute inset-0 bg-black/55" />}
           <span className="absolute top-2.5 left-1/2 -translate-x-1/2 w-8 h-1.5 rounded-full bg-slate-400/30 z-10" />
@@ -47,6 +58,59 @@ export default function LivePreview({ question, answer, bgImage, textAlign, styl
                 <img src={contentImage} alt="Preview R" className="max-h-24 rounded-lg object-contain border border-slate-200/60 bg-slate-50 p-0.5 shadow-2xs" />
               </div>
             )}
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-3 pt-1 border-t border-slate-200/60">
+        <div className="grid grid-cols-2 gap-3 bg-white p-3 rounded-xl border border-slate-200/70 shadow-xs">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1">Alineación</p>
+            <div className="flex gap-1">
+              {ALIGNS.map(({ value, label, Icon }) => (
+                <button key={value} type="button" title={label} onClick={() => setTextAlign(value)} className={`rounded-lg p-1.5 border transition-colors ${textAlign === value ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}><Icon className="w-3.5 h-3.5" /></button>
+              ))}
+            </div>
+          </div>
+
+          {/* 🌟 ACTUALIZADO: Controles de fondo con la paleta de color integrada */}
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1">Fondo mazo</p>
+            <div className="flex items-center gap-1.5">
+              <label className="inline-flex items-center gap-1.5 cursor-pointer rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-700 hover:bg-slate-100 shadow-2xs">
+                <ImagePlus className="w-3.5 h-3.5 text-slate-500" /> <span className="text-[11px]">Subir</span>
+                <input type="file" accept="image/*" onChange={handleBgFile} className="hidden" />
+              </label>
+              {bgImage && <button type="button" onClick={() => setBgImage('')} className="text-xs text-red-600 hover:underline shrink-0">Borrar</button>}
+
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setBgColorOpen(!bgColorOpen)}
+                  style={styles.bgColor ? { backgroundColor: styles.bgColor } : {}}
+                  className={`p-1.5 rounded-lg border transition-all flex items-center justify-center ${
+                    styles.bgColor ? 'text-white border-transparent shadow-xs' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  <Palette className={`w-3.5 h-3.5 ${styles.bgColor ? 'drop-shadow-xs text-white' : ''}`} />
+                </button>
+
+                {bgColorOpen && (
+                  <>
+                    <div className="fixed inset-0 z-30" onClick={() => setBgColorOpen(false)} />
+                    <div className="absolute right-0 mt-2 bg-white border border-slate-200 p-2 rounded-2xl shadow-xl z-40 grid grid-cols-4 gap-2 w-[168px] animate-[slideUp_0.1s_ease-out]">
+                      {SWATCHES.map((c) => (
+                        <button key={c.value} type="button" title={c.label} onClick={() => { updateStyle('bgColor', c.value); setBgColorOpen(false); }} style={c.value ? { backgroundColor: c.value } : {}} className={`w-8 h-8 rounded-xl border transition-all ${styles.bgColor === c.value ? 'scale-110 ring-2 ring-slate-900 ring-offset-1' : 'border-slate-200 hover:scale-105'} ${!c.value ? 'bg-slate-100 relative after:absolute after:inset-0 after:flex after:items-center after:justify-center after:text-xs after:font-bold after:text-slate-500 after:content-["×"]' : ''}`} />
+                      ))}
+                      <label className="w-8 h-8 rounded-xl border border-slate-300 cursor-pointer overflow-hidden relative bg-gradient-to-tr from-amber-400 via-rose-400 to-indigo-400 shrink-0 hover:scale-105 transition-transform flex items-center justify-center group shadow-xs">
+                        <Pipette className="w-3.5 h-3.5 text-white drop-shadow-xs group-hover:scale-110 transition-transform relative z-10" />
+                        <input type="color" value={styles.bgColor && styles.bgColor.startsWith('#') ? styles.bgColor : '#ffffff'} onChange={(e) => updateStyle('bgColor', e.target.value)} className="absolute inset-0 opacity-0 cursor-pointer scale-150 z-0" />
+                      </label>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>
