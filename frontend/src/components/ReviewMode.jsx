@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight, RotateCw, BookOpen, Loader2, Maximize2, X } 
 
 const ALIGN_CLASS = { left: 'text-left', center: 'text-center', right: 'text-right' };
 
-// 🧠 DESEMPAQUETADOR RETROCOMPATIBLE: Parsea la configuración o aplica fallbacks
+// 🧠 DESEMPAQUETADOR RETROCOMPATIBLE: Parsea la configuración incluyendo el color de fondo sólido
 const parseCardStyles = (fontSizeField) => {
   if (fontSizeField && fontSizeField.startsWith('{')) {
     try {
@@ -17,20 +17,21 @@ const parseCardStyles = (fontSizeField) => {
         aSize: p.aSize || 'text-base',
         aBold: p.aBold ?? false,
         aItalic: p.aItalic ?? false,
-        aColor: p.aColor || ''
+        aColor: p.aColor || '',
+        bgColor: p.bgColor || '' // 🚀 Extraído con éxito del string JSON
       };
     } catch (e) {}
   }
   return {
     qSize: fontSizeField || 'text-base', qBold: true, qItalic: false, qColor: '',
-    aSize: fontSizeField || 'text-base', aBold: false, aItalic: false, aColor: ''
+    aSize: fontSizeField || 'text-base', aBold: false, aItalic: false, aColor: '',
+    bgColor: ''
   };
 };
 
 export default function ReviewMode({ cards, loading }) {
   const [index, setIndex] = useState(0);
   const [showAnswer, setShowAnswer] = useState(false);
-  // 🔍 ESTADO DE ZOOM: Controla si la imagen actual se despliega a pantalla completa
   const [isZoomed, setIsZoomed] = useState(false);
   const touchStartX = useRef(null);
 
@@ -78,20 +79,23 @@ export default function ReviewMode({ cards, loading }) {
   const sizeStyle = isNumSize ? { fontSize: `${currentSize}px` } : {};
   const sizeClass = isNumSize ? '' : currentSize;
 
-  const cardStyle = hasBg
-    ? { backgroundImage: `url(${card.bgImage})`, backgroundSize: 'cover', backgroundPosition: 'center' }
-    : {};
+  // 🚀 ACTUALIZADO: cardStyle ahora fusiona el color sólido con el fallback blanco y la imagen si existiera
+  const cardStyle = {
+    backgroundColor: st.bgColor || '#ffffff',
+    ...(hasBg ? { backgroundImage: `url(${card.bgImage})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {})
+  };
+  
   const progress = ((index + 1) / cards.length) * 100;
 
   const goPrev = () => {
     setIndex((i) => (i - 1 + cards.length) % cards.length);
     setShowAnswer(false);
-    setIsZoomed(false); // Cierra el zoom automáticamente si cambias de carta
+    setIsZoomed(false);
   };
   const goNext = () => {
     setIndex((i) => (i + 1) % cards.length);
     setShowAnswer(false);
-    setIsZoomed(false); // Cierra el zoom automáticamente si cambias de carta
+    setIsZoomed(false);
   };
 
   const onTouchStart = (e) => {
@@ -126,7 +130,7 @@ export default function ReviewMode({ cards, loading }) {
           onTouchStart={onTouchStart}
           onTouchEnd={onTouchEnd}
           style={cardStyle}
-          className="relative w-full rounded-2xl border border-slate-200 shadow-md overflow-hidden bg-white min-h-[290px] sm:min-h-[340px] flex flex-col select-none animate-[slideIn_0.2s_ease-out] touch-pan-x overscroll-none"
+          className="relative w-full rounded-2xl border border-slate-200 shadow-md overflow-hidden min-h-[290px] sm:min-h-[340px] flex flex-col select-none animate-[slideIn_0.2s_ease-out] touch-pan-x overscroll-none"
         >
           <div className="absolute top-0 inset-x-0 h-1.5 bg-black/10 z-20">
             <div className="h-full bg-slate-900/80 transition-all duration-300" style={{ width: `${progress}%` }} />
@@ -151,7 +155,6 @@ export default function ReviewMode({ cards, loading }) {
                 {showAnswer ? card.answer : card.question}
               </p>
 
-              {/* 🖼️ Contenedor e Imagen de Contenido Modificados */}
               {card.contentImage && card.imageSide === (showAnswer ? 'answer' : 'question') && (
                 <div className="mt-4 flex justify-center w-full animate-[slideUp_0.18s_ease-out]">
                   <div className="relative max-w-max group">
@@ -163,7 +166,6 @@ export default function ReviewMode({ cards, loading }) {
                       }`}
                     />
                     
-                    {/* 🔍 BOTÓN DE MAXIMIZAR FLOTANTE: Anidado en la esquina superior derecha de la imagen */}
                     <button
                       type="button"
                       onClick={() => setIsZoomed(true)}
@@ -196,13 +198,11 @@ export default function ReviewMode({ cards, loading }) {
         </div>
       </div>
 
-      {/* 🌌 LIGHTBOX INTERACTIVO DE PANTALLA COMPLETA */}
       {isZoomed && card.contentImage && (
         <div 
           onClick={() => setIsZoomed(false)}
           className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-[fadeIn_0.15s_ease]"
         >
-          {/* Botón superior de cierre absoluto */}
           <button 
             type="button"
             onClick={() => setIsZoomed(false)}
@@ -212,7 +212,7 @@ export default function ReviewMode({ cards, loading }) {
           </button>
 
           <div 
-            onClick={(e) => e.stopPropagation()} // Evita que se cierre al hacer click sobre la foto
+            onClick={(e) => e.stopPropagation()} 
             className="relative max-w-3xl w-full flex flex-col items-center animate-[scaleIn_0.15s_ease-out]"
           >
             <img 
@@ -220,7 +220,6 @@ export default function ReviewMode({ cards, loading }) {
               alt="Detalle ampliado" 
               className="max-h-[82vh] max-w-full object-contain rounded-2xl border-2 border-white/10 shadow-2xl bg-slate-900/40 p-1.5"
             />
-            {/* Texto de referencia discreto en el pie del Lightbox */}
             <p className="text-white/60 text-xs font-semibold mt-3 bg-black/40 px-3 py-1 rounded-full backdrop-blur-xs select-none">
               Modo Detalle • Clic afuera para regresar
             </p>
