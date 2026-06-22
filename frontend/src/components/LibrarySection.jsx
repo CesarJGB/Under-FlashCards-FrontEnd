@@ -25,15 +25,18 @@ export default function LibrarySection({
 
   // 🔎 ESTADOS LOCALES DE BÚSQUEDA, ORDENAMIENTO Y VISTA
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState('recent'); // 'recent' | 'oldest' | 'alpha' | 'cards-count'
+  const [sortBy, setSortBy] = useState('recent'); // 'recent' | 'oldest' | 'alpha' | 'cards-desc' | 'cards-asc'
   const [viewMode, setViewMode] = useState('grid'); // 'grid' | 'list'
 
-  // 🧠 MOTOR DE FILTRADO Y ORDENAMIENTO COMPUTADO (0ms Lag)
+  // 🧠 MOTOR DE FILTRADO Y ORDENAMIENTO COMPUTADO AUTOMÁTICO
   const processedDecks = useMemo(() => {
     // 1. Filtrado por Barra de Búsqueda de Mazos
     let result = decks.filter((deck) => 
       deck.title?.toLowerCase().includes(searchQuery.toLowerCase())
     );
+
+    // Helper robusto para extraer el número exacto de tarjetas del mazo
+    const getCount = (d) => d.cardCount ?? d.cards?.length ?? d.cardsCount ?? 0;
 
     // 2. Aplicación de Criterios de Ordenamiento Estrictos
     if (sortBy === 'recent') {
@@ -42,9 +45,12 @@ export default function LibrarySection({
       result.sort((a, b) => new Date(a.createdAt || a.id) - new Date(b.createdAt || b.id));
     } else if (sortBy === 'alpha') {
       result.sort((a, b) => a.title.localeCompare(b.title));
-    } else if (sortBy === 'cards-count') {
-      const getCount = (d) => d.cards?.length || d.cardsCount || 0;
+    } else if (sortBy === 'cards-desc') {
+      // ✨ NUEVO: Mayor número de tarjetas primero (De Mayor a Menor)
       result.sort((a, b) => getCount(b) - getCount(a));
+    } else if (sortBy === 'cards-asc') {
+      // ✨ NUEVO: Menor número de tarjetas primero (De Menor a Mayor)
+      result.sort((a, b) => getCount(a) - getCount(b));
     }
 
     return result;
@@ -159,7 +165,7 @@ export default function LibrarySection({
         </div>
       </div>
 
-      {/* 🔍 PANEL DE CONTROLES CALCADO: BUSCADOR + SORT + VIEW SWITCHER */}
+      {/* 🔍 PANEL DE CONTROLES */}
       {decks.length > 0 && (
         <div className="mt-5 flex flex-col md:flex-row gap-3 items-center justify-between bg-slate-50 border border-slate-200/60 p-3 rounded-2xl shadow-2xs">
           
@@ -175,7 +181,7 @@ export default function LibrarySection({
             />
           </div>
 
-          {/* Grupo de Controles: Ordenamiento y Alternador de Vista */}
+          {/* Grupo de Controles */}
           <div className="w-full md:w-auto flex flex-col sm:flex-row items-center gap-3 shrink-0">
             
             {/* Dropdown de Ordenamiento */}
@@ -189,12 +195,14 @@ export default function LibrarySection({
                   id="sort-decks"
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value)}
-                  className="w-full sm:w-44 pl-9 pr-8 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none appearance-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 cursor-pointer shadow-3xs transition-all"
+                  className="w-full sm:w-48 pl-9 pr-8 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none appearance-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 cursor-pointer shadow-3xs transition-all"
                 >
                   <option value="recent">Más recientes</option>
                   <option value="oldest">Más antiguos</option>
                   <option value="alpha">Orden alfabético</option>
-                  <option value="cards-count">Cantidad de tarjetas</option>
+                  {/* ✨ ACTUALIZADO: Filtros divididos con nombres claros y descriptivos */}
+                  <option value="cards-desc">Mayor número de tarjetas</option>
+                  <option value="cards-asc">Menor número de tarjetas</option>
                 </select>
                 <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 text-[10px]">
                   ▼
@@ -202,7 +210,7 @@ export default function LibrarySection({
               </div>
             </div>
 
-            {/* Alternador de Vista (Cuadrícula / Lista) */}
+            {/* Alternador de Vista */}
             <div className="flex bg-slate-200/50 p-1 rounded-xl border border-slate-200/40 items-center w-full sm:w-auto justify-center shrink-0">
               <button
                 type="button"
@@ -241,12 +249,10 @@ export default function LibrarySection({
           Aún no tienes mazos. Crea tu primer mazo usando el botón inferior.
         </div>
       ) : processedDecks.length === 0 ? (
-        /* Estado de Búsqueda sin coincidencias */
         <div className="mt-8 text-center border border-dashed border-slate-200 rounded-2xl py-14 bg-white text-slate-400 text-xs font-medium animate-[fadeIn_0.1s_ease]">
           No se encontraron mazos que coincidan con la búsqueda.
         </div>
       ) : (
-        /* ✨ CORREGIDO: "grid-cols-2" directo para forzar dos columnas fijas en móviles y reducción de gap */
         <div 
           data-testid="decks-grid" 
           className={
@@ -259,7 +265,7 @@ export default function LibrarySection({
             <DeckCard
               key={deck.id}
               deck={deck}
-              isList={viewMode === 'list'} // ✨ CORREGIDO: Pasamos la bandera de modo lista a cada tarjeta
+              isList={viewMode === 'list'}
               onOpen={(d) => { setInitialMode('edit'); setCurrentDeck(d); }}
               onEdit={(d) => setModal({ editing: d })}
               onDelete={handleDeleteDeck}
