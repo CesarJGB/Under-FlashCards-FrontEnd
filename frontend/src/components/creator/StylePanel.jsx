@@ -5,6 +5,7 @@ import { ImagePlus, Plus, Minus, Bold, Italic, Palette, Pipette } from 'lucide-r
 export default function StylePanel({ ALIGNS, SWATCHES, textAlign, setTextAlign, bgImage, setBgImage, styles, updateStyle, handleBgFile }) {
   const [qColorOpen, setQColorOpen] = useState(false);
   const [aColorOpen, setAColorOpen] = useState(false);
+  const [bgColorOpen, setBgColorOpen] = useState(false); // 🚀 Estado para el selector de fondo
 
   const renderStyleGroup = (title, prefix, colorOpen, setColorOpen) => {
     const sizeKey = `${prefix}Size`;
@@ -30,15 +31,18 @@ export default function StylePanel({ ALIGNS, SWATCHES, textAlign, setTextAlign, 
             <div className="relative">
               <button type="button" onClick={() => setColorOpen(!colorOpen)} style={styles[colorKey] ? { backgroundColor: styles[colorKey] } : {}} className={`p-1.5 rounded-lg border transition-all flex items-center justify-center ${styles[colorKey] ? 'text-white border-transparent shadow-xs' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}><Palette className="w-3.5 h-3.5" /></button>
               {colorOpen && (
-                <div className="absolute right-0 bottom-full mb-2 bg-white border border-slate-200 p-2 rounded-2xl shadow-xl z-30 grid grid-cols-4 gap-2 w-[168px] animate-[slideUp_0.1s_ease-out]">
-                  {SWATCHES.map((c) => (
-                    <button key={c.value} type="button" title={c.label} onClick={() => { updateStyle(colorKey, c.value); setColorOpen(false); }} style={c.value ? { backgroundColor: c.value } : {}} className={`w-8 h-8 rounded-xl border transition-all ${styles[colorKey] === c.value ? 'scale-110 ring-2 ring-slate-900 ring-offset-1' : 'border-slate-200 hover:scale-105'} ${!c.value ? 'bg-slate-100 relative after:absolute after:inset-0 after:flex after:items-center after:justify-center after:text-xs after:font-bold after:text-slate-500 after:content-["×"]' : ''}`} />
-                  ))}
-                  <label className="w-8 h-8 rounded-xl border border-slate-300 cursor-pointer overflow-hidden relative bg-gradient-to-tr from-amber-400 via-rose-400 to-indigo-400 shrink-0 hover:scale-105 transition-transform flex items-center justify-center group shadow-xs">
-                    <Pipette className="w-3.5 h-3.5 text-white drop-shadow-xs group-hover:scale-110 transition-transform relative z-10" />
-                    <input type="color" value={styles[colorKey] && styles[colorKey].startsWith('#') ? styles[colorKey] : '#ffffff'} onChange={(e) => updateStyle(colorKey, e.target.value)} className="absolute inset-0 opacity-0 cursor-pointer scale-150 z-0" />
-                  </label>
-                </div>
+                <>
+                  <div className="fixed inset-0 z-30" onClick={() => setColorOpen(false)} />
+                  <div className="absolute right-0 bottom-full mb-2 bg-white border border-slate-200 p-2 rounded-2xl shadow-xl z-40 grid grid-cols-4 gap-2 w-[168px] animate-[slideUp_0.1s_ease-out]">
+                    {SWATCHES.map((c) => (
+                      <button key={c.value} type="button" title={c.label} onClick={() => { updateStyle(colorKey, c.value); setColorOpen(false); }} style={c.value ? { backgroundColor: c.value } : {}} className={`w-8 h-8 rounded-xl border transition-all ${styles[colorKey] === c.value ? 'scale-110 ring-2 ring-slate-900 ring-offset-1' : 'border-slate-200 hover:scale-105'} ${!c.value ? 'bg-slate-100 relative after:absolute after:inset-0 after:flex after:items-center after:justify-center after:text-xs after:font-bold after:text-slate-500 after:content-["×"]' : ''}`} />
+                    ))}
+                    <label className="w-8 h-8 rounded-xl border border-slate-300 cursor-pointer overflow-hidden relative bg-gradient-to-tr from-amber-400 via-rose-400 to-indigo-400 shrink-0 hover:scale-105 transition-transform flex items-center justify-center group shadow-xs">
+                      <Pipette className="w-3.5 h-3.5 text-white drop-shadow-xs group-hover:scale-110 transition-transform relative z-10" />
+                      <input type="color" value={styles[colorKey] && styles[colorKey].startsWith('#') ? styles[colorKey] : '#ffffff'} onChange={(e) => updateStyle(colorKey, e.target.value)} className="absolute inset-0 opacity-0 cursor-pointer scale-150 z-0" />
+                    </label>
+                  </div>
+                </>
               )}
             </div>
           </div>
@@ -58,6 +62,8 @@ export default function StylePanel({ ALIGNS, SWATCHES, textAlign, setTextAlign, 
             ))}
           </div>
         </div>
+        
+        {/* 🌟 CONFIGURACIÓN DE FONDO: Imagen + Selector de Color integrado */}
         <div>
           <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1">Fondo</p>
           <div className="flex items-center gap-2">
@@ -65,7 +71,55 @@ export default function StylePanel({ ALIGNS, SWATCHES, textAlign, setTextAlign, 
               <ImagePlus className="w-3.5 h-3.5 text-slate-500" /> <span>Imagen</span>
               <input type="file" accept="image/*" onChange={handleBgFile} className="hidden" />
             </label>
-            {bgImage && <button type="button" onClick={() => setBgImage('')} className="text-xs text-red-600 hover:underline">Quitar</button>}
+            {bgImage && <button type="button" onClick={() => setBgImage('')} className="text-xs text-red-600 hover:underline shrink-0">Quitar</button>}
+
+            <div className="w-[1px] h-5 bg-slate-200 mx-0.5 shrink-0" />
+
+            {/* 🎨 Selector de Color de fondo premium */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setBgColorOpen(!bgColorOpen)}
+                style={styles.bgColor ? { backgroundColor: styles.bgColor } : {}}
+                className={`p-1.5 rounded-lg border transition-all flex items-center justify-center ${
+                  styles.bgColor ? 'text-white border-transparent shadow-xs' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
+                }`}
+                title="Color de fondo sólido"
+              >
+                <Palette className={`w-3.5 h-3.5 ${styles.bgColor ? 'drop-shadow-xs text-white' : ''}`} />
+              </button>
+
+              {bgColorOpen && (
+                <>
+                  <div className="fixed inset-0 z-30" onClick={() => setBgColorOpen(false)} />
+                  <div className="absolute left-0 sm:right-0 sm:left-auto mt-2 bg-white border border-slate-200 p-2 rounded-2xl shadow-xl z-40 grid grid-cols-4 gap-2 w-[168px] animate-[slideUp_0.1s_ease-out]">
+                    {SWATCHES.map((c) => (
+                      <button
+                        key={c.value} 
+                        type="button" 
+                        title={c.label}
+                        onClick={() => { updateStyle('bgColor', c.value); setBgColorOpen(false); }}
+                        style={c.value ? { backgroundColor: c.value } : {}}
+                        className={`w-8 h-8 rounded-xl border transition-all ${
+                          styles.bgColor === c.value ? 'scale-110 ring-2 ring-slate-900 ring-offset-1' : 'border-slate-200 hover:scale-105'
+                        } ${!c.value ? 'bg-slate-100 relative after:absolute after:inset-0 after:flex after:items-center after:justify-center after:text-xs after:font-bold after:text-slate-500 after:content-["×"]' : ''}`}
+                      />
+                    ))}
+                    
+                    <label className="w-8 h-8 rounded-xl border border-slate-300 cursor-pointer overflow-hidden relative bg-gradient-to-tr from-amber-400 via-rose-400 to-indigo-400 shrink-0 hover:scale-105 transition-transform flex items-center justify-center group shadow-xs" title="Color personalizado">
+                      <Pipette className="w-3.5 h-3.5 text-white drop-shadow-xs group-hover:scale-110 transition-transform relative z-10" />
+                      <input 
+                        type="color" 
+                        value={styles.bgColor && styles.bgColor.startsWith('#') ? styles.bgColor : '#ffffff'} 
+                        onChange={(e) => updateStyle('bgColor', e.target.value)}
+                        className="absolute inset-0 opacity-0 cursor-pointer scale-150 z-0" 
+                      />
+                    </label>
+                  </div>
+                </>
+              )}
+            </div>
+
           </div>
         </div>
       </div>
