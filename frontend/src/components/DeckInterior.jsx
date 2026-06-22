@@ -1,4 +1,3 @@
-// ARCHIVO: frontend/src/components/DeckInterior.jsx
 import { useState, useEffect, useCallback } from 'react';
 import { Loader2, ChevronDown, ChevronUp } from 'lucide-react'; 
 import { jsPDF } from 'jspdf';
@@ -217,88 +216,51 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
   };
 
   const handleSubmit = async (e) => {
-  e.preventDefault();
-  setSaving(true);
-  setError('');
+    e.preventDefault();
+    setSaving(true);
+    setError('');
 
-  if (isBulk && !editingId) {
-    const lines = bulkText.split('\n');
-    const parsedCards = [];
-    let currentQuestion = '';
+    if (isBulk && !editingId) {
+      const lines = bulkText.split('\n');
+      const parsedCards = [];
+      let currentQuestion = '';
 
-    lines.forEach((line) => {
-      const cleanLine = line.trim();
-      if (/^[pP]\s*:/i.test(cleanLine)) currentQuestion = cleanLine.replace(/^[pP]\s*:/i, '').trim();
-      else if (/^[rR]\s*:/i.test(cleanLine)) {
-        const currentAnswer = cleanLine.replace(/^[rR]\s*:/i, '').trim();
-        if (currentQuestion && currentAnswer) {
-          parsedCards.push({ question: currentQuestion, answer: currentAnswer });
-          currentQuestion = '';
+      lines.forEach((line) => {
+        const cleanLine = line.trim();
+        if (/^[pP]\s*:/i.test(cleanLine)) currentQuestion = cleanLine.replace(/^[pP]\s*:/i, '').trim();
+        else if (/^[rR]\s*:/i.test(cleanLine)) {
+          const currentAnswer = cleanLine.replace(/^[rR]\s*:/i, '').trim();
+          if (currentQuestion && currentAnswer) {
+            parsedCards.push({ question: currentQuestion, answer: currentAnswer });
+            currentQuestion = '';
+          }
         }
+      });
+
+      if (parsedCards.length === 0) {
+        setError('No se encontraron bloques válidos (P: ... R: ...)');
+        setSaving(false); return;
       }
-    });
 
-    if (parsedCards.length === 0) {
-      setError('No se encontraron bloques válidos (P: ... R: ...)');
-      setSaving(false); return;
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/flashcards/bulk`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId, deckId: deck.id, batchStyles: { bgImage, textAlign, fontSize }, cards: parsedCards }),
+        });
+        if (!res.ok) throw new Error('No se pudo guardar el lote.');
+        const batchData = await res.json();
+        setCards((prev) => [...batchData, ...prev]);
+        resetForm(); setIsBulk(false);
+      } catch (err) { setError(err.message); } finally { setSaving(false); }
+      return;
     }
 
-    try {
-      const res = await fetch(`${BACKEND_URL}/api/flashcards/bulk`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, deckId: deck.id, batchStyles: { bgImage, textAlign, fontSize }, cards: parsedCards }),
-      });
-      if (!res.ok) throw new Error('No se pudo guardar el lote.');
-      const batchData = await res.json();
-      setCards((prev) => [...batchData, ...prev]);
-      resetForm(); setIsBulk(false);
-    } catch (err) { setError(err.message); } finally { setSaving(false); }
-    return;
-  }
+    if (!question.trim() || !answer.trim()) { setSaving(false); return; }
 
-  if (!question.trim() || !answer.trim()) { setSaving(false); return; }
-
-  // 📦 Payload extendido con las propiedades de la imagen comprimida
-  const body = { question, answer, bgImage, textAlign, fontSize, contentImage, imageSide };
-
-  try {
-    if (editingId) {
-      const res = await fetch(`${BACKEND_URL}/api/flashcards/${editingId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) throw new Error('No se pudo actualizar.');
-      const updated = await res.json();
-      setCards((prev) => prev.map((c) => (c.id === editingId ? updated : c)));
-      resetForm(); // resetForm ya limpia contentImage e imageSide por defecto
-    } else {
-      const res = await fetch(`${BACKEND_URL}/api/flashcards`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, deckId: deck.id, ...body }),
-      });
-      if (!res.ok) throw new Error('No se pudo crear.');
-      const newCard = await res.json();
-      setCards((prev) => [newCard, ...prev]);
-      
-      // ✨ LA CORRECCIÓN: Limpieza total tras guardar exitosamente para que la siguiente tarjeta inicie limpia
-      setQuestion(''); 
-      setAnswer('');
-      setContentImage(''); 
-      setImageSide(''); 
-    }
-  } catch (e) { 
-    setError(e.message); 
-  } finally { 
-    setSaving(false); 
-  }
-};
-
-    // 📦 Payload extendido con las especificaciones de imagen de contenido comprimida
+    // 📦 Payload extendido con las propiedades de la imagen comprimida
     const body = { question, answer, bgImage, textAlign, fontSize, contentImage, imageSide };
-    
+
     try {
       if (editingId) {
         const res = await fetch(`${BACKEND_URL}/api/flashcards/${editingId}`, {
@@ -309,7 +271,7 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
         if (!res.ok) throw new Error('No se pudo actualizar.');
         const updated = await res.json();
         setCards((prev) => prev.map((c) => (c.id === editingId ? updated : c)));
-        resetForm();
+        resetForm(); 
       } else {
         const res = await fetch(`${BACKEND_URL}/api/flashcards`, {
           method: 'POST',
@@ -319,10 +281,18 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
         if (!res.ok) throw new Error('No se pudo crear.');
         const newCard = await res.json();
         setCards((prev) => [newCard, ...prev]);
-        // Reset manual de inputs de texto preservando la imagen por si se desea usar consecutivamente
-        setQuestion(''); setAnswer('');
+        
+        // ✨ Limpieza total automática tras guardar exitosamente
+        setQuestion(''); 
+        setAnswer('');
+        setContentImage(''); 
+        setImageSide(''); 
       }
-    } catch (e) { setError(e.message); } finally { setSaving(false); }
+    } catch (e) { 
+      setError(e.message); 
+    } finally { 
+      setSaving(false); 
+    }
   };
 
   const handleEdit = (card) => {
@@ -376,7 +346,6 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
                 isBulk={isBulk} setIsBulk={setIsBulk} bulkText={bulkText} setBulkText={setBulkText}
                 editingId={editingId} saving={saving} error={error} setError={setError}
                 onSubmit={handleSubmit} onCancel={resetForm}
-                // 🚀 Inyección de los nuevos controladores para sincronizar FlashcardCreator
                 contentImage={contentImage} setContentImage={setContentImage}
                 imageSide={imageSide} setImageSide={setImageSide}
               />
@@ -396,13 +365,13 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
                   </span>
                 </div>
                 {showGrid ? (
-                  <ChevronUp className="w-4 h-4 text-slate-400 animate-[fadeIn_0.1s_ease]" />
+                  <ChevronUp className="w-4 h-4 text-slate-400" />
                 ) : (
-                  <ChevronDown className="w-4 h-4 text-slate-400 animate-[fadeIn_0.1s_ease]" />
+                  <ChevronDown className="w-4 h-4 text-slate-400" />
                 )}
               </button>
 
-              {/* Contenedor animado de la rejilla */}
+              {/* Contenedor de la rejilla */}
               {showGrid && (
                 <div className="animate-[fadeIn_0.18s_ease] pb-6">
                   <FlashcardGrid cards={cards} onEdit={handleEdit} onDelete={handleDelete} />
