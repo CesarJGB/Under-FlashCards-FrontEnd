@@ -14,7 +14,7 @@ import {
   Palette,
   Eye,
   EyeOff,
-  Pipette // 🌟 Importado para el selector de color
+  Pipette // Ícono para el selector de color personalizado
 } from 'lucide-react';
 
 const ALIGNS = [
@@ -162,9 +162,9 @@ export default function FlashcardCreator({
                 <Palette className={`w-3.5 h-3.5 ${styles[colorKey] ? 'drop-shadow-xs text-white' : ''}`} />
               </button>
 
-              {/* 🌟 CAMBIADO: Grid de 4 columnas fijas (2 líneas perfectas para 8 elementos en total) */}
+              {/* 🌟 CORREGIDO: Ancho fijo w-[168px] añadido para evitar colapsos y agrupamiento incorrecto */}
               {colorOpen && (
-                <div className="absolute right-0 bottom-full mb-2 bg-white border border-slate-200 p-2 rounded-2xl shadow-xl z-30 grid grid-cols-4 gap-2 animate-[slideUp_0.1s_ease-out]">
+                <div className="absolute right-0 bottom-full mb-2 bg-white border border-slate-200 p-2 rounded-2xl shadow-xl z-30 grid grid-cols-4 gap-2 w-[168px] animate-[slideUp_0.1s_ease-out]">
                   {SWATCHES.map((c) => (
                     <button
                       key={c.value} type="button" title={c.label}
@@ -176,7 +176,7 @@ export default function FlashcardCreator({
                     />
                   ))}
                   
-                  {/* 🌟 CAMBIADO: Botón personalizado con ícono de gotero visible y evidente */}
+                  {/* Selector de color nativo del sistema con icono de gotero integrado */}
                   <label className="w-8 h-8 rounded-xl border border-slate-300 cursor-pointer overflow-hidden relative bg-gradient-to-tr from-amber-400 via-rose-400 to-indigo-400 shrink-0 hover:scale-105 transition-transform flex items-center justify-center group shadow-xs" title="Color personalizado">
                     <Pipette className="w-3.5 h-3.5 text-white drop-shadow-xs group-hover:scale-110 transition-transform relative z-10" />
                     <input 
@@ -199,7 +199,7 @@ export default function FlashcardCreator({
     <form onSubmit={onSubmit} className="mt-4 bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
       <div className="flex items-center justify-between mb-3 border-b border-slate-50 pb-2">
         <p className="text-sm font-bold text-slate-700">
-          {editingId ? 'Editar tarjeta' : isBulk ? 'Creación masiva por bloque de texto' : 'Nueva tarjeta'}
+          {editingId ? 'Editar tarjeta' : isBulk ? 'Creación masiva por mazo de texto' : 'Nueva tarjeta'}
         </p>
         {!editingId && (
           <button
