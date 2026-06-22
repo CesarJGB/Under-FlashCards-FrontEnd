@@ -1,5 +1,6 @@
+// ARCHIVO: frontend/src/components/DeckInterior.jsx
 import { useState, useEffect, useCallback } from 'react';
-import { Loader2, ChevronDown, ChevronUp } from 'lucide-react'; // 🌟 IMPORTACIÓN DE ICONOS DE CONTROL
+import { Loader2, ChevronDown, ChevronUp } from 'lucide-react'; 
 import { jsPDF } from 'jspdf';
 import ReviewMode from './ReviewMode';
 import DeckHeader from './DeckHeader';
@@ -27,6 +28,10 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
   const [bulkText, setBulkText] = useState('');
   const [defaultStyles, setDefaultStyles] = useState({ bgImage: '', textAlign: 'center', fontSize: 'text-base' });
   
+  // 🖼️ NUEVOS ESTADOS: Controladores de la imagen de contenido y su respectivo lado (P o R)
+  const [contentImage, setContentImage] = useState('');
+  const [imageSide, setImageSide] = useState('');
+  
   const [editingId, setEditingId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -53,6 +58,7 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
     setQuestion(''); setAnswer(''); setBulkText('');
     setBgImage(defaultStyles.bgImage); setTextAlign(defaultStyles.textAlign);
     setFontSize(defaultStyles.fontSize); setEditingId(null);
+    setContentImage(''); setImageSide(''); // 🧼 Limpieza absoluta de imágenes al reiniciar formulario
   };
 
   const handleExport = async () => {
@@ -252,7 +258,10 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
     }
 
     if (!question.trim() || !answer.trim()) { setSaving(false); return; }
-    const body = { question, answer, bgImage, textAlign, fontSize };
+    
+    // 📦 Payload extendido con las especificaciones de imagen de contenido comprimida
+    const body = { question, answer, bgImage, textAlign, fontSize, contentImage, imageSide };
+    
     try {
       if (editingId) {
         const res = await fetch(`${BACKEND_URL}/api/flashcards/${editingId}`, {
@@ -273,6 +282,7 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
         if (!res.ok) throw new Error('No se pudo crear.');
         const newCard = await res.json();
         setCards((prev) => [newCard, ...prev]);
+        // Reset manual de inputs de texto preservando la imagen por si se desea usar consecutivamente
         setQuestion(''); setAnswer('');
       }
     } catch (e) { setError(e.message); } finally { setSaving(false); }
@@ -281,6 +291,11 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
   const handleEdit = (card) => {
     setIsBulk(false); setEditingId(card.id); setQuestion(card.question); setAnswer(card.answer);
     setBgImage(card.bgImage || ''); setTextAlign(card.textAlign || 'center'); setFontSize(card.fontSize || 'text-base');
+    
+    // 🎨 Cargar propiedades de la imagen de contenido existentes en el formulario
+    setContentImage(card.contentImage || '');
+    setImageSide(card.imageSide || '');
+    
     window.scrollTo({ top: 0, behavior: 'smooth' });
     
     // Forza la apertura de la rejilla al editar para que el usuario localice qué está modificando
@@ -324,6 +339,9 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
                 isBulk={isBulk} setIsBulk={setIsBulk} bulkText={bulkText} setBulkText={setBulkText}
                 editingId={editingId} saving={saving} error={error} setError={setError}
                 onSubmit={handleSubmit} onCancel={resetForm}
+                // 🚀 Inyección de los nuevos controladores para sincronizar FlashcardCreator
+                contentImage={contentImage} setContentImage={setContentImage}
+                imageSide={imageSide} setImageSide={setImageSide}
               />
               
               {/* 🌟 ACORDEÓN DESPLEGABLE DE TARJETAS CREADAS */}
