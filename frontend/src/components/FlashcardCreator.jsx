@@ -115,24 +115,24 @@ export default function FlashcardCreator({
         contentImage={contentImage} imageSide={imageSide} handleContentImageFile={handleContentImageFile} removeContentImage={() => { setContentImage(''); setImageSide(''); }}
       />
 
-      {/* 👁️ FILA SUPERIOR: CONFIGURACIÓN (Corregido con alineación estricta text-center) */}
+      {/* 👁️ FILA SUPERIOR: CONFIGURACIÓN (Garantiza centrado absoluto con flex-col adaptativo) */}
       <div className="mt-4 grid grid-cols-2 gap-3">
         <button 
           type="button" 
           onClick={() => { setShowPreview(!showPreview); setShowStyles(false); }} 
-          className={`flex w-full items-center justify-center text-center gap-2 text-xs font-bold rounded-xl h-11 border transition-all active:scale-[0.98] shadow-3xs cursor-pointer ${
+          className={`flex w-full flex-col sm:flex-row items-center justify-center text-center gap-1 sm:gap-2 text-xs font-bold rounded-xl h-12 sm:h-11 border transition-all active:scale-[0.98] shadow-3xs cursor-pointer p-1 ${
             showPreview ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
           }`}
         >
-          {showPreview ? <EyeOff className="w-4 h-4 shrink-0" /> : <Eye className="w-4 h-4 shrink-0" />}
-          <span className="text-center">{showPreview ? 'Cerrar vista' : 'Previsualizar Tarjeta'}</span>
+          {showPreview ? <EyeOff className="w-3.5 h-3.5 shrink-0" /> : <Eye className="w-3.5 h-3.5 shrink-0" />}
+          <span className="text-center leading-tight truncate sm:whitespace-normal">{showPreview ? 'Cerrar vista' : 'Previsualizar Tarjeta'}</span>
         </button>
 
         <button 
           type="button" 
           onClick={() => { if (!showPreview) setShowStyles(!showStyles); }} 
           disabled={showPreview} 
-          className={`flex w-full items-center justify-center text-center gap-2 text-xs font-bold rounded-xl h-11 border transition-all active:scale-[0.98] shadow-3xs cursor-pointer ${
+          className={`flex w-full flex-col sm:flex-row items-center justify-center text-center gap-1 sm:gap-2 text-xs font-bold rounded-xl h-12 sm:h-11 border transition-all active:scale-[0.98] shadow-3xs cursor-pointer p-1 ${
             showPreview 
               ? 'opacity-40 cursor-not-allowed bg-slate-50 text-slate-400 border-slate-200' 
               : showStyles 
@@ -140,8 +140,8 @@ export default function FlashcardCreator({
               : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
           }`}
         >
-          <SlidersHorizontal className="w-4 h-4 shrink-0" />
-          <span className="text-center">Estilo rápido</span>
+          <SlidersHorizontal className="w-3.5 h-3.5 shrink-0" />
+          <span className="text-center leading-tight">Estilo rápido</span>
         </button>
       </div>
 
@@ -161,7 +161,7 @@ export default function FlashcardCreator({
         />
       )}
 
-      {/* 🚀 FILA INFERIOR: ACCIONES CORE (Corregido con alineación estricta text-center) */}
+      {/* 🚀 FILA INFERIOR: ACCIONES CORE (Clon geométrico exacto 2x2) */}
       <div className="mt-3 grid grid-cols-2 gap-3 border-t border-slate-100 pt-3.5">
         
         {/* Columna Izquierda: Cancelar o Borrado Rápido */}
@@ -169,7 +169,7 @@ export default function FlashcardCreator({
           <button 
             type="button" 
             onClick={onCancel} 
-            className="flex w-full items-center justify-center text-center gap-2 rounded-xl border border-slate-200 h-11 text-xs font-bold text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-all active:scale-[0.98] shadow-3xs cursor-pointer"
+            className="flex w-full flex-col sm:flex-row items-center justify-center text-center gap-1 sm:gap-2 rounded-xl border border-slate-200 h-12 sm:h-11 text-xs font-bold text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-all active:scale-[0.98] shadow-3xs cursor-pointer"
           >
             <span className="text-center">Cancelar</span>
           </button>
@@ -177,29 +177,29 @@ export default function FlashcardCreator({
           <button 
             type="button" 
             onClick={onFastDelete} 
-            className="flex w-full items-center justify-center text-center gap-2 text-xs font-bold h-11 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all active:scale-[0.98] shadow-3xs cursor-pointer"
+            className="flex w-full flex-col sm:flex-row items-center justify-center text-center gap-1 sm:gap-2 text-xs font-bold h-12 sm:h-11 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all active:scale-[0.98] shadow-3xs cursor-pointer"
           >
-            <Trash2 className="w-4 h-4 text-red-500 shrink-0" />
+            <Trash2 className="w-3.5 h-3.5 text-red-500 shrink-0" />
             <span className="text-center">Borrado Rápido</span>
           </button>
         ) : (
-          <div className="w-full h-11" />
+          <div className="w-full h-12 sm:h-11" />
         )}
 
         {/* Columna Derecha: Agregar Tarjeta o Guardar Cambios */}
         <button
           type="submit"
           disabled={saving || (isBulk ? !bulkText.trim() : (!question.trim() || !answer.trim()))}
-          className="flex w-full items-center justify-center text-center gap-2 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white text-xs font-bold h-11 transition-all active:scale-[0.98] shadow-sm cursor-pointer"
+          className="flex w-full flex-col sm:flex-row items-center justify-center text-center gap-1 sm:gap-2 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white text-xs font-bold h-12 sm:h-11 transition-all active:scale-[0.98] shadow-sm cursor-pointer"
         >
           {saving ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
           ) : editingId ? (
-            <Check className="w-4 h-4 shrink-0" />
+            <Check className="w-3.5 h-3.5 shrink-0" />
           ) : (
-            <Plus className="w-4 h-4 shrink-0" />
+            <Plus className="w-3.5 h-3.5 shrink-0" />
           )}
-          <span className="text-center">{editingId ? 'Guardar cambios' : isBulk ? 'Generar lote' : 'Agregar tarjeta'}</span>
+          <span className="text-center">{editingId ? 'Guardar' : isBulk ? 'Generar lote' : 'Agregar tarjeta'}</span>
         </button>
 
       </div>
