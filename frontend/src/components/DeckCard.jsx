@@ -1,5 +1,5 @@
 // ARCHIVO: frontend/src/components/DeckCard.jsx
-import { Pencil, Trash2, Layers, Star } from 'lucide-react';
+import { Pencil, Trash2, Star } from 'lucide-react';
 
 const isDark = (hex) => {
   if (!hex || hex.length < 7) return false;
@@ -12,17 +12,16 @@ const isDark = (hex) => {
 export default function DeckCard({ deck, onOpen, onEdit, onDelete, onToggleStar, isList = false }) {
   const dark = deck.coverImage ? true : isDark(deck.coverColor);
   
-  // 📐 ESTILOS HÍBRIDOS DINÁMICOS
+  // 📐 Estilos de fondo (Imagen o Color Sólido)
   const bgStyle = deck.coverImage
     ? { backgroundImage: `url(${deck.coverImage})`, backgroundSize: 'cover', backgroundPosition: 'center' }
     : { backgroundColor: deck.coverColor || '#ffffff' };
 
-  // 📝 CLASES DINÁMICAS POR MODO (GRID VS LISTA)
+  // 📝 Modificamos h-44 por h-32 para forzar la geometría rectangular geométrica limpia
   const containerClasses = isList
     ? "group relative w-full text-left flex items-center justify-between p-4 min-h-[72px] rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 shadow-3xs hover:shadow-2xs transition-all overflow-hidden cursor-pointer"
-    : "group relative w-full text-left h-44 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all overflow-hidden cursor-pointer flex flex-col justify-end";
+    : "group relative w-full text-left h-32 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all overflow-hidden cursor-pointer flex flex-col justify-end";
 
-  // Si está en modo lista, cancelamos la imagen/color de fondo de la tarjeta entera para un look tipo fila limpio
   const currentBgStyle = isList ? {} : bgStyle;
 
   return (
@@ -33,29 +32,19 @@ export default function DeckCard({ deck, onOpen, onEdit, onDelete, onToggleStar,
       style={currentBgStyle}
       className={containerClasses}
     >
-      {/* 🎨 DECORACIÓN DE CAPA DE DISEÑO (SOLO MODO GRID) */}
+      {/* 🎨 Capa de gradiente sutil para legibilidad de fuentes (Solo Modo Grid) */}
       {!isList && (
-        <>
-          <span className="absolute top-3 left-1/2 -translate-y-1/2 w-8 h-2 rounded-full bg-black/15" />
-          <span className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/55 to-transparent" />
-        </>
+        <span className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/60 via-black/20 to-transparent pointer-events-none" />
       )}
 
-      {/* --- MODO LISTA: MAQUETACIÓN LINEAL HORIZONTAL --- */}
+      {/* --- MODO LISTA --- */}
       {isList ? (
         <>
           <div className="flex items-center gap-3.5 min-w-0 flex-1 pr-4">
-            {/* Miniatura del color/imagen del mazo a la izquierda */}
             <div 
               style={bgStyle} 
               className="w-11 h-11 rounded-xl shrink-0 border border-slate-200/40 relative flex items-center justify-center overflow-hidden shadow-3xs"
-            >
-              {!deck.coverImage && (
-                <Layers className={`w-4 h-4 ${dark ? 'text-white/40' : 'text-slate-400'}`} />
-              )}
-            </div>
-
-            {/* Metadatos del Mazo en la fila */}
+            />
             <div className="min-w-0">
               <p className="font-bold text-slate-800 text-sm truncate" title={deck.title}>
                 {deck.title}
@@ -66,7 +55,6 @@ export default function DeckCard({ deck, onOpen, onEdit, onDelete, onToggleStar,
             </div>
           </div>
 
-          {/* Acciones de la fila (Siempre visibles en móvil para listas fáciles) */}
           <div className="flex items-center gap-1.5 shrink-0 z-10" onClick={(e) => e.stopPropagation()}>
             <button
               type="button"
@@ -94,13 +82,13 @@ export default function DeckCard({ deck, onOpen, onEdit, onDelete, onToggleStar,
           </div>
         </>
       ) : (
-        /* --- MODO CUADRÍCULA ORIGINAL (OPTIMIZADO PARA DOS COLUMNAS EN MÓVIL) --- */
+        /* --- MODO CUADRÍCULA (REDISEÑADO Y LIMPIO) --- */
         <>
-          {/* ⭐ BOTÓN DE ESTRELLA (FAVORITO) */}
+          {/* ⭐ Botón de Estrella */}
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); onToggleStar(deck); }}
-            className={`absolute top-2 left-2 p-1.5 rounded-lg transition-all z-10 cursor-pointer ${
+            className={`absolute top-2.5 left-2.5 p-1.5 rounded-lg transition-all z-10 cursor-pointer ${
               deck.isStarred 
                 ? 'bg-white/90 text-amber-500 shadow-sm scale-100' 
                 : 'bg-white/70 text-slate-400 opacity-100 sm:opacity-0 group-hover:opacity-100 hover:bg-white hover:text-slate-600'
@@ -109,9 +97,9 @@ export default function DeckCard({ deck, onOpen, onEdit, onDelete, onToggleStar,
             <Star className={`w-3.5 h-3.5 ${deck.isStarred ? 'fill-amber-500' : ''}`} />
           </button>
 
-          {/* MENÚ DE ACCIONES FLOTANTES (Visibles por defecto en móvil para evitar conflictos de hover) */}
+          {/* Menú de Acciones Flotantes (Lápiz y Basura limpios sin interferencia) */}
           <div 
-            className="absolute top-2 right-2 flex gap-1 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity z-10"
+            className="absolute top-2.5 right-2.5 flex gap-1 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity z-10"
             onClick={(e) => e.stopPropagation()}
           >
             <button
@@ -130,24 +118,22 @@ export default function DeckCard({ deck, onOpen, onEdit, onDelete, onToggleStar,
             </button>
           </div>
 
-          {/* Información del mazo en la parte inferior */}
-          <div className="p-3 sm:p-4 w-full z-0 min-w-0">
+          {/* Información del Mazo (Ajustada para h-32) */}
+          <div className="p-3 w-full z-0 min-w-0">
             <p 
-              className={`font-bold drop-shadow-xs truncate ${dark ? 'text-white' : 'text-slate-900 bg-white/40 backdrop-blur-3xs px-1.5 py-0.5 rounded-lg inline-block max-w-full'}`}
+              className={`font-bold drop-shadow-xs truncate text-sm ${
+                dark 
+                  ? 'text-white' 
+                  : 'text-slate-900 bg-white/60 backdrop-blur-md px-2 py-0.5 rounded-lg inline-block max-w-full shadow-3xs'
+              }`}
               title={deck.title}
             >
               {deck.title}
             </p>
-            <p className={`text-[11px] sm:text-xs mt-0.5 ${dark ? 'text-white/80' : 'text-slate-500 font-semibold'}`}>
+            <p className={`text-[10px] sm:text-[11px] mt-0.5 font-semibold ${dark ? 'text-white/85' : 'text-slate-500'}`}>
               {deck.cardCount ?? 0} {deck.cardCount === 1 ? 'tarjeta' : 'tarjetas'}
             </p>
           </div>
-
-          {!deck.coverImage && !dark && (
-            <span className="absolute top-4 right-4 text-slate-900/10 pointer-events-none">
-              <Layers className="w-12 h-12 stroke-[1.2]" />
-            </span>
-          )}
         </>
       )}
     </div>
