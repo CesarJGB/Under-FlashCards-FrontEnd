@@ -148,7 +148,6 @@ export default function FlashcardCreator({
             </button>
             
             <div className="relative">
-              {/* El recuadro cambia de color según la selección (Mantiene preferencia del usuario) */}
               <button
                 type="button" 
                 onClick={() => setColorOpen(!colorOpen)}
@@ -162,20 +161,19 @@ export default function FlashcardCreator({
                 <Palette className={`w-3.5 h-3.5 ${styles[colorKey] ? 'drop-shadow-xs text-white' : ''}`} />
               </button>
 
-              {/* 🌟 CORREGIDO: Dropdown de colores con formato mosaico (w-8 h-8) apto para smartphones */}
+              {/* 🌟 CORREGIDO: Menú 100% horizontal de una sola línea fluido (flex-row) con scroll táctil */}
               {colorOpen && (
-                <div className="absolute right-0 bottom-full mb-2 bg-white border border-slate-200 p-2 rounded-2xl shadow-xl z-30 flex flex-wrap gap-2 items-center justify-center max-w-[190px] animate-[slideUp_0.1s_ease-out]">
+                <div className="absolute right-0 bottom-full mb-2 bg-white border border-slate-200 p-2 rounded-2xl shadow-xl z-30 flex flex-row items-center gap-2 overflow-x-auto max-w-[270px] sm:max-w-none animate-[slideUp_0.1s_ease-out]">
                   {SWATCHES.map((c) => (
                     <button
                       key={c.value} type="button" title={c.label}
                       onClick={() => { updateStyle(colorKey, c.value); setColorOpen(false); }}
                       style={c.value ? { backgroundColor: c.value } : {}}
-                      className={`w-8 h-8 rounded-xl border transition-all ${
+                      className={`w-8 h-8 rounded-xl border shrink-0 transition-all ${
                         styles[colorKey] === c.value ? 'scale-110 ring-2 ring-slate-900 ring-offset-1' : 'border-slate-200 hover:scale-105'
                       } ${!c.value ? 'bg-slate-100 relative after:absolute after:inset-0 after:flex after:items-center after:justify-center after:text-xs after:font-bold after:text-slate-500 after:content-["×"]' : ''}`}
                     />
                   ))}
-                  {/* Selector de color nativo del sistema adaptado al tamaño de mosaico */}
                   <label className="w-8 h-8 rounded-xl border border-slate-300 cursor-pointer overflow-hidden relative bg-gradient-to-tr from-amber-400 via-rose-400 to-indigo-400 shrink-0 hover:scale-105 transition-transform">
                     <input 
                       type="color" 
