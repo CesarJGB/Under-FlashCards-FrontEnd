@@ -4,24 +4,26 @@ import { Pencil, Trash2, Layers, Image, X } from 'lucide-react';
 
 const ALIGN_CLASS = { left: 'text-left', center: 'text-center', right: 'text-right' };
 
+// 🧠 DESEMPAQUETADOR RETROCOMPATIBLE: Parsea la configuración incluyendo el color de fondo sólido
 const parseCardStyles = (fontSizeField, hasBg) => {
   if (fontSizeField && fontSizeField.startsWith('{')) {
     try {
       const p = JSON.parse(fontSizeField);
       return {
         qSize: p.qSize || 'text-base', qBold: p.qBold ?? true, qItalic: p.qItalic ?? false, qColor: p.qColor || '',
-        aSize: p.aSize || 'text-base', aBold: p.aBold ?? false, aItalic: p.aItalic ?? false, aColor: p.aColor || ''
+        aSize: p.aSize || 'text-base', aBold: p.aBold ?? false, aItalic: p.aItalic ?? false, aColor: p.aColor || '',
+        bgColor: p.bgColor || '' // 🚀 Extraído con éxito del string JSON para el Grid
       };
     } catch (e) {}
   }
   return {
     qSize: fontSizeField || 'text-base', qBold: true, qItalic: false, qColor: '',
-    aSize: fontSizeField || 'text-base', aBold: false, aItalic: false, aColor: ''
+    aSize: fontSizeField || 'text-base', aBold: false, aItalic: false, aColor: '',
+    bgColor: ''
   };
 };
 
 export default function FlashcardGrid({ cards, onEdit, onDelete }) {
-  // 🔍 ESTADO LOCAL: Controla qué imagen se está previsualizando en pantalla completa
   const [activePreview, setActivePreview] = useState(null);
   
   if (cards.length === 0) {
@@ -48,12 +50,17 @@ export default function FlashcardGrid({ cards, onEdit, onDelete }) {
         const aSizeStyle = isANum ? { fontSize: `${st.aSize}px` } : {};
         const aSizeClass = isANum ? '' : st.aSize;
 
-        const cardStyle = hasBg ? { backgroundImage: `url(${card.bgImage})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {};
+        // 🚀 ACTUALIZADO: cardStyle ahora fusiona el color sólido con el fallback blanco y la imagen si existiera
+        const cardStyle = {
+          backgroundColor: st.bgColor || '#ffffff',
+          ...(hasBg ? { backgroundImage: `url(${card.bgImage})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {})
+        };
+        
         const finalQStyle = { ...(st.qColor ? { color: st.qColor } : {}), ...qSizeStyle };
         const finalAStyle = { ...(st.aColor ? { color: st.aColor } : {}), ...aSizeStyle };
 
         return (
-          <div key={card.id} style={cardStyle} className="relative rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow overflow-hidden bg-white flex flex-col justify-between">
+          <div key={card.id} style={cardStyle} className="relative rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow overflow-hidden flex flex-col justify-between">
             {hasBg && <span className="absolute inset-0 bg-black/55" />}
 
             <div className="relative z-10 p-4 pt-6">
@@ -68,12 +75,11 @@ export default function FlashcardGrid({ cards, onEdit, onDelete }) {
                 </button>
               </div>
 
-              {/* 🎴 SECCIÓN PREGUNTA */}
+              {/* SECCIÓN PREGUNTA */}
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <p className={`text-[9px] font-bold uppercase tracking-wide ${hasBg ? 'text-white/60' : 'text-slate-400'}`}>
                   Pregunta
                 </p>
-                {/* Botón interactivo de Preview directo en Grid */}
                 {card.contentImage && card.imageSide === 'question' && (
                   <button 
                     type="button"
@@ -93,12 +99,11 @@ export default function FlashcardGrid({ cards, onEdit, onDelete }) {
 
               <div className={`my-3 border-t border-dashed ${hasBg ? 'border-white/30' : 'border-slate-200'}`} />
 
-              {/* 🎴 SECCIÓN RESPUESTA */}
+              {/* SECCIÓN RESPUESTA */}
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <p className={`text-[9px] font-bold uppercase tracking-wide ${hasBg ? 'text-white/60' : 'text-slate-400'}`}>
                   Respuesta
                 </p>
-                {/* Botón interactivo de Preview directo en Grid */}
                 {card.contentImage && card.imageSide === 'answer' && (
                   <button 
                     type="button"
@@ -120,14 +125,14 @@ export default function FlashcardGrid({ cards, onEdit, onDelete }) {
         );
       })}
 
-      {/* 🖼️ LIGHTBOX MODAL FLOTANTE (Renders on top of everything if an image is clicked) */}
+      {/* LIGHTBOX MODAL FLOTANTE */}
       {activePreview && (
         <div 
           onClick={() => setActivePreview(null)}
           className="fixed inset-0 bg-slate-950/60 backdrop-blur-md z-50 flex flex-col items-center justify-center p-4 animate-[fadeIn_0.15s_ease]"
         >
           <div 
-            onClick={(e) => e.stopPropagation()} // Evita cerrar si se pica la tarjeta blanca
+            onClick={(e) => e.stopPropagation()} 
             className="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl border border-slate-100 flex flex-col animate-[scaleIn_0.15s_ease-out]"
           >
             <div className="flex items-center justify-between px-4 py-3 bg-slate-50 border-b border-slate-200/60">
