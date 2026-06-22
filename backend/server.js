@@ -89,6 +89,9 @@ const flashcardSchema = new mongoose.Schema(
     bgImageIndex: { type: Number, default: -1 },
     textAlign: { type: String, enum: ['left', 'center', 'right'], default: 'center' },
     fontSize: { type: String, default: 'text-base' },
+    // 🖼️ NUEVOS ATRIBUTOS: Imagen de contenido específica (ej. Anatomía) y en qué lado renderiza
+    contentImage: { type: String, default: '' },
+    imageSide: { type: String, enum: ['question', 'answer', ''], default: '' }
   },
   { timestamps: true }
 );
@@ -112,6 +115,8 @@ const serializeFlashcard = (c, cardBackgrounds = []) => ({
   bgImage: (cardBackgrounds && c.bgImageIndex >= 0) ? (cardBackgrounds[c.bgImageIndex] || '') : '',
   textAlign: c.textAlign,
   fontSize: c.fontSize,
+  contentImage: c.contentImage || '', // 🚀 Mapeo de la imagen de contenido hacia el cliente
+  imageSide: c.imageSide || '',       // 🚀 Mapeo de la cara activa asignada
   createdAt: c.createdAt,
 });
 
@@ -390,6 +395,8 @@ app.get('/api/decks/:id/export', async (req, res) => {
         textAlign: c.textAlign,
         fontSize: c.fontSize,
         easeFactor: c.easeFactor,
+        contentImage: c.contentImage || '', // 🚀 Integra las imágenes en el JSON de respaldo
+        imageSide: c.imageSide || ''
       })),
     });
   } catch (err) {
@@ -427,6 +434,8 @@ app.post('/api/decks/import', async (req, res) => {
           question: String(c.question),
           answer: String(c.answer),
           bgImageIndex: typeof c.bgImageIndex === 'number' ? c.bgImageIndex : -1,
+          contentImage: typeof c.contentImage === 'string' ? c.contentImage : '', // 🚀 Rehidrata imágenes de contenido
+          imageSide: typeof c.imageSide === 'string' ? c.imageSide : '',
           ...(['left', 'center', 'right'].includes(c.textAlign) ? { textAlign: c.textAlign } : {}),
           ...(typeof c.fontSize === 'string' ? { fontSize: c.fontSize } : {}),
           ...(typeof c.easeFactor === 'number' ? { easeFactor: c.easeFactor } : {}),
@@ -493,6 +502,8 @@ app.post('/api/flashcards/bulk', async (req, res) => {
         bgImageIndex,
         textAlign: ['left', 'center', 'right'].includes(c.textAlign || globalAlign) ? (c.textAlign || globalAlign) : 'center',
         fontSize: c.fontSize || globalSize,
+        contentImage: '', // Creaciones masivas por texto plano entran por defecto limpias de imágenes
+        imageSide: ''
       });
     }
 
@@ -533,7 +544,7 @@ app.get('/api/flashcards/deck/:deckId', async (req, res) => {
 // POST /api/flashcards — create a flashcard (requires deckId)
 app.post('/api/flashcards', async (req, res) => {
   try {
-    const { userId, deckId, question, answer, bgImage, textAlign, fontSize } = req.body || {};
+    const { userId, deckId, question, answer, bgImage, textAlign, fontSize, contentImage, imageSide } = req.body || {};
     if (!mongoose.isValidObjectId(userId)) {
       return res.status(400).json({ error: 'Invalid user id.' });
     }
@@ -552,6 +563,8 @@ app.post('/api/flashcards', async (req, res) => {
       question: question.trim(),
       answer: answer.trim(),
       bgImageIndex,
+      contentImage: contentImage || '', // 🚀 Captura y guarda el string comprimido
+      imageSide: imageSide || '',       // 🚀 Captura la orientación del render
       ...(['left', 'center', 'right'].includes(textAlign) ? { textAlign } : {}),
       ...(typeof fontSize === 'string' ? { fontSize } : {}),
     });
@@ -571,12 +584,16 @@ app.put('/api/flashcards/:id', async (req, res) => {
     if (!mongoose.isValidObjectId(id)) {
       return res.status(400).json({ error: 'Invalid flashcard id.' });
     }
-    const { question, answer, bgImage, textAlign, fontSize } = req.body || {};
+    const { question, answer, bgImage, textAlign, fontSize, contentImage, imageSide } = req.body || {};
     const update = {};
     if (typeof question === 'string') update.question = question.trim();
     if (typeof answer === 'string') update.answer = answer.trim();
     if (['left', 'center', 'right'].includes(textAlign)) update.textAlign = textAlign;
     if (typeof fontSize === 'string') update.fontSize = fontSize;
+    
+    // 🚀 Actualiza opcionalmente las propiedades de imagen de contenido
+    if (typeof contentImage === 'string') update.contentImage = contentImage;
+    if (typeof imageSide === 'string') update.imageSide = imageSide;
 
     const currentCard = await Flashcard.findById(id);
     if (!currentCard) return res.status(404).json({ error: 'Flashcard not found.' });
