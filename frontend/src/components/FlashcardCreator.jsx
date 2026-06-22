@@ -43,12 +43,9 @@ export default function FlashcardCreator({
 }) {
 
   const [showPreview, setShowPreview] = useState(false);
-  
-  // 🌟 NUEVOS ESTADOS: Controlan la apertura del menú de color de cada sección
   const [qColorOpen, setQColorOpen] = useState(false);
   const [aColorOpen, setAColorOpen] = useState(false);
 
-  // Convertidor y desempaquetador inteligente con soporte numérico y fallback clásico
   const parseCurrentStyles = () => {
     if (fontSize && fontSize.startsWith('{')) {
       try { 
@@ -101,7 +98,6 @@ export default function FlashcardCreator({
     reader.readAsDataURL(file);
   };
 
-  // Renderizador de grupos tipográficos modificado con controles +/- y dropdown de color
   const renderStyleGroup = (title, prefix, colorOpen, setColorOpen) => {
     const sizeKey = `${prefix}Size`;
     const boldKey = `${prefix}Bold`;
@@ -115,13 +111,12 @@ export default function FlashcardCreator({
         <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">{title}</p>
         
         <div className="flex items-center justify-between gap-2 flex-wrap">
-          {/* 🌟 CONTROLES DE MÁS Y MENOS TIPOGRÁFICOS */}
+          {/* Controles Incrementales +/- */}
           <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 p-0.5 rounded-lg">
             <button
               type="button"
               onClick={() => updateStyle(sizeKey, Math.max(12, currentSizeNum - 1))}
               className="p-1 rounded-md hover:bg-white text-slate-600 transition-colors"
-              title="Reducir tamaño"
             >
               <Minus className="w-3 h-3" />
             </button>
@@ -132,13 +127,12 @@ export default function FlashcardCreator({
               type="button"
               onClick={() => updateStyle(sizeKey, Math.min(40, currentSizeNum + 1))}
               className="p-1 rounded-md hover:bg-white text-slate-600 transition-colors"
-              title="Aumentar tamaño"
             >
               <Plus className="w-3 h-3" />
             </button>
           </div>
 
-          {/* Botones Estilo Rápido (Negrita, Cursiva, Selector de Color Desplegable) */}
+          {/* Atributos y Desplegable de Color */}
           <div className="flex items-center gap-1">
             <button
               type="button" onClick={() => updateStyle(boldKey, !styles[boldKey])}
@@ -153,8 +147,8 @@ export default function FlashcardCreator({
               <Italic className="w-3.5 h-3.5" />
             </button>
             
-            {/* 🌟 BOTÓN DESPLEGABLE DE COLOR */}
             <div className="relative">
+              {/* El recuadro cambia de color según la selección (Mantiene preferencia del usuario) */}
               <button
                 type="button" 
                 onClick={() => setColorOpen(!colorOpen)}
@@ -164,25 +158,25 @@ export default function FlashcardCreator({
                     ? 'text-white border-transparent shadow-xs' 
                     : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
                 }`}
-                title="Seleccionar color"
               >
                 <Palette className={`w-3.5 h-3.5 ${styles[colorKey] ? 'drop-shadow-xs text-white' : ''}`} />
               </button>
 
-              {/* Menú flotante interno de colores sugeridos */}
+              {/* 🌟 CORREGIDO: Dropdown de colores con formato mosaico (w-8 h-8) apto para smartphones */}
               {colorOpen && (
-                <div className="absolute right-0 bottom-full mb-2 bg-white border border-slate-200 p-2 rounded-xl shadow-xl z-30 flex gap-1.5 items-center animate-[slideUp_0.1s_ease-out]">
+                <div className="absolute right-0 bottom-full mb-2 bg-white border border-slate-200 p-2 rounded-2xl shadow-xl z-30 flex flex-wrap gap-2 items-center justify-center max-w-[190px] animate-[slideUp_0.1s_ease-out]">
                   {SWATCHES.map((c) => (
                     <button
                       key={c.value} type="button" title={c.label}
                       onClick={() => { updateStyle(colorKey, c.value); setColorOpen(false); }}
                       style={c.value ? { backgroundColor: c.value } : {}}
-                      className={`w-4.5 h-4.5 rounded-full border transition-all ${
-                        styles[colorKey] === c.value ? 'scale-110 ring-2 ring-slate-900' : 'border-slate-300 hover:scale-105'
-                      } ${!c.value ? 'bg-linear-to-br from-slate-200 to-slate-400 relative after:absolute after:inset-0 after:flex after:items-center after:justify-center after:text-[8px] after:text-slate-700 after:content-["×"]' : ''}`}
+                      className={`w-8 h-8 rounded-xl border transition-all ${
+                        styles[colorKey] === c.value ? 'scale-110 ring-2 ring-slate-900 ring-offset-1' : 'border-slate-200 hover:scale-105'
+                      } ${!c.value ? 'bg-slate-100 relative after:absolute after:inset-0 after:flex after:items-center after:justify-center after:text-xs after:font-bold after:text-slate-500 after:content-["×"]' : ''}`}
                     />
                   ))}
-                  <label className="w-4.5 h-4.5 rounded-full border border-slate-300 cursor-pointer overflow-hidden relative bg-linear-to-tr from-amber-400 via-rose-400 to-indigo-400 shrink-0">
+                  {/* Selector de color nativo del sistema adaptado al tamaño de mosaico */}
+                  <label className="w-8 h-8 rounded-xl border border-slate-300 cursor-pointer overflow-hidden relative bg-gradient-to-tr from-amber-400 via-rose-400 to-indigo-400 shrink-0 hover:scale-105 transition-transform">
                     <input 
                       type="color" 
                       value={styles[colorKey] && styles[colorKey].startsWith('#') ? styles[colorKey] : '#ffffff'} 
@@ -295,7 +289,7 @@ export default function FlashcardCreator({
                     <p className={`text-[8px] font-bold uppercase tracking-wide ${bgImage ? 'text-white/60' : 'text-slate-400'} ${ALIGN_CLASS[textAlign] || 'text-center'}`}>Pregunta</p>
                     <p 
                       style={{ 
-                        fontSize: `${styles.qSize}px`, // 🌟 APLICACIÓN DE TAMAÑO NUMÉRICO EN LÍNEA
+                        fontSize: `${styles.qSize}px`, 
                         ...(styles.qColor ? { color: styles.qColor } : {}) 
                       }}
                       className={`mt-0.5 whitespace-pre-wrap truncate-3-lines ${ALIGN_CLASS[textAlign] || 'text-center'} ${styles.qBold ? 'font-bold' : 'font-normal'} ${styles.qItalic ? 'italic' : ''} ${bgImage && !styles.qColor ? 'text-white' : (!styles.qColor ? 'text-slate-900' : '')}`}
@@ -308,7 +302,7 @@ export default function FlashcardCreator({
                     <p className={`text-[8px] font-bold uppercase tracking-wide ${bgImage ? 'text-white/60' : 'text-slate-400'} ${ALIGN_CLASS[textAlign] || 'text-center'}`}>Respuesta</p>
                     <p 
                       style={{ 
-                        fontSize: `${styles.aSize}px`, // 🌟 APLICACIÓN DE TAMAÑO NUMÉRICO EN LÍNEA
+                        fontSize: `${styles.aSize}px`, 
                         ...(styles.aColor ? { color: styles.aColor } : {}) 
                       }}
                       className={`mt-0.5 whitespace-pre-wrap truncate-3-lines ${ALIGN_CLASS[textAlign] || 'text-center'} ${styles.aBold ? 'font-bold' : 'font-normal'} ${styles.aItalic ? 'italic' : ''} ${bgImage && !styles.aColor ? 'text-white/90' : (!styles.aColor ? 'text-slate-700' : '')}`}
@@ -359,7 +353,7 @@ export default function FlashcardCreator({
             </div>
           )}
 
-          {/* PANEL TRADICIONAL RÁPIDO (Cierra si abre el Preview) */}
+          {/* PANEL TRADICIONAL RÁPIDO */}
           {!showPreview && showStyles && (
             <div className="mt-3 border-t border-slate-100 pt-3 space-y-3 animate-[fadeIn_0.12s_ease]">
               <div className="grid grid-cols-2 gap-3 bg-slate-100/50 p-3 rounded-xl border border-slate-200/40">
