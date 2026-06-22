@@ -351,37 +351,29 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
 
           {mode === 'edit' && (
             <>
-              <FlashcardCreator
-                question={question} setQuestion={setQuestion} answer={answer} setAnswer={setAnswer}
-                bgImage={bgImage} setBgImage={setBgImage} textAlign={textAlign} setTextAlign={setTextAlign}
-                fontSize={fontSize} setFontSize={setFontSize} showStyles={showStyles} setShowStyles={setShowStyles}
-                isBulk={isBulk} setIsBulk={setIsBulk} bulkText={bulkText} setBulkText={setBulkText}
-                editingId={editingId} saving={saving} error={error} setError={setError}
-                onSubmit={handleSubmit} onCancel={resetForm}
-                contentImage={contentImage} setContentImage={setContentImage}
-                imageSide={imageSide} setImageSide={setImageSide}
-              />
-              
-              {/* 🛠️ ACCESO DIRECTO AL MODO DE BORRADO RÁPIDO */}
-              {cards.length > 0 && (
-                <div className="mt-5 flex justify-end">
-                  <button
-                    type="button"
-                    onClick={() => setMode('fast-delete')}
-                    className="inline-flex items-center gap-1.5 text-xs font-bold px-3.5 py-2 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all active:scale-95 shadow-2xs cursor-pointer"
-                  >
-                    <Trash2 className="w-3.5 h-3.5 text-red-500" />
-                    <span>Modo Borrado Rápido</span>
-                  </button>
-                </div>
-              )}
+              // ... dentro de DeckInterior.jsx, busca la etiqueta <FlashcardCreator />
+<FlashcardCreator
+  question={question} setQuestion={setQuestion} answer={answer} setAnswer={setAnswer}
+  bgImage={bgImage} setBgImage={setBgImage} textAlign={textAlign} setTextAlign={setTextAlign}
+  fontSize={fontSize} setFontSize={setFontSize} showStyles={showStyles} setShowStyles={setShowStyles}
+  isBulk={isBulk} setIsBulk={setIsBulk} bulkText={bulkText} setBulkText={setBulkText}
+  editingId={editingId} saving={saving} error={error} setError={setError}
+  onSubmit={handleSubmit} onCancel={resetForm}
+  contentImage={contentImage} setContentImage={setContentImage}
+  imageSide={imageSide} setImageSide={setImageSide}
+  // 🚀 NUEVOS PROPS: Pasamos la acción de borrado y el validador de tarjetas existentes
+  onFastDelete={() => setMode('fast-delete')}
+  hasCards={cards.length > 0}
+/>
 
-              {/* 🌟 ACORDEÓN DESPLEGABLE DE TARJETAS CREADAS */}
-              <button
-                type="button"
-                onClick={() => setShowGrid(!showGrid)}
-                className="mt-3 w-full flex items-center justify-between bg-white border border-slate-200 hover:bg-slate-50 rounded-2xl px-5 py-3.5 transition-colors shadow-xs active:scale-[0.99]"
-              >
+{/* ✨ EL BOTÓN VIEJO QUE ESTABA AQUÍ HA SIDO ELIMINADO TOTALMENTE */}
+
+{/* 🌟 ACORDEÓN DESPLEGABLE DE TARJETAS CREADAS */}
+<button
+  type="button"
+  onClick={() => setShowGrid(!showGrid)}
+  className="mt-6 w-full flex items-center justify-between bg-white border border-slate-200 hover:bg-slate-50 rounded-2xl px-5 py-3.5 transition-colors shadow-xs active:scale-[0.99]"
+>
                 <div className="flex items-center gap-2.5">
                   <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
                     Colección de tarjetas del mazo
