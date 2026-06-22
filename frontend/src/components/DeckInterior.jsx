@@ -1,12 +1,13 @@
 // ARCHIVO: frontend/src/components/DeckInterior.jsx
 import { useState, useEffect, useCallback } from 'react';
-import { Loader2, ChevronDown, ChevronUp } from 'lucide-react'; 
+import { Loader2, ChevronDown, ChevronUp, Trash2 } from 'lucide-react'; 
+import { jsPDF } from 'jspdf';
 import ReviewMode from './ReviewMode';
 import DeckHeader from './DeckHeader';
 import FlashcardCreator from './FlashcardCreator';
-import FlashcardGrid from './FlashcardGrid';
+import FlashcardCollection from './FlashcardCollection'; // 🚀 Intercambiado por FlashcardGrid para dar soporte a búsquedas y filtros
 import FastDeleteMode from './FastDeleteMode'; 
-import { exportDeckToPDF } from '../utils/pdfExporter'; // 🚀 Importación del nuevo motor modular de PDF
+import { exportDeckToPDF } from '../utils/pdfExporter'; 
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
@@ -77,7 +78,6 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
     } catch (e) { setError(e.message); }
   };
 
-  // 🖨️ DELEGACIÓN CONTROLADA: El componente ya no maneja lógica matemática pesada
   const handleExportPDF = (type = 'guide') => {
     if (cards.length === 0) {
       setError('No hay tarjetas en este mazo para exportar a PDF.');
@@ -226,6 +226,7 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
                 hasCards={cards.length > 0}
               />
               
+              {/* 🌟 ACORDEÓN DESPLEGABLE DE TARJETAS CREADAS */}
               <button
                 type="button"
                 onClick={() => setShowGrid(!showGrid)}
@@ -246,9 +247,11 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
                 )}
               </button>
 
+              {/* Contenedor de la barra de búsqueda y rejilla combinada */}
               {showGrid && (
                 <div className="animate-[fadeIn_0.18s_ease] pb-6">
-                  <FlashcardGrid cards={cards} onEdit={handleEdit} onDelete={handleDelete} />
+                  {/* 🚀 Inyección del contenedor inteligente para gestionar filtrado y queries */}
+                  <FlashcardCollection cards={cards} onEdit={handleEdit} onDelete={handleDelete} />
                 </div>
               )}
             </>
