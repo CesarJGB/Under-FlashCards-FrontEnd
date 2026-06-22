@@ -2,7 +2,6 @@
 import { useState } from 'react';
 import { SlidersHorizontal, Loader2, Plus, Check, Eye, EyeOff, Trash2, AlignLeft, AlignCenter, AlignRight } from 'lucide-react';
 
-// Importación de tus archivos modulares desde la carpeta creator
 import FormInputs from './creator/FormInputs';
 import StylePanel from './creator/StylePanel';
 import LivePreview from './creator/LivePreview';
@@ -32,6 +31,7 @@ export default function FlashcardCreator({
 
   const [showPreview, setShowPreview] = useState(false);
 
+  // 🧠 PARSEADOR ACTUALIZADO: Mapea la propiedad de color de fondo sólida 'bgColor'
   const parseCurrentStyles = () => {
     if (fontSize && fontSize.startsWith('{')) {
       try { 
@@ -42,12 +42,13 @@ export default function FlashcardCreator({
         };
         return {
           qSize: mapOldSize(p.qSize), qBold: p.qBold ?? true, qItalic: p.qItalic ?? false, qColor: p.qColor || '',
-          aSize: mapOldSize(p.aSize), aBold: p.aBold ?? false, aItalic: p.aItalic ?? false, aColor: p.aColor || ''
+          aSize: mapOldSize(p.aSize), aBold: p.aBold ?? false, aItalic: p.aItalic ?? false, aColor: p.aColor || '',
+          bgColor: p.bgColor || '' // 🚀 Añadido al parseador JSON
         };
       } catch (e) {}
     }
     const numSize = { 'text-sm': 14, 'text-base': 16, 'text-lg': 18, 'text-xl': 20, 'text-2xl': 24 }[fontSize] || 16;
-    return { qSize: numSize, qBold: true, qItalic: false, qColor: '', aSize: numSize, aBold: false, aItalic: false, aColor: '' };
+    return { qSize: numSize, qBold: true, qItalic: false, qColor: '', aSize: numSize, aBold: false, aItalic: false, aColor: '', bgColor: '' };
   };
 
   const styles = parseCurrentStyles();
@@ -99,23 +100,17 @@ export default function FlashcardCreator({
           {editingId ? 'Editar tarjeta' : isBulk ? 'Creación masiva por mazo de texto' : 'Nueva tarjeta'}
         </p>
         {!editingId && (
-          <button 
-            type="button" 
-            onClick={() => { setIsBulk(!isBulk); setError(''); setShowPreview(false); }} 
-            className="text-xs font-semibold text-slate-500 hover:text-slate-900 underline transition-colors"
-          >
+          <button type="button" onClick={() => { setIsBulk(!isBulk); setError(''); setShowPreview(false); }} className="text-xs font-semibold text-slate-500 hover:text-slate-900 underline transition-colors">
             {isBulk ? 'Volver a tarjeta única' : 'Cambiar a creación en lote'}
           </button>
         )}
       </div>
 
-      {/* 📝 CAMPOS DE ENTRADA (DELEGADO) */}
       <FormInputs 
         isBulk={isBulk} question={question} setQuestion={setQuestion} answer={answer} setAnswer={setAnswer} bulkText={bulkText} setBulkText={setBulkText}
         contentImage={contentImage} imageSide={imageSide} handleContentImageFile={handleContentImageFile} removeContentImage={() => { setContentImage(''); setImageSide(''); }}
       />
 
-      {/* 👁️ FILA SUPERIOR: CONFIGURACIÓN (Garantiza centrado absoluto con flex-col adaptativo) */}
       <div className="mt-4 grid grid-cols-2 gap-3">
         <button 
           type="button" 
@@ -125,7 +120,7 @@ export default function FlashcardCreator({
           }`}
         >
           {showPreview ? <EyeOff className="w-3.5 h-3.5 shrink-0" /> : <Eye className="w-3.5 h-3.5 shrink-0" />}
-          <span className="text-center leading-tight truncate sm:whitespace-normal">{showPreview ? 'Cerrar vista' : 'Previsualizar Tarjeta'}</span>
+          <span className="text-center leading-tight">{showPreview ? 'Cerrar vista' : 'Previsualizar Tarjeta'}</span>
         </button>
 
         <button 
@@ -145,7 +140,6 @@ export default function FlashcardCreator({
         </button>
       </div>
 
-      {/* 🎴 SIMULADOR DE PREVISUALIZACIÓN */}
       {showPreview && (
         <LivePreview 
           question={question} answer={answer} bgImage={bgImage} textAlign={textAlign} styles={styles} contentImage={contentImage} imageSide={imageSide}
@@ -153,7 +147,6 @@ export default function FlashcardCreator({
         />
       )}
 
-      {/* 🎨 PANEL DE DISEÑO */}
       {!showPreview && showStyles && (
         <StylePanel 
           ALIGNS={ALIGNS} SWATCHES={SWATCHES} textAlign={textAlign} setTextAlign={setTextAlign} bgImage={bgImage} setBgImage={setBgImage}
@@ -161,47 +154,23 @@ export default function FlashcardCreator({
         />
       )}
 
-      {/* 🚀 FILA INFERIOR: ACCIONES CORE (Clon geométrico exacto 2x2) */}
       <div className="mt-3 grid grid-cols-2 gap-3 border-t border-slate-100 pt-3.5">
-        
-        {/* Columna Izquierda: Cancelar o Borrado Rápido */}
-        {editingId ? (
-          <button 
-            type="button" 
-            onClick={onCancel} 
-            className="flex w-full flex-col sm:flex-row items-center justify-center text-center gap-1 sm:gap-2 rounded-xl border border-slate-200 h-12 sm:h-11 text-xs font-bold text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-all active:scale-[0.98] shadow-3xs cursor-pointer"
-          >
+        {!editingId ? (
+          onFastDelete && hasCards ? (
+            <button type="button" onClick={onFastDelete} className="flex w-full flex-col sm:flex-row items-center justify-center text-center gap-1 sm:gap-2 text-xs font-bold h-12 sm:h-11 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all active:scale-[0.98] shadow-3xs cursor-pointer">
+              <Trash2 className="w-3.5 h-3.5 text-red-500 shrink-0" /> <span className="text-center">Borrado Rápido</span>
+            </button>
+          ) : <div className="w-full h-12 sm:h-11" />
+        ) : (
+          <button type="button" onClick={onCancel} className="flex w-full flex-col sm:flex-row items-center justify-center text-center gap-1 sm:gap-2 rounded-xl border border-slate-200 h-12 sm:h-11 text-xs font-bold text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-all active:scale-[0.98] shadow-3xs cursor-pointer">
             <span className="text-center">Cancelar</span>
           </button>
-        ) : onFastDelete && hasCards ? (
-          <button 
-            type="button" 
-            onClick={onFastDelete} 
-            className="flex w-full flex-col sm:flex-row items-center justify-center text-center gap-1 sm:gap-2 text-xs font-bold h-12 sm:h-11 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all active:scale-[0.98] shadow-3xs cursor-pointer"
-          >
-            <Trash2 className="w-3.5 h-3.5 text-red-500 shrink-0" />
-            <span className="text-center">Borrado Rápido</span>
-          </button>
-        ) : (
-          <div className="w-full h-12 sm:h-11" />
         )}
 
-        {/* Columna Derecha: Agregar Tarjeta o Guardar Cambios */}
-        <button
-          type="submit"
-          disabled={saving || (isBulk ? !bulkText.trim() : (!question.trim() || !answer.trim()))}
-          className="flex w-full flex-col sm:flex-row items-center justify-center text-center gap-1 sm:gap-2 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white text-xs font-bold h-12 sm:h-11 transition-all active:scale-[0.98] shadow-sm cursor-pointer"
-        >
-          {saving ? (
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-          ) : editingId ? (
-            <Check className="w-3.5 h-3.5 shrink-0" />
-          ) : (
-            <Plus className="w-3.5 h-3.5 shrink-0" />
-          )}
+        <button type="submit" disabled={saving || (isBulk ? !bulkText.trim() : (!question.trim() || !answer.trim()))} className="flex w-full flex-col sm:flex-row items-center justify-center text-center gap-1 sm:gap-2 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white text-xs font-bold h-12 sm:h-11 transition-all active:scale-[0.98] shadow-sm cursor-pointer">
+          {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : editingId ? <Check className="w-3.5 h-3.5 shrink-0" /> : <Plus className="w-3.5 h-3.5 shrink-0" />}
           <span className="text-center">{editingId ? 'Guardar' : isBulk ? 'Generar lote' : 'Agregar tarjeta'}</span>
         </button>
-
       </div>
       {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
     </form>
