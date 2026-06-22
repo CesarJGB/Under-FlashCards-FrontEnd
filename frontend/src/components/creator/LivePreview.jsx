@@ -15,7 +15,6 @@ export default function LivePreview({ question, answer, bgImage, textAlign, styl
       </div>
       
       <div className="flex justify-center py-2 bg-white/40 border border-slate-200/40 rounded-xl">
-        {/* 🌟 ACTUALIZADO: Inyección de styles.bgColor en el background de la carta simulada */}
         <div 
           style={{
             backgroundColor: styles.bgColor || '#ffffff',
@@ -64,20 +63,20 @@ export default function LivePreview({ question, answer, bgImage, textAlign, styl
 
       <div className="space-y-3 pt-1 border-t border-slate-200/60">
         <div className="grid grid-cols-2 gap-3 bg-white p-3 rounded-xl border border-slate-200/70 shadow-xs">
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1">Alineación</p>
-            <div className="flex gap-1">
+          
+          <div className="flex flex-col items-center justify-center text-center">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1.5 w-full">Alineación</p>
+            <div className="flex gap-1 justify-center">
               {ALIGNS.map(({ value, label, Icon }) => (
                 <button key={value} type="button" title={label} onClick={() => setTextAlign(value)} className={`rounded-lg p-1.5 border transition-colors ${textAlign === value ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}><Icon className="w-3.5 h-3.5" /></button>
               ))}
             </div>
           </div>
 
-          {/* 🌟 ACTUALIZADO: Controles de fondo con la paleta de color integrada */}
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1">Fondo mazo</p>
-            <div className="flex items-center gap-1.5">
-              <label className="inline-flex items-center gap-1.5 cursor-pointer rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-700 hover:bg-slate-100 shadow-2xs">
+          <div className="flex flex-col items-center justify-center text-center">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1.5 w-full">Fondo mazo</p>
+            <div className="flex items-center justify-center gap-1.5">
+              <label className="inline-flex items-center gap-1.5 cursor-pointer rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-700 hover:bg-slate-100 shadow-2xs shrink-0">
                 <ImagePlus className="w-3.5 h-3.5 text-slate-500" /> <span className="text-[11px]">Subir</span>
                 <input type="file" accept="image/*" onChange={handleBgFile} className="hidden" />
               </label>
@@ -112,6 +111,7 @@ export default function LivePreview({ question, answer, bgImage, textAlign, styl
               </div>
             </div>
           </div>
+
         </div>
       </div>
     </div>
