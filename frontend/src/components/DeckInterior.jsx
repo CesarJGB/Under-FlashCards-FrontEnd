@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, ChevronDown, ChevronUp } from 'lucide-react'; // 🌟 IMPORTACIÓN DE ICONOS DE CONTROL
 import { jsPDF } from 'jspdf';
 import ReviewMode from './ReviewMode';
 import DeckHeader from './DeckHeader';
@@ -8,18 +8,13 @@ import FlashcardGrid from './FlashcardGrid';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
-const fileToBase64 = (file) =>
-  new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-
 export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit' }) {
   const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState(initialMode);
+  
+  // 🌟 CONFIGURACIÓN DE UX: Estado para controlar el colapso de la lista (Cerrado por defecto)
+  const [showGrid, setShowGrid] = useState(false);
   
   // Estados compartidos del formulario
   const [question, setQuestion] = useState('');
@@ -78,7 +73,6 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
     } catch (e) { setError(e.message); }
   };
 
-  // Motor de Exportación a PDF con Filtro de Contraste Reparado
   const handleExportPDF = (type = 'guide') => {
     if (cards.length === 0) {
       setError('No hay tarjetas en este mazo para exportar a PDF.');
@@ -91,7 +85,6 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
       const pageWidth = doc.internal.pageSize.getWidth();
       const safeName = (deck.title || 'guia-estudio').replace(/[^\w\s-]/g, '').trim();
 
-      // MODO A: GUÍA DE TEXTO PLANO
       if (type === 'guide') {
         const margin = 15;
         const contentWidth = pageWidth - (margin * 2);
@@ -127,7 +120,6 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
         return;
       }
 
-      // MODO B: TARJETAS VISUALES IMPRIMIBLES (REJILLA DE 2x3)
       if (type === 'cards') {
         const marginX = 12;
         const marginY = 15;
@@ -154,15 +146,12 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
               if (card.bgImage.includes('image/png')) imgFormat = 'PNG';
               if (card.bgImage.includes('image/webp')) imgFormat = 'WEBP';
               
-              // 1. Dibujar la imagen base original
               doc.addImage(card.bgImage, imgFormat, x, y, cardW, cardH, undefined, 'FAST');
-              
-              // 🌟 2. FILTRO DE CONTRASTE: Aplicamos una capa negra al 55% de opacidad sobre la foto
               doc.saveGraphicsState();
               doc.setGState(new doc.GState({ opacity: 0.55 }));
-              doc.setFillColor(15, 23, 42); // Slate 900 / Negro traslúcido
+              doc.setFillColor(15, 23, 42); 
               doc.rect(x, y, cardW, cardH, 'F');
-              doc.restoreGraphicsState(); // Restaura la opacidad al 100% para que las letras no salgan transparentes
+              doc.restoreGraphicsState(); 
             } catch (imgErr) {
               doc.setFillColor(30, 41, 59);
               doc.rect(x, y, cardW, cardH, 'F');
@@ -171,7 +160,6 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
             doc.setFillColor(255, 255, 255);
           }
 
-          // Contorno exterior guía para el recorte
           doc.setDrawColor(203, 213, 225);
           doc.setLineWidth(0.2);
           doc.rect(x, y, cardW, cardH, card.bgImage ? 'S' : 'FD');
@@ -190,7 +178,6 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
           const subColor = card.bgImage ? [148, 163, 184] : [100, 116, 139];
           const answerColor = card.bgImage ? [241, 245, 249] : [51, 65, 85];
 
-          // Bloque Pregunta
           doc.setFont("Helvetica", "bold"); doc.setFontSize(7.5); doc.setTextColor(subColor[0], subColor[1], subColor[2]);
           doc.text("PREGUNTA", textX, y + 11, { align });
 
@@ -201,11 +188,9 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
             currentY += 4.5;
           });
 
-          // Divisor de Tarjeta
           doc.setDrawColor(card.bgImage ? 71 : 226, card.bgImage ? 85 : 232, card.bgImage ? 105 : 240);
           doc.line(x + 6, y + 38, x + cardW - 6, y + 38);
 
-          // Bloque Respuesta
           doc.setFont("Helvetica", "bold"); doc.setFontSize(7.5); doc.setTextColor(subColor[0], subColor[1], subColor[2]);
           doc.text("RESPUESTA", textX, y + 45, { align });
 
@@ -297,6 +282,9 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
     setIsBulk(false); setEditingId(card.id); setQuestion(card.question); setAnswer(card.answer);
     setBgImage(card.bgImage || ''); setTextAlign(card.textAlign || 'center'); setFontSize(card.fontSize || 'text-base');
     window.scrollTo({ top: 0, behavior: 'smooth' });
+    
+    // Forza la apertura de la rejilla al editar para que el usuario localice qué está modificando
+    setShowGrid(true);
   };
 
   const handleDelete = async (card) => {
@@ -337,11 +325,34 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
                 editingId={editingId} saving={saving} error={error} setError={setError}
                 onSubmit={handleSubmit} onCancel={resetForm}
               />
-              <div className="mt-6 flex items-center justify-between">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400">Tarjetas</h3>
-                <span className="text-xs font-medium text-slate-400">{cards.length} en total</span>
-              </div>
-              <FlashcardGrid cards={cards} onEdit={handleEdit} onDelete={handleDelete} />
+              
+              {/* 🌟 ACORDEÓN DESPLEGABLE DE TARJETAS CREADAS */}
+              <button
+                type="button"
+                onClick={() => setShowGrid(!showGrid)}
+                className="mt-6 w-full flex items-center justify-between bg-white border border-slate-200 hover:bg-slate-50 rounded-2xl px-5 py-3.5 transition-colors shadow-xs active:scale-[0.99]"
+              >
+                <div className="flex items-center gap-2.5">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                    Colección de tarjetas del mazo
+                  </h3>
+                  <span className="bg-slate-100 text-slate-700 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border border-slate-200/50">
+                    {cards.length} {cards.length === 1 ? 'tarjeta' : 'tarjetas'}
+                  </span>
+                </div>
+                {showGrid ? (
+                  <ChevronUp className="w-4 h-4 text-slate-400 animate-[fadeIn_0.1s_ease]" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 text-slate-400 animate-[fadeIn_0.1s_ease]" />
+                )}
+              </button>
+
+              {/* Contenedor animado de la rejilla */}
+              {showGrid && (
+                <div className="animate-[fadeIn_0.18s_ease] pb-6">
+                  <FlashcardGrid cards={cards} onEdit={handleEdit} onDelete={handleDelete} />
+                </div>
+              )}
             </>
           )}
         </>
