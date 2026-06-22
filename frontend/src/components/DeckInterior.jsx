@@ -217,48 +217,85 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setSaving(true);
-    setError('');
+  e.preventDefault();
+  setSaving(true);
+  setError('');
 
-    if (isBulk && !editingId) {
-      const lines = bulkText.split('\n');
-      const parsedCards = [];
-      let currentQuestion = '';
+  if (isBulk && !editingId) {
+    const lines = bulkText.split('\n');
+    const parsedCards = [];
+    let currentQuestion = '';
 
-      lines.forEach((line) => {
-        const cleanLine = line.trim();
-        if (/^[pP]\s*:/i.test(cleanLine)) currentQuestion = cleanLine.replace(/^[pP]\s*:/i, '').trim();
-        else if (/^[rR]\s*:/i.test(cleanLine)) {
-          const currentAnswer = cleanLine.replace(/^[rR]\s*:/i, '').trim();
-          if (currentQuestion && currentAnswer) {
-            parsedCards.push({ question: currentQuestion, answer: currentAnswer });
-            currentQuestion = '';
-          }
+    lines.forEach((line) => {
+      const cleanLine = line.trim();
+      if (/^[pP]\s*:/i.test(cleanLine)) currentQuestion = cleanLine.replace(/^[pP]\s*:/i, '').trim();
+      else if (/^[rR]\s*:/i.test(cleanLine)) {
+        const currentAnswer = cleanLine.replace(/^[rR]\s*:/i, '').trim();
+        if (currentQuestion && currentAnswer) {
+          parsedCards.push({ question: currentQuestion, answer: currentAnswer });
+          currentQuestion = '';
         }
-      });
-
-      if (parsedCards.length === 0) {
-        setError('No se encontraron bloques válidos (P: ... R: ...)');
-        setSaving(false); return;
       }
+    });
 
-      try {
-        const res = await fetch(`${BACKEND_URL}/api/flashcards/bulk`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId, deckId: deck.id, batchStyles: { bgImage, textAlign, fontSize }, cards: parsedCards }),
-        });
-        if (!res.ok) throw new Error('No se pudo guardar el lote.');
-        const batchData = await res.json();
-        setCards((prev) => [...batchData, ...prev]);
-        resetForm(); setIsBulk(false);
-      } catch (err) { setError(err.message); } finally { setSaving(false); }
-      return;
+    if (parsedCards.length === 0) {
+      setError('No se encontraron bloques válidos (P: ... R: ...)');
+      setSaving(false); return;
     }
 
-    if (!question.trim() || !answer.trim()) { setSaving(false); return; }
-    
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/flashcards/bulk`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, deckId: deck.id, batchStyles: { bgImage, textAlign, fontSize }, cards: parsedCards }),
+      });
+      if (!res.ok) throw new Error('No se pudo guardar el lote.');
+      const batchData = await res.json();
+      setCards((prev) => [...batchData, ...prev]);
+      resetForm(); setIsBulk(false);
+    } catch (err) { setError(err.message); } finally { setSaving(false); }
+    return;
+  }
+
+  if (!question.trim() || !answer.trim()) { setSaving(false); return; }
+
+  // 📦 Payload extendido con las propiedades de la imagen comprimida
+  const body = { question, answer, bgImage, textAlign, fontSize, contentImage, imageSide };
+
+  try {
+    if (editingId) {
+      const res = await fetch(`${BACKEND_URL}/api/flashcards/${editingId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error('No se pudo actualizar.');
+      const updated = await res.json();
+      setCards((prev) => prev.map((c) => (c.id === editingId ? updated : c)));
+      resetForm(); // resetForm ya limpia contentImage e imageSide por defecto
+    } else {
+      const res = await fetch(`${BACKEND_URL}/api/flashcards`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, deckId: deck.id, ...body }),
+      });
+      if (!res.ok) throw new Error('No se pudo crear.');
+      const newCard = await res.json();
+      setCards((prev) => [newCard, ...prev]);
+      
+      // ✨ LA CORRECCIÓN: Limpieza total tras guardar exitosamente para que la siguiente tarjeta inicie limpia
+      setQuestion(''); 
+      setAnswer('');
+      setContentImage(''); 
+      setImageSide(''); 
+    }
+  } catch (e) { 
+    setError(e.message); 
+  } finally { 
+    setSaving(false); 
+  }
+};
+
     // 📦 Payload extendido con las especificaciones de imagen de contenido comprimida
     const body = { question, answer, bgImage, textAlign, fontSize, contentImage, imageSide };
     
