@@ -33,44 +33,45 @@ export const exportDeckToPDF = (deckTitle, cards, type = 'guide') => {
       const qLines = doc.splitTextToSize(`P: ${card.question}`, contentWidth);
       const aLines = doc.splitTextToSize(`R: ${card.answer}`, contentWidth);
       
-      // 📏 Ajuste de altura estricto para evitar saltos de página huérfanos
-      let imgHeight = card.contentImage ? 32 : 0;
-      const blockHeight = (qLines.length * 5.5) + (aLines.length * 5.5) + 10 + imgHeight;
+      // 📐 Cálculo exacto del bloque contenedor dinámico para evitar solapamientos
+      let blockTextHeight = (qLines.length * 6) + (aLines.length * 6) + 6;
+      let blockImgHeight = card.contentImage ? 34 : 0;
+      const totalBlockHeight = blockTextHeight + blockImgHeight + 6;
 
-      if (y + blockHeight > 275) { doc.addPage(); y = 22; }
+      if (y + totalBlockHeight > 275) { doc.addPage(); y = 22; }
 
       doc.setFillColor(250, 250, 250); doc.setDrawColor(241, 245, 249);
-      doc.roundedRect(margin - 2, y - 6, contentWidth + 4, blockHeight - 2, 3, 3, "FD");
+      doc.roundedRect(margin - 2, y - 6, contentWidth + 4, totalBlockHeight - 2, 3, 3, "FD");
 
-      // Render Pregunta
+      // Imprimir Pregunta
       doc.setFont("Helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(15, 23, 42);
-      qLines.forEach((line, i) => { doc.text(line, margin, y + (i * 5.5)); });
-      y += (qLines.length * 5.5) + 1;
+      qLines.forEach((line, i) => { doc.text(line, margin, y + (i * 6)); });
+      y += (qLines.length * 6) + 2;
 
-      // 🖼️ Imagen en Pregunta: Eliminado espacio muerto redundante
+      // 🖼️ Imagen Adjunta en Pregunta (Puntero dinámico secuencial)
       if (card.contentImage && card.imageSide === 'question') {
         try {
           let imgFormat = card.contentImage.includes('image/png') ? 'PNG' : card.contentImage.includes('image/webp') ? 'WEBP' : 'JPEG';
-          doc.addImage(card.contentImage, imgFormat, margin, y + 1, 45, 28, undefined, 'FAST');
+          doc.addImage(card.contentImage, imgFormat, margin, y, 52, 32, undefined, 'FAST');
         } catch (e) { console.error(e); }
-        y += 30;
+        y += 34; // Avanza el puntero de forma segura abajo del marco de la foto
       }
 
-      // Render Respuesta
+      // Imprimir Respuesta
       doc.setFont("Helvetica", "normal"); doc.setFontSize(11); doc.setTextColor(71, 85, 105);
-      aLines.forEach((line, i) => { doc.text(line, margin, y + (i * 5.5)); });
-      y += (aLines.length * 5.5) + 2;
+      aLines.forEach((line, i) => { doc.text(line, margin, y + (i * 6)); });
+      y += (aLines.length * 6) + 2;
 
-      // 🖼️ Imagen en Respuesta: Ajuste milimétrico continuo
+      // 🖼️ Imagen Adjunta en Respuesta
       if (card.contentImage && card.imageSide === 'answer') {
         try {
           let imgFormat = card.contentImage.includes('image/png') ? 'PNG' : card.contentImage.includes('image/webp') ? 'WEBP' : 'JPEG';
-          doc.addImage(card.contentImage, imgFormat, margin, y + 1, 45, 28, undefined, 'FAST');
+          doc.addImage(card.contentImage, imgFormat, margin, y, 52, 32, undefined, 'FAST');
         } catch (e) { console.error(e); }
-        y += 30;
+        y += 34;
       }
       
-      y += 8; // Separación inter-bloques compacta
+      y += 10; // Espaciado final de protección entre bloques
     });
 
     doc.save(`${safeName}-guia.pdf`);
@@ -136,37 +137,27 @@ export const exportDeckToPDF = (deckTitle, cards, type = 'guide') => {
       const qLines = doc.splitTextToSize(card.question || '', qMaxW);
       const aLines = doc.splitTextToSize(card.answer || '', aMaxW);
 
-      // =======================================================================
       // 🎴 SECCIÓN SUPERIOR: PREGUNTA
-      // =======================================================================
       doc.setFont("Helvetica", "bold"); doc.setFontSize(7.5); doc.setTextColor(subColor[0], subColor[1], subColor[2]);
-      doc.text("PREGUNTA", textX, y + 10, { align });
+      doc.text("PREGUNTA", textX, y + 8, { align });
 
       if (card.contentImage && card.imageSide === 'question') {
-        // 🌟 ESCALADO INTELIGENTE: Si el texto es corto, expandimos la imagen
+        // 🌟 ESCALADO DINÁMICO: Si el texto es de una línea, expande la imagen a tamaño macro
         const isShortText = qLines.length <= 1;
-        const imgW = isShortText ? 34 : 24;
-        const imgH = isShortText ? 19 : 13;
+        const imgW = isShortText ? 44 : 32;
+        const imgH = isShortText ? 22 : 15;
         const imgX = x + (cardW - imgW) / 2;
 
         doc.setFont("Helvetica", "bold"); doc.setFontSize(9.5); doc.setTextColor(textColor[0], textColor[1], textColor[2]);
-        
-        // Renderizar el texto disponible arriba
-        let currentY = isShortText ? y + 14.5 : y + 14;
-        qLines.slice(0, isShortText ? 1 : 2).forEach((line) => {
-          doc.text(line, textX, currentY, { align });
-          currentY += 4.5;
-        });
+        doc.text(qLines[0] || '', textX, y + 13, { align });
         
         try {
           let imgFormat = card.contentImage.includes('image/png') ? 'PNG' : card.contentImage.includes('image/webp') ? 'WEBP' : 'JPEG';
-          // Se posiciona al centro de forma dinámica sin colisionar
-          doc.addImage(card.contentImage, imgFormat, imgX, isShortText ? y + 17.5 : y + 23, imgW, imgH, undefined, 'FAST');
+          doc.addImage(card.contentImage, imgFormat, imgX, isShortText ? y + 15 : y + 21, imgW, imgH, undefined, 'FAST');
         } catch (e) { console.error(e); }
       } else {
-        // Flujo regular sin imagen adjunta (soporta hasta 4 líneas de texto)
         doc.setFont("Helvetica", "bold"); doc.setFontSize(10.5); doc.setTextColor(textColor[0], textColor[1], textColor[2]);
-        let currentY = y + 16.5;
+        let currentY = y + 14;
         qLines.slice(0, 4).forEach((line) => {
           doc.text(line, textX, currentY, { align });
           currentY += 4.5;
@@ -177,35 +168,27 @@ export const exportDeckToPDF = (deckTitle, cards, type = 'guide') => {
       doc.setDrawColor(card.bgImage ? 71 : 226, card.bgImage ? 85 : 232, card.bgImage ? 105 : 240);
       doc.line(x + 6, y + 38, x + cardW - 6, y + 38);
 
-      // =======================================================================
       // 🎴 SECCIÓN INFERIOR: RESPUESTA
-      // =======================================================================
       doc.setFont("Helvetica", "bold"); doc.setFontSize(7.5); doc.setTextColor(subColor[0], subColor[1], subColor[2]);
       doc.text("RESPUESTA", textX, y + 44, { align });
 
       if (card.contentImage && card.imageSide === 'answer') {
-        // 🌟 ESCALADO INTELIGENTE: Adaptación proporcional para la respuesta
+        // 🌟 ESCALADO DINÁMICO: Si la respuesta es corta, maximiza el tamaño horizontal en medio
         const isShortText = aLines.length <= 1;
-        const imgW = isShortText ? 34 : 24;
-        const imgH = isShortText ? 19 : 13;
+        const imgW = isShortText ? 44 : 32;
+        const imgH = isShortText ? 22 : 15;
         const imgX = x + (cardW - imgW) / 2;
 
         doc.setFont("Helvetica", "normal"); doc.setFontSize(9.5); doc.setTextColor(answerColor[0], answerColor[1], answerColor[2]);
-        
-        let currentY = isShortText ? y + 48.5 : y + 48;
-        aLines.slice(0, isShortText ? 1 : 2).forEach((line) => {
-          doc.text(line, textX, currentY, { align });
-          currentY += 4.5;
-        });
+        doc.text(aLines[0] || '', textX, y + 49, { align });
 
         try {
           let imgFormat = card.contentImage.includes('image/png') ? 'PNG' : card.contentImage.includes('image/webp') ? 'WEBP' : 'JPEG';
-          doc.addImage(card.contentImage, imgFormat, imgX, isShortText ? y + 51.5 : y + 57, imgW, imgH, undefined, 'FAST');
+          doc.addImage(card.contentImage, imgFormat, imgX, isShortText ? y + 51 : y + 57, imgW, imgH, undefined, 'FAST');
         } catch (e) { console.error(e); }
       } else {
-        // Flujo regular sin imagen adjunta
         doc.setFont("Helvetica", "normal"); doc.setFontSize(10.5); doc.setTextColor(answerColor[0], answerColor[1], answerColor[2]);
-        let currentY = y + 50.5;
+        let currentY = y + 50;
         aLines.slice(0, 4).forEach((line) => {
           doc.text(line, textX, currentY, { align });
           currentY += 4.5;
