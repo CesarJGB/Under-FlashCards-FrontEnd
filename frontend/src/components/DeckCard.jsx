@@ -1,6 +1,6 @@
 // ARCHIVO: frontend/src/components/DeckCard.jsx
 import { useState } from 'react';
-import { Pencil, Trash2, Star, MoreVertical } from 'lucide-react';
+import { Pencil, Trash2, Star, MoreHorizontal } from 'lucide-react';
 
 const isDark = (hex) => {
   if (!hex || hex.length < 7) return false;
@@ -24,7 +24,6 @@ export default function DeckCard({ deck, onOpen, onEdit, onDelete, onToggleStar,
 
   const currentBgStyle = isList ? {} : bgStyle;
 
-  // Manejador seguro para cerrar el menú y disparar la acción elegida
   const handleAction = (e, callback) => {
     e.stopPropagation();
     setShowMenu(false);
@@ -39,12 +38,12 @@ export default function DeckCard({ deck, onOpen, onEdit, onDelete, onToggleStar,
       style={currentBgStyle}
       className={containerClasses}
     >
-      {/* Capa de gradiente sutil para legibilidad (Solo Modo Grid) */}
+      {/* Capa de gradiente sutil (Solo Modo Grid) */}
       {!isList && (
         <span className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/60 via-black/20 to-transparent pointer-events-none" />
       )}
 
-      {/* 🛑 INTERCEPTOR GLOBAL PARA CERRAR EL DROPDOWN AL HACER CLICK AFUERA */}
+      {/* INTERCEPTOR GLOBAL PARA CERRAR EL MENU DROPDOWN */}
       {showMenu && (
         <div 
           className="fixed inset-0 z-20 bg-transparent" 
@@ -58,7 +57,10 @@ export default function DeckCard({ deck, onOpen, onEdit, onDelete, onToggleStar,
           <div className="flex items-center gap-3.5 min-w-0 flex-1 pr-4">
             <div style={bgStyle} className="w-11 h-11 rounded-xl shrink-0 border border-slate-200/40 relative overflow-hidden shadow-3xs" />
             <div className="min-w-0">
-              <p className="font-bold text-slate-800 text-sm truncate" title={deck.title}>{deck.title}</p>
+              <div className="flex items-center gap-1.5">
+                <p className="font-bold text-slate-800 text-sm truncate" title={deck.title}>{deck.title}</p>
+                {deck.isStarred && <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500 shrink-0" />}
+              </div>
               <p className="text-[11px] font-semibold text-slate-400 mt-0.5">
                 {deck.cardCount ?? 0} {deck.cardCount === 1 ? 'tarjeta' : 'tarjetas'}
               </p>
@@ -66,28 +68,37 @@ export default function DeckCard({ deck, onOpen, onEdit, onDelete, onToggleStar,
           </div>
 
           <div className="flex items-center gap-1 shrink-0 z-30" onClick={(e) => e.stopPropagation()}>
-            <button
-              type="button"
-              onClick={() => onToggleStar(deck)}
-              className={`p-2 rounded-xl transition-colors ${
-                deck.isStarred ? 'text-amber-500 bg-amber-50' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'
-              }`}
-            >
-              <Star className={`w-4 h-4 ${deck.isStarred ? 'fill-amber-500' : ''}`} />
-            </button>
+            {/* Si es favorito, sale el botón interactivo rápido para quitarlo */}
+            {deck.isStarred && (
+              <button
+                type="button"
+                onClick={(e) => handleAction(e, () => onToggleStar(deck))}
+                className="p-2 rounded-xl text-amber-500 bg-amber-50 hover:bg-amber-100/70 transition-colors cursor-pointer"
+                title="Quitar de favoritos"
+              >
+                <Star className="w-4 h-4 fill-amber-500" />
+              </button>
+            )}
             
-            {/* Menú de 3 puntos en Modo Lista */}
+            {/* Menú de 3 puntos horizontales */}
             <div className="relative">
               <button
                 type="button"
                 onClick={() => setShowMenu(!showMenu)}
                 className={`p-2 rounded-xl transition-colors ${showMenu ? 'bg-slate-100 text-slate-800' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'}`}
               >
-                <MoreVertical className="w-4 h-4" />
+                <MoreHorizontal className="w-4 h-4" />
               </button>
 
               {showMenu && (
-                <div className="absolute right-0 mt-1 w-36 bg-white border border-slate-200 rounded-xl shadow-lg p-1 z-30 flex flex-col gap-0.5 animate-[fadeIn_0.08s_ease]">
+                <div className="absolute right-0 mt-1 w-40 bg-white border border-slate-200 rounded-xl shadow-lg p-1 z-30 flex flex-col gap-0.5 animate-[fadeIn_0.08s_ease]">
+                  <button
+                    onClick={(e) => handleAction(e, () => onToggleStar(deck))}
+                    className="w-full text-left px-2.5 py-1.5 hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-lg flex items-center gap-2 transition-colors cursor-pointer"
+                  >
+                    <Star className={`w-3.5 h-3.5 ${deck.isStarred ? 'text-amber-500 fill-amber-500' : 'text-slate-400'}`} />
+                    {deck.isStarred ? 'Quitar favorito' : 'Favorito'}
+                  </button>
                   <button
                     onClick={(e) => handleAction(e, () => onEdit(deck))}
                     className="w-full text-left px-2.5 py-1.5 hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-lg flex items-center gap-2 transition-colors cursor-pointer"
@@ -108,32 +119,39 @@ export default function DeckCard({ deck, onOpen, onEdit, onDelete, onToggleStar,
       ) : (
         /* --- MODO CUADRÍCULA --- */
         <>
-          {/* ⭐ Botón de Estrella */}
-          <button
-            type="button"
-            onClick={(e) => handleAction(e, () => onToggleStar(deck))}
-            className={`absolute top-2.5 left-2.5 p-1.5 rounded-lg transition-all z-10 cursor-pointer ${
-              deck.isStarred 
-                ? 'bg-white/90 text-amber-500 shadow-sm scale-100' 
-                : 'bg-white/70 text-slate-400 opacity-100 sm:opacity-0 group-hover:opacity-100 hover:bg-white hover:text-slate-600'
-            }`}
-          >
-            <Star className={`w-3.5 h-3.5 ${deck.isStarred ? 'fill-amber-500' : ''}`} />
-          </button>
+          {/* ⭐ Botón de Estrella Indicador (Solo si está activo de verdad) */}
+          {deck.isStarred && (
+            <button
+              type="button"
+              onClick={(e) => handleAction(e, () => onToggleStar(deck))}
+              className="absolute top-2.5 left-2.5 p-1.5 rounded-lg bg-white/90 text-amber-500 shadow-3xs scale-100 cursor-pointer z-10 transition-transform active:scale-95"
+              title="Quitar de favoritos"
+            >
+              <Star className="w-3.5 h-3.5 fill-amber-500" />
+            </button>
+          )}
 
-          {/* ⚙️ BOTÓN DE TRES PUNTOS CON ACCIÓN DETENIDA */}
+          {/* ⚙️ BOTÓN DE TRES PUNTOS HORIZONTALES */}
           <div className="absolute top-2.5 right-2.5 z-30" onClick={(e) => e.stopPropagation()}>
             <button
               type="button"
               onClick={() => setShowMenu(!showMenu)}
-              className="p-1.5 rounded-lg bg-white/90 text-slate-700 hover:bg-white cursor-pointer shadow-3xs"
+              className="p-1.5 rounded-lg bg-white/90 text-slate-700 hover:bg-white cursor-pointer shadow-3xs flex items-center justify-center"
             >
-              <MoreVertical className="w-3.5 h-3.5" />
+              <MoreHorizontal className="w-3.5 h-3.5" />
             </button>
 
-            {/* Menú Desplegable Contextual Integrado */}
+            {/* Menú Desplegable de Opciones Expandido */}
             {showMenu && (
-              <div className="absolute right-0 mt-1 w-32 bg-white border border-slate-200/90 rounded-xl shadow-xl p-1 flex flex-col gap-0.5 animate-[fadeIn_0.08s_ease]">
+              <div className="absolute right-0 mt-1 w-36 bg-white border border-slate-200 rounded-xl shadow-xl p-1 flex flex-col gap-0.5 animate-[fadeIn_0.08s_ease]">
+                <button
+                  type="button"
+                  onClick={(e) => handleAction(e, () => onToggleStar(deck))}
+                  className="w-full text-left px-2 py-1.5 hover:bg-slate-50 text-slate-700 text-[11px] font-bold rounded-lg flex items-center gap-2 transition-colors cursor-pointer"
+                >
+                  <Star className={`w-3.5 h-3.5 ${deck.isStarred ? 'text-amber-500 fill-amber-500' : 'text-slate-400'}`} />
+                  {deck.isStarred ? 'Quitar estrella' : 'Destacar mazo'}
+                </button>
                 <button
                   type="button"
                   onClick={(e) => handleAction(e, () => onEdit(deck))}
