@@ -1,4 +1,4 @@
-
+// ARCHIVO: frontend/src/components/ReviewMode.jsx
 import { useState, useEffect, useRef } from 'react';
 import { ChevronLeft, ChevronRight, RotateCw, BookOpen, Loader2 } from 'lucide-react';
 
@@ -139,8 +139,10 @@ export default function ReviewMode({ cards, loading }) {
             <p className={`text-[10px] font-semibold uppercase tracking-widest ${alignClass} ${hasBg ? 'text-white/70' : 'text-slate-400'}`}>
               {showAnswer ? 'Respuesta' : 'Pregunta'}
             </p>
-            <div key={`${index}-${showAnswer}`} className="mt-2 animate-[fadeIn_0.25s_ease]">
-              {/* 🎴 Fusión híbrida perfecta de estilos en línea y clases reactivas */}
+            
+            {/* El contenedor con clave única fuerza la reanimación limpia al voltear */}
+            <div key={`${index}-${showAnswer}`} className="mt-2 flex flex-col flex-1 justify-center animate-[fadeIn_0.25s_ease]">
+              {/* 🎴 Fusión híbrida de estilos en línea y clases reactivas */}
               <p 
                 style={{
                   ...sizeStyle,
@@ -150,6 +152,21 @@ export default function ReviewMode({ cards, loading }) {
               >
                 {showAnswer ? card.answer : card.question}
               </p>
+
+              {/* 🖼️ Render dinámico de imagen de contenido según la cara activa */}
+              {card.contentImage && card.imageSide === (showAnswer ? 'answer' : 'question') && (
+                <div className="mt-4 flex justify-center w-full animate-[slideUp_0.18s_ease-out]">
+                  <img 
+                    src={card.contentImage} 
+                    alt={showAnswer ? "Imagen explicativa de la respuesta" : "Imagen de referencia para la pregunta"} 
+                    className={`max-h-36 sm:max-h-44 w-auto object-contain rounded-xl border p-1 shadow-2xs ${
+                      hasBg 
+                        ? 'bg-white/10 border-white/20' 
+                        : 'bg-slate-50 border-slate-200/60'
+                    }`}
+                  />
+                </div>
+              )}
             </div>
           </div>
 
