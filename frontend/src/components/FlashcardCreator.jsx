@@ -1,4 +1,19 @@
-import { SlidersHorizontal, ImagePlus, Check, Plus, Loader2, AlignLeft, AlignCenter, AlignRight, Bold, Italic, Palette } from 'lucide-react';
+import { useState } from 'react';
+import { 
+  SlidersHorizontal, 
+  ImagePlus, 
+  Check, 
+  Plus, 
+  Loader2, 
+  AlignLeft, 
+  AlignCenter, 
+  AlignRight, 
+  Bold, 
+  Italic, 
+  Palette,
+  Eye,
+  EyeOff
+} from 'lucide-react';
 
 const SIZES = [
   { label: 'Sm', value: 'text-sm' },
@@ -14,7 +29,8 @@ const ALIGNS = [
   { label: 'Derecha', value: 'right', Icon: AlignRight },
 ];
 
-// Paleta de colores sugeridos estilo Tailwind
+const ALIGN_CLASS = { left: 'text-left', center: 'text-center', right: 'text-right' };
+
 const SWATCHES = [
   { label: 'Predeterminado', value: '' },
   { label: 'Blanco', value: '#ffffff' },
@@ -33,12 +49,13 @@ export default function FlashcardCreator({
   editingId, saving, error, setError, onSubmit, onCancel
 }) {
 
-  // 🧠 DESEMPAQUETADOR MÁGICO: Lee el JSON de fontSize o aplica el fallback predeterminado
+  // 🌟 NUEVO ESTADO: Control del desplegable de la Previsualización
+  const [showPreview, setShowPreview] = useState(false);
+
   const parseCurrentStyles = () => {
     if (fontSize && fontSize.startsWith('{')) {
       try { return JSON.parse(fontSize); } catch (e) {}
     }
-    // Estado inicial de fábrica si es una tarjeta limpia o antigua
     return {
       qSize: fontSize || 'text-base', qBold: true, qItalic: false, qColor: '',
       aSize: fontSize || 'text-base', aBold: false, aItalic: false, aColor: ''
@@ -47,10 +64,16 @@ export default function FlashcardCreator({
 
   const styles = parseCurrentStyles();
 
-  // Guarda los cambios empaquetándolos de nuevo en la cadena de texto de fontSize
   const updateStyle = (key, value) => {
     const updated = { ...styles, [key]: value };
     setFontSize(JSON.stringify(updated));
+  };
+
+  // 🌟 GESTOR DE CONMUTACIÓN: Al activar o cerrar el Preview, se desliga y limpia el modo avanzado tradicional
+  const togglePreview = () => {
+    const nextState = !showPreview;
+    setShowPreview(nextState);
+    setShowStyles(false); // Apaga de forma estricta el estado avanzado independiente
   };
 
   const handleBgFile = async (e) => {
@@ -66,7 +89,6 @@ export default function FlashcardCreator({
     reader.readAsDataURL(file);
   };
 
-  // Sub-componente interno para no duplicar código de renderizado de controles
   const renderStyleGroup = (title, prefix) => {
     const sizeKey = `${prefix}Size`;
     const boldKey = `${prefix}Bold`;
@@ -74,18 +96,17 @@ export default function FlashcardCreator({
     const colorKey = `${prefix}Color`;
 
     return (
-      <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">{title}</p>
+      <div className="bg-white p-3 rounded-xl border border-slate-200/60 shadow-xs">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">{title}</p>
         
-        {/* Tamaño y Tipografía */}
-        <div className="flex flex-wrap items-center gap-2 mb-3">
-          <div className="flex rounded-lg border border-slate-200 bg-white p-0.5">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
+          <div className="flex rounded-lg border border-slate-200 bg-slate-50 p-0.5">
             {SIZES.map((s) => (
               <button
                 key={s.value} type="button"
                 onClick={() => updateStyle(sizeKey, s.value)}
                 className={`px-2 py-1 text-[10px] font-bold rounded-md transition-colors ${
-                  styles[sizeKey] === s.value ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'
+                  styles[sizeKey] === s.value ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-500 hover:bg-white'
                 }`}
               >
                 {s.label}
@@ -96,35 +117,32 @@ export default function FlashcardCreator({
           <div className="flex gap-1">
             <button
               type="button" onClick={() => updateStyle(boldKey, !styles[boldKey])}
-              className={`p-1.5 rounded-lg border transition-colors ${styles[boldKey] ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'}`}
+              className={`p-1.5 rounded-lg border transition-colors ${styles[boldKey] ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
             >
               <Bold className="w-3.5 h-3.5" />
             </button>
             <button
               type="button" onClick={() => updateStyle(italicKey, !styles[italicKey])}
-              className={`p-1.5 rounded-lg border transition-colors ${styles[italicKey] ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'}`}
+              className={`p-1.5 rounded-lg border transition-colors ${styles[italicKey] ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
             >
               <Italic className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
 
-        {/* Muestras de Color */}
         <div>
-          <p className="text-[9px] font-semibold text-slate-400 uppercase mb-1 flex items-center gap-1"><Palette className="w-3 h-3" /> Color del texto</p>
           <div className="flex flex-wrap items-center gap-1.5">
             {SWATCHES.map((c) => (
               <button
                 key={c.value} type="button" title={c.label}
                 onClick={() => updateStyle(colorKey, c.value)}
                 style={c.value ? { backgroundColor: c.value } : {}}
-                className={`w-5 h-5 rounded-full border transition-all ${
+                className={`w-4.5 h-4.5 rounded-full border transition-all ${
                   styles[colorKey] === c.value ? 'scale-110 ring-2 ring-slate-900 ring-offset-1' : 'border-slate-300 hover:scale-105'
                 } ${!c.value ? 'bg-linear-to-br from-slate-200 to-slate-400 relative after:absolute after:inset-0 after:flex after:items-center after:justify-center after:text-[8px] after:text-slate-700 after:content-["×"]' : ''}`}
               />
             ))}
-            {/* Color personalizado nativo */}
-            <label className="w-5 h-5 rounded-full border border-slate-300 cursor-pointer overflow-hidden relative bg-linear-to-tr from-amber-400 via-rose-400 to-indigo-400 shrink-0">
+            <label className="w-4.5 h-4.5 rounded-full border border-slate-300 cursor-pointer overflow-hidden relative bg-linear-to-tr from-amber-400 via-rose-400 to-indigo-400 shrink-0">
               <input 
                 type="color" 
                 value={styles[colorKey] && styles[colorKey].startsWith('#') ? styles[colorKey] : '#ffffff'} 
@@ -147,7 +165,7 @@ export default function FlashcardCreator({
         {!editingId && (
           <button
             type="button"
-            onClick={() => { setIsBulk(!isBulk); setError(''); }}
+            onClick={() => { setIsBulk(!isBulk); setError(''); setShowPreview(false); }}
             className="text-xs font-semibold text-slate-500 hover:text-slate-900 underline transition-colors"
           >
             {isBulk ? 'Volver a tarjeta única' : 'Cambiar a creación en lote'}
@@ -166,83 +184,182 @@ export default function FlashcardCreator({
           />
         </div>
       ) : (
-        <div className="grid sm:grid-cols-2 gap-3 animate-[fadeIn_0.2s_ease]">
-          <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1">Pregunta</label>
-            <textarea
-              value={question}
-              onChange={(e) => setQuestion(e.target.value)}
-              placeholder="¿Cuál es la capital de Francia?"
-              className="min-h-[90px] w-full resize-y rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1">Respuesta</label>
-            <textarea
-              value={answer}
-              onChange={(e) => setAnswer(e.target.value)}
-              placeholder="París"
-              className="min-h-[90px] w-full resize-y rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400"
-            />
-          </div>
-        </div>
-      )}
-
-      <button
-        type="button"
-        onClick={() => setShowStyles((s) => !s)}
-        className="mt-3 inline-flex items-center gap-2 text-xs font-medium text-slate-500 hover:text-slate-900 transition-colors"
-      >
-        <SlidersHorizontal className="w-3.5 h-3.5" />
-        Configuración de Estilo Avanzada
-      </button>
-
-      {showStyles && (
-        <div className="mt-3 border-t border-slate-100 pt-3 space-y-4 animate-[fadeIn_0.15s_ease]">
-          {/* Fila Global: Alineación y Imagen de Fondo */}
-          <div className="grid grid-cols-2 gap-4 bg-slate-100/50 p-3 rounded-xl border border-slate-200/40">
+        <>
+          <div className="grid sm:grid-cols-2 gap-3 animate-[fadeIn_0.2s_ease]">
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">Alineación del Mazo</p>
-              <div className="flex gap-1">
-                {ALIGNS.map(({ value, label, Icon }) => (
-                  <button
-                    key={value} type="button" title={label}
-                    onClick={() => setTextAlign(value)}
-                    className={`rounded-lg p-1.5 border transition-colors ${textAlign === value ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
-                  >
-                    <Icon className="w-3.5 h-3.5" />
-                  </button>
-                ))}
-              </div>
+              <label className="block text-xs font-medium text-slate-500 mb-1">Pregunta</label>
+              <textarea
+                value={question}
+                onChange={(e) => setQuestion(e.target.value)}
+                placeholder="¿Cuál es la capital de Francia?"
+                className="min-h-[90px] w-full resize-y rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400"
+              />
             </div>
-
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">Fondo de Tarjeta</p>
-              <div className="flex items-center gap-2">
-                <label className="inline-flex items-center gap-1.5 cursor-pointer rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 hover:bg-slate-50 shadow-xs">
-                  <ImagePlus className="w-3.5 h-3.5 text-slate-500" /> <span>Imagen</span>
-                  <input type="file" accept="image/*" onChange={handleBgFile} className="hidden" />
-                </label>
-                {bgImage && (
-                  <button type="button" onClick={() => setBgImage('')} className="text-xs text-red-600 hover:underline">Quitar</button>
-                )}
-              </div>
+              <label className="block text-xs font-medium text-slate-500 mb-1">Respuesta</label>
+              <textarea
+                value={answer}
+                onChange={(e) => setAnswer(e.target.value)}
+                placeholder="París"
+                className="min-h-[90px] w-full resize-y rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400"
+              />
             </div>
           </div>
 
-          {/* Fila Dividida: Controles de Pregunta vs Respuesta */}
-          <div className="grid sm:grid-cols-2 gap-3">
-            {renderStyleGroup('Estilo de la Pregunta', 'q')}
-            {renderStyleGroup('Estilo de la Respuesta', 'a')}
+          {/* 🌟 1. DEBAJO DEL CUADRO DE RESPUESTA: Desplegador interactivo de Previsualización */}
+          <div className="mt-3.5 flex gap-2">
+            <button
+              type="button"
+              onClick={togglePreview}
+              className={`inline-flex items-center gap-1.5 text-xs font-semibold rounded-xl px-4 py-2 border transition-all active:scale-95 ${
+                showPreview 
+                  ? 'bg-slate-900 text-white border-slate-900 shadow-sm' 
+                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+              }`}
+            >
+              {showPreview ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              {showPreview ? 'Cerrar Previsualización' : 'Previsualizar Tarjeta'}
+            </button>
+
+            {/* 🌟 2. CONTROL CONDICIONAL: El modo avanzado tradicional solo se muestra si el Preview está APAGADO */}
+            {!showPreview && (
+              <button
+                type="button"
+                onClick={() => setShowStyles((s) => !s)}
+                className={`inline-flex items-center gap-1.5 text-xs font-medium rounded-xl px-4 py-2 border transition-colors ${
+                  showStyles ? 'bg-slate-100 text-slate-900 border-slate-300' : 'text-slate-500 border-transparent hover:text-slate-900 hover:bg-slate-50'
+                }`}
+              >
+                <SlidersHorizontal className="w-3.5 h-3.5" />
+                Estilo rápido
+              </button>
+            )}
           </div>
-        </div>
+
+          {/* 🌟 3. EL PANEL DE PREVISUALIZACIÓN UNIFICADO (Contiene la tarjeta en vivo y los controles integrados) */}
+          {showPreview && (
+            <div className="mt-4 border border-slate-200 rounded-2xl p-4 bg-slate-50/70 space-y-4 animate-[fadeIn_0.15s_ease] shadow-inner">
+              <div className="flex items-center justify-between border-b border-slate-200/60 pb-1.5">
+                <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Previsualización en tiempo real</span>
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              </div>
+              
+              {/* Render del Esqueleto Físico de la Flashcard */}
+              <div className="flex justify-center py-2 bg-white/40 border border-slate-200/40 rounded-xl">
+                <div 
+                  style={bgImage ? { backgroundImage: `url(${bgImage})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}}
+                  className="relative w-full max-w-[320px] min-h-[220px] rounded-2xl border border-slate-200 shadow-md overflow-hidden bg-white flex flex-col p-4 justify-center"
+                >
+                  {bgImage && <span className="absolute inset-0 bg-black/55" />}
+                  <span className="absolute top-2.5 left-1/2 -translate-x-1/2 w-8 h-1.5 rounded-full bg-slate-400/30 z-10" />
+                  
+                  <div className="relative z-10 flex-1 flex flex-col justify-center min-w-0">
+                    {/* Pregunta en Vivo */}
+                    <p className={`text-[8px] font-bold uppercase tracking-wide ${bgImage ? 'text-white/60' : 'text-slate-400'} ${ALIGN_CLASS[textAlign] || 'text-center'}`}>Pregunta</p>
+                    <p 
+                      style={styles.qColor ? { color: styles.qColor } : {}}
+                      className={`mt-0.5 whitespace-pre-wrap truncate-3-lines ${ALIGN_CLASS[textAlign] || 'text-center'} ${styles.qSize} ${styles.qBold ? 'font-bold' : 'font-normal'} ${styles.qItalic ? 'italic' : ''} ${bgImage && !styles.qColor ? 'text-white' : (!styles.qColor ? 'text-slate-900' : '')}`}
+                    >
+                      {question.trim() || 'Escribe tu pregunta...'}
+                    </p>
+
+                    <div className={`my-2.5 border-t border-dashed ${bgImage ? 'border-white/30' : 'border-slate-200'}`} />
+
+                    {/* Respuesta en Vivo */}
+                    <p className={`text-[8px] font-bold uppercase tracking-wide ${bgImage ? 'text-white/60' : 'text-slate-400'} ${ALIGN_CLASS[textAlign] || 'text-center'}`}>Respuesta</p>
+                    <p 
+                      style={styles.aColor ? { color: styles.aColor } : {}}
+                      className={`mt-0.5 whitespace-pre-wrap truncate-3-lines ${ALIGN_CLASS[textAlign] || 'text-center'} ${styles.aSize} ${styles.aBold ? 'font-bold' : 'font-normal'} ${styles.aItalic ? 'italic' : ''} ${bgImage && !styles.aColor ? 'text-white/90' : (!styles.aColor ? 'text-slate-700' : '')}`}
+                    >
+                      {answer.trim() || 'Escribe tu respuesta...'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Controles avanzados embebidos de forma nativa abajo del Preview */}
+              <div className="space-y-3 pt-1 border-t border-slate-200/60">
+                <div className="grid grid-cols-2 gap-3 bg-white p-3 rounded-xl border border-slate-200/70 shadow-xs">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1">Alineación</p>
+                    <div className="flex gap-1">
+                      {ALIGNS.map(({ value, label, Icon }) => (
+                        <button
+                          key={value} type="button" title={label}
+                          onClick={() => setTextAlign(value)}
+                          className={`rounded-lg p-1.5 border transition-colors ${textAlign === value ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+                        >
+                          <Icon className="w-3.5 h-3.5" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1">Fondo mazo</p>
+                    <div className="flex items-center gap-1.5">
+                      <label className="inline-flex items-center gap-1.5 cursor-pointer rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-700 hover:bg-slate-100 shadow-2xs">
+                        <ImagePlus className="w-3.5 h-3.5 text-slate-500" /> <span className="text-[11px]">Subir</span>
+                        <input type="file" accept="image/*" onChange={handleBgFile} className="hidden" />
+                      </label>
+                      {bgImage && (
+                        <button type="button" onClick={() => setBgImage('')} className="text-xs text-red-600 hover:underline">Borrar</button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid sm:grid-cols-2 gap-3">
+                  {renderStyleGroup('Estilo de la Pregunta', 'q')}
+                  {renderStyleGroup('Estilo de la Respuesta', 'a')}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Panel tradicional secundario (Solo abre si Preview está inactivo) */}
+          {!showPreview && showStyles && (
+            <div className="mt-3 border-t border-slate-100 pt-3 space-y-3 animate-[fadeIn_0.12s_ease]">
+              <div className="grid grid-cols-2 gap-3 bg-slate-100/50 p-3 rounded-xl border border-slate-200/40">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1">Alineación</p>
+                  <div className="flex gap-1">
+                    {ALIGNS.map(({ value, label, Icon }) => (
+                      <button
+                        key={value} type="button" title={label}
+                        onClick={() => setTextAlign(value)}
+                        className={`rounded-lg p-1.5 border transition-colors ${textAlign === value ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+                      >
+                        <Icon className="w-3.5 h-3.5" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1">Fondo</p>
+                  <div className="flex items-center gap-2">
+                    <label className="inline-flex items-center gap-1.5 cursor-pointer rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 hover:bg-slate-50 shadow-xs">
+                      <ImagePlus className="w-3.5 h-3.5 text-slate-500" /> <span>Imagen</span>
+                      <input type="file" accept="image/*" onChange={handleBgFile} className="hidden" />
+                    </label>
+                    {bgImage && <button type="button" onClick={() => setBgImage('')} className="text-xs text-red-600 hover:underline">Quitar</button>}
+                  </div>
+                </div>
+              </div>
+              <div className="grid sm:grid-cols-2 gap-3">
+                {renderStyleGroup('Estilo de la Pregunta', 'q')}
+                {renderStyleGroup('Estilo de la Respuesta', 'a')}
+              </div>
+            </div>
+          )}
+        </>
       )}
 
-      <div className="mt-4 flex gap-2">
+      <div className="mt-4 flex gap-2 border-t border-slate-100 pt-3">
         <button
           type="submit"
           disabled={saving || (isBulk ? !bulkText.trim() : (!question.trim() || !answer.trim()))}
-          className="inline-flex items-center gap-2 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white text-sm font-medium px-4 py-2"
+          className="inline-flex items-center gap-2 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 transition-transform active:scale-95 shadow-sm"
         >
           {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : editingId ? <Check className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
           {editingId ? 'Guardar cambios' : isBulk ? 'Generar lote de tarjetas' : 'Agregar tarjeta'}
