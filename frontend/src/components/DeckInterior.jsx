@@ -80,7 +80,7 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
     } catch (e) { setError(e.message); }
   };
 
-  const handleExportPDF = (type = 'guide') => {
+    const handleExportPDF = (type = 'guide') => {
     if (cards.length === 0) {
       setError('No hay tarjetas en este mazo para exportar a PDF.');
       return;
@@ -92,6 +92,9 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
       const pageWidth = doc.internal.pageSize.getWidth();
       const safeName = (deck.title || 'guia-estudio').replace(/[^\w\s-]/g, '').trim();
 
+      // =======================================================================
+      // FORMATO A: GUÍA DE ESTUDIO (LISTADO VERTICAL CONTINUO)
+      // =======================================================================
       if (type === 'guide') {
         const margin = 15;
         const contentWidth = pageWidth - (margin * 2);
@@ -107,7 +110,10 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
         cards.forEach((card) => {
           const qLines = doc.splitTextToSize(`P: ${card.question}`, contentWidth);
           const aLines = doc.splitTextToSize(`R: ${card.answer}`, contentWidth);
-          const blockHeight = (qLines.length * 6) + (aLines.length * 6) + 12;
+          
+          // Calcular altura dinámica sumando las imágenes de contenido si existen
+          let imgHeight = card.contentImage ? 34 : 0;
+          const blockHeight = (qLines.length * 6) + (aLines.length * 6) + 14 + imgHeight;
 
           if (y + blockHeight > 275) { doc.addPage(); y = 22; }
 
@@ -118,15 +124,42 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
           qLines.forEach((line, i) => { doc.text(line, margin, y + (i * 6)); });
           y += (qLines.length * 6) + 3;
 
+          // 🖼️ Inyección de Imagen de Contenido en la Pregunta (Guía)
+          if (card.contentImage && card.imageSide === 'question') {
+            try {
+              let imgFormat = 'JPEG';
+              if (card.contentImage.includes('image/png')) imgFormat = 'PNG';
+              if (card.contentImage.includes('image/webp')) imgFormat = 'WEBP';
+              doc.addImage(card.contentImage, imgFormat, margin, y, 45, 30, undefined, 'FAST');
+            } catch (e) { console.error(e); }
+            y += 32;
+          }
+
           doc.setFont("Helvetica", "normal"); doc.setFontSize(11); doc.setTextColor(71, 85, 105);
           aLines.forEach((line, i) => { doc.text(line, margin, y + (i * 6)); });
-          y += (aLines.length * 6) + 12;
+          y += (aLines.length * 6) + 4;
+
+          // 🖼️ Inyección de Imagen de Contenido en la Respuesta (Guía)
+          if (card.contentImage && card.imageSide === 'answer') {
+            try {
+              let imgFormat = 'JPEG';
+              if (card.contentImage.includes('image/png')) imgFormat = 'PNG';
+              if (card.contentImage.includes('image/webp')) imgFormat = 'WEBP';
+              doc.addImage(card.contentImage, imgFormat, margin, y, 45, 30, undefined, 'FAST');
+            } catch (e) { console.error(e); }
+            y += 32;
+          }
+          
+          y += 8; // Margen de separación entre bloques de tarjetas
         });
 
         doc.save(`${safeName}-guia.pdf`);
         return;
       }
 
+      // =======================================================================
+      // FORMATO B: TARJETAS DE RECORTAR (6 POR PÁGINA)
+      // =======================================================================
       if (type === 'cards') {
         const marginX = 12;
         const marginY = 15;
@@ -147,6 +180,7 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
           const x = marginX + col * (cardW + gapX);
           const y = marginY + row * (cardH + gapY);
 
+          // Fondo general del mazo
           if (card.bgImage) {
             try {
               let imgFormat = 'JPEG';
@@ -171,40 +205,74 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
           doc.setLineWidth(0.2);
           doc.rect(x, y, cardW, cardH, card.bgImage ? 'S' : 'FD');
 
-          const maxTextWidth = cardW - 12;
           const align = ['left', 'center', 'right'].includes(card.textAlign) ? card.textAlign : 'center';
-          
           let textX = x + 6;
           if (align === 'center') textX = x + (cardW / 2);
           if (align === 'right') textX = x + cardW - 6;
-
-          const qLines = doc.splitTextToSize(card.question || '', maxTextWidth);
-          const aLines = doc.splitTextToSize(card.answer || '', maxTextWidth);
 
           const textColor = card.bgImage ? [255, 255, 255] : [15, 23, 42];
           const subColor = card.bgImage ? [148, 163, 184] : [100, 116, 139];
           const answerColor = card.bgImage ? [241, 245, 249] : [51, 65, 85];
 
+          // 🧠 ESTRATEGIA ADAPTATIVA: Si hay imagen de contenido, recalculamos anchos y X
+          let qMaxW = cardW - 12;
+          let qTextX = textX;
+          if (card.contentImage && card.imageSide === 'question') {
+            qMaxW = cardW - 36; // Encogemos el texto a la izquierda para dejar 24mm libres
+            if (align === 'center') qTextX = x + (cardW - 24) / 2;
+            if (align === 'right') qTextX = x + cardW - 32;
+
+            try {
+              let imgFormat = 'JPEG';
+              if (card.contentImage.includes('image/png')) imgFormat = 'PNG';
+              if (card.contentImage.includes('image/webp')) imgFormat = 'WEBP';
+              // Dibujamos la miniatura en la mitad derecha del segmento de la pregunta
+              doc.addImage(card.contentImage, imgFormat, x + cardW - 28, y + 13, 22, 18, undefined, 'FAST');
+            } catch (e) { console.error(e); }
+          }
+
+          let aMaxW = cardW - 12;
+          let aTextX = textX;
+          if (card.contentImage && card.imageSide === 'answer') {
+            aMaxW = cardW - 36; // Encogemos texto de respuesta
+            if (align === 'center') aTextX = x + (cardW - 24) / 2;
+            if (align === 'right') aTextX = x + cardW - 32;
+
+            try {
+              let imgFormat = 'JPEG';
+              if (card.contentImage.includes('image/png')) imgFormat = 'PNG';
+              if (card.contentImage.includes('image/webp')) imgFormat = 'WEBP';
+              // Dibujamos la miniatura en la mitad derecha del segmento de la respuesta
+              doc.addImage(card.contentImage, imgFormat, x + cardW - 28, y + 47, 22, 18, undefined, 'FAST');
+            } catch (e) { console.error(e); }
+          }
+
+          const qLines = doc.splitTextToSize(card.question || '', qMaxW);
+          const aLines = doc.splitTextToSize(card.answer || '', aMaxW);
+
+          // --- Render Sección Pregunta ---
           doc.setFont("Helvetica", "bold"); doc.setFontSize(7.5); doc.setTextColor(subColor[0], subColor[1], subColor[2]);
-          doc.text("PREGUNTA", textX, y + 11, { align });
+          doc.text("PREGUNTA", qTextX, y + 11, { align });
 
           doc.setFont("Helvetica", "bold"); doc.setFontSize(10.5); doc.setTextColor(textColor[0], textColor[1], textColor[2]);
-          let currentY = y + 17;
+          let currentY = y + 16;
           qLines.slice(0, 4).forEach((line) => {
-            doc.text(line, textX, currentY, { align });
+            doc.text(line, qTextX, currentY, { align });
             currentY += 4.5;
           });
 
+          // Línea divisora central
           doc.setDrawColor(card.bgImage ? 71 : 226, card.bgImage ? 85 : 232, card.bgImage ? 105 : 240);
           doc.line(x + 6, y + 38, x + cardW - 6, y + 38);
 
+          // --- Render Sección Respuesta ---
           doc.setFont("Helvetica", "bold"); doc.setFontSize(7.5); doc.setTextColor(subColor[0], subColor[1], subColor[2]);
-          doc.text("RESPUESTA", textX, y + 45, { align });
+          doc.text("RESPUESTA", aTextX, y + 45, { align });
 
           doc.setFont("Helvetica", "normal"); doc.setFontSize(10.5); doc.setTextColor(answerColor[0], answerColor[1], answerColor[2]);
-          currentY = y + 51;
+          currentY = y + 50;
           aLines.slice(0, 4).forEach((line) => {
-            doc.text(line, textX, currentY, { align });
+            doc.text(line, aTextX, currentY, { align });
             currentY += 4.5;
           });
         });
@@ -216,6 +284,7 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
       setError(`Error de renderizado de PDF: ${err.message}`);
     }
   };
+
 
   const handleSubmit = async (e) => {
     e.preventDefault();
