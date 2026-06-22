@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
-import { LogOut, Sparkles, Library, Settings, AlertCircle, Home } from 'lucide-react';
+import { LogOut, Sparkles, Library, Settings, Home } from 'lucide-react';
 
 import LoginScreen from './components/LoginScreen';
 import HomeSection from './components/HomeSection';
@@ -45,7 +45,6 @@ function DashboardScreen({ user, onLogout }) {
     loadDecks();
   }, [loadDecks]);
 
-  // ⚡ GESTOR DE PESTAÑAS: Si tocan explícitamente una pestaña, limpiamos el estado del mazo para reiniciar la vista principal
   const handleTabChange = (id) => {
     if (id === 'library') {
       setCurrentDeck(null);
@@ -76,11 +75,20 @@ function DashboardScreen({ user, onLogout }) {
     <div className="min-h-screen w-full bg-slate-50 flex" data-testid="dashboard-screen">
       {/* SIDEBAR (Escritorio) */}
       <aside className="hidden md:flex w-72 shrink-0 flex-col bg-white border-r border-slate-200 p-5">
-        <div className="flex items-center gap-2 px-1 mb-8">
-          <div className="w-9 h-9 rounded-xl bg-slate-900 flex items-center justify-center">
-            <Sparkles className="w-5 h-5 text-white" />
-          </div>
-          <span className="font-extrabold text-slate-900 text-lg">Flashcards</span>
+        {/* 🌟 DINÁMICO: Si hay mazo abierto, reemplaza el logo y símbolo por el nombre del mazo */}
+        <div className="flex items-center gap-2 px-1 mb-8 h-9 min-w-0">
+          {currentDeck && tab === 'library' ? (
+            <span className="font-black text-slate-900 text-base border-l-4 border-slate-900 pl-2.5 truncate" title={currentDeck.title}>
+              {currentDeck.title}
+            </span>
+          ) : (
+            <>
+              <div className="w-9 h-9 rounded-xl bg-slate-900 flex items-center justify-center shrink-0">
+                <Sparkles className="w-5 h-5 text-white" />
+              </div>
+              <span className="font-extrabold text-slate-900 text-lg">Flashcards</span>
+            </>
+          )}
         </div>
 
         <nav className="space-y-1.5">
@@ -105,11 +113,21 @@ function DashboardScreen({ user, onLogout }) {
 
       {/* CONTENEDOR PRINCIPAL */}
       <main className="flex-1 min-w-0 relative">
+        {/* HEADER SUPERIOR MÓVIL */}
         <div className="md:hidden sticky top-0 z-30 bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between shadow-sm">
-          <span className="font-extrabold text-slate-900 flex items-center gap-1.5">
-            <Sparkles className="w-4 h-4 text-slate-900 fill-slate-900" /> Flashcards
+          {/* 🌟 DINÁMICO MÓVIL: Cambia según si hay mazo activo en la sección de archivos */}
+          <span className="font-extrabold text-slate-900 flex items-center gap-1.5 min-w-0 max-w-[75%] text-sm sm:text-base">
+            {currentDeck && tab === 'library' ? (
+              <span className="font-black text-slate-900 truncate border-l-4 border-slate-900 pl-2">
+                {currentDeck.title}
+              </span>
+            ) : (
+              <>
+                <Sparkles className="w-4 h-4 text-slate-900 fill-slate-900" /> Flashcards
+              </>
+            )}
           </span>
-          <button onClick={onLogout} className="p-1 text-slate-400 hover:text-red-600 transition-colors">
+          <button onClick={onLogout} className="p-1 text-slate-400 hover:text-red-600 transition-colors shrink-0">
             <LogOut className="w-4 h-4" />
           </button>
         </div>
@@ -138,7 +156,7 @@ function DashboardScreen({ user, onLogout }) {
           {tab === 'settings' && <SettingsSection userId={user.id} />}
         </div>
 
-        {/* BARRA INFERIOR MÓVIL (Conectada a handleTabChange) */}
+        {/* BARRA INFERIOR MÓVIL */}
         <div className="md:hidden fixed bottom-0 inset-x-0 bg-white/90 backdrop-blur-md border-t border-slate-200/80 px-6 py-2 flex justify-around items-center z-40 shadow-[0_-4px_12px_rgba(0,0,0,0.03)]">
           <button onClick={() => handleTabChange('home')} className={`flex flex-col items-center justify-center gap-0.5 flex-1 py-1 transition-colors ${tab === 'home' ? 'text-slate-900 font-bold' : 'text-slate-400'}`}>
             <Home className="w-5 h-5" /> <span className="text-[10px]">Inicio</span>
