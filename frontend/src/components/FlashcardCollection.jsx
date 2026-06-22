@@ -1,13 +1,13 @@
 // ARCHIVO: frontend/src/components/FlashcardCollection.jsx
 import { useState, useMemo } from 'react';
-import { Search, ArrowUpDown, Image, Calendar } from 'lucide-react';
+import { Search, ArrowUpDown } from 'lucide-react';
 import FlashcardGrid from './FlashcardGrid';
 
 export default function FlashcardCollection({ cards, onEdit, onDelete }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('recent'); // 'recent' | 'oldest' | 'images-first'
 
-  // 🧠 MOTOR DE FILTRADO Y ORDENAMIENTO COMPUTADO (0ms de lag de renderizado)
+  // 🧠 MOTOR DE FILTRADO Y ORDENAMIENTO COMPUTADO
   const processedCards = useMemo(() => {
     // 1. Filtrado por Barra de Búsqueda (Insensible a mayúsculas/minúsculas)
     let result = cards.filter((card) => 
@@ -21,7 +21,6 @@ export default function FlashcardCollection({ cards, onEdit, onDelete }) {
     } else if (sortBy === 'oldest') {
       result.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
     } else if (sortBy === 'images-first') {
-      // Ordenamiento binario: Las que tienen contentImage van arriba
       result.sort((a, b) => (b.contentImage ? 1 : 0) - (a.contentImage ? 1 : 0));
     }
 
@@ -51,16 +50,17 @@ export default function FlashcardCollection({ cards, onEdit, onDelete }) {
             Ordenar por:
           </label>
           <div className="relative w-full sm:w-auto">
-            <ArrowUpDown className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5限制 text-slate-500 pointer-events-none" />
+            <ArrowUpDown className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500 pointer-events-none" />
             <select
               id="sort-select"
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
               className="w-full sm:w-48 pl-9 pr-8 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none appearance-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 cursor-pointer shadow-3xs transition-all"
             >
-              <option value="recent">📅 Más recientes</option>
-              <option value="oldest">⏳ Más antiguas</option>
-              <option value="images-first">🖼️ Con imagen primero</option>
+              {/* ✨ CORREGIDO: Emojis removidos para una interfaz plana y limpia */}
+              <option value="recent">Más recientes</option>
+              <option value="oldest">Más antiguas</option>
+              <option value="images-first">Con imagen primero</option>
             </select>
             <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 text-[10px]">
               ▼
