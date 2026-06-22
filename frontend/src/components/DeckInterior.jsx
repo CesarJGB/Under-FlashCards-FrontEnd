@@ -6,7 +6,7 @@ import ReviewMode from './ReviewMode';
 import DeckHeader from './DeckHeader';
 import FlashcardCreator from './FlashcardCreator';
 import FlashcardGrid from './FlashcardGrid';
-import FastDeleteMode from './FastDeleteMode'; // 🚀 Importación del nuevo módulo Tinder-Swipe
+import FastDeleteMode from './FastDeleteMode'; 
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
@@ -59,7 +59,7 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
     setQuestion(''); setAnswer(''); setBulkText('');
     setBgImage(defaultStyles.bgImage); setTextAlign(defaultStyles.textAlign);
     setFontSize(defaultStyles.fontSize); setEditingId(null);
-    setContentImage(''); setImageSide(''); // 🧼 Limpieza absoluta de imágenes al reiniciar formulario
+    setContentImage(''); setImageSide(''); 
   };
 
   const handleExport = async () => {
@@ -260,7 +260,6 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
 
     if (!question.trim() || !answer.trim()) { setSaving(false); return; }
 
-    // 📦 Payload extendido con las propiedades de la imagen comprimida
     const body = { question, answer, bgImage, textAlign, fontSize, contentImage, imageSide };
 
     try {
@@ -284,7 +283,6 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
         const newCard = await res.json();
         setCards((prev) => [newCard, ...prev]);
         
-        // ✨ Limpieza total automática tras guardar exitosamente
         setQuestion(''); 
         setAnswer('');
         setContentImage(''); 
@@ -300,14 +298,9 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
   const handleEdit = (card) => {
     setIsBulk(false); setEditingId(card.id); setQuestion(card.question); setAnswer(card.answer);
     setBgImage(card.bgImage || ''); setTextAlign(card.textAlign || 'center'); setFontSize(card.fontSize || 'text-base');
-    
-    // 🎨 Cargar propiedades de la imagen de contenido existentes en el formulario
     setContentImage(card.contentImage || '');
     setImageSide(card.imageSide || '');
-    
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    
-    // Forza la apertura de la rejilla al editar para que el usuario localice qué está modificando
     setShowGrid(true);
   };
 
@@ -340,7 +333,6 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
         <>
           {mode === 'review' && <ReviewMode cards={cards} loading={loading} />}
           
-          {/* 🚀 MODO DE BORRADO RÁPIDO: Intercepta el flujo visual antes del creador tradicional */}
           {mode === 'fast-delete' && (
             <FastDeleteMode 
               cards={cards} 
@@ -351,29 +343,25 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
 
           {mode === 'edit' && (
             <>
-              // ... dentro de DeckInterior.jsx, busca la etiqueta <FlashcardCreator />
-<FlashcardCreator
-  question={question} setQuestion={setQuestion} answer={answer} setAnswer={setAnswer}
-  bgImage={bgImage} setBgImage={setBgImage} textAlign={textAlign} setTextAlign={setTextAlign}
-  fontSize={fontSize} setFontSize={setFontSize} showStyles={showStyles} setShowStyles={setShowStyles}
-  isBulk={isBulk} setIsBulk={setIsBulk} bulkText={bulkText} setBulkText={setBulkText}
-  editingId={editingId} saving={saving} error={error} setError={setError}
-  onSubmit={handleSubmit} onCancel={resetForm}
-  contentImage={contentImage} setContentImage={setContentImage}
-  imageSide={imageSide} setImageSide={setImageSide}
-  // 🚀 NUEVOS PROPS: Pasamos la acción de borrado y el validador de tarjetas existentes
-  onFastDelete={() => setMode('fast-delete')}
-  hasCards={cards.length > 0}
-/>
-
-{/* ✨ EL BOTÓN VIEJO QUE ESTABA AQUÍ HA SIDO ELIMINADO TOTALMENTE */}
-
-{/* 🌟 ACORDEÓN DESPLEGABLE DE TARJETAS CREADAS */}
-<button
-  type="button"
-  onClick={() => setShowGrid(!showGrid)}
-  className="mt-6 w-full flex items-center justify-between bg-white border border-slate-200 hover:bg-slate-50 rounded-2xl px-5 py-3.5 transition-colors shadow-xs active:scale-[0.99]"
->
+              <FlashcardCreator
+                question={question} setQuestion={setQuestion} answer={answer} setAnswer={setAnswer}
+                bgImage={bgImage} setBgImage={setBgImage} textAlign={textAlign} setTextAlign={setTextAlign}
+                fontSize={fontSize} setFontSize={setFontSize} showStyles={showStyles} setShowStyles={setShowStyles}
+                isBulk={isBulk} setIsBulk={setIsBulk} bulkText={bulkText} setBulkText={setBulkText}
+                editingId={editingId} saving={saving} error={error} setError={setError}
+                onSubmit={handleSubmit} onCancel={resetForm}
+                contentImage={contentImage} setContentImage={setContentImage}
+                imageSide={imageSide} setImageSide={setImageSide}
+                onFastDelete={() => setMode('fast-delete')}
+                hasCards={cards.length > 0}
+              />
+              
+              {/* 🌟 ACORDEÓN DESPLEGABLE DE TARJETAS CREADAS */}
+              <button
+                type="button"
+                onClick={() => setShowGrid(!showGrid)}
+                className="mt-6 w-full flex items-center justify-between bg-white border border-slate-200 hover:bg-slate-50 rounded-2xl px-5 py-3.5 transition-colors shadow-xs active:scale-[0.99]"
+              >
                 <div className="flex items-center gap-2.5">
                   <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
                     Colección de tarjetas del mazo
