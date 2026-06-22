@@ -43,7 +43,6 @@ export default function LibrarySection({
     } else if (sortBy === 'alpha') {
       result.sort((a, b) => a.title.localeCompare(b.title));
     } else if (sortBy === 'cards-count') {
-      // Ordena por longitud del array de tarjetas o contador nativo
       const getCount = (d) => d.cards?.length || d.cardsCount || 0;
       result.sort((a, b) => getCount(b) - getCount(a));
     }
@@ -247,12 +246,12 @@ export default function LibrarySection({
           No se encontraron mazos que coincidan con la búsqueda.
         </div>
       ) : (
-        /* Contenedor adaptativo según viewMode */
+        /* ✨ CORREGIDO: "grid-cols-2" directo para forzar dos columnas fijas en móviles y reducción de gap */
         <div 
           data-testid="decks-grid" 
           className={
             viewMode === 'grid'
-              ? "mt-6 grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pb-12"
+              ? "mt-6 grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 pb-12"
               : "mt-6 flex flex-col gap-3 pb-12"
           }
         >
@@ -260,6 +259,7 @@ export default function LibrarySection({
             <DeckCard
               key={deck.id}
               deck={deck}
+              isList={viewMode === 'list'} // ✨ CORREGIDO: Pasamos la bandera de modo lista a cada tarjeta
               onOpen={(d) => { setInitialMode('edit'); setCurrentDeck(d); }}
               onEdit={(d) => setModal({ editing: d })}
               onDelete={handleDeleteDeck}
