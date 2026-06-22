@@ -5,8 +5,8 @@ import { ArrowLeft, ChevronDown, FileText, Download, FileJson } from 'lucide-rea
 export default function DeckHeader({ deck, mode, setMode, onBack, onExport, onExportPDF }) {
   const [isOpen, setIsOpen] = useState(false);
 
+  // Contenedor principal relativo: Amarra a todos los elementos en el mismo nivel del eje Y
   return (
-    {/* Contenedor principal relativo: Amarra a todos los elementos en el mismo nivel del eje Y */}
     <div className="relative w-full flex items-center justify-center pb-4 border-b border-slate-200 min-h-[46px]">
       
       {/* 1. LADO IZQUIERDO: Botón de regreso compacto (Espejo simétrico de Opciones) */}
