@@ -1,7 +1,31 @@
 import { useState, useEffect, useRef } from 'react';
-import { ChevronLeft, ChevronRight, RotateCw, BookOpen } from 'lucide-react';
+import { ChevronLeft, ChevronRight, RotateCw, BookOpen, Loader2 } from 'lucide-react';
 
 const ALIGN_CLASS = { left: 'text-left', center: 'text-center', right: 'text-right' };
+
+// 🧠 DESEMPAQUETADOR RETROCOMPATIBLE: Parsea la configuración o aplica fallbacks
+const parseCardStyles = (fontSizeField) => {
+  if (fontSizeField && fontSizeField.startsWith('{')) {
+    try {
+      const p = JSON.parse(fontSizeField);
+      return {
+        qSize: p.qSize || 'text-base',
+        qBold: p.qBold ?? true,
+        qItalic: p.qItalic ?? false,
+        qColor: p.qColor || '',
+        aSize: p.aSize || 'text-base',
+        aBold: p.aBold ?? false,
+        aItalic: p.aItalic ?? false,
+        aColor: p.aColor || ''
+      };
+    } catch (e) {}
+  }
+  // Fallback si la tarjeta fue creada antes de la actualización de estilos divididos
+  return {
+    qSize: fontSizeField || 'text-base', qBold: true, qItalic: false, qColor: '',
+    aSize: fontSizeField || 'text-base', aBold: false, aItalic: false, aColor: ''
+  };
+};
 
 export default function ReviewMode({ cards, loading }) {
   const [index, setIndex] = useState(0);
@@ -40,7 +64,16 @@ export default function ReviewMode({ cards, loading }) {
   const card = cards[index];
   const hasBg = !!card.bgImage;
   const alignClass = ALIGN_CLASS[card.textAlign] || 'text-center';
-  const sizeClass = card.fontSize || 'text-base';
+  
+  // 🎴 Extraer la configuración tipográfica de la tarjeta actual
+  const st = parseCardStyles(card.fontSize);
+
+  // Seleccionar variables activas según la cara visible (Pregunta vs Respuesta)
+  const currentSize = showAnswer ? st.aSize : st.qSize;
+  const currentBold = showAnswer ? st.aBold : st.qBold;
+  const currentItalic = showAnswer ? st.aItalic : st.qItalic;
+  const currentColor = showAnswer ? st.aColor : st.qColor;
+
   const cardStyle = hasBg
     ? { backgroundImage: `url(${card.bgImage})`, backgroundSize: 'cover', backgroundPosition: 'center' }
     : {};
@@ -96,12 +129,16 @@ export default function ReviewMode({ cards, loading }) {
           {hasBg && <span className="absolute inset-0 bg-black/55" />}
           <span className="absolute top-4 left-1/2 -translate-x-1/2 w-10 h-2.5 rounded-full bg-slate-400/40 z-10" />
 
-          <div className="relative z-10 flex-1 flex flex-col justify-center p-6 pt-8">
+          <div className="relative z-10 flex-1 flex flex-col justify-center p-6 p-8">
             <p className={`text-[10px] font-semibold uppercase tracking-widest ${alignClass} ${hasBg ? 'text-white/70' : 'text-slate-400'}`}>
               {showAnswer ? 'Respuesta' : 'Pregunta'}
             </p>
             <div key={`${index}-${showAnswer}`} className="mt-2 animate-[fadeIn_0.25s_ease]">
-              <p className={`font-semibold whitespace-pre-wrap ${sizeClass} ${alignClass} ${hasBg ? 'text-white' : 'text-slate-900'}`}>
+              {/* 🎴 Inyección dinámica de colores custom, tamaños y fuentes independientes */}
+              <p 
+                style={currentColor ? { color: currentColor } : {}}
+                className={`whitespace-pre-wrap ${alignClass} ${currentSize} ${currentBold ? 'font-bold' : 'font-normal'} ${currentItalic ? 'italic' : ''} ${hasBg && !currentColor ? 'text-white' : (!currentColor ? 'text-slate-900' : '')}`}
+              >
                 {showAnswer ? card.answer : card.question}
               </p>
             </div>
