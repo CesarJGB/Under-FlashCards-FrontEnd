@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from 'react';
 import { ChevronLeft, ChevronRight, RotateCw, BookOpen, Loader2 } from 'lucide-react';
 
@@ -74,6 +75,11 @@ export default function ReviewMode({ cards, loading }) {
   const currentItalic = showAnswer ? st.aItalic : st.qItalic;
   const currentColor = showAnswer ? st.aColor : st.qColor;
 
+  // 🛠️ CONTROL DE TIPOS: Evita inyectar números puros en las clases de Tailwind
+  const isNumSize = typeof currentSize === 'number';
+  const sizeStyle = isNumSize ? { fontSize: `${currentSize}px` } : {};
+  const sizeClass = isNumSize ? '' : currentSize;
+
   const cardStyle = hasBg
     ? { backgroundImage: `url(${card.bgImage})`, backgroundSize: 'cover', backgroundPosition: 'center' }
     : {};
@@ -129,15 +135,18 @@ export default function ReviewMode({ cards, loading }) {
           {hasBg && <span className="absolute inset-0 bg-black/55" />}
           <span className="absolute top-4 left-1/2 -translate-x-1/2 w-10 h-2.5 rounded-full bg-slate-400/40 z-10" />
 
-          <div className="relative z-10 flex-1 flex flex-col justify-center p-6 p-8">
+          <div className="relative z-10 flex-1 flex flex-col justify-center p-6 sm:p-8">
             <p className={`text-[10px] font-semibold uppercase tracking-widest ${alignClass} ${hasBg ? 'text-white/70' : 'text-slate-400'}`}>
               {showAnswer ? 'Respuesta' : 'Pregunta'}
             </p>
             <div key={`${index}-${showAnswer}`} className="mt-2 animate-[fadeIn_0.25s_ease]">
-              {/* 🎴 Inyección dinámica de colores custom, tamaños y fuentes independientes */}
+              {/* 🎴 Fusión híbrida perfecta de estilos en línea y clases reactivas */}
               <p 
-                style={currentColor ? { color: currentColor } : {}}
-                className={`whitespace-pre-wrap ${alignClass} ${currentSize} ${currentBold ? 'font-bold' : 'font-normal'} ${currentItalic ? 'italic' : ''} ${hasBg && !currentColor ? 'text-white' : (!currentColor ? 'text-slate-900' : '')}`}
+                style={{
+                  ...sizeStyle,
+                  ...(currentColor ? { color: currentColor } : {})
+                }}
+                className={`whitespace-pre-wrap ${alignClass} ${sizeClass} ${currentBold ? 'font-bold' : 'font-normal'} ${currentItalic ? 'italic' : ''} ${hasBg && !currentColor ? 'text-white' : (!currentColor ? 'text-slate-900' : '')}`}
               >
                 {showAnswer ? card.answer : card.question}
               </p>
