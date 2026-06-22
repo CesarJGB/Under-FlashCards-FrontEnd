@@ -1,16 +1,28 @@
-import { SlidersHorizontal, ImagePlus, Check, Plus, Loader2, AlignLeft, AlignCenter, AlignRight } from 'lucide-react';
+import { SlidersHorizontal, ImagePlus, Check, Plus, Loader2, AlignLeft, AlignCenter, AlignRight, Bold, Italic, Palette } from 'lucide-react';
 
-const FONT_SIZES = [
-  { label: 'Pequeña', value: 'text-sm' },
-  { label: 'Normal', value: 'text-base' },
-  { label: 'Grande', value: 'text-lg' },
-  { label: 'Extra Grande', value: 'text-xl' },
+const SIZES = [
+  { label: 'Sm', value: 'text-sm' },
+  { label: 'Base', value: 'text-base' },
+  { label: 'Lg', value: 'text-lg' },
+  { label: 'Xl', value: 'text-xl' },
+  { label: '2Xl', value: 'text-2xl' },
 ];
 
 const ALIGNS = [
   { label: 'Izquierda', value: 'left', Icon: AlignLeft },
   { label: 'Centro', value: 'center', Icon: AlignCenter },
   { label: 'Derecha', value: 'right', Icon: AlignRight },
+];
+
+// Paleta de colores sugeridos estilo Tailwind
+const SWATCHES = [
+  { label: 'Predeterminado', value: '' },
+  { label: 'Blanco', value: '#ffffff' },
+  { label: 'Slate', value: '#94a3b8' },
+  { label: 'Oro', value: '#f59e0b' },
+  { label: 'Esmeralda', value: '#10b981' },
+  { label: 'Coral', value: '#f43f5e' },
+  { label: 'Azul', value: '#3b82f6' },
 ];
 
 export default function FlashcardCreator({
@@ -20,7 +32,27 @@ export default function FlashcardCreator({
   isBulk, setIsBulk, bulkText, setBulkText,
   editingId, saving, error, setError, onSubmit, onCancel
 }) {
-  
+
+  // 🧠 DESEMPAQUETADOR MÁGICO: Lee el JSON de fontSize o aplica el fallback predeterminado
+  const parseCurrentStyles = () => {
+    if (fontSize && fontSize.startsWith('{')) {
+      try { return JSON.parse(fontSize); } catch (e) {}
+    }
+    // Estado inicial de fábrica si es una tarjeta limpia o antigua
+    return {
+      qSize: fontSize || 'text-base', qBold: true, qItalic: false, qColor: '',
+      aSize: fontSize || 'text-base', aBold: false, aItalic: false, aColor: ''
+    };
+  };
+
+  const styles = parseCurrentStyles();
+
+  // Guarda los cambios empaquetándolos de nuevo en la cadena de texto de fontSize
+  const updateStyle = (key, value) => {
+    const updated = { ...styles, [key]: value };
+    setFontSize(JSON.stringify(updated));
+  };
+
   const handleBgFile = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -32,6 +64,78 @@ export default function FlashcardCreator({
     const reader = new FileReader();
     reader.onload = () => setBgImage(reader.result);
     reader.readAsDataURL(file);
+  };
+
+  // Sub-componente interno para no duplicar código de renderizado de controles
+  const renderStyleGroup = (title, prefix) => {
+    const sizeKey = `${prefix}Size`;
+    const boldKey = `${prefix}Bold`;
+    const italicKey = `${prefix}Italic`;
+    const colorKey = `${prefix}Color`;
+
+    return (
+      <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">{title}</p>
+        
+        {/* Tamaño y Tipografía */}
+        <div className="flex flex-wrap items-center gap-2 mb-3">
+          <div className="flex rounded-lg border border-slate-200 bg-white p-0.5">
+            {SIZES.map((s) => (
+              <button
+                key={s.value} type="button"
+                onClick={() => updateStyle(sizeKey, s.value)}
+                className={`px-2 py-1 text-[10px] font-bold rounded-md transition-colors ${
+                  styles[sizeKey] === s.value ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex gap-1">
+            <button
+              type="button" onClick={() => updateStyle(boldKey, !styles[boldKey])}
+              className={`p-1.5 rounded-lg border transition-colors ${styles[boldKey] ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'}`}
+            >
+              <Bold className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button" onClick={() => updateStyle(italicKey, !styles[italicKey])}
+              className={`p-1.5 rounded-lg border transition-colors ${styles[italicKey] ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'}`}
+            >
+              <Italic className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Muestras de Color */}
+        <div>
+          <p className="text-[9px] font-semibold text-slate-400 uppercase mb-1 flex items-center gap-1"><Palette className="w-3 h-3" /> Color del texto</p>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {SWATCHES.map((c) => (
+              <button
+                key={c.value} type="button" title={c.label}
+                onClick={() => updateStyle(colorKey, c.value)}
+                style={c.value ? { backgroundColor: c.value } : {}}
+                className={`w-5 h-5 rounded-full border transition-all ${
+                  styles[colorKey] === c.value ? 'scale-110 ring-2 ring-slate-900 ring-offset-1' : 'border-slate-300 hover:scale-105'
+                } ${!c.value ? 'bg-linear-to-br from-slate-200 to-slate-400 relative after:absolute after:inset-0 after:flex after:items-center after:justify-center after:text-[8px] after:text-slate-700 after:content-["×"]' : ''}`}
+              />
+            ))}
+            {/* Color personalizado nativo */}
+            <label className="w-5 h-5 rounded-full border border-slate-300 cursor-pointer overflow-hidden relative bg-linear-to-tr from-amber-400 via-rose-400 to-indigo-400 shrink-0">
+              <input 
+                type="color" 
+                value={styles[colorKey] && styles[colorKey].startsWith('#') ? styles[colorKey] : '#ffffff'} 
+                onChange={(e) => updateStyle(colorKey, e.target.value)}
+                className="absolute inset-0 opacity-0 cursor-pointer scale-150" 
+              />
+            </label>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -60,9 +164,6 @@ export default function FlashcardCreator({
             placeholder={"P: ¿Qué día fue teóricamente ayer?\nR: 20 de junio\n\nP: ¿Cuál es el número atómico del Hidrógeno?\nR: 1"}
             className="min-h-[160px] w-full font-mono text-xs rounded-xl border border-slate-200 px-3 py-2.5 outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 placeholder:text-slate-300"
           />
-          <p className="mt-1.5 text-[10px] text-slate-400 leading-relaxed">
-            * Cada par de bloques <code className="bg-slate-100 px-1 rounded font-mono">P:</code> y <code className="bg-slate-100 px-1 rounded font-mono">R:</code> generará una tarjeta de forma automática.
-          </p>
         </div>
       ) : (
         <div className="grid sm:grid-cols-2 gap-3 animate-[fadeIn_0.2s_ease]">
@@ -93,61 +194,46 @@ export default function FlashcardCreator({
         className="mt-3 inline-flex items-center gap-2 text-xs font-medium text-slate-500 hover:text-slate-900 transition-colors"
       >
         <SlidersHorizontal className="w-3.5 h-3.5" />
-        Opciones de estilo {isBulk && '(Se aplicarán a todo el lote)'}
+        Configuración de Estilo Avanzada
       </button>
 
       {showStyles && (
-        <div className="mt-3 grid sm:grid-cols-3 gap-4 border-t border-slate-100 pt-3">
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1.5">Tamaño de letra</p>
-            <div className="flex flex-wrap gap-1">
-              {FONT_SIZES.map((f) => (
-                <button
-                  key={f.value}
-                  type="button"
-                  onClick={() => setFontSize(f.value)}
-                  className={`rounded-lg px-2 py-1 text-xs font-medium border transition-colors ${
-                    fontSize === f.value ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                  }`}
-                >
-                  {f.label}
-                </button>
-              ))}
+        <div className="mt-3 border-t border-slate-100 pt-3 space-y-4 animate-[fadeIn_0.15s_ease]">
+          {/* Fila Global: Alineación y Imagen de Fondo */}
+          <div className="grid grid-cols-2 gap-4 bg-slate-100/50 p-3 rounded-xl border border-slate-200/40">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">Alineación del Mazo</p>
+              <div className="flex gap-1">
+                {ALIGNS.map(({ value, label, Icon }) => (
+                  <button
+                    key={value} type="button" title={label}
+                    onClick={() => setTextAlign(value)}
+                    className={`rounded-lg p-1.5 border transition-colors ${textAlign === value ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">Fondo de Tarjeta</p>
+              <div className="flex items-center gap-2">
+                <label className="inline-flex items-center gap-1.5 cursor-pointer rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 hover:bg-slate-50 shadow-xs">
+                  <ImagePlus className="w-3.5 h-3.5 text-slate-500" /> <span>Imagen</span>
+                  <input type="file" accept="image/*" onChange={handleBgFile} className="hidden" />
+                </label>
+                {bgImage && (
+                  <button type="button" onClick={() => setBgImage('')} className="text-xs text-red-600 hover:underline">Quitar</button>
+                )}
+              </div>
             </div>
           </div>
 
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1.5">Alineación</p>
-            <div className="flex gap-1">
-              {ALIGNS.map(({ value, label, Icon }) => (
-                <button
-                  key={value}
-                  type="button"
-                  title={label}
-                  onClick={() => setTextAlign(value)}
-                  className={`rounded-lg p-1.5 border transition-colors ${
-                    textAlign === value ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                  }`}
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1.5">Fondo</p>
-            <div className="flex items-center gap-2">
-              <label className="inline-flex items-center gap-1.5 cursor-pointer rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-slate-700 hover:bg-slate-50">
-                <ImagePlus className="w-3.5 h-3.5" /> Imagen
-                <input type="file" accept="image/*" onChange={handleBgFile} className="hidden" />
-              </label>
-              {bgImage && (
-                <button type="button" onClick={() => setBgImage('')} className="text-xs text-red-600 hover:underline">
-                  Quitar
-                </button>
-              )}
-            </div>
+          {/* Fila Dividida: Controles de Pregunta vs Respuesta */}
+          <div className="grid sm:grid-cols-2 gap-3">
+            {renderStyleGroup('Estilo de la Pregunta', 'q')}
+            {renderStyleGroup('Estilo de la Respuesta', 'a')}
           </div>
         </div>
       )}
