@@ -1,24 +1,15 @@
 // ARCHIVO: frontend/src/components/DeckHeader.jsx
 import { useState } from 'react';
-import { ArrowLeft, ChevronDown, FileJson, FileText, Download, Upload } from 'lucide-react';
+import { ArrowLeft, ChevronDown, FileText, Download, FileJson } from 'lucide-react';
 
-export default function DeckHeader({ deck, mode, setMode, onBack, onExport, onExportPDF, onImport }) {
+export default function DeckHeader({ deck, mode, setMode, onBack, onExport, onExportPDF }) {
   const [isOpen, setIsOpen] = useState(false);
 
-  // Procesa el archivo JSON seleccionado y lo envía al mazo administrador
-  const handleFileChange = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (onImport) onImport(file);
-    setIsOpen(false);
-    e.target.value = ''; // Resetea el input
-  };
-
   return (
-    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-200">
+    <div className="grid grid-cols-1 md:grid-cols-3 items-center gap-4 pb-4 border-b border-slate-200">
       
-      {/* Lado Izquierdo: Retorno y metadatos */}
-      <div className="flex items-center gap-3">
+      {/* 1. LADO IZQUIERDO: Control de retorno y título del mazo */}
+      <div className="flex items-center gap-3 justify-start">
         <button 
           onClick={onBack} 
           className="p-2 hover:bg-slate-100 rounded-xl transition-colors group"
@@ -32,14 +23,12 @@ export default function DeckHeader({ deck, mode, setMode, onBack, onExport, onEx
         </div>
       </div>
 
-      {/* Lado Derecho: Controles de flujo y barra de acciones */}
-      <div className="flex items-center gap-2.5 self-end md:self-auto">
-        
-        {/* Selector de Modos (Editor / Repaso) */}
+      {/* 2. EJE CENTRAL: Selector de Modos original centrado simétricamente */}
+      <div className="flex justify-center">
         <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200/40">
           <button 
             onClick={() => setMode('edit')} 
-            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
+            className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${
               mode === 'edit' || mode === 'fast-delete' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-500 hover:text-slate-900'
             }`}
           >
@@ -47,25 +36,17 @@ export default function DeckHeader({ deck, mode, setMode, onBack, onExport, onEx
           </button>
           <button 
             onClick={() => setMode('review')} 
-            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
+            className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${
               mode === 'review' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-500 hover:text-slate-900'
             }`}
           >
             Repasar
           </button>
         </div>
+      </div>
 
-        {/* 📄 Botón del Documento (Exportación JSON) ocupando el lugar anterior de importar */}
-        <button
-          type="button"
-          onClick={onExport}
-          title="Exportar copia de seguridad (JSON)"
-          className="p-2 bg-white border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-xl shadow-3xs transition-all active:scale-95 flex items-center justify-center cursor-pointer"
-        >
-          <FileJson className="w-4 h-4" />
-        </button>
-
-        {/* ⬇️ Dropdown Unificado Avanzado (Sin Emojis) */}
+      {/* 3. LADO DERECHO: Menú desplegable de opciones avanzado limpio */}
+      <div className="flex items-center justify-end">
         <div className="relative">
           <button
             type="button"
@@ -84,7 +65,7 @@ export default function DeckHeader({ deck, mode, setMode, onBack, onExport, onEx
               
               <div className="absolute right-0 mt-2 w-72 bg-white border border-slate-200 rounded-2xl shadow-xl z-40 p-1.5 animate-[slideUp_0.12s_ease-out] flex flex-col gap-0.5">
                 
-                {/* Opción 1: Guía de estudio */}
+                {/* Opción A: Guía de estudio */}
                 <button
                   type="button"
                   onClick={() => { onExportPDF('guide'); setIsOpen(false); }}
@@ -97,7 +78,7 @@ export default function DeckHeader({ deck, mode, setMode, onBack, onExport, onEx
                   </div>
                 </button>
 
-                {/* Opción 2: Tarjetas recortables */}
+                {/* Opción B: Tarjetas imprimibles */}
                 <button
                   type="button"
                   onClick={() => { onExportPDF('cards'); setIsOpen(false); }}
@@ -112,29 +93,25 @@ export default function DeckHeader({ deck, mode, setMode, onBack, onExport, onEx
 
                 <div className="my-1 border-t border-slate-100" />
 
-                {/* Opción 3: Importar archivo de tarjetas (Nueva Ubicación) */}
-                <label
+                {/* Opción C: Exportar mazo en formato JSON de respaldo */}
+                <button
+                  type="button"
+                  onClick={() => { onExport(); setIsOpen(false); }}
                   className="w-full text-left p-2.5 hover:bg-slate-50 rounded-xl transition-colors flex items-start gap-2.5 group cursor-pointer"
                 >
-                  <Upload className="w-4 h-4 text-slate-400 group-hover:text-slate-900 mt-0.5 shrink-0 transition-colors" />
-                  <div className="flex-1">
-                    <p className="text-xs font-bold text-slate-800 group-hover:text-slate-950">Importar tarjetas</p>
-                    <p className="text-[10px] text-slate-400 font-medium mt-0.5 leading-relaxed">Carga un archivo JSON estructurado para añadir flashcards de golpe a este mazo.</p>
+                  <FileJson className="w-4 h-4 text-slate-400 group-hover:text-slate-900 mt-0.5 shrink-0 transition-colors" />
+                  <div>
+                    <p className="text-xs font-bold text-slate-800 group-hover:text-slate-950">Exportar mazo</p>
+                    <p className="text-[10px] text-slate-400 font-medium mt-0.5 leading-relaxed">Descarga una copia de seguridad en formato JSON con todas las tarjetas de este mazo.</p>
                   </div>
-                  <input 
-                    type="file" 
-                    accept=".json" 
-                    onChange={handleFileChange} 
-                    className="hidden" 
-                  />
-                </label>
+                </button>
 
               </div>
             </>
           )}
         </div>
-
       </div>
+
     </div>
   );
 }
