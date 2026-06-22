@@ -1,11 +1,10 @@
 // ARCHIVO: frontend/src/components/DeckInterior.jsx
 import { useState, useEffect, useCallback } from 'react';
-import { Loader2, ChevronDown, ChevronUp, Trash2 } from 'lucide-react'; 
-import { jsPDF } from 'jspdf';
+import { Loader2, ChevronDown, ChevronUp } from 'lucide-react'; 
 import ReviewMode from './ReviewMode';
 import DeckHeader from './DeckHeader';
 import FlashcardCreator from './FlashcardCreator';
-import FlashcardCollection from './FlashcardCollection'; // 🚀 Intercambiado por FlashcardGrid para dar soporte a búsquedas y filtros
+import FlashcardCollection from './FlashcardCollection'; 
 import FastDeleteMode from './FastDeleteMode'; 
 import { exportDeckToPDF } from '../utils/pdfExporter'; 
 
@@ -85,6 +84,51 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
     }
     setError('');
     exportDeckToPDF(deck.title, cards, type);
+  };
+
+  // 🚀 PROCESADOR DE IMPORTACIÓN: Parsea el archivo JSON y lo sube al mazo mediante la API masiva
+  const handleImportJSON = async (file) => {
+    setError('');
+    try {
+      const text = await file.text();
+      const parsedData = JSON.parse(text);
+      
+      // Soporta tanto si el archivo es una copia de seguridad nativa ({ cards: [...] }) o un arreglo puro
+      const importedCards = Array.isArray(parsedData) ? parsedData : (parsedData.cards || []);
+
+      if (importedCards.length === 0) {
+        throw new Error('El archivo JSON seleccionado no contiene un lote de tarjetas estructurado.');
+      }
+
+      setSaving(true);
+      const res = await fetch(`${BACKEND_URL}/api/flashcards/bulk`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          deckId: deck.id,
+          batchStyles: { bgImage, textAlign, fontSize },
+          cards: importedCards.map((c) => ({
+            question: c.question || 'Pregunta vacía',
+            answer: c.answer || 'Respuesta vacía',
+            bgImage: c.bgImage || '',
+            textAlign: c.textAlign || 'center',
+            fontSize: c.fontSize || 'text-base',
+            contentImage: c.contentImage || '',
+            imageSide: c.imageSide || ''
+          }))
+        }),
+      });
+
+      if (!res.ok) throw new Error('Ocurrió un problema en el servidor al intentar guardar el mazo importado.');
+      
+      const batchData = await res.json();
+      setCards((prev) => [...batchData, ...prev]); // Carga las tarjetas dinámicamente en el feed
+    } catch (err) {
+      setError(err.message || 'Error al procesar la lectura del archivo estructurado.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -192,6 +236,7 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
         onBack={onBack} 
         onExport={handleExport} 
         onExportPDF={handleExportPDF} 
+        onImport={handleImportJSON} // 🚀 Enrutado directo a las herramientas del Header
       />
 
       {loading ? (
@@ -226,7 +271,6 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
                 hasCards={cards.length > 0}
               />
               
-              {/* 🌟 ACORDEÓN DESPLEGABLE DE TARJETAS CREADAS */}
               <button
                 type="button"
                 onClick={() => setShowGrid(!showGrid)}
@@ -247,10 +291,8 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
                 )}
               </button>
 
-              {/* Contenedor de la barra de búsqueda y rejilla combinada */}
               {showGrid && (
                 <div className="animate-[fadeIn_0.18s_ease] pb-6">
-                  {/* 🚀 Inyección del contenedor inteligente para gestionar filtrado y queries */}
                   <FlashcardCollection cards={cards} onEdit={handleEdit} onDelete={handleDelete} />
                 </div>
               )}
