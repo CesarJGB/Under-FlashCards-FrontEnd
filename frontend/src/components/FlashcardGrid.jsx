@@ -2,26 +2,26 @@ import { Pencil, Trash2, Layers } from 'lucide-react';
 
 const ALIGN_CLASS = { left: 'text-left', center: 'text-center', right: 'text-right' };
 
+// 🧠 DESEMPAQUETADOR VISUAL: Parsea el objeto de estilos o aplica fallbacks inteligentes
+const parseCardStyles = (fontSizeField, hasBg) => {
+  if (fontSizeField && fontSizeField.startsWith('{')) {
+    try {
+      const p = JSON.parse(fontSizeField);
+      return {
+        qSize: p.qSize || 'text-base', qBold: p.qBold ?? true, qItalic: p.qItalic ?? false, qColor: p.qColor || '',
+        aSize: p.aSize || 'text-base', aBold: p.aBold ?? false, aItalic: p.aItalic ?? false, aColor: p.aColor || ''
+      };
+    } catch (e) {}
+  }
+  // Fallback retrocompatible para cartas viejas
+  return {
+    qSize: fontSizeField || 'text-base', qBold: true, qItalic: false, qColor: '',
+    aSize: fontSizeField || 'text-base', aBold: false, aItalic: false, aColor: ''
+  };
+};
+
 export default function FlashcardGrid({ cards, onEdit, onDelete }) {
   
-  // 🧠 DESEMPAQUETADOR VISUAL: Parsea el objeto de estilos o aplica fallbacks inteligentes
-  const parseCardStyles = (fontSizeField, hasBg) => {
-    if (fontSizeField && fontSizeField.startsWith('{')) {
-      try {
-        const p = JSON.parse(fontSizeField);
-        return {
-          qSize: p.qSize || 'text-base', qBold: p.qBold ?? true, qItalic: p.qItalic ?? false, qColor: p.qColor || '',
-          aSize: p.aSize || 'text-base', aBold: p.aBold ?? false, aItalic: p.aItalic ?? false, aColor: p.aColor || ''
-        };
-      } catch (e) {}
-    }
-    // Fallback retrocompatible para cartas viejas
-    return {
-      qSize: fontSizeField || 'text-base', qBold: true, qItalic: false, qColor: '',
-      aSize: fontSizeField || 'text-base', aBold: false, aItalic: false, aColor: ''
-    };
-  };
-
   if (cards.length === 0) {
     return (
       <div className="mt-4 text-center border border-dashed border-slate-300 rounded-2xl py-10 text-slate-400">
@@ -40,11 +40,21 @@ export default function FlashcardGrid({ cards, onEdit, onDelete }) {
         // Obtenemos la configuración tipográfica independiente
         const st = parseCardStyles(card.fontSize, hasBg);
 
+        // 🛠️ CONTROL DE TIPOS PARA LA PREGUNTA
+        const isQNum = typeof st.qSize === 'number';
+        const qSizeStyle = isQNum ? { fontSize: `${st.qSize}px` } : {};
+        const qSizeClass = isQNum ? '' : st.qSize;
+
+        // 🛠️ CONTROL DE TIPOS PARA LA RESPUESTA
+        const isANum = typeof st.aSize === 'number';
+        const aSizeStyle = isANum ? { fontSize: `${st.aSize}px` } : {};
+        const aSizeClass = isANum ? '' : st.aSize;
+
         const cardStyle = hasBg ? { backgroundImage: `url(${card.bgImage})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {};
         
-        // Estilos en línea para colores personalizados (si el usuario eligió uno)
-        const qColorStyle = st.qColor ? { color: st.qColor } : {};
-        const aColorStyle = st.aColor ? { color: st.aColor } : {};
+        // Combinación inteligente de colores personalizados y tamaños dinámicos
+        const finalQStyle = { ...(st.qColor ? { color: st.qColor } : {}), ...qSizeStyle };
+        const finalAStyle = { ...(st.aColor ? { color: st.aColor } : {}), ...aSizeStyle };
 
         return (
           <div key={card.id} style={cardStyle} className="relative rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow overflow-hidden bg-white">
@@ -61,22 +71,22 @@ export default function FlashcardGrid({ cards, onEdit, onDelete }) {
                 </button>
               </div>
 
-              {/* 🎴 SECCIÓN DE PREGUNTA MODULAR */}
+              {/* 🎴 SECCIÓN DE PREGUNTA MODULAR CORREGIDA */}
               <p className={`text-[9px] font-bold uppercase tracking-wide ${hasBg ? 'text-white/60' : 'text-slate-400'}`}>Pregunta</p>
               <p 
-                style={qColorStyle}
-                className={`mt-0.5 whitespace-pre-wrap ${alignClass} ${st.qSize} ${st.qBold ? 'font-bold' : 'font-normal'} ${st.qItalic ? 'italic' : ''} ${hasBg && !st.qColor ? 'text-white' : 'text-slate-900'}`}
+                style={finalQStyle}
+                className={`mt-0.5 whitespace-pre-wrap ${alignClass} ${qSizeClass} ${st.qBold ? 'font-bold' : 'font-normal'} ${st.qItalic ? 'italic' : ''} ${hasBg && !st.qColor ? 'text-white' : 'text-slate-900'}`}
               >
                 {card.question}
               </p>
 
               <div className={`my-3 border-t border-dashed ${hasBg ? 'border-white/30' : 'border-slate-200'}`} />
 
-              {/* 🎴 SECCIÓN DE RESPUESTA MODULAR */}
+              {/* 🎴 SECCIÓN DE RESPUESTA MODULAR CORREGIDA */}
               <p className={`text-[9px] font-bold uppercase tracking-wide ${hasBg ? 'text-white/60' : 'text-slate-400'}`}>Respuesta</p>
               <p 
-                style={aColorStyle}
-                className={`mt-0.5 whitespace-pre-wrap ${alignClass} ${st.aSize} ${st.aBold ? 'font-bold' : 'font-normal'} ${st.aItalic ? 'italic' : ''} ${hasBg && !st.aColor ? 'text-white/90' : 'text-slate-700'}`}
+                style={finalAStyle}
+                className={`mt-0.5 whitespace-pre-wrap ${alignClass} ${aSizeClass} ${st.aBold ? 'font-bold' : 'font-normal'} ${st.aItalic ? 'italic' : ''} ${hasBg && !st.aColor ? 'text-white/90' : 'text-slate-700'}`}
               >
                 {card.answer}
               </p>
