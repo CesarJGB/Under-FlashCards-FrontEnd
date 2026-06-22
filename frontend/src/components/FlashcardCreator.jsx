@@ -1,3 +1,4 @@
+// ARCHIVO: frontend/src/components/FlashcardCreator.jsx
 import { useState } from 'react';
 import { 
   SlidersHorizontal, 
@@ -14,7 +15,9 @@ import {
   Palette,
   Eye,
   EyeOff,
-  Pipette // Ícono para el selector de color personalizado
+  Pipette,
+  Image, // Para indicar adjuntos de contenido
+  X      // Para remover imágenes
 } from 'lucide-react';
 
 const ALIGNS = [
@@ -35,12 +38,44 @@ const SWATCHES = [
   { label: 'Azul', value: '#3b82f6' },
 ];
 
+// Motor helper de compresión de imágenes en el cliente (Ancho max: 600px, Calidad: 70%)
+const compressImage = (file) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new window.Image();
+      img.src = event.target.result;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 600; 
+        let width = img.width;
+        let height = img.height;
+
+        if (width > MAX_WIDTH) {
+          height *= MAX_WIDTH / width;
+          width = MAX_WIDTH;
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', 0.7));
+      };
+      img.onerror = () => reject(new Error('Error al procesar el archivo de imagen.'));
+    };
+    reader.onerror = () => reject(new Error('Error al leer el archivo.'));
+  });
+};
+
 export default function FlashcardCreator({
   question, setQuestion, answer, setAnswer,
   bgImage, setBgImage, textAlign, setTextAlign,
   fontSize, setFontSize, showStyles, setShowStyles,
   isBulk, setIsBulk, bulkText, setBulkText,
-  editingId, saving, error, setError, onSubmit, onCancel
+  editingId, saving, error, setError, onSubmit, onCancel,
+  // Nuevos props obligatorios para gestionar la imagen de contenido interactiva
+  contentImage, setContentImage, imageSide, setImageSide
 }) {
 
   const [showPreview, setShowPreview] = useState(false);
@@ -99,6 +134,26 @@ export default function FlashcardCreator({
     reader.readAsDataURL(file);
   };
 
+  // Manejador optimizado para compresión instantánea de imágenes de contenido
+  const handleContentImageFile = async (e, side) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setError('');
+    try {
+      const compressedBase64 = await compressImage(file);
+      setContentImage(compressedBase64);
+      setImageSide(side);
+    } catch (err) {
+      setError(err.message || 'Error al procesar la imagen de contenido.');
+    }
+    e.target.value = ''; // Reset input target
+  };
+
+  const removeContentImage = () => {
+    setContentImage('');
+    setImageSide('');
+  };
+
   const renderStyleGroup = (title, prefix, colorOpen, setColorOpen) => {
     const sizeKey = `${prefix}Size`;
     const boldKey = `${prefix}Bold`;
@@ -112,7 +167,6 @@ export default function FlashcardCreator({
         <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">{title}</p>
         
         <div className="flex items-center justify-between gap-2 flex-wrap">
-          {/* Controles Incrementales +/- */}
           <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 p-0.5 rounded-lg">
             <button
               type="button"
@@ -133,7 +187,6 @@ export default function FlashcardCreator({
             </button>
           </div>
 
-          {/* Atributos y Desplegable de Color */}
           <div className="flex items-center gap-1">
             <button
               type="button" onClick={() => updateStyle(boldKey, !styles[boldKey])}
@@ -162,7 +215,6 @@ export default function FlashcardCreator({
                 <Palette className={`w-3.5 h-3.5 ${styles[colorKey] ? 'drop-shadow-xs text-white' : ''}`} />
               </button>
 
-              {/* 🌟 CORREGIDO: Ancho fijo w-[168px] añadido para evitar colapsos y agrupamiento incorrecto */}
               {colorOpen && (
                 <div className="absolute right-0 bottom-full mb-2 bg-white border border-slate-200 p-2 rounded-2xl shadow-xl z-30 grid grid-cols-4 gap-2 w-[168px] animate-[slideUp_0.1s_ease-out]">
                   {SWATCHES.map((c) => (
@@ -176,7 +228,6 @@ export default function FlashcardCreator({
                     />
                   ))}
                   
-                  {/* Selector de color nativo del sistema con icono de gotero integrado */}
                   <label className="w-8 h-8 rounded-xl border border-slate-300 cursor-pointer overflow-hidden relative bg-gradient-to-tr from-amber-400 via-rose-400 to-indigo-400 shrink-0 hover:scale-105 transition-transform flex items-center justify-center group shadow-xs" title="Color personalizado">
                     <Pipette className="w-3.5 h-3.5 text-white drop-shadow-xs group-hover:scale-110 transition-transform relative z-10" />
                     <input 
@@ -224,8 +275,9 @@ export default function FlashcardCreator({
         </div>
       ) : (
         <>
-          <div className="grid sm:grid-cols-2 gap-3 animate-[fadeIn_0.2s_ease]">
-            <div>
+          <div className="grid sm:grid-cols-2 gap-4 animate-[fadeIn_0.2s_ease]">
+            {/* BLOQUE PREGUNTA */}
+            <div className="flex flex-col">
               <label className="block text-xs font-medium text-slate-500 mb-1">Pregunta</label>
               <textarea
                 value={question}
@@ -233,8 +285,27 @@ export default function FlashcardCreator({
                 placeholder="¿Cuál es la capital de Francia?"
                 className="min-h-[90px] w-full resize-y rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400"
               />
+              {/* Sección Control de Imagen Contenido - Pregunta */}
+              <div className="mt-2 flex items-center min-h-[36px]">
+                {contentImage && imageSide === 'question' ? (
+                  <div className="flex items-center gap-2 bg-slate-50 border border-slate-200/80 rounded-xl p-1 pr-2.5 max-w-full animate-[slideUp_0.1s_ease]">
+                    <img src={contentImage} alt="Miniatura Pregunta" className="w-8 h-8 rounded-lg object-cover bg-slate-200 border border-slate-200" />
+                    <span className="text-[11px] font-semibold text-slate-600 truncate max-w-[120px]">Imagen de pregunta</span>
+                    <button type="button" onClick={removeContentImage} className="text-slate-400 hover:text-red-500 transition-colors p-0.5" title="Eliminar imagen"><X className="w-3.5 h-3.5" /></button>
+                  </div>
+                ) : (
+                  (!contentImage || imageSide !== 'answer') && (
+                    <label className="inline-flex items-center gap-1.5 cursor-pointer rounded-lg border border-slate-200 hover:border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-600 hover:text-slate-900 transition-colors shadow-2xs">
+                      <Image className="w-3.5 h-3.5 text-slate-400" /> <span className="text-[11px] font-medium">Añadir imagen</span>
+                      <input type="file" accept="image/*" onChange={(e) => handleContentImageFile(e, 'question')} className="hidden" />
+                    </label>
+                  )
+                )}
+              </div>
             </div>
-            <div>
+
+            {/* BLOQUE RESPUESTA */}
+            <div className="flex flex-col">
               <label className="block text-xs font-medium text-slate-500 mb-1">Respuesta</label>
               <textarea
                 value={answer}
@@ -242,10 +313,27 @@ export default function FlashcardCreator({
                 placeholder="París"
                 className="min-h-[90px] w-full resize-y rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400"
               />
+              {/* Sección Control de Imagen Contenido - Respuesta */}
+              <div className="mt-2 flex items-center min-h-[36px]">
+                {contentImage && imageSide === 'answer' ? (
+                  <div className="flex items-center gap-2 bg-slate-50 border border-slate-200/80 rounded-xl p-1 pr-2.5 max-w-full animate-[slideUp_0.1s_ease]">
+                    <img src={contentImage} alt="Miniatura Respuesta" className="w-8 h-8 rounded-lg object-cover bg-slate-200 border border-slate-200" />
+                    <span className="text-[11px] font-semibold text-slate-600 truncate max-w-[120px]">Imagen de respuesta</span>
+                    <button type="button" onClick={removeContentImage} className="text-slate-400 hover:text-red-500 transition-colors p-0.5" title="Eliminar imagen"><X className="w-3.5 h-3.5" /></button>
+                  </div>
+                ) : (
+                  (!contentImage || imageSide !== 'question') && (
+                    <label className="inline-flex items-center gap-1.5 cursor-pointer rounded-lg border border-slate-200 hover:border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-600 hover:text-slate-900 transition-colors shadow-2xs">
+                      <Image className="w-3.5 h-3.5 text-slate-400" /> <span className="text-[11px] font-medium">Añadir imagen</span>
+                      <input type="file" accept="image/*" onChange={(e) => handleContentImageFile(e, 'answer')} className="hidden" />
+                    </label>
+                  )
+                )}
+              </div>
             </div>
           </div>
 
-          <div className="mt-3.5 flex gap-2">
+          <div className="mt-2 flex gap-2">
             <button
               type="button"
               onClick={togglePreview}
@@ -287,7 +375,7 @@ export default function FlashcardCreator({
                   {bgImage && <span className="absolute inset-0 bg-black/55" />}
                   <span className="absolute top-2.5 left-1/2 -translate-x-1/2 w-8 h-1.5 rounded-full bg-slate-400/30 z-10" />
                   
-                  <div className="relative z-10 flex-1 flex flex-col justify-center min-w-0">
+                  <div className="relative z-10 flex-1 flex flex-col justify-center min-w-0 py-2">
                     <p className={`text-[8px] font-bold uppercase tracking-wide ${bgImage ? 'text-white/60' : 'text-slate-400'} ${ALIGN_CLASS[textAlign] || 'text-center'}`}>Pregunta</p>
                     <p 
                       style={{ 
@@ -298,6 +386,13 @@ export default function FlashcardCreator({
                     >
                       {question.trim() || 'Escribe tu pregunta...'}
                     </p>
+                    
+                    {/* Render de Imagen de Contenido en Pregunta (Preview) */}
+                    {contentImage && imageSide === 'question' && (
+                      <div className="mt-2 flex justify-center">
+                        <img src={contentImage} alt="Preview contenido P" className="max-h-24 rounded-lg object-contain border border-slate-200/60 bg-slate-50 p-0.5 shadow-2xs" />
+                      </div>
+                    )}
 
                     <div className={`my-2.5 border-t border-dashed ${bgImage ? 'border-white/30' : 'border-slate-200'}`} />
 
@@ -311,11 +406,17 @@ export default function FlashcardCreator({
                     >
                       {answer.trim() || 'Escribe tu respuesta...'}
                     </p>
+
+                    {/* Render de Imagen de Contenido en Respuesta (Preview) */}
+                    {contentImage && imageSide === 'answer' && (
+                      <div className="mt-2 flex justify-center">
+                        <img src={contentImage} alt="Preview contenido R" className="max-h-24 rounded-lg object-contain border border-slate-200/60 bg-slate-50 p-0.5 shadow-2xs" />
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
 
-              {/* Controles avanzados integrados abajo del Preview */}
               <div className="space-y-3 pt-1 border-t border-slate-200/60">
                 <div className="grid grid-cols-2 gap-3 bg-white p-3 rounded-xl border border-slate-200/70 shadow-xs">
                   <div>
