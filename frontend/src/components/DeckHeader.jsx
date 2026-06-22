@@ -5,22 +5,23 @@ import { ArrowLeft, ChevronDown, FileText, Download, FileJson } from 'lucide-rea
 export default function DeckHeader({ deck, mode, setMode, onBack, onExport, onExportPDF }) {
   const [isOpen, setIsOpen] = useState(false);
 
-  // Contenedor principal relativo: Amarra a todos los elementos en el mismo nivel del eje Y
   return (
     <div className="relative w-full flex items-center justify-center pb-4 border-b border-slate-200 min-h-[46px]">
       
-      {/* 1. LADO IZQUIERDO: Botón de regreso compacto (Espejo simétrico de Opciones) */}
-      <div className="absolute left-0 flex items-center z-20">
-        <button 
-          onClick={onBack} 
-          title="Volver a la biblioteca"
-          className="p-2.5 bg-white border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-xl shadow-3xs transition-all active:scale-[0.97] flex items-center justify-center aspect-square cursor-pointer"
-        >
-          <ArrowLeft className="w-4 h-4" />
-        </button>
-      </div>
+      {/* 1. LADO IZQUIERDO: Botón de regreso compacto (Oculto en modo repaso) */}
+      {mode !== 'review' && (
+        <div className="absolute left-0 flex items-center z-20 animate-[fadeIn_0.1s_ease]">
+          <button 
+            onClick={onBack} 
+            title="Volver a la biblioteca"
+            className="p-2.5 bg-white border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-xl shadow-3xs transition-all active:scale-[0.97] flex items-center justify-center aspect-square cursor-pointer"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
-      {/* 2. EJE CENTRAL: Selector de Modos (Centrado geométrico puro e inamovible) */}
+      {/* 2. EJE CENTRAL: Selector de Modos (Fijo e inamovible) */}
       <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200/40 items-center z-10">
         <button 
           onClick={() => setMode('edit')} 
@@ -40,7 +41,7 @@ export default function DeckHeader({ deck, mode, setMode, onBack, onExport, onEx
         </button>
       </div>
 
-      {/* 3. LADO DERECHO: Menú de Opciones (Desaparece en modo repaso sin mover el centro) */}
+      {/* 3. LADO DERECHO: Menú de Opciones (Oculto en modo repaso) */}
       <div className="absolute right-0 flex items-center z-20">
         {mode !== 'review' && (
           <div className="relative">
@@ -55,7 +56,6 @@ export default function DeckHeader({ deck, mode, setMode, onBack, onExport, onEx
 
             {isOpen && (
               <>
-                {/* Capa invisible para cerrar al hacer click fuera */}
                 <div className="fixed inset-0 z-30" onClick={() => setIsOpen(false)} />
                 
                 <div className="absolute right-0 mt-2 w-72 bg-white border border-slate-200 rounded-2xl shadow-xl z-40 p-1.5 animate-[slideUp_0.12s_ease-out] flex flex-col gap-0.5">
