@@ -1,11 +1,48 @@
 // ARCHIVO: frontend/src/utils/pdfExporter.js
 import { jsPDF } from 'jspdf';
 
+// 🧠 AYUDANTE: Convierte colores HEX a RGB puro para garantizar compatibilidad con jsPDF
+const hexToRgb = (hex) => {
+  if (!hex || typeof hex !== 'string') return null;
+  const cleanHex = hex.replace('#', '');
+  if (cleanHex.length === 3) {
+    return {
+      r: parseInt(cleanHex[0] + cleanHex[0], 16),
+      g: parseInt(cleanHex[1] + cleanHex[1], 16),
+      b: parseInt(cleanHex[2] + cleanHex[2], 16)
+    };
+  }
+  if (cleanHex.length === 6) {
+    return {
+      r: parseInt(cleanHex.substring(0, 2), 16),
+      g: parseInt(cleanHex.substring(2, 4), 16),
+      b: parseInt(cleanHex.substring(4, 6), 16)
+    };
+  }
+  return null;
+};
+
+// 🧠 DESEMPAQUETADOR RETROCOMPATIBLE: Ahora rescata también el color 'bgColor'
+const parseCardStyles = (fontSizeField) => {
+  if (fontSizeField && fontSizeField.startsWith('{')) {
+    try {
+      const p = JSON.parse(fontSizeField);
+      return {
+        qSize: p.qSize || 'text-base', qBold: p.qBold ?? true, qItalic: p.qItalic ?? false, qColor: p.qColor || '',
+        aSize: p.aSize || 'text-base', aBold: p.aBold ?? false, aItalic: p.aItalic ?? false, aColor: p.aColor || '',
+        bgColor: p.bgColor || '' // 🚀 Rescatado con éxito
+      };
+    } catch (e) {}
+  }
+  return {
+    qSize: fontSizeField || 'text-base', qBold: true, qItalic: false, qColor: '',
+    aSize: fontSizeField || 'text-base', aBold: false, aItalic: false, aColor: '',
+    bgColor: ''
+  };
+};
+
 /**
- * Genera y descarga un documento PDF basado en las tarjetas de un mazo.
- * @param {string} deckTitle - Título del mazo de flashcards.
- * @param {Array} cards - Colección de tarjetas a procesar.
- * @param {string} type - Tipo de exportación ('guide' o 'cards').
+ * Genera y descarga un documento PDF basado en las tarjetas de un mazo con soporte de color.
  */
 export const exportDeckToPDF = (deckTitle, cards, type = 'guide') => {
   if (!cards || cards.length === 0) return;
@@ -33,37 +70,57 @@ export const exportDeckToPDF = (deckTitle, cards, type = 'guide') => {
       const qLines = doc.splitTextToSize(`P: ${card.question}`, contentWidth);
       const aLines = doc.splitTextToSize(`R: ${card.answer}`, contentWidth);
       
-      // Calcular la altura real del contenedor antes de pintar para prever saltos de página
       let blockTextHeight = (qLines.length * 6) + (aLines.length * 6) + 4;
       let blockImgHeight = card.contentImage ? 36 : 0;
       const totalBlockHeight = blockTextHeight + blockImgHeight + 8;
 
       if (y - 6 + totalBlockHeight > 280) { doc.addPage(); y = 22; }
 
-      // Dibujar caja de fondo contenedor
-      doc.setFillColor(250, 250, 250); doc.setDrawColor(241, 245, 249);
+      const st = parseCardStyles(card.fontSize);
+      const bgRgb = hexToRgb(st.bgColor);
+
+      // 🎨 Contraste Inteligente para Guía: Si el fondo sólido es oscuro, cambia las letras base a blanco
+      let isDarkBg = false;
+      if (bgRgb) {
+        const luma = 0.2126 * bgRgb.r + 0.7152 * bgRgb.g + 0.0722 * bgRgb.b;
+        isDarkBg = luma < 140;
+      }
+
+      // Renderizar el contenedor pintando el color de fondo elegido
+      if (bgRgb) {
+        doc.setFillColor(bgRgb.r, bgRgb.g, bgRgb.b);
+      } else {
+        doc.setFillColor(250, 250, 250);
+      }
+      doc.setDrawColor(241, 245, 249);
       doc.roundedRect(margin - 2, y - 6, contentWidth + 4, totalBlockHeight, 3, 3, "FD");
 
       // 1. Renderizar Pregunta
-      doc.setFont("Helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(15, 23, 42);
+      doc.setFont("Helvetica", "bold"); doc.setFontSize(11);
+      const finalQColor = hexToRgb(st.qColor) || (isDarkBg ? { r: 255, g: 255, b: 255 } : { r: 15, g: 23, b: 42 });
+      doc.setTextColor(finalQColor.r, finalQColor.g, finalQColor.b);
+      
       qLines.forEach((line, i) => { doc.text(line, margin, y + (i * 6)); });
       y += (qLines.length * 6) + 2;
 
-      // 2. Renderizar Imagen en Pregunta (Si corresponde)
+      // 2. Renderizar Imagen en Pregunta
       if (card.contentImage && card.imageSide === 'question') {
         try {
           let imgFormat = card.contentImage.includes('image/png') ? 'PNG' : card.contentImage.includes('image/webp') ? 'WEBP' : 'JPEG';
           doc.addImage(card.contentImage, imgFormat, margin, y, 54, 32, undefined, 'FAST');
         } catch (e) { console.error(e); }
-        y += 36; // El puntero baja limpiamente liberando el espacio de la foto
+        y += 36;
       }
 
-      // 3. Renderizar Respuesta (Garantiza espacio de separación proporcional)
-      doc.setFont("Helvetica", "normal"); doc.setFontSize(11); doc.setTextColor(71, 85, 105);
+      // 3. Renderizar Respuesta
+      doc.setFont("Helvetica", "normal"); doc.setFontSize(11);
+      const finalAColor = hexToRgb(st.aColor) || (isDarkBg ? { r: 241, g: 245, b: 249 } : { r: 71, g: 85, b: 105 });
+      doc.setTextColor(finalAColor.r, finalAColor.g, finalAColor.b);
+      
       aLines.forEach((line, i) => { doc.text(line, margin, y + (i * 6)); });
       y += (aLines.length * 6) + 2;
 
-      // 4. Renderizar Imagen en Respuesta (Si corresponde)
+      // 4. Renderizar Imagen en Respuesta
       if (card.contentImage && card.imageSide === 'answer') {
         try {
           let imgFormat = card.contentImage.includes('image/png') ? 'PNG' : card.contentImage.includes('image/webp') ? 'WEBP' : 'JPEG';
@@ -72,7 +129,7 @@ export const exportDeckToPDF = (deckTitle, cards, type = 'guide') => {
         y += 36;
       }
       
-      y += 12; // Separación higiénica inter-bloques
+      y += 12;
     });
 
     doc.save(`${safeName}-guia.pdf`);
@@ -100,7 +157,10 @@ export const exportDeckToPDF = (deckTitle, cards, type = 'guide') => {
       const x = marginX + col * (cardW + gapX);
       const y = marginY + row * (cardH + gapY);
 
-      // Render de Fondos de Mazo generales
+      const st = parseCardStyles(card.fontSize);
+      const bgRgb = hexToRgb(st.bgColor);
+
+      // 🎨 RENDER DE FONDOS: Da prioridad a la imagen de mazo y usa el color sólido como base
       if (card.bgImage) {
         try {
           let imgFormat = card.bgImage.includes('image/png') ? 'PNG' : card.bgImage.includes('image/webp') ? 'WEBP' : 'JPEG';
@@ -109,7 +169,13 @@ export const exportDeckToPDF = (deckTitle, cards, type = 'guide') => {
           doc.setGState(new doc.GState({ opacity: 0.55 }));
           doc.setFillColor(15, 23, 42); doc.rect(x, y, cardW, cardH, 'F');
           doc.restoreGraphicsState(); 
-        } catch (imgErr) { doc.setFillColor(30, 41, 59); doc.rect(x, y, cardW, cardH, 'F'); }
+        } catch (imgErr) { 
+          if (bgRgb) doc.setFillColor(bgRgb.r, bgRgb.g, bgRgb.b);
+          else doc.setFillColor(30, 41, 59); 
+          doc.rect(x, y, cardW, cardH, 'F'); 
+        }
+      } else if (bgRgb) {
+        doc.setFillColor(bgRgb.r, bgRgb.g, bgRgb.b); // Rellena con tu nuevo color sólido
       } else {
         doc.setFillColor(255, 255, 255);
       }
@@ -119,9 +185,16 @@ export const exportDeckToPDF = (deckTitle, cards, type = 'guide') => {
       if (align === 'center') textX = x + (cardW / 2);
       if (align === 'right') textX = x + cardW - 6;
 
-      const textColor = card.bgImage ? [255, 255, 255] : [15, 23, 42];
-      const subColor = card.bgImage ? [148, 163, 184] : [100, 116, 139];
-      const answerColor = card.bgImage ? [241, 245, 249] : [51, 65, 85];
+      // ⚖️ CALCULAR LUMINANCIA DE CONTROL: Invierte las fuentes automáticamente si el fondo es oscuro
+      let useWhiteText = !!card.bgImage;
+      if (!useWhiteText && bgRgb) {
+        const luma = 0.2126 * bgRgb.r + 0.7152 * bgRgb.g + 0.0722 * bgRgb.b;
+        useWhiteText = luma < 140;
+      }
+
+      const textColor = useWhiteText ? [255, 255, 255] : [15, 23, 42];
+      const subColor = useWhiteText ? [148, 163, 184] : [100, 116, 139];
+      const answerColor = useWhiteText ? [241, 245, 249] : [51, 65, 85];
 
       const qMaxW = cardW - 12;
       const aMaxW = cardW - 12;
@@ -131,34 +204,34 @@ export const exportDeckToPDF = (deckTitle, cards, type = 'guide') => {
       // =======================================================================
       // ⚖️ ALGORITMO DE FILTRADO Y DIVISOR INTERMEDIO MÓVIL
       // =======================================================================
-      let dividerY = y + 38; // Por defecto corta a la mitad exacta (38mm)
+      let dividerY = y + 38;
 
       if (card.contentImage) {
         if (card.imageSide === 'question') {
           let answerAreaNeeded = 10 + (aLines.length * 4.5) + 4;
-          dividerY = (y + 76) - answerAreaNeeded; // Empuja la línea abajo ganando terreno para la foto
-          if (dividerY < y + 34) dividerY = y + 34; // Topes de seguridad CSS-like
+          dividerY = (y + 76) - answerAreaNeeded;
+          if (dividerY < y + 34) dividerY = y + 34;
           if (dividerY > y + 55) dividerY = y + 55;
         } else if (card.imageSide === 'answer') {
           let questionAreaNeeded = 10 + (qLines.length * 4.5) + 4;
-          dividerY = y + questionAreaNeeded; // Empuja la línea arriba expandiendo el bloque inferior
+          dividerY = y + questionAreaNeeded;
           if (dividerY < y + 21) dividerY = y + 21;
           if (dividerY > y + 42) dividerY = y + 42;
         }
       }
 
-      // Pintar marco contenedor de la tarjeta recortable
+      // Pintar marco contenedor
       doc.setDrawColor(203, 213, 225); doc.setLineWidth(0.2);
-      doc.rect(x, y, cardW, cardH, card.bgImage ? 'S' : 'FD');
+      doc.rect(x, y, cardW, cardH, (card.bgImage || bgRgb) ? 'S' : 'FD');
 
-      // Dibujar la línea divisoria discontinua en su coordenada dinámica calibrada
+      // Dibujar línea discontinua equilibrada
       doc.setDrawColor(card.bgImage ? 100 : 210, card.bgImage ? 116 : 225, card.bgImage ? 139 : 235);
       doc.setLineDash([1, 1], 0);
       doc.line(x + 5, dividerY, x + cardW - 5, dividerY);
-      doc.setLineDash([]); // Limpieza de contexto vectorial
+      doc.setLineDash([]);
 
       // =======================================================================
-      // RENDEREADO DINÁMICO: SECCIÓN PREGUNTA (De "y" hasta "dividerY")
+      // RENDEREADO DINÁMICO: SECCIÓN PREGUNTA
       // =======================================================================
       doc.setFont("Helvetica", "bold"); doc.setFontSize(7.5); doc.setTextColor(subColor[0], subColor[1], subColor[2]);
       doc.text("PREGUNTA", textX, y + 8, { align });
@@ -167,9 +240,8 @@ export const exportDeckToPDF = (deckTitle, cards, type = 'guide') => {
         let qTextBottom = y + 11 + (qLines.length * 4.5);
         let verticalGap = dividerY - qTextBottom - 2;
 
-        // Escalado elástico: Si hay espacio vertical masivo, la imagen crece proporcionalmente
         let imgH = Math.max(14, Math.min(verticalGap, 32));
-        let imgW = Math.min(imgH * 1.45, cardW - 16); // Aspect ratio 1.45 panorámico optimizado
+        let imgW = Math.min(imgH * 1.45, cardW - 16);
         imgH = imgW / 1.45;
 
         let imgX = x + (cardW - imgW) / 2;
@@ -194,7 +266,7 @@ export const exportDeckToPDF = (deckTitle, cards, type = 'guide') => {
       }
 
       // =======================================================================
-      // RENDEREADO DINÁMICO: SECCIÓN RESPUESTA (De "dividerY" hasta "y + 76")
+      // RENDEREADO DINÁMICO: SECCIÓN RESPUESTA
       // =======================================================================
       doc.setFont("Helvetica", "bold"); doc.setFontSize(7.5); doc.setTextColor(subColor[0], subColor[1], subColor[2]);
       doc.text("RESPUESTA", textX, dividerY + 5, { align });
