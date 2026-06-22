@@ -18,7 +18,6 @@ export default function DeckCard({ deck, onOpen, onEdit, onDelete, onToggleStar,
     ? { backgroundImage: `url(${deck.coverImage})`, backgroundSize: 'cover', backgroundPosition: 'center' }
     : { backgroundColor: deck.coverColor || '#ffffff' };
 
-  // 🧠 SOLUCIÓN CRÍTICA: Si el menú está abierto, removemos "overflow-hidden" y añadimos "z-40" para flotar sobre el grid
   const containerClasses = isList
     ? `group relative w-full text-left flex items-center justify-between p-4 min-h-[72px] rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 shadow-3xs hover:shadow-2xs transition-all cursor-pointer ${showMenu ? 'z-40' : 'overflow-hidden'}`
     : `group relative w-full text-left h-32 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col justify-end ${showMenu ? 'z-40' : 'overflow-hidden'}`;
@@ -39,7 +38,7 @@ export default function DeckCard({ deck, onOpen, onEdit, onDelete, onToggleStar,
       style={currentBgStyle}
       className={containerClasses}
     >
-      {/* Capa de gradiente sutil con redondeado inferior explícito para cuando se apague el overflow */}
+      {/* Capa de gradiente sutil con redondeado inferior (Solo Modo Grid) */}
       {!isList && (
         <span className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/60 via-black/20 to-transparent pointer-events-none rounded-b-2xl" />
       )}
@@ -69,7 +68,8 @@ export default function DeckCard({ deck, onOpen, onEdit, onDelete, onToggleStar,
           </div>
 
           <div className="flex items-center gap-1 shrink-0 z-30" onClick={(e) => e.stopPropagation()}>
-            {if (deck.isStarred) {
+            {/* ✨ CORREGIDO: Cambiado de statement "if" a expresión lógica de JSX con operador "&&" */}
+            {deck.isStarred && (
               <button
                 type="button"
                 onClick={(e) => handleAction(e, () => onToggleStar(deck))}
@@ -78,7 +78,7 @@ export default function DeckCard({ deck, onOpen, onEdit, onDelete, onToggleStar,
               >
                 <Star className="w-4 h-4 fill-amber-500" />
               </button>
-            }}
+            )}
             
             <div className="relative">
               <button
@@ -140,7 +140,7 @@ export default function DeckCard({ deck, onOpen, onEdit, onDelete, onToggleStar,
               <MoreHorizontal className="w-3.5 h-3.5" />
             </button>
 
-            {/* Menú Desplegable con z-50 garantizado */}
+            {/* Menú Desplegable */}
             {showMenu && (
               <div className="absolute right-0 mt-1 w-36 bg-white border border-slate-200 rounded-xl shadow-xl p-1 flex flex-col gap-0.5 animate-[fadeIn_0.08s_ease] z-50">
                 <button
@@ -157,7 +157,7 @@ export default function DeckCard({ deck, onOpen, onEdit, onDelete, onToggleStar,
                   className="w-full text-left px-2 py-1.5 hover:bg-slate-50 text-slate-700 text-[11px] font-bold rounded-lg flex items-center gap-2 transition-colors cursor-pointer"
                 >
                   <Pencil className="w-3.5 h-3.5 text-slate-400" /> Editar
-                  </button>
+                </button>
                 <button
                   type="button"
                   onClick={(e) => handleAction(e, () => onDelete(deck))}
