@@ -16,9 +16,8 @@ import {
   Eye,
   EyeOff,
   Pipette,
-  Image, 
   X,
-  Trash2 // 🚀 Añadido para el control del botón de borrado rápido
+  Trash2
 } from 'lucide-react';
 
 const ALIGNS = [
@@ -75,7 +74,6 @@ export default function FlashcardCreator({
   isBulk, setIsBulk, bulkText, setBulkText,
   editingId, saving, error, setError, onSubmit, onCancel,
   contentImage, setContentImage, imageSide, setImageSide,
-  // Recibir los nuevos parámetros de comunicación
   onFastDelete, hasCards
 }) {
 
@@ -159,13 +157,11 @@ export default function FlashcardCreator({
     const boldKey = `${prefix}Bold`;
     const italicKey = `${prefix}Italic`;
     const colorKey = `${prefix}Color`;
-
     const currentSizeNum = styles[sizeKey];
 
     return (
       <div className="bg-white p-3 rounded-xl border border-slate-200/60 shadow-xs relative">
         <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">{title}</p>
-        
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 p-0.5 rounded-lg">
             <button
@@ -207,9 +203,7 @@ export default function FlashcardCreator({
                 onClick={() => setColorOpen(!colorOpen)}
                 style={styles[colorKey] ? { backgroundColor: styles[colorKey] } : {}}
                 className={`p-1.5 rounded-lg border transition-all flex items-center justify-center ${
-                  styles[colorKey] 
-                    ? 'text-white border-transparent shadow-xs' 
-                    : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
+                  styles[colorKey] ? 'text-white border-transparent shadow-xs' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
                 }`}
               >
                 <Palette className={`w-3.5 h-3.5 ${styles[colorKey] ? 'drop-shadow-xs text-white' : ''}`} />
@@ -294,7 +288,7 @@ export default function FlashcardCreator({
                 ) : (
                   (!contentImage || imageSide !== 'answer') && (
                     <label className="inline-flex items-center gap-1.5 cursor-pointer rounded-lg border border-slate-200 hover:border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-600 hover:text-slate-900 transition-colors shadow-2xs">
-                      <Image className="w-3.5 h-3.5 text-slate-400" /> <span className="text-[11px] font-medium">Añadir imagen</span>
+                      <ImagePlus className="w-3.5 h-3.5 text-slate-400" /> <span className="text-[11px] font-medium">Añadir imagen</span>
                       <input type="file" accept="image/*" onChange={(e) => handleContentImageFile(e, 'question')} className="hidden" />
                     </label>
                   )
@@ -320,7 +314,7 @@ export default function FlashcardCreator({
                 ) : (
                   (!contentImage || imageSide !== 'question') && (
                     <label className="inline-flex items-center gap-1.5 cursor-pointer rounded-lg border border-slate-200 hover:border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-600 hover:text-slate-900 transition-colors shadow-2xs">
-                      <Image className="w-3.5 h-3.5 text-slate-400" /> <span className="text-[11px] font-medium">Añadir imagen</span>
+                      <ImagePlus className="w-3.5 h-3.5 text-slate-400" /> <span className="text-[11px] font-medium">Añadir imagen</span>
                       <input type="file" accept="image/*" onChange={(e) => handleContentImageFile(e, 'answer')} className="hidden" />
                     </label>
                   )
@@ -329,30 +323,36 @@ export default function FlashcardCreator({
             </div>
           </div>
 
-          <div className="mt-2 flex gap-2">
+          {/* 🌟 FILA SUPERIOR: PREVISUALIZAR Y ESTILO (Simetría de Rejilla Gemela) */}
+          <div className="mt-3 grid grid-cols-2 gap-3">
             <button
               type="button"
               onClick={togglePreview}
-              className={`inline-flex items-center gap-1.5 text-xs font-semibold rounded-xl px-4 py-2 border transition-all active:scale-95 ${
-                showPreview ? 'bg-slate-900 text-white border-slate-900 shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+              className={`inline-flex items-center justify-center gap-2 text-xs font-bold rounded-xl py-2.5 border transition-all active:scale-[0.98] shadow-3xs cursor-pointer ${
+                showPreview 
+                  ? 'bg-slate-900 text-white border-slate-900 shadow-sm' 
+                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
               }`}
             >
-              {showPreview ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              {showPreview ? 'Cerrar Previsualización' : 'Previsualizar Tarjeta'}
+              {showPreview ? <EyeOff className="w-4 h-4 shrink-0" /> : <Eye className="w-4 h-4 shrink-0" />}
+              <span>{showPreview ? 'Cerrar vista' : 'Previsualizar Tarjeta'}</span>
             </button>
 
-            {!showPreview && (
-              <button
-                type="button"
-                onClick={() => setShowStyles((s) => !s)}
-                className={`inline-flex items-center gap-1.5 text-xs font-medium rounded-xl px-4 py-2 border transition-colors ${
-                  showStyles ? 'bg-slate-100 text-slate-900 border-slate-300' : 'text-slate-500 border-transparent hover:text-slate-900 hover:bg-slate-50'
-                }`}
-              >
-                <SlidersHorizontal className="w-3.5 h-3.5" />
-                Estilo rápido
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => { if (!showPreview) setShowStyles((s) => !s); }}
+              disabled={showPreview}
+              className={`inline-flex items-center justify-center gap-2 text-xs font-bold rounded-xl py-2.5 border transition-all active:scale-[0.98] shadow-3xs cursor-pointer ${
+                showPreview
+                  ? 'opacity-40 cursor-not-allowed bg-slate-50 text-slate-400 border-slate-200'
+                  : showStyles 
+                  ? 'bg-slate-100 text-slate-900 border-slate-300' 
+                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
+              }`}
+            >
+              <SlidersHorizontal className="w-4 h-4 shrink-0" />
+              <span>Estilo rápido</span>
+            </button>
           </div>
 
           {showPreview && (
@@ -373,10 +373,7 @@ export default function FlashcardCreator({
                   <div className="relative z-10 flex-1 flex flex-col justify-center min-w-0 py-2">
                     <p className={`text-[8px] font-bold uppercase tracking-wide ${bgImage ? 'text-white/60' : 'text-slate-400'} ${ALIGN_CLASS[textAlign] || 'text-center'}`}>Pregunta</p>
                     <p 
-                      style={{ 
-                        fontSize: `${styles.qSize}px`, 
-                        ...(styles.qColor ? { color: styles.qColor } : {}) 
-                      }}
+                      style={{ fontSize: `${styles.qSize}px`, ...(styles.qColor ? { color: styles.qColor } : {}) }}
                       className={`mt-0.5 whitespace-pre-wrap truncate-3-lines ${ALIGN_CLASS[textAlign] || 'text-center'} ${styles.qBold ? 'font-bold' : 'font-normal'} ${styles.qItalic ? 'italic' : ''} ${bgImage && !styles.qColor ? 'text-white' : (!styles.qColor ? 'text-slate-900' : '')}`}
                     >
                       {question.trim() || 'Escribe tu pregunta...'}
@@ -392,10 +389,7 @@ export default function FlashcardCreator({
 
                     <p className={`text-[8px] font-bold uppercase tracking-wide ${bgImage ? 'text-white/60' : 'text-slate-400'} ${ALIGN_CLASS[textAlign] || 'text-center'}`}>Respuesta</p>
                     <p 
-                      style={{ 
-                        fontSize: `${styles.aSize}px`, 
-                        ...(styles.aColor ? { color: styles.aColor } : {}) 
-                      }}
+                      style={{ fontSize: `${styles.aSize}px`, ...(styles.aColor ? { color: styles.aColor } : {}) }}
                       className={`mt-0.5 whitespace-pre-wrap truncate-3-lines ${ALIGN_CLASS[textAlign] || 'text-center'} ${styles.aBold ? 'font-bold' : 'font-normal'} ${styles.aItalic ? 'italic' : ''} ${bgImage && !styles.aColor ? 'text-white/90' : (!styles.aColor ? 'text-slate-700' : '')}`}
                     >
                       {answer.trim() || 'Escribe tu respuesta...'}
@@ -486,27 +480,32 @@ export default function FlashcardCreator({
         </>
       )}
 
-      {/* 🛠️ CONTENEDOR DE ACCIONES INFERIOR REORDENADO Y SINCRONIZADO */}
-      <div className="mt-4 flex justify-between items-center gap-2 border-t border-slate-100 pt-3">
+      {/* 🌟 FILA INFERIOR: ACCIONES CORE (Simetría Flex unificada en el mismo nivel Y) */}
+      <div className="mt-4 flex items-center justify-between gap-3 border-t border-slate-100 pt-3.5">
         
-        {/* 🟥 LADO IZQUIERDO: Botón de Borrado Rápido (Solo visible si hay tarjetas y no estamos editando) */}
+        {/* Lado Izquierdo: Borrado Rápido */}
         {!editingId && onFastDelete && hasCards ? (
           <button
             type="button"
             onClick={onFastDelete}
-            className="inline-flex items-center gap-1.5 text-xs font-bold px-3.5 py-2 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all active:scale-95 shadow-2xs cursor-pointer"
+            className="flex-1 inline-flex items-center justify-center gap-2 text-xs font-bold py-2.5 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all active:scale-[0.98] shadow-3xs cursor-pointer"
           >
-            <Trash2 className="w-3.5 h-3.5 text-red-500" />
+            <Trash2 className="w-4 h-4 text-red-500 shrink-0" />
             <span>Borrado Rápido</span>
           </button>
         ) : (
-          <div /> // Div invisible para forzar el flex push del de creación hacia la derecha
+          /* Caja invisible que preserva simetría si no cumple la condicional */
+          !editingId && <div className="flex-1" />
         )}
 
-        {/* 🟩 LADO DERECHO: Grupo de creación / Guardado tradicional */}
-        <div className="flex gap-2">
+        {/* Lado Derecho: Cancelar + Guardar / Agregar */}
+        <div className="flex-1 flex gap-2">
           {editingId && (
-            <button type="button" onClick={onCancel} className="rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors">
+            <button 
+              type="button" 
+              onClick={onCancel} 
+              className="flex-1 rounded-xl border border-slate-200 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors active:scale-[0.98]"
+            >
               Cancelar
             </button>
           )}
@@ -514,10 +513,16 @@ export default function FlashcardCreator({
           <button
             type="submit"
             disabled={saving || (isBulk ? !bulkText.trim() : (!question.trim() || !answer.trim()))}
-            className="inline-flex items-center gap-2 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 transition-transform active:scale-95 shadow-sm cursor-pointer"
+            className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white text-xs font-bold py-2.5 transition-all active:scale-[0.98] shadow-sm cursor-pointer"
           >
-            {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : editingId ? <Check className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
-            {editingId ? 'Guardar cambios' : isBulk ? 'Generar lote de tarjetas' : 'Agregar tarjeta'}
+            {saving ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : editingId ? (
+              <Check className="w-4 h-4 shrink-0" />
+            ) : (
+              <Plus className="w-4 h-4 shrink-0" />
+            )}
+            <span>{editingId ? 'Guardar cambios' : isBulk ? 'Generar lote' : 'Agregar tarjeta'}</span>
           </button>
         </div>
 
