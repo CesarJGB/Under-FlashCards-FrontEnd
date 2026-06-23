@@ -1,6 +1,6 @@
 // ARCHIVO: frontend/src/components/LibrarySection.jsx
 import { useRef, useState, useMemo } from 'react';
-import { Upload, Plus, Library, Loader2, Sparkles, Search, ArrowUpDown, Grid, List } from 'lucide-react';
+import { Upload, Plus, Library, Loader2, Sparkles, Search, MoreHorizontal, Grid, List, Check } from 'lucide-react';
 import DeckCard from './DeckCard';
 import DeckModal from './DeckModal';
 import DeckInterior from './DeckInterior';
@@ -27,18 +27,18 @@ export default function LibrarySection({
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('recent'); // 'recent' | 'oldest' | 'alpha' | 'cards-desc' | 'cards-asc'
   const [viewMode, setViewMode] = useState('grid'); // 'grid' | 'list'
+  
+  // ⚙️ ESTADO PARA EL NUEVO DROPDOWN UNIFICADO DE TRES PUNTOS
+  const [optionsOpen, setOptionsOpen] = useState(false);
 
   // 🧠 MOTOR DE FILTRADO Y ORDENAMIENTO COMPUTADO AUTOMÁTICO
   const processedDecks = useMemo(() => {
-    // 1. Filtrado por Barra de Búsqueda de Mazos
     let result = decks.filter((deck) => 
       deck.title?.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
-    // Helper robusto para extraer el número exacto de tarjetas del mazo
     const getCount = (d) => d.cardCount ?? d.cards?.length ?? d.cardsCount ?? 0;
 
-    // 2. Aplicación de Criterios de Ordenamiento Estrictos
     if (sortBy === 'recent') {
       result.sort((a, b) => new Date(b.createdAt || b.id) - new Date(a.createdAt || a.id));
     } else if (sortBy === 'oldest') {
@@ -156,90 +156,118 @@ export default function LibrarySection({
         data-testid="import-file-input"
       />
 
-      {/* 🔍 PANEL DE CONTROLES (ACOPLADO DE FORMA PURA ABAJO DEL STICKY HEADER) */}
+      {/* ✨ REINGENIERÍA DE BARRA DE CONTROLES (ESTILO COMPACTO CALCADO DE IMAGE_8.png) */}
       {decks.length > 0 && (
-        <div className="mt-2 flex flex-col md:flex-row gap-3 items-center justify-between bg-slate-50 border border-slate-200/60 p-3 rounded-2xl shadow-2xs">
+        <div className="mt-1.5 flex gap-2 items-center w-full relative">
           
-          {/* Input de Búsqueda de Mazos */}
-          <div className="relative w-full md:flex-1 max-w-md">
+          {/* Input de Búsqueda Súper Redondeado y Fluido */}
+          <div className="relative flex-1">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Buscar mazo por título..."
-              className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 placeholder:text-slate-400 shadow-3xs transition-all"
+              className="w-full h-10 pl-10 pr-4 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 placeholder:text-slate-400 shadow-3xs transition-all"
             />
           </div>
 
-          {/* Grupo de Controles */}
-          <div className="w-full md:w-auto flex flex-col sm:flex-row items-center gap-3 shrink-0">
-            
-            {/* Dropdown de Ordenamiento */}
-            <div className="relative w-full sm:w-auto flex items-center gap-2">
-              <label htmlFor="sort-decks" className="text-[11px] font-bold text-slate-400 uppercase tracking-wider hidden lg:inline">
-                Ordenar:
-              </label>
-              <div className="relative w-full sm:w-auto flex-1 sm:flex-initial">
-                <ArrowUpDown className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500 pointer-events-none" />
-                <select
-                  id="sort-decks"
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
-                  className="w-full sm:w-48 pl-9 pr-8 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none appearance-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 cursor-pointer shadow-3xs transition-all"
-                >
-                  <option value="recent">Más recientes</option>
-                  <option value="oldest">Más antiguos</option>
-                  <option value="alpha">Orden alfabético</option>
-                  <option value="cards-desc">Mayor número de tarjetas</option>
-                  <option value="cards-asc">Menor número de tarjetas</option>
-                </select>
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 text-[10px]">
-                  ▼
+          {/* ⚙️ Botón de Tres Puntos Horizontales de Configuración de Filtros */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setOptionsOpen(!optionsOpen)}
+              className={`w-10 h-10 border text-slate-500 rounded-xl shadow-3xs transition-all active:scale-[0.97] flex items-center justify-center cursor-pointer ${
+                optionsOpen ? 'bg-slate-100 border-slate-300 text-slate-900' : 'bg-white border-slate-200 hover:text-slate-900 hover:bg-slate-50'
+              }`}
+              title="Opciones de biblioteca"
+            >
+              <MoreHorizontal className="w-4 h-4" />
+            </button>
+
+            {/* Desplegable Contextual Unificado (Sort + Grid View) */}
+            {optionsOpen && (
+              <>
+                <div className="fixed inset-0 z-40 bg-transparent" onClick={() => setOptionsOpen(false)} />
+                <div className="absolute right-0 mt-2 w-60 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 p-1.5 animate-[slideUp_0.12s_ease-out] flex flex-col gap-0.5">
+                  
+                  {/* SECCIÓN 1: ORDENAMIENTO */}
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2.5 py-1 block">
+                    Ordenar por
+                  </span>
+                  
+                  {[
+                    { label: 'Más recientes', value: 'recent' },
+                    { label: 'Más antiguos', value: 'oldest' },
+                    { label: 'Orden alfabético', value: 'alpha' },
+                    { label: 'Mayor número de tarjetas', value: 'cards-desc' },
+                    { label: 'Menor número de tarjetas', value: 'cards-asc' }
+                  ].map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => { setSortBy(opt.value); setOptionsOpen(false); }}
+                      className={`w-full text-left px-2.5 py-1.5 hover:bg-slate-50 text-[11px] font-bold rounded-lg flex items-center justify-between transition-colors cursor-pointer ${
+                        sortBy === opt.value ? 'text-slate-950 bg-slate-50/60' : 'text-slate-600'
+                      }`}
+                    >
+                      <span>{opt.label}</span>
+                      {sortBy === opt.value && <Check className="w-3.5 h-3.5 text-slate-900 stroke-[2.5]" />}
+                    </button>
+                  ))}
+
+                  {/* SEPARATOR */}
+                  <div className="my-1 border-t border-slate-100" />
+
+                  {/* SECCIÓN 2: INTERCAMBIADOR DE VISTA */}
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2.5 py-1 block">
+                    Visualización
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() => { setViewMode('grid'); setOptionsOpen(false); }}
+                    className={`w-full text-left px-2.5 py-1.5 hover:bg-slate-50 text-[11px] font-bold rounded-lg flex items-center gap-2 transition-colors cursor-pointer ${
+                      viewMode === 'grid' ? 'text-slate-950 bg-slate-50/60' : 'text-slate-600'
+                    }`}
+                  >
+                    <Grid className="w-3.5 h-3.5 text-slate-400" />
+                    <span className="flex-1">Vista cuadrícula</span>
+                    {viewMode === 'grid' && <Check className="w-3.5 h-3.5 text-slate-900 stroke-[2.5]" />}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => { setViewMode('list'); setOptionsOpen(false); }}
+                    className={`w-full text-left px-2.5 py-1.5 hover:bg-slate-50 text-[11px] font-bold rounded-lg flex items-center gap-2 transition-colors cursor-pointer ${
+                      viewMode === 'list' ? 'text-slate-950 bg-slate-50/60' : 'text-slate-600'
+                    }`}
+                  >
+                    <List className="w-3.5 h-3.5 text-slate-400" />
+                    <span className="flex-1">Vista lista</span>
+                    {viewMode === 'list' && <Check className="w-3.5 h-3.5 text-slate-900 stroke-[2.5]" />}
+                  </button>
+
                 </div>
-              </div>
-            </div>
-
-            {/* Alternador de Vista */}
-            <div className="flex bg-slate-200/50 p-1 rounded-xl border border-slate-200/40 items-center w-full sm:w-auto justify-center shrink-0">
-              <button
-                type="button"
-                onClick={() => setViewMode('grid')}
-                className={`p-1.5 rounded-lg transition-all cursor-pointer ${
-                  viewMode === 'grid' ? 'bg-white text-slate-900 shadow-3xs' : 'text-slate-400 hover:text-slate-600'
-                }`}
-                title="Vista cuadrícula"
-              >
-                <Grid className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode('list')}
-                className={`p-1.5 rounded-lg transition-all cursor-pointer ${
-                  viewMode === 'list' ? 'bg-white text-slate-900 shadow-3xs' : 'text-slate-400 hover:text-slate-600'
-                }`}
-                title="Vista lista"
-              >
-                <List className="w-4 h-4" />
-              </button>
-            </div>
-
+              </>
+            )}
           </div>
+
         </div>
       )}
 
-      {/* 🎴 RENDERIZADO CONDICIONAL DE LA COLECCIÓN */}
+      {/* 🎴 RENDERIZADO DE LA COLECCIÓN */}
       {loading && decks.length === 0 ? (
-        <div className="mt-8 flex items-center gap-2 text-slate-400" data-testid="decks-loading">
+        <div className="mt-6 flex items-center gap-2 text-slate-400" data-testid="decks-loading">
           <Loader2 className="w-4 h-4 animate-spin" /> Cargando…
         </div>
       ) : decks.length === 0 ? (
-        <div className="mt-8 text-center border border-dashed border-slate-300 rounded-2xl py-16 text-slate-400" data-testid="decks-empty">
+        <div className="mt-6 text-center border border-dashed border-slate-300 rounded-2xl py-16 text-slate-400" data-testid="decks-empty">
           <Library className="w-8 h-8 mx-auto mb-2" />
           Aún no tienes mazos. Crea tu primer mazo usando el botón inferior.
         </div>
       ) : processedDecks.length === 0 ? (
-        <div className="mt-8 text-center border border-dashed border-slate-200 rounded-2xl py-14 bg-white text-slate-400 text-xs font-medium animate-[fadeIn_0.1s_ease]">
+        <div className="mt-6 text-center border border-dashed border-slate-200 rounded-2xl py-14 bg-white text-slate-400 text-xs font-medium animate-[fadeIn_0.1s_ease]">
           No se encontraron mazos que coincidan con la búsqueda.
         </div>
       ) : (
