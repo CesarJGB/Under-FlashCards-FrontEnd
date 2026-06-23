@@ -1,3 +1,4 @@
+// ARCHIVO: frontend/src/components/App.jsx
 import { useState, useEffect, useCallback } from 'react';
 import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
@@ -73,9 +74,8 @@ function DashboardScreen({ user, onLogout }) {
 
   return (
     <div className="min-h-screen w-full bg-slate-50 flex" data-testid="dashboard-screen">
-      {/* SIDEBAR (Escritorio) */}
+      {/* SIDEBAR (Escritorio - Mantiene consistencia de marca) */}
       <aside className="hidden md:flex w-72 shrink-0 flex-col bg-white border-r border-slate-200 p-5">
-        {/* 🌟 DINÁMICO: Si hay mazo abierto, reemplaza el logo y símbolo por el nombre del mazo */}
         <div className="flex items-center gap-2 px-1 mb-8 h-9 min-w-0">
           {currentDeck && tab === 'library' ? (
             <span className="font-black text-slate-900 text-base border-l-4 border-slate-900 pl-2.5 truncate" title={currentDeck.title}>
@@ -113,31 +113,43 @@ function DashboardScreen({ user, onLogout }) {
 
       {/* CONTENEDOR PRINCIPAL */}
       <main className="flex-1 min-w-0 relative">
-        {/* HEADER SUPERIOR MÓVIL */}
-        <div className="md:hidden sticky top-0 z-30 bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between shadow-sm">
-          {/* 🌟 DINÁMICO MÓVIL: Cambia según si hay mazo activo en la sección de archivos */}
-          <span className="font-extrabold text-slate-900 flex items-center gap-1.5 min-w-0 max-w-[75%] text-sm sm:text-base">
+        
+        {/* ✨ CABECERA SUPERIOR MÓVIL REINGENIERIZADA (ALTA DENSIDAD Y PUREZA VISUAL) */}
+        <div className="md:hidden sticky top-0 z-30 bg-white border-b border-slate-200 px-4 py-3.5 flex items-center justify-between shadow-xs">
+          
+          {/* Título Dinámico de Sección Elevado */}
+          <span className="min-w-0 max-w-[80%]">
             {currentDeck && tab === 'library' ? (
-              <span className="font-black text-slate-900 truncate border-l-4 border-slate-900 pl-2">
+              <span className="font-black text-slate-900 text-base border-l-4 border-slate-900 pl-2.5 block truncate">
                 {currentDeck.title}
               </span>
             ) : (
-              <>
-                <Sparkles className="w-4 h-4 text-slate-900 fill-slate-900" /> Flashcards
-              </>
+              <span className="font-black text-slate-900 tracking-tight text-base block animate-[fadeIn_0.1s_ease]">
+                {tab === 'library' ? 'Biblioteca' : tab === 'home' ? 'Inicio' : 'Ajustes'}
+              </span>
             )}
           </span>
-          <button onClick={onLogout} className="p-1 text-slate-400 hover:text-red-600 transition-colors shrink-0">
-            <LogOut className="w-4 h-4" />
-          </button>
+
+          {/* 🚪 CONTROL EXCLUSIVO: El botón Logout solo se dibuja si estás parado en la sección de Home */}
+          {tab === 'home' && (
+            <button 
+              onClick={onLogout} 
+              className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50/50 rounded-lg transition-colors shrink-0 animate-[fadeIn_0.12s_ease] cursor-pointer"
+              title="Cerrar sesión"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          )}
         </div>
 
+        {/* CONTENIDO INTERNO DE LAS PÁGINAS */}
         <div className="max-w-5xl mx-auto px-4 py-4 pb-20 md:pb-8 md:px-6 md:py-8">
           {tab === 'home' && (
             <HomeSection 
               user={user} 
               decks={decks} 
-              onOpenReview={handleOpenReviewFromHome} 
+              onOpenReview={handleOpenReviewFromHome}
+              onLogout={onLogout} // Se inyecta también al home section por si quieres pintar un acceso extra abajo
             />
           )}
           {tab === 'library' && (
