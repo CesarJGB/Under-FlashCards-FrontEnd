@@ -46,10 +46,8 @@ export default function LibrarySection({
     } else if (sortBy === 'alpha') {
       result.sort((a, b) => a.title.localeCompare(b.title));
     } else if (sortBy === 'cards-desc') {
-      // ✨ NUEVO: Mayor número de tarjetas primero (De Mayor a Menor)
       result.sort((a, b) => getCount(b) - getCount(a));
     } else if (sortBy === 'cards-asc') {
-      // ✨ NUEVO: Menor número de tarjetas primero (De Menor a Mayor)
       result.sort((a, b) => getCount(a) - getCount(b));
     }
 
@@ -158,16 +156,9 @@ export default function LibrarySection({
         data-testid="import-file-input"
       />
 
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-900">Biblioteca</h2>
-          <p className="text-slate-500 mt-1">Tus mazos de estudio.</p>
-        </div>
-      </div>
-
-      {/* 🔍 PANEL DE CONTROLES */}
+      {/* 🔍 PANEL DE CONTROLES (ACOPLADO DE FORMA PURA ABAJO DEL STICKY HEADER) */}
       {decks.length > 0 && (
-        <div className="mt-5 flex flex-col md:flex-row gap-3 items-center justify-between bg-slate-50 border border-slate-200/60 p-3 rounded-2xl shadow-2xs">
+        <div className="mt-2 flex flex-col md:flex-row gap-3 items-center justify-between bg-slate-50 border border-slate-200/60 p-3 rounded-2xl shadow-2xs">
           
           {/* Input de Búsqueda de Mazos */}
           <div className="relative w-full md:flex-1 max-w-md">
@@ -200,7 +191,6 @@ export default function LibrarySection({
                   <option value="recent">Más recientes</option>
                   <option value="oldest">Más antiguos</option>
                   <option value="alpha">Orden alfabético</option>
-                  {/* ✨ ACTUALIZADO: Filtros divididos con nombres claros y descriptivos */}
                   <option value="cards-desc">Mayor número de tarjetas</option>
                   <option value="cards-asc">Menor número de tarjetas</option>
                 </select>
@@ -257,8 +247,8 @@ export default function LibrarySection({
           data-testid="decks-grid" 
           className={
             viewMode === 'grid'
-              ? "mt-6 grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 pb-12"
-              : "mt-6 flex flex-col gap-3 pb-12"
+              ? "mt-4 grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 pb-12"
+              : "mt-4 flex flex-col gap-3 pb-12"
           }
         >
           {processedDecks.map((deck) => (
