@@ -236,7 +236,6 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
         onImport={handleImportJSON} 
       />
 
-      {/* 🧠 REINGENIERÍA: El spinner bloqueante de pantalla completa SOLO se activa en modo "review" si sigue cargando */}
       {mode === 'review' && loading ? (
         <div className="mt-12 flex flex-col items-center justify-center gap-3 text-slate-400 py-12">
           <Loader2 className="w-6 h-6 animate-spin text-slate-600" />
@@ -256,7 +255,7 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
 
           {mode === 'edit' && (
             <>
-              {/* Carga instantánea: El formulario se renderiza al instante (0ms de retraso) */}
+              {/* ✨ OPTIMIZACIÓN 1: "hasCards" lee el metadato del mazo al instante. El botón de borrado rápido jamás parpadea ni se oculta */}
               <FlashcardCreator
                 question={question} setQuestion={setQuestion} answer={answer} setAnswer={setAnswer}
                 bgImage={bgImage} setBgImage={setBgImage} textAlign={textAlign} setTextAlign={setTextAlign}
@@ -267,9 +266,10 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
                 contentImage={contentImage} setContentImage={setContentImage}
                 imageSide={imageSide} setImageSide={setImageSide}
                 onFastDelete={() => setMode('fast-delete')}
-                hasCards={cards.length > 0}
+                hasCards={(deck.cardCount ?? cards.length) > 0}
               />
               
+              {/* El botón contenedor de colección se dibuja al 100% de su tamaño desde el milisegundo cero */}
               <button
                 type="button"
                 onClick={() => setShowGrid(!showGrid)}
@@ -280,13 +280,15 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
                     Colección de tarjetas del mazo
                   </h3>
                   
-                  {/* ✨ INDICADOR COMPACTO: Si está cargando en segundo plano en modo editor, muestra un micro-loader elegante */}
-                  <span className="bg-slate-100 text-slate-700 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border border-slate-200/50 min-w-[50px] inline-flex items-center justify-center">
-                    {loading ? (
-                      <Loader2 className="w-3 h-3 animate-spin text-slate-400" />
-                    ) : (
-                      `${cards.length} ${cards.length === 1 ? 'tarjeta' : 'tarjetas'}`
-                    )}
+                  {/* ✨ OPTIMIZACIÓN 2: Muestra el número pre-calculado del mazo de inmediato. Si está cargando, agrega un loader sutil al lado sin alterar las dimensiones */}
+                  <span className="bg-slate-100 text-slate-700 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border border-slate-200/50 inline-flex items-center gap-1.5 h-5">
+                    {loading && <Loader2 className="w-2.5 h-2.5 animate-spin text-slate-400 shrink-0" />}
+                    <span>
+                      {cards.length > 0 
+                        ? `${cards.length} ${cards.length === 1 ? 'tarjeta' : 'tarjetas'}`
+                        : `${deck.cardCount ?? 0} ${deck.cardCount === 1 ? 'tarjeta' : 'tarjetas'}`
+                      }
+                    </span>
                   </span>
                 </div>
                 {showGrid ? (
