@@ -10,10 +10,9 @@ export default function LibraryFAB({
   const [fabOpen, setFabOpen] = useState(false);
 
   return (
-    /* ✨ SOLUCIÓN: El contenedor calca el ancho y centrado de la píldora en móvil, y se resetea en escritorio */
     <div className="fixed bottom-24 inset-x-4 max-w-xs mx-auto md:bottom-10 md:right-8 md:inset-x-auto md:max-w-none md:mx-0 z-50 flex flex-col items-end gap-2.5 pointer-events-none">
       
-      {/* Fondo difuminado sutil (Se le regresa interactividad con pointer-events-auto) */}
+      {/* Fondo difuminado sutil */}
       {fabOpen && (
         <div
           onClick={() => setFabOpen(false)}
@@ -64,12 +63,12 @@ export default function LibraryFAB({
         </div>
       )}
 
-      {/* Botón Gatillo Principal (Se le regresa interactividad con pointer-events-auto) */}
+      {/* ✨ ACTUALIZADO: "rotate-45" removido para que el icono del "+" permanezca inmóvil y firme */}
       <button
         type="button"
         onClick={() => setFabOpen(!fabOpen)}
         className={`w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-xl z-50 transition-all duration-200 active:scale-90 cursor-pointer pointer-events-auto ${
-          fabOpen ? 'bg-slate-800 rotate-45' : 'bg-slate-900 hover:bg-slate-800 hover:scale-105'
+          fabOpen ? 'bg-slate-800' : 'bg-slate-900 hover:bg-slate-800 hover:scale-105'
         }`}
       >
         <Plus className="w-6 h-6 stroke-[2.5]" />
