@@ -10,7 +10,7 @@ export default function LibraryFAB({
   const [fabOpen, setFabOpen] = useState(false);
 
   return (
-    <div className="fixed bottom-20 right-4 md:bottom-8 md:right-8 z-50 flex flex-col items-end gap-2">
+    <div className="fixed bottom-24 right-4 md:bottom-10 md:right-8 z-50 flex flex-col items-end gap-2.5">
       {/* Fondo difuminado sutil para cuando el FAB esté abierto */}
       {fabOpen && (
         <div
@@ -21,7 +21,7 @@ export default function LibraryFAB({
 
       {/* Menú de Opciones Desplegables */}
       {fabOpen && (
-        <div className="flex flex-col items-end gap-2 z-50 mb-2 animate-[slideUp_0.15s_ease-out]">
+        <div className="flex flex-col items-end gap-2 z-50 mb-1.5 animate-[slideUp_0.15s_ease-out]">
           <button
             type="button"
             onClick={() => { setFabOpen(false); }}
@@ -62,15 +62,15 @@ export default function LibraryFAB({
         </div>
       )}
 
-      {/* Botón Gatillo Principal del FAB */}
+      {/* ✨ ACTUALIZADO: Botón Gatillo Cuadrado, Más Grande (h-14) y con Bordes Suaves */}
       <button
         type="button"
         onClick={() => setFabOpen(!fabOpen)}
-        className={`w-12 h-12 rounded-full flex items-center justify-center text-white shadow-xl z-50 transition-all duration-200 active:scale-90 cursor-pointer ${
+        className={`w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-xl z-50 transition-all duration-200 active:scale-90 cursor-pointer ${
           fabOpen ? 'bg-slate-800 rotate-45' : 'bg-slate-900 hover:bg-slate-800 hover:scale-105'
         }`}
       >
-        <Plus className="w-5 h-5" />
+        <Plus className="w-6 h-6 stroke-[2.5]" />
       </button>
     </div>
   );
