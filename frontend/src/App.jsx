@@ -27,10 +27,12 @@ function DashboardScreen({ user, onLogout }) {
   const [currentDeck, setCurrentDeck] = useState(null);
   const [initialMode, setInitialMode] = useState('edit');
 
+  // ✨ ACTUALIZADO: Añadimos un parámetro dinámico basado en milisegundos (?t=...) 
+  // para romper la caché del navegador y forzar a MongoDB a darnos el conteo real al instante.
   const loadDecks = useCallback(async (showSpinner = false) => {
     if (showSpinner) setLoading(true);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/decks/${user.id}`);
+      const res = await fetch(`${BACKEND_URL}/api/decks/${user.id}?t=${Date.now()}`);
       if (!res.ok) throw new Error();
       const data = await res.json();
       setDecks(data);
