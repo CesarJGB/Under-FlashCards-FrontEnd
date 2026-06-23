@@ -11,12 +11,12 @@ export default function DeckCard({
   onDelete, 
   onToggleStar, 
   onToggleDefault, 
-  onTogglePublicReadOnly, // 👈 Nuevo prop recibido
+  onTogglePublicReadOnly, 
   isList = false 
 }) {
   const [showMenu, setShowMenu] = useState(false);
   
-  // 🧠 REGLA DE MODIFICACIÓN: Se puede editar si eres el dueño O si el mazo es una plantilla editable global
+  // REGLA DE MODIFICACIÓN: Editable si eres dueño o si es una plantilla editable global
   const canModify = deck.userId === currentUserId || deck.isDefault === true;
 
   const bgStyle = deck.coverImage
@@ -39,85 +39,99 @@ export default function DeckCard({
 
       {showMenu && <div className="fixed inset-0 z-20 bg-transparent" onClick={(e) => handleAction(e, () => {})} />}
 
-      {/* --- MODO CUADRÍCULA --- */}
+      {/* ======================================================================= */}
+      {/* 🎴 MODO CUADRÍCULA (GRID VIEW) */}
+      {/* ======================================================================= */}
       {!isList && (
         <>
           {deck.isStarred && (
-            <button type="button" onClick={(e) => handleAction(e, () => onToggleStar(deck))} className="absolute top-2.5 left-2.5 p-1.5 rounded-lg bg-white/90 text-amber-500 shadow-3xs z-10">
+            <button type="button" onClick={(e) => handleAction(e, () => onToggleStar(deck))} className="absolute top-2.5 left-2.5 p-1.5 rounded-lg bg-white/90 text-amber-500 shadow-3xs z-10 flex items-center justify-center cursor-pointer">
               <Star className="w-3.5 h-3.5 fill-amber-500" />
             </button>
           )}
 
-          {/* 🌐 INDICADORES VISUALES COMPACTOS */}
-          {deck.isDefault && (
-            <div className="absolute bottom-2.5 right-2.5 bg-emerald-600/80 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md backdrop-blur-xs flex items-center gap-1 z-10 shadow-3xs">
-              <Globe className="w-2.5 h-2.5" /> Oficial (Editable)
+          {/* ✨ SOLUCIÓN: Columna de controles superior derecha alineada milimétricamente */}
+          <div className="absolute top-2.5 right-2.5 z-30 flex flex-col items-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+            
+            {/* Contenedor del Botón de Opciones */}
+            <div className="relative">
+              <button 
+                type="button" 
+                onClick={() => setShowMenu(!showMenu)} 
+                className={`p-1.5 rounded-lg shadow-3xs flex items-center justify-center transition-all cursor-pointer ${
+                  showMenu ? 'bg-white text-slate-900' : 'bg-white/90 text-slate-700 hover:bg-white'
+                }`}
+              >
+                <MoreHorizontal className="w-3.5 h-3.5" />
+              </button>
+
+              {showMenu && (
+                <div className="absolute right-0 mt-1 w-44 bg-white border border-slate-200 rounded-xl shadow-xl p-1 flex flex-col gap-0.5 z-50 animate-[slideUp_0.1s_ease-out]">
+                  {isAdmin && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={(e) => handleAction(e, () => onToggleDefault(deck))}
+                        className="w-full text-left px-2 py-1.5 hover:bg-emerald-50 text-emerald-600 text-[11px] font-bold rounded-lg flex items-center gap-2 transition-colors cursor-pointer"
+                      >
+                        <Globe className="w-3.5 h-3.5 text-emerald-500" />
+                        {deck.isDefault ? 'Quitar editable global' : 'Compartir Editable'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => handleAction(e, () => onTogglePublicReadOnly(deck))}
+                        className="w-full text-left px-2 py-1.5 hover:bg-blue-50 text-blue-600 text-[11px] font-bold rounded-lg flex items-center gap-2 transition-colors cursor-pointer"
+                      >
+                        <Eye className="w-3.5 h-3.5 text-blue-500" />
+                        {deck.isPublicReadOnly ? 'Quitar lectura global' : 'Compartir Lectura'}
+                      </button>
+                      <div className="my-0.5 border-t border-slate-100" />
+                    </>
+                  )}
+
+                  <button type="button" onClick={(e) => handleAction(e, () => onToggleStar(deck))} className="w-full text-left px-2 py-1.5 hover:bg-slate-50 text-slate-700 text-[11px] font-bold rounded-lg flex items-center gap-2 transition-colors cursor-pointer">
+                    <Star className={`w-3.5 h-3.5 ${deck.isStarred ? 'text-amber-500 fill-amber-500' : 'text-slate-400'}`} />
+                    {deck.isStarred ? 'Quitar estrella' : 'Destacar mazo'}
+                  </button>
+
+                  {canModify && (
+                    <>
+                      <button type="button" onClick={(e) => handleAction(e, () => onEdit(deck))} className="w-full text-left px-2 py-1.5 hover:bg-slate-50 text-slate-700 text-[11px] font-bold rounded-lg flex items-center gap-2 transition-colors cursor-pointer">
+                        <Pencil className="w-3.5 h-3.5 text-slate-400" /> Editar
+                      </button>
+                      <button type="button" onClick={(e) => handleAction(e, () => onDelete(deck))} className="w-full text-left px-2 py-1.5 hover:bg-red-50 text-red-600 text-[11px] font-bold rounded-lg flex items-center gap-2 transition-colors cursor-pointer">
+                        <Trash2 className="w-3.5 h-3.5" /> Eliminar
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
-          )}
-          {deck.isPublicReadOnly && (
-            <div className="absolute bottom-2.5 right-2.5 bg-blue-600/80 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md backdrop-blur-xs flex items-center gap-1 z-10 shadow-3xs">
-              <Eye className="w-2.5 h-2.5" /> Oficial (Lectura)
-            </div>
-          )}
 
-          {/* MENÚ DE TRES PUNTOS */}
-          <div className="absolute top-2.5 right-2.5 z-30" onClick={(e) => e.stopPropagation()}>
-            <button type="button" onClick={() => setShowMenu(!showMenu)} className="p-1.5 rounded-lg bg-white/90 text-slate-700 hover:bg-white shadow-3xs flex items-center justify-center">
-              <MoreHorizontal className="w-3.5 h-3.5" />
-            </button>
-
-            {showMenu && (
-              <div className="absolute right-0 mt-1 w-44 bg-white border border-slate-200 rounded-xl shadow-xl p-1 flex flex-col gap-0.5 z-50">
-                {/* 👑 CONTROLES EXCLUSIVOS DE CÉSAR (ADMIN) */}
-                {isAdmin && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={(e) => handleAction(e, () => onToggleDefault(deck))}
-                      className="w-full text-left px-2 py-1.5 hover:bg-emerald-50 text-emerald-600 text-[11px] font-bold rounded-lg flex items-center gap-2 transition-colors cursor-pointer"
-                    >
-                      <Globe className="w-3.5 h-3.5 text-emerald-500" />
-                      {deck.isDefault ? 'Quitar editable global' : 'Compartir Editable'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => handleAction(e, () => onTogglePublicReadOnly(deck))}
-                      className="w-full text-left px-2 py-1.5 hover:bg-blue-50 text-blue-600 text-[11px] font-bold rounded-lg flex items-center gap-2 transition-colors cursor-pointer"
-                    >
-                      <Eye className="w-3.5 h-3.5 text-blue-500" />
-                      {deck.isPublicReadOnly ? 'Quitar lectura global' : 'Compartir Lectura'}
-                    </button>
-                    <div className="my-0.5 border-t border-slate-100" />
-                  </>
-                )}
-
-                <button type="button" onClick={(e) => handleAction(e, () => onToggleStar(deck))} className="w-full text-left px-2 py-1.5 hover:bg-slate-50 text-slate-700 text-[11px] font-bold rounded-lg flex items-center gap-2 transition-colors cursor-pointer">
-                  <Star className={`w-3.5 h-3.5 ${deck.isStarred ? 'text-amber-500 fill-amber-500' : 'text-slate-400'}`} />
-                  {deck.isStarred ? 'Quitar estrella' : 'Destacar mazo'}
-                </button>
-
-                {canModify && (
-                  <>
-                    <button type="button" onClick={(e) => handleAction(e, () => onEdit(deck))} className="w-full text-left px-2 py-1.5 hover:bg-slate-50 text-slate-700 text-[11px] font-bold rounded-lg flex items-center gap-2 transition-colors cursor-pointer">
-                      <Pencil className="w-3.5 h-3.5 text-slate-400" /> Editar
-                    </button>
-                    <button type="button" onClick={(e) => handleAction(e, () => onDelete(deck))} className="w-full text-left px-2 py-1.5 hover:bg-red-50 text-red-600 text-[11px] font-bold rounded-lg flex items-center gap-2 transition-colors cursor-pointer">
-                      <Trash2 className="w-3.5 h-3.5" /> Eliminar
-                    </button>
-                  </>
-                )}
+            {/* 🌐 Indicadores Oficiales recolocados limpiamente debajo del gatillo */}
+            {deck.isDefault && (
+              <div className="bg-emerald-600/90 text-white text-[9px] font-black px-2 py-0.5 rounded-md backdrop-blur-xs flex items-center gap-1 shadow-2xs animate-[fadeIn_0.1s_ease]">
+                <Globe className="w-2.5 h-2.5 shrink-0 stroke-[2.5]" /> Oficial
+              </div>
+            )}
+            {deck.isPublicReadOnly && (
+              <div className="bg-blue-600/90 text-white text-[9px] font-black px-2 py-0.5 rounded-md backdrop-blur-xs flex items-center gap-1 shadow-2xs animate-[fadeIn_0.1s_ease]">
+                <Eye className="w-2.5 h-2.5 shrink-0 stroke-[2.5]" /> Oficial
               </div>
             )}
           </div>
 
-          <div className="p-3.5 w-full z-10 min-w-0 relative pr-16">
+          {/* Texto inferior (pr-4 optimizado para evitar cualquier colisión) */}
+          <div className="p-3.5 w-full z-10 min-w-0 relative pr-4">
             <p className="font-bold text-white text-sm truncate drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">{deck.title}</p>
             <p className="text-[11px] mt-0.5 font-semibold text-white/85 drop-shadow-[0_1px_1px_rgba(0,0,0,0.4)]">{deck.cardCount ?? 0} tarjetas</p>
           </div>
         </>
       )}
 
-      {/* --- MODO LISTA --- */}
+      {/* ======================================================================= */}
+      {/* 📜 MODO LISTA (LIST VIEW) */}
+      {/* ======================================================================= */}
       {isList && (
         <>
           <div className="flex items-center gap-3.5 min-w-0 flex-1 pr-4">
