@@ -74,7 +74,7 @@ function DashboardScreen({ user, onLogout }) {
 
   return (
     <div className="min-h-screen w-full bg-slate-50 flex" data-testid="dashboard-screen">
-      {/* SIDEBAR (Escritorio - Mantiene consistencia de marca) */}
+      {/* SIDEBAR (Escritorio) */}
       <aside className="hidden md:flex w-72 shrink-0 flex-col bg-white border-r border-slate-200 p-5">
         <div className="flex items-center gap-2 px-1 mb-8 h-9 min-w-0">
           {currentDeck && tab === 'library' ? (
@@ -113,11 +113,8 @@ function DashboardScreen({ user, onLogout }) {
 
       {/* CONTENEDOR PRINCIPAL */}
       <main className="flex-1 min-w-0 relative">
-        
-        {/* ✨ CABECERA SUPERIOR MÓVIL REINGENIERIZADA (ALTA DENSIDAD Y PUREZA VISUAL) */}
+        {/* HEADER SUPERIOR MÓVIL */}
         <div className="md:hidden sticky top-0 z-30 bg-white border-b border-slate-200 px-4 py-3.5 flex items-center justify-between shadow-xs">
-          
-          {/* Título Dinámico de Sección Elevado */}
           <span className="min-w-0 max-w-[80%]">
             {currentDeck && tab === 'library' ? (
               <span className="font-black text-slate-900 text-base border-l-4 border-slate-900 pl-2.5 block truncate">
@@ -130,7 +127,6 @@ function DashboardScreen({ user, onLogout }) {
             )}
           </span>
 
-          {/* 🚪 CONTROL EXCLUSIVO: El botón Logout solo se dibuja si estás parado en la sección de Home */}
           {tab === 'home' && (
             <button 
               onClick={onLogout} 
@@ -142,14 +138,14 @@ function DashboardScreen({ user, onLogout }) {
           )}
         </div>
 
-        {/* CONTENIDO INTERNO DE LAS PÁGINAS */}
-        <div className="max-w-5xl mx-auto px-4 py-4 pb-20 md:pb-8 md:px-6 md:py-8">
+        {/* CONTENIDO INTERNO */}
+        <div className="max-w-5xl mx-auto px-4 py-4 pb-24 md:pb-8 md:px-6 md:py-8">
           {tab === 'home' && (
             <HomeSection 
               user={user} 
               decks={decks} 
               onOpenReview={handleOpenReviewFromHome}
-              onLogout={onLogout} // Se inyecta también al home section por si quieres pintar un acceso extra abajo
+              onLogout={onLogout}
             />
           )}
           {tab === 'library' && (
@@ -168,23 +164,40 @@ function DashboardScreen({ user, onLogout }) {
           {tab === 'settings' && <SettingsSection userId={user.id} />}
         </div>
 
-        {/* BARRA INFERIOR MÓVIL */}
-        <div className="md:hidden fixed bottom-0 inset-x-0 bg-white/90 backdrop-blur-md border-t border-slate-200/80 px-6 py-2 flex justify-around items-center z-40 shadow-[0_-4px_12px_rgba(0,0,0,0.03)]">
-          <button onClick={() => handleTabChange('home')} className={`flex flex-col items-center justify-center gap-0.5 flex-1 py-1 transition-colors ${tab === 'home' ? 'text-slate-900 font-bold' : 'text-slate-400'}`}>
-            <Home className="w-5 h-5" /> <span className="text-[10px]">Inicio</span>
-          </button>
-          <button onClick={() => handleTabChange('library')} className={`flex flex-col items-center justify-center gap-0.5 flex-1 py-1 transition-colors ${tab === 'library' ? 'text-slate-900 font-bold' : 'text-slate-400'}`}>
-            <Library className="w-5 h-5" /> <span className="text-[10px]">Archivos</span>
-          </button>
-          <button onClick={() => handleTabChange('settings')} className={`flex flex-col items-center justify-center gap-0.5 flex-1 py-1 transition-colors ${tab === 'settings' ? 'text-slate-900 font-bold' : 'text-slate-400'}`}>
-            <Settings className="w-5 h-5" /> <span className="text-[10px]">Ajustes</span>
-          </button>
+        {/* ✨ BARRA INFERIOR MÓVIL REINGENIERIZADA (ESTILO CÁPSULA FLOTANTE PREMIUM - IMAGE_9.png) */}
+        <div className="md:hidden fixed bottom-5 inset-x-4 max-w-xs mx-auto bg-white/85 backdrop-blur-xl border border-slate-200/60 h-14 rounded-full px-2 flex justify-between items-center z-40 shadow-[0_8px_30px_rgb(0,0,0,0.08)] animate-[slideUp_0.2s_ease-out]">
+          
+          {[
+            { id: 'home', title: 'Inicio', Icon: Home },
+            { id: 'library', title: 'Biblioteca', Icon: Library },
+            { id: 'settings', title: 'Ajustes', Icon: Settings }
+          ].map((item) => {
+            const isActive = tab === item.id;
+            const IconComponent = item.Icon;
+            
+            return (
+              <button
+                key={item.id}
+                onClick={() => handleTabChange(item.id)}
+                className={`h-10 flex items-center justify-center transition-all duration-200 rounded-full relative flex-1 cursor-pointer ${
+                  isActive 
+                    ? 'bg-slate-900 text-white font-bold px-6 shadow-2xs' 
+                    : 'text-slate-400 hover:text-slate-600 px-4'
+                }`}
+                title={item.title}
+              >
+                <IconComponent className={`w-4 h-4 transition-transform duration-200 ${isActive ? 'scale-105 stroke-[2.3]' : 'stroke-[1.8]'}`} />
+              </button>
+            );
+          })}
+
         </div>
       </main>
     </div>
   );
 }
 
+// ... El resto de FlashcardsApp y App se mantienen exactamente igual ...
 function FlashcardsApp() {
   const [user, setUser] = useState(null);
   const [error, setError] = useState('');
