@@ -86,14 +86,11 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
     exportDeckToPDF(deck.title, cards, type);
   };
 
-  // 🚀 PROCESADOR DE IMPORTACIÓN: Parsea el archivo JSON y lo sube al mazo mediante la API masiva
   const handleImportJSON = async (file) => {
     setError('');
     try {
       const text = await file.text();
       const parsedData = JSON.parse(text);
-      
-      // Soporta tanto si el archivo es una copia de seguridad nativa ({ cards: [...] }) o un arreglo puro
       const importedCards = Array.isArray(parsedData) ? parsedData : (parsedData.cards || []);
 
       if (importedCards.length === 0) {
@@ -123,7 +120,7 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
       if (!res.ok) throw new Error('Ocurrió un problema en el servidor al intentar guardar el mazo importado.');
       
       const batchData = await res.json();
-      setCards((prev) => [...batchData, ...prev]); // Carga las tarjetas dinámicamente en el feed
+      setCards((prev) => [...batchData, ...prev]); 
     } catch (err) {
       setError(err.message || 'Error al procesar la lectura del archivo estructurado.');
     } finally {
@@ -236,10 +233,11 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
         onBack={onBack} 
         onExport={handleExport} 
         onExportPDF={handleExportPDF} 
-        onImport={handleImportJSON} // 🚀 Enrutado directo a las herramientas del Header
+        onImport={handleImportJSON} 
       />
 
-      {loading ? (
+      {/* 🧠 REINGENIERÍA: El spinner bloqueante de pantalla completa SOLO se activa en modo "review" si sigue cargando */}
+      {mode === 'review' && loading ? (
         <div className="mt-12 flex flex-col items-center justify-center gap-3 text-slate-400 py-12">
           <Loader2 className="w-6 h-6 animate-spin text-slate-600" />
           <p className="text-sm font-medium">Preparando tus tarjetas de estudio…</p>
@@ -258,6 +256,7 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
 
           {mode === 'edit' && (
             <>
+              {/* Carga instantánea: El formulario se renderiza al instante (0ms de retraso) */}
               <FlashcardCreator
                 question={question} setQuestion={setQuestion} answer={answer} setAnswer={setAnswer}
                 bgImage={bgImage} setBgImage={setBgImage} textAlign={textAlign} setTextAlign={setTextAlign}
@@ -280,8 +279,14 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
                   <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
                     Colección de tarjetas del mazo
                   </h3>
-                  <span className="bg-slate-100 text-slate-700 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border border-slate-200/50">
-                    {cards.length} {cards.length === 1 ? 'tarjeta' : 'tarjetas'}
+                  
+                  {/* ✨ INDICADOR COMPACTO: Si está cargando en segundo plano en modo editor, muestra un micro-loader elegante */}
+                  <span className="bg-slate-100 text-slate-700 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border border-slate-200/50 min-w-[50px] inline-flex items-center justify-center">
+                    {loading ? (
+                      <Loader2 className="w-3 h-3 animate-spin text-slate-400" />
+                    ) : (
+                      `${cards.length} ${cards.length === 1 ? 'tarjeta' : 'tarjetas'}`
+                    )}
                   </span>
                 </div>
                 {showGrid ? (
@@ -293,7 +298,13 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
 
               {showGrid && (
                 <div className="animate-[fadeIn_0.18s_ease] pb-6">
-                  <FlashcardCollection cards={cards} onEdit={handleEdit} onDelete={handleDelete} />
+                  {loading ? (
+                    <div className="flex items-center justify-center gap-2 text-slate-400 py-8 text-xs font-medium">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-500" /> Sincronizando colección…
+                    </div>
+                  ) : (
+                    <FlashcardCollection cards={cards} onEdit={handleEdit} onDelete={handleDelete} />
+                  )}
                 </div>
               )}
             </>
