@@ -151,6 +151,7 @@ function DashboardScreen({ user, onLogout }) {
           {tab === 'library' && (
             <LibrarySection 
               userId={user.id} 
+              userEmail={user.email} {/* 👑 ACTUALIZADO: Enviamos el email para identificar el rol de administrador */}
               decks={decks}
               loading={loading}
               setDecks={setDecks}
@@ -164,7 +165,7 @@ function DashboardScreen({ user, onLogout }) {
           {tab === 'settings' && <SettingsSection userId={user.id} />}
         </div>
 
-        {/* ✨ BARRA INFERIOR MÓVIL REINGENIERIZADA (ESTILO CÁPSULA FLOTANTE PREMIUM - IMAGE_9.png) */}
+        {/* BARRA INFERIOR MÓVIL REINGENIERIZADA (ESTILO CÁPSULA FLOTANTE PREMIUM) */}
         <div className="md:hidden fixed bottom-5 inset-x-4 max-w-xs mx-auto bg-white/85 backdrop-blur-xl border border-slate-200/60 h-14 rounded-full px-2 flex justify-between items-center z-40 shadow-[0_8px_30px_rgb(0,0,0,0.08)] animate-[slideUp_0.2s_ease-out]">
           
           {[
@@ -197,7 +198,6 @@ function DashboardScreen({ user, onLogout }) {
   );
 }
 
-// ... El resto de FlashcardsApp y App se mantienen exactamente igual ...
 function FlashcardsApp() {
   const [user, setUser] = useState(null);
   const [error, setError] = useState('');
