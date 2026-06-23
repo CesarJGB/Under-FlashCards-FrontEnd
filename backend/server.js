@@ -42,7 +42,6 @@ const userSchema = new mongoose.Schema(
     email: { type: String, required: true },
     name: String,
     picture: String,
-    // Optional, user-provided AI API key. TODO: encrypt at rest in the future.
     aiApiKey: { type: String, default: '' },
   },
   { timestamps: true }
@@ -58,12 +57,12 @@ const deckSchema = new mongoose.Schema(
     },
     title: { type: String, required: true, trim: true },
     coverColor: { type: String, default: '#ffffff' },
-    // Optional cover image stored as a base64 data URL.
     coverImage: { type: String, default: '' },
-    // 📸 EL POOL: Guarda cada imagen base64 ÚNICA del mazo una sola vez para optimizar espacio
     cardBackgrounds: { type: [String], default: [] },
-    // ⭐ FAVORITOS: Guardado correctamente dentro de la estructura del esquema
     isStarred: { type: Boolean, default: false },
+    // ✨ ACTUALIZADO: Nuevos Atributos de Mazos Semilla del Ecosistema Multiusuario
+    isDefault: { type: Boolean, default: false },
+    isPublicReadOnly: { type: Boolean, default: false }
   },
   { timestamps: true }
 );
@@ -85,11 +84,9 @@ const flashcardSchema = new mongoose.Schema(
     question: { type: String, required: true, trim: true },
     answer: { type: String, required: true, trim: true },
     easeFactor: { type: Number, default: 2.5 },
-    // 🔍 INDEXACIÓN INTELIGENTE: Cambiamos el string gigante por un puntero numérico al pool del mazo
     bgImageIndex: { type: Number, default: -1 },
     textAlign: { type: String, enum: ['left', 'center', 'right'], default: 'center' },
     fontSize: { type: String, default: 'text-base' },
-    // 🖼️ NUEVOS ATRIBUTOS: Imagen de contenido específica (ej. Anatomía) y en qué lado renderiza
     contentImage: { type: String, default: '' },
     imageSide: { type: String, enum: ['question', 'answer', ''], default: '' }
   },
@@ -100,11 +97,9 @@ const User = mongoose.model('User', userSchema);
 const Deck = mongoose.model('Deck', deckSchema);
 const Flashcard = mongoose.model('Flashcard', flashcardSchema);
 
-// Helpers: never leak the raw aiApiKey to clients.
 const maskKey = (key) =>
   key ? `${'•'.repeat(Math.max(0, key.length - 4))}${key.slice(-4)}` : '';
 
-// Infla el índice numérico convirtiéndolo dinámicamente en la cadena Base64 real para el frontend
 const serializeFlashcard = (c, cardBackgrounds = []) => ({
   id: c._id,
   userId: c.userId,
@@ -115,8 +110,8 @@ const serializeFlashcard = (c, cardBackgrounds = []) => ({
   bgImage: (cardBackgrounds && c.bgImageIndex >= 0) ? (cardBackgrounds[c.bgImageIndex] || '') : '',
   textAlign: c.textAlign,
   fontSize: c.fontSize,
-  contentImage: c.contentImage || '', // 🚀 Mapeo de la imagen de contenido hacia el cliente
-  imageSide: c.imageSide || '',       // 🚀 Mapeo de la cara activa asignada
+  contentImage: c.contentImage || '', 
+  imageSide: c.imageSide || '',       
   createdAt: c.createdAt,
 });
 
@@ -127,12 +122,14 @@ const serializeDeck = (d, cardCount) => ({
   coverColor: d.coverColor,
   coverImage: d.coverImage,
   cardCount: typeof cardCount === 'number' ? cardCount : undefined,
-  cardBackgrounds: d.cardBackgrounds || [], // Lo exponemos para portabilidad de importación/exportación
+  cardBackgrounds: d.cardBackgrounds || [], 
   isStarred: d.isStarred || false,
+  // ✨ ACTUALIZADO: Exponer las nuevas banderas globales hacia el cliente React
+  isDefault: d.isDefault || false,
+  isPublicReadOnly: d.isPublicReadOnly || false,
   createdAt: d.createdAt,
 });
 
-// FUNCIÓN MÁGICA DE DEDUPLICACIÓN: Retorna el índice si ya existe, o mete el activo al pool si es nuevo
 async function getOrCreateBgIndex(deckId, bgImageString) {
   if (!bgImageString) return -1;
   const deck = await Deck.findById(deckId);
@@ -150,7 +147,7 @@ async function getOrCreateBgIndex(deckId, bgImageString) {
 const oauthClient = new OAuth2Client(GOOGLE_CLIENT_ID);
 
 // -----------------------------------------------------------------------------
-// CORS: explicit allow-list (Cloudflare Pages domain + localhost)
+// CORS
 // -----------------------------------------------------------------------------
 const configuredOrigins = (process.env.FRONTEND_URL || '')
   .split(',')
@@ -173,7 +170,6 @@ const corsOptions = {
 app.use(helmet());
 app.use(cors(corsOptions));
 
-// 🛠️ SOLUCIÓN AL SOLICITAR IMÁGENES GRANDES: Expandimos el parser a 50MB para soportar fotos en Base64
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
@@ -185,7 +181,7 @@ app.get('/api/health', (req, res) => {
 });
 
 // -----------------------------------------------------------------------------
-// POST /api/auth/google — verify Google idToken + upsert user
+// POST /api/auth/google
 // -----------------------------------------------------------------------------
 app.post('/api/auth/google', async (req, res) => {
   try {
@@ -233,7 +229,7 @@ app.post('/api/auth/google', async (req, res) => {
 });
 
 // -----------------------------------------------------------------------------
-// GET /api/user/:userId — settings state (no raw key)
+// GET /api/user/:userId
 // -----------------------------------------------------------------------------
 app.get('/api/user/:userId', async (req, res) => {
   try {
@@ -259,7 +255,7 @@ app.get('/api/user/:userId', async (req, res) => {
 });
 
 // -----------------------------------------------------------------------------
-// PUT /api/user/settings — update aiApiKey
+// PUT /api/user/settings
 // -----------------------------------------------------------------------------
 app.put('/api/user/settings', async (req, res) => {
   try {
@@ -293,18 +289,30 @@ app.put('/api/user/settings', async (req, res) => {
 // DECKS — CRUD
 // -----------------------------------------------------------------------------
 
-// GET /api/decks/:userId — list a user's decks (with card counts)
+// ✨ REINGENIERÍA: Listar los mazos del usuario MÁS las plantillas globales (Inyectando conteo multiusuario real)
 app.get('/api/decks/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
     if (!mongoose.isValidObjectId(userId)) {
       return res.status(400).json({ error: 'Invalid user id.' });
     }
-    const decks = await Deck.find({ userId }).sort({ createdAt: -1 });
+    
+    // Consulta lógica OR: Trae lo que me pertenece O lo que César marcó como semilla oficial
+    const decks = await Deck.find({
+      $or: [
+        { userId },
+        { isDefault: true },
+        { isPublicReadOnly: true }
+      ]
+    }).sort({ createdAt: -1 });
+
+    // Extraemos todos los IDs de la colección unificada para contar sus tarjetas de forma precisa
+    const deckIds = decks.map((d) => d._id);
     const counts = await Flashcard.aggregate([
-      { $match: { userId: new mongoose.Types.ObjectId(userId) } },
+      { $match: { deckId: { $in: deckIds } } },
       { $group: { _id: '$deckId', count: { $sum: 1 } } },
     ]);
+    
     const countMap = Object.fromEntries(counts.map((c) => [String(c._id), c.count]));
     return res.json(decks.map((d) => serializeDeck(d, countMap[String(d._id)] || 0)));
   } catch (err) {
@@ -359,7 +367,53 @@ app.put('/api/decks/:id', async (req, res) => {
   }
 });
 
-// DELETE /api/decks/:id — delete a mazo and its flashcards
+// 🚀 NUEVO ENDPOINT: Setea o remueve un mazo como plantilla global editable (Garantiza exclusión mutua)
+app.put('/api/decks/:id/default', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { isDefault } = req.body || {};
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ error: 'Invalid deck id.' });
+    }
+
+    const update = { 
+      isDefault: !!isDefault,
+      ...(isDefault ? { isPublicReadOnly: false } : {}) // Si se activa, apaga el modo lectura para evitar colisiones
+    };
+
+    const deck = await Deck.findByIdAndUpdate(id, { $set: update }, { new: true });
+    if (!deck) return res.status(404).json({ error: 'Deck not found.' });
+    return res.json(serializeDeck(deck));
+  } catch (err) {
+    console.error('[decks:put-default] error:', err.message);
+    return res.status(500).json({ error: 'Server error.' });
+  }
+});
+
+// 🚀 NUEVO ENDPOINT: Setea o remueve un mazo como plantilla global protegida de solo lectura
+app.put('/api/decks/:id/public-readonly', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { isPublicReadOnly } = req.body || {};
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ error: 'Invalid deck id.' });
+    }
+
+    const update = { 
+      isPublicReadOnly: !!isPublicReadOnly,
+      ...(isPublicReadOnly ? { isDefault: false } : {}) // Si se activa, desactiva el modo editable
+    };
+
+    const deck = await Deck.findByIdAndUpdate(id, { $set: update }, { new: true });
+    if (!deck) return res.status(404).json({ error: 'Deck not found.' });
+    return res.json(serializeDeck(deck));
+  } catch (err) {
+    console.error('[decks:put-readonly] error:', err.message);
+    return res.status(500).json({ error: 'Server error.' });
+  }
+});
+
+// DELETE /api/decks/:id
 app.delete('/api/decks/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -376,7 +430,7 @@ app.delete('/api/decks/:id', async (req, res) => {
   }
 });
 
-// GET /api/decks/:id/export — mazo + its flashcards as a portable JSON
+// GET /api/decks/:id/export
 app.get('/api/decks/:id/export', async (req, res) => {
   try {
     const { id } = req.params;
@@ -395,7 +449,7 @@ app.get('/api/decks/:id/export', async (req, res) => {
         textAlign: c.textAlign,
         fontSize: c.fontSize,
         easeFactor: c.easeFactor,
-        contentImage: c.contentImage || '', // 🚀 Integra las imágenes en el JSON de respaldo
+        contentImage: c.contentImage || '', 
         imageSide: c.imageSide || ''
       })),
     });
@@ -405,7 +459,7 @@ app.get('/api/decks/:id/export', async (req, res) => {
   }
 });
 
-// POST /api/decks/import — create a new mazo (owned by userId) + its cards
+// POST /api/decks/import
 app.post('/api/decks/import', async (req, res) => {
   try {
     const { userId, deck, cards } = req.body || {};
@@ -434,7 +488,7 @@ app.post('/api/decks/import', async (req, res) => {
           question: String(c.question),
           answer: String(c.answer),
           bgImageIndex: typeof c.bgImageIndex === 'number' ? c.bgImageIndex : -1,
-          contentImage: typeof c.contentImage === 'string' ? c.contentImage : '', // 🚀 Rehidrata imágenes de contenido
+          contentImage: typeof c.contentImage === 'string' ? c.contentImage : '', 
           imageSide: typeof c.imageSide === 'string' ? c.imageSide : '',
           ...(['left', 'center', 'right'].includes(c.textAlign) ? { textAlign: c.textAlign } : {}),
           ...(typeof c.fontSize === 'string' ? { fontSize: c.fontSize } : {}),
@@ -457,10 +511,10 @@ app.post('/api/decks/import', async (req, res) => {
 });
 
 // -----------------------------------------------------------------------------
-// FLASHCARDS — scoped to a mazo
+// FLASHCARDS
 // -----------------------------------------------------------------------------
 
-// POST /api/flashcards/bulk — Crear múltiples flashcards blindado ante imágenes pesadas
+// POST /api/flashcards/bulk
 app.post('/api/flashcards/bulk', async (req, res) => {
   try {
     const { userId, deckId, batchStyles, cards } = req.body || {};
@@ -502,7 +556,7 @@ app.post('/api/flashcards/bulk', async (req, res) => {
         bgImageIndex,
         textAlign: ['left', 'center', 'right'].includes(c.textAlign || globalAlign) ? (c.textAlign || globalAlign) : 'center',
         fontSize: c.fontSize || globalSize,
-        contentImage: '', // Creaciones masivas por texto plano entran por defecto limpias de imágenes
+        contentImage: '', 
         imageSide: ''
       });
     }
@@ -523,7 +577,7 @@ app.post('/api/flashcards/bulk', async (req, res) => {
   }
 });
 
-// GET /api/flashcards/deck/:deckId — list flashcards of a deck
+// GET /api/flashcards/deck/:deckId
 app.get('/api/flashcards/deck/:deckId', async (req, res) => {
   try {
     const { deckId } = req.params;
@@ -541,7 +595,7 @@ app.get('/api/flashcards/deck/:deckId', async (req, res) => {
   }
 });
 
-// POST /api/flashcards — create a flashcard (requires deckId)
+// POST /api/flashcards
 app.post('/api/flashcards', async (req, res) => {
   try {
     const { userId, deckId, question, answer, bgImage, textAlign, fontSize, contentImage, imageSide } = req.body || {};
@@ -563,8 +617,8 @@ app.post('/api/flashcards', async (req, res) => {
       question: question.trim(),
       answer: answer.trim(),
       bgImageIndex,
-      contentImage: contentImage || '', // 🚀 Captura y guarda el string comprimido
-      imageSide: imageSide || '',       // 🚀 Captura la orientación del render
+      contentImage: contentImage || '', 
+      imageSide: imageSide || '',       
       ...(['left', 'center', 'right'].includes(textAlign) ? { textAlign } : {}),
       ...(typeof fontSize === 'string' ? { fontSize } : {}),
     });
@@ -577,7 +631,7 @@ app.post('/api/flashcards', async (req, res) => {
   }
 });
 
-// PUT /api/flashcards/:id — edit a flashcard
+// PUT /api/flashcards/:id
 app.put('/api/flashcards/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -591,7 +645,6 @@ app.put('/api/flashcards/:id', async (req, res) => {
     if (['left', 'center', 'right'].includes(textAlign)) update.textAlign = textAlign;
     if (typeof fontSize === 'string') update.fontSize = fontSize;
     
-    // 🚀 Actualiza opcionalmente las propiedades de imagen de contenido
     if (typeof contentImage === 'string') update.contentImage = contentImage;
     if (typeof imageSide === 'string') update.imageSide = imageSide;
 
@@ -611,7 +664,7 @@ app.put('/api/flashcards/:id', async (req, res) => {
   }
 });
 
-// DELETE /api/flashcards/:id — delete a flashcard
+// DELETE /api/flashcards/:id
 app.delete('/api/flashcards/:id', async (req, res) => {
   try {
     const { id } = req.params;
