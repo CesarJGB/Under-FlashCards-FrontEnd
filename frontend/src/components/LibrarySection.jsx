@@ -9,8 +9,12 @@ import LibraryFAB from './library/LibraryFAB';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
+// 👑 CONFIGURACIÓN DE ADMINISTRADOR COMPLETA
+const ADMIN_EMAIL = "cesarjaviervebe@gmail.com"; 
+
 export default function LibrarySection({ 
   userId, 
+  userEmail, 
   decks, 
   loading, 
   setDecks, 
@@ -27,6 +31,9 @@ export default function LibrarySection({
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('recent');
   const [viewMode, setViewMode] = useState('grid');
+
+  // Evalúa si tú eres el creador de la aplicación en tiempo de ejecución
+  const isAdmin = userEmail === ADMIN_EMAIL;
 
   const processedDecks = useMemo(() => {
     let result = decks.filter((deck) => 
@@ -49,6 +56,27 @@ export default function LibrarySection({
 
     return result;
   }, [decks, searchQuery, sortBy]);
+
+  // Envía la orden al backend para hacer el mazo público/default o quitarlo
+  const handleToggleDefault = async (deck) => {
+    const nextState = !deck.isDefault;
+    
+    // Actualización optimista en memoria local para respuesta instantánea
+    const updatedDecks = decks.map((d) => d.id === deck.id ? { ...d, isDefault: nextState } : d);
+    setDecks(updatedDecks);
+    localStorage.setItem(`decks_${userId}`, JSON.stringify(updatedDecks));
+
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/decks/${deck.id}/default`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isDefault: nextState }),
+      });
+      if (!res.ok) throw new Error();
+    } catch (err) {
+      await loadDecks(); // Revierte el estado desde el servidor si la API falla
+    }
+  };
 
   const handleSaveDeck = async (payload) => {
     const editing = modal?.editing;
@@ -152,7 +180,6 @@ export default function LibrarySection({
         data-testid="import-file-input"
       />
 
-      {/* ✨ NUEVO: La animación solo envuelve al contenido, protegiendo al FAB de saltos en el render */}
       <div className="animate-[fadeIn_0.15s_ease]">
         {decks.length > 0 && (
           <LibraryToolbar
@@ -185,17 +212,20 @@ export default function LibrarySection({
               viewMode === 'grid'
                 ? "mt-4 grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 pb-12"
                 : "mt-4 flex flex-col gap-3 pb-12"
-          }
+            }
           >
             {processedDecks.map((deck) => (
               <DeckCard
                 key={deck.id}
                 deck={deck}
+                currentUserId={userId}
+                isAdmin={isAdmin}
                 isList={viewMode === 'list'}
                 onOpen={(d) => { setInitialMode('edit'); setCurrentDeck(d); }}
                 onEdit={(d) => setModal({ editing: d })}
                 onDelete={handleDeleteDeck}
                 onToggleStar={handleToggleStar}
+                onToggleDefault={handleToggleDefault}
               />
             ))}
           </div>
@@ -206,7 +236,6 @@ export default function LibrarySection({
         <DeckModal initial={modal.editing} onClose={() => setModal(null)} onSave={handleSaveDeck} />
       )}
 
-      {/* 📱 El FAB se queda afuera de la animación, amarrado firmemente a la pantalla */}
       <LibraryFAB 
         setModal={setModal} 
         fileInputRef={fileInputRef} 
