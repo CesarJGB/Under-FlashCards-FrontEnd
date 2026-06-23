@@ -10,18 +10,20 @@ export default function LibraryFAB({
   const [fabOpen, setFabOpen] = useState(false);
 
   return (
-    <div className="fixed bottom-24 right-4 md:bottom-10 md:right-8 z-50 flex flex-col items-end gap-2.5">
-      {/* Fondo difuminado sutil para cuando el FAB esté abierto */}
+    /* ✨ SOLUCIÓN: El contenedor calca el ancho y centrado de la píldora en móvil, y se resetea en escritorio */
+    <div className="fixed bottom-24 inset-x-4 max-w-xs mx-auto md:bottom-10 md:right-8 md:inset-x-auto md:max-w-none md:mx-0 z-50 flex flex-col items-end gap-2.5 pointer-events-none">
+      
+      {/* Fondo difuminado sutil (Se le regresa interactividad con pointer-events-auto) */}
       {fabOpen && (
         <div
           onClick={() => setFabOpen(false)}
-          className="fixed inset-0 bg-slate-900/10 backdrop-blur-xs z-40 animate-[fadeIn_0.15s_ease]"
+          className="fixed inset-0 bg-slate-900/10 backdrop-blur-xs z-40 animate-[fadeIn_0.15s_ease] pointer-events-auto"
         />
       )}
 
       {/* Menú de Opciones Desplegables */}
       {fabOpen && (
-        <div className="flex flex-col items-end gap-2 z-50 mb-1.5 animate-[slideUp_0.15s_ease-out]">
+        <div className="flex flex-col items-end gap-2 z-50 mb-1.5 animate-[slideUp_0.15s_ease-out] pointer-events-auto">
           <button
             type="button"
             onClick={() => { setFabOpen(false); }}
@@ -62,11 +64,11 @@ export default function LibraryFAB({
         </div>
       )}
 
-      {/* ✨ ACTUALIZADO: Botón Gatillo Cuadrado, Más Grande (h-14) y con Bordes Suaves */}
+      {/* Botón Gatillo Principal (Se le regresa interactividad con pointer-events-auto) */}
       <button
         type="button"
         onClick={() => setFabOpen(!fabOpen)}
-        className={`w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-xl z-50 transition-all duration-200 active:scale-90 cursor-pointer ${
+        className={`w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-xl z-50 transition-all duration-200 active:scale-90 cursor-pointer pointer-events-auto ${
           fabOpen ? 'bg-slate-800 rotate-45' : 'bg-slate-900 hover:bg-slate-800 hover:scale-105'
         }`}
       >
