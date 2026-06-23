@@ -1,9 +1,13 @@
 // ARCHIVO: frontend/src/components/LibrarySection.jsx
 import { useRef, useState, useMemo } from 'react';
-import { Upload, Plus, Library, Loader2, Sparkles, Search, MoreHorizontal, Grid, List, Check } from 'lucide-react';
+import { Library, Loader2 } from 'lucide-react';
 import DeckCard from './DeckCard';
 import DeckModal from './DeckModal';
 import DeckInterior from './DeckInterior';
+
+// 🔌 IMPORTACIÓN DE COMPONENTES MODULARES NUEVOS
+import LibraryToolbar from './library/LibraryToolbar';
+import LibraryFAB from './library/LibraryFAB';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
@@ -21,17 +25,13 @@ export default function LibrarySection({
   const [modal, setModal] = useState(null);
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef(null);
-  const [fabOpen, setFabOpen] = useState(false);
 
-  // 🔎 ESTADOS LOCALES DE BÚSQUEDA, ORDENAMIENTO Y VISTA
+  // 🔎 ESTADOS COMPARTIDOS DE CONTROL FILTRADO Y VISTA
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState('recent'); // 'recent' | 'oldest' | 'alpha' | 'cards-desc' | 'cards-asc'
-  const [viewMode, setViewMode] = useState('grid'); // 'grid' | 'list'
-  
-  // ⚙️ ESTADO PARA EL NUEVO DROPDOWN UNIFICADO DE TRES PUNTOS
-  const [optionsOpen, setOptionsOpen] = useState(false);
+  const [sortBy, setSortBy] = useState('recent');
+  const [viewMode, setViewMode] = useState('grid');
 
-  // 🧠 MOTOR DE FILTRADO Y ORDENAMIENTO COMPUTADO AUTOMÁTICO
+  // 🧠 MOTOR DE FILTRADO Y ORDENAMIENTO COMPUTADO AUTOMÁTICO (0ms Lag)
   const processedDecks = useMemo(() => {
     let result = decks.filter((deck) => 
       deck.title?.toLowerCase().includes(searchQuery.toLowerCase())
@@ -131,6 +131,7 @@ export default function LibrarySection({
     }
   };
 
+  // Enrutamiento interno si hay un mazo abierto
   if (currentDeck) {
     return (
       <DeckInterior
@@ -156,107 +157,19 @@ export default function LibrarySection({
         data-testid="import-file-input"
       />
 
-      {/* ✨ REINGENIERÍA DE BARRA DE CONTROLES (ESTILO COMPACTO CALCADO DE IMAGE_8.png) */}
+      {/* 🔍 BARRA DE HERRAMIENTAS MODULAR COMPACTA */}
       {decks.length > 0 && (
-        <div className="mt-1.5 flex gap-2 items-center w-full relative">
-          
-          {/* Input de Búsqueda Súper Redondeado y Fluido */}
-          <div className="relative flex-1">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Buscar mazo por título..."
-              className="w-full h-10 pl-10 pr-4 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 placeholder:text-slate-400 shadow-3xs transition-all"
-            />
-          </div>
-
-          {/* ⚙️ Botón de Tres Puntos Horizontales de Configuración de Filtros */}
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setOptionsOpen(!optionsOpen)}
-              className={`w-10 h-10 border text-slate-500 rounded-xl shadow-3xs transition-all active:scale-[0.97] flex items-center justify-center cursor-pointer ${
-                optionsOpen ? 'bg-slate-100 border-slate-300 text-slate-900' : 'bg-white border-slate-200 hover:text-slate-900 hover:bg-slate-50'
-              }`}
-              title="Opciones de biblioteca"
-            >
-              <MoreHorizontal className="w-4 h-4" />
-            </button>
-
-            {/* Desplegable Contextual Unificado (Sort + Grid View) */}
-            {optionsOpen && (
-              <>
-                <div className="fixed inset-0 z-40 bg-transparent" onClick={() => setOptionsOpen(false)} />
-                <div className="absolute right-0 mt-2 w-60 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 p-1.5 animate-[slideUp_0.12s_ease-out] flex flex-col gap-0.5">
-                  
-                  {/* SECCIÓN 1: ORDENAMIENTO */}
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2.5 py-1 block">
-                    Ordenar por
-                  </span>
-                  
-                  {[
-                    { label: 'Más recientes', value: 'recent' },
-                    { label: 'Más antiguos', value: 'oldest' },
-                    { label: 'Orden alfabético', value: 'alpha' },
-                    { label: 'Mayor número de tarjetas', value: 'cards-desc' },
-                    { label: 'Menor número de tarjetas', value: 'cards-asc' }
-                  ].map((opt) => (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => { setSortBy(opt.value); setOptionsOpen(false); }}
-                      className={`w-full text-left px-2.5 py-1.5 hover:bg-slate-50 text-[11px] font-bold rounded-lg flex items-center justify-between transition-colors cursor-pointer ${
-                        sortBy === opt.value ? 'text-slate-950 bg-slate-50/60' : 'text-slate-600'
-                      }`}
-                    >
-                      <span>{opt.label}</span>
-                      {sortBy === opt.value && <Check className="w-3.5 h-3.5 text-slate-900 stroke-[2.5]" />}
-                    </button>
-                  ))}
-
-                  {/* SEPARATOR */}
-                  <div className="my-1 border-t border-slate-100" />
-
-                  {/* SECCIÓN 2: INTERCAMBIADOR DE VISTA */}
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2.5 py-1 block">
-                    Visualización
-                  </span>
-
-                  <button
-                    type="button"
-                    onClick={() => { setViewMode('grid'); setOptionsOpen(false); }}
-                    className={`w-full text-left px-2.5 py-1.5 hover:bg-slate-50 text-[11px] font-bold rounded-lg flex items-center gap-2 transition-colors cursor-pointer ${
-                      viewMode === 'grid' ? 'text-slate-950 bg-slate-50/60' : 'text-slate-600'
-                    }`}
-                  >
-                    <Grid className="w-3.5 h-3.5 text-slate-400" />
-                    <span className="flex-1">Vista cuadrícula</span>
-                    {viewMode === 'grid' && <Check className="w-3.5 h-3.5 text-slate-900 stroke-[2.5]" />}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => { setViewMode('list'); setOptionsOpen(false); }}
-                    className={`w-full text-left px-2.5 py-1.5 hover:bg-slate-50 text-[11px] font-bold rounded-lg flex items-center gap-2 transition-colors cursor-pointer ${
-                      viewMode === 'list' ? 'text-slate-950 bg-slate-50/60' : 'text-slate-600'
-                    }`}
-                  >
-                    <List className="w-3.5 h-3.5 text-slate-400" />
-                    <span className="flex-1">Vista lista</span>
-                    {viewMode === 'list' && <Check className="w-3.5 h-3.5 text-slate-900 stroke-[2.5]" />}
-                  </button>
-
-                </div>
-              </>
-            )}
-          </div>
-
-        </div>
+        <LibraryToolbar
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          sortBy={sortBy}
+          setSortBy={setSortBy}
+          viewMode={viewMode}
+          setViewMode={setViewMode}
+        />
       )}
 
-      {/* 🎴 RENDERIZADO DE LA COLECCIÓN */}
+      {/* 🎴 RENDERIZADO DE LA COLECCIÓN DE MAZOS */}
       {loading && decks.length === 0 ? (
         <div className="mt-6 flex items-center gap-2 text-slate-400" data-testid="decks-loading">
           <Loader2 className="w-4 h-4 animate-spin" /> Cargando…
@@ -293,63 +206,17 @@ export default function LibrarySection({
         </div>
       )}
 
+      {/* MODAL CONFIGURACIÓN DE MAZO */}
       {modal && (
         <DeckModal initial={modal.editing} onClose={() => setModal(null)} onSave={handleSaveDeck} />
       )}
 
-      {/* 📱 MENU ACCION FLOTANTE (FAB) */}
-      <div className="fixed bottom-20 right-4 md:bottom-8 md:right-8 z-50 flex flex-col items-end gap-2">
-        {fabOpen && (
-          <div
-            onClick={() => setFabOpen(false)}
-            className="fixed inset-0 bg-slate-900/10 backdrop-blur-xs z-40 animate-[fadeIn_0.15s_ease]"
-          />
-        )}
-
-        {fabOpen && (
-          <div className="flex flex-col items-end gap-2 z-50 mb-2 animate-[slideUp_0.15s_ease-out]">
-            <button
-              onClick={() => { setFabOpen(false); }}
-              className="w-44 flex items-center justify-between bg-slate-800 text-white pl-3.5 pr-1.5 py-1.5 rounded-2xl text-xs font-bold shadow-lg hover:bg-slate-700 active:scale-95 transition-all border border-slate-700/50 cursor-pointer"
-            >
-              <span>Generar con IA</span>
-              <div className="w-7 h-7 bg-slate-700/60 rounded-xl flex items-center justify-center shadow-inner">
-                <Sparkles className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-              </div>
-            </button>
-
-            <button
-              onClick={() => { setFabOpen(false); fileInputRef.current?.click(); }}
-              disabled={importing}
-              className="w-44 flex items-center justify-between bg-white text-slate-700 border border-slate-200/80 pl-3.5 pr-1.5 py-1.5 rounded-2xl text-xs font-bold shadow-lg hover:bg-slate-50 active:scale-95 transition-all cursor-pointer"
-            >
-              <span>Importar mazo</span>
-              <div className="w-7 h-7 bg-slate-50 rounded-xl flex items-center justify-center border border-slate-100">
-                {importing ? <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-500" /> : <Upload className="w-3.5 h-3.5 text-slate-500" />}
-              </div>
-            </button>
-
-            <button
-              onClick={() => { setFabOpen(false); setModal({}); }}
-              className="w-44 flex items-center justify-between bg-white text-slate-700 border border-slate-200/80 pl-3.5 pr-1.5 py-1.5 rounded-2xl text-xs font-bold shadow-lg hover:bg-slate-50 active:scale-95 transition-all cursor-pointer"
-            >
-              <span>Nuevo mazo</span>
-              <div className="w-7 h-7 bg-slate-50 rounded-xl flex items-center justify-center border border-slate-100">
-                <Plus className="w-3.5 h-3.5 text-slate-500" />
-              </div>
-            </button>
-          </div>
-        )}
-
-        <button
-          onClick={() => setFabOpen(!fabOpen)}
-          className={`w-12 h-12 rounded-full flex items-center justify-center text-white shadow-xl z-50 transition-all duration-200 active:scale-90 cursor-pointer ${
-            fabOpen ? 'bg-slate-800 rotate-45' : 'bg-slate-900 hover:bg-slate-800 hover:scale-105'
-          }`}
-        >
-          <Plus className="w-5 h-5" />
-        </button>
-      </div>
+      {/* 📱 MENÚ ACCIÓN FLOTANTE MODULAR (FAB) */}
+      <LibraryFAB 
+        setModal={setModal} 
+        fileInputRef={fileInputRef} 
+        importing={importing} 
+      />
     </div>
   );
 }
