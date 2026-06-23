@@ -8,8 +8,6 @@ import LibraryToolbar from './library/LibraryToolbar';
 import LibraryFAB from './library/LibraryFAB';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
-
-// 👑 CONFIGURACIÓN DE ADMINISTRADOR COMPLETA
 const ADMIN_EMAIL = "cesarjaviervebe@gmail.com"; 
 
 export default function LibrarySection({ 
@@ -32,14 +30,12 @@ export default function LibrarySection({
   const [sortBy, setSortBy] = useState('recent');
   const [viewMode, setViewMode] = useState('grid');
 
-  // Evalúa si tú eres el creador de la aplicación en tiempo de ejecución
   const isAdmin = userEmail === ADMIN_EMAIL;
 
   const processedDecks = useMemo(() => {
     let result = decks.filter((deck) => 
       deck.title?.toLowerCase().includes(searchQuery.toLowerCase())
     );
-
     const getCount = (d) => d.cardCount ?? d.cards?.length ?? d.cardsCount ?? 0;
 
     if (sortBy === 'recent') {
@@ -53,16 +49,16 @@ export default function LibrarySection({
     } else if (sortBy === 'cards-asc') {
       result.sort((a, b) => getCount(a) - getCount(b));
     }
-
     return result;
   }, [decks, searchQuery, sortBy]);
 
-  // Envía la orden al backend para hacer el mazo público/default o quitarlo
+  // CONTROLADOR 1: Compartir con permisos de edición total
   const handleToggleDefault = async (deck) => {
     const nextState = !deck.isDefault;
     
-    // Actualización optimista en memoria local para respuesta instantánea
-    const updatedDecks = decks.map((d) => d.id === deck.id ? { ...d, isDefault: nextState } : d);
+    const updatedDecks = decks.map((d) => 
+      d.id === deck.id ? { ...d, isDefault: nextState, isPublicReadOnly: false } : d
+    );
     setDecks(updatedDecks);
     localStorage.setItem(`decks_${userId}`, JSON.stringify(updatedDecks));
 
@@ -74,7 +70,29 @@ export default function LibrarySection({
       });
       if (!res.ok) throw new Error();
     } catch (err) {
-      await loadDecks(); // Revierte el estado desde el servidor si la API falla
+      await loadDecks();
+    }
+  };
+
+  // 🚀 CONTROLADOR 2: Compartir en modo Protegido de Solo Lectura
+  const handleTogglePublicReadOnly = async (deck) => {
+    const nextState = !deck.isPublicReadOnly;
+    
+    const updatedDecks = decks.map((d) => 
+      d.id === deck.id ? { ...d, isPublicReadOnly: nextState, isDefault: false } : d
+    );
+    setDecks(updatedDecks);
+    localStorage.setItem(`decks_${userId}`, JSON.stringify(updatedDecks));
+
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/decks/${deck.id}/public-readonly`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isPublicReadOnly: nextState }),
+      });
+      if (!res.ok) throw new Error();
+    } catch (err) {
+      await loadDecks();
     }
   };
 
@@ -104,18 +122,14 @@ export default function LibrarySection({
     try {
       const res = await fetch(`${BACKEND_URL}/api/decks/${deck.id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('No se pudo eliminar el mazo.');
-      
       const updatedDecks = decks.filter((d) => d.id !== deck.id);
       setDecks(updatedDecks);
       localStorage.setItem(`decks_${userId}`, JSON.stringify(updatedDecks));
-    } catch (e) {
-      // Fallback
-    }
+    } catch (e) {}
   };
 
   const handleToggleStar = async (deck) => {
     const nextState = !deck.isStarred;
-    
     const updatedDecks = decks.map((d) => d.id === deck.id ? { ...d, isStarred: nextState } : d);
     setDecks(updatedDecks);
     localStorage.setItem(`decks_${userId}`, JSON.stringify(updatedDecks));
@@ -126,7 +140,7 @@ export default function LibrarySection({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isStarred: nextState }),
       });
-      if (!res.ok) throw new Error('No se pudo actualizar el favorito.');
+      if (!res.ok) throw new Error();
     } catch (err) {
       await loadDecks();
     }
@@ -140,19 +154,14 @@ export default function LibrarySection({
     try {
       const text = await file.text();
       const parsed = JSON.parse(text);
-      if (!parsed?.deck?.title) throw new Error('Formato de archivo inválido.');
-      const res = await fetch(`${BACKEND_URL}/api/decks/import`, {
+      if (!parsed?.deck?.title) throw new Error();
+      await fetch(`${BACKEND_URL}/api/decks/import`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, deck: parsed.deck, cards: parsed.cards || [] }),
       });
-      if (!res.ok) throw new Error('No se pudo importar el mazo.');
       await loadDecks(true);
-    } catch (err) {
-      /* ignore */
-    } finally {
-      setImporting(false);
-    }
+    } catch (err) {} finally { setImporting(false); }
   };
 
   if (currentDeck) {
@@ -161,59 +170,34 @@ export default function LibrarySection({
         deck={currentDeck}
         userId={userId}
         initialMode={initialMode}
-        onBack={() => {
-          setCurrentDeck(null);
-          loadDecks();
-        }}
+        onBack={() => { setCurrentDeck(null); loadDecks(); }}
       />
     );
   }
 
   return (
     <div data-testid="library-section" className="relative min-h-[60vh]">
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".json"
-        onChange={handleImport}
-        className="hidden"
-        data-testid="import-file-input"
-      />
+      <input ref={fileInputRef} type="file" accept=".json" onChange={handleImport} className="hidden" />
 
       <div className="animate-[fadeIn_0.15s_ease]">
         {decks.length > 0 && (
           <LibraryToolbar
-            searchQuery={searchQuery}
-            setSearchQuery={setSearchQuery}
-            sortBy={sortBy}
-            setSortBy={setSortBy}
-            viewMode={viewMode}
-            setViewMode={setViewMode}
+            searchQuery={searchQuery} setSearchQuery={setSearchQuery}
+            sortBy={sortBy} setSortBy={setSortBy}
+            viewMode={viewMode} setViewMode={setViewMode}
           />
         )}
 
         {loading && decks.length === 0 ? (
-          <div className="mt-6 flex items-center gap-2 text-slate-400" data-testid="decks-loading">
+          <div className="mt-6 flex items-center gap-2 text-slate-400">
             <Loader2 className="w-4 h-4 animate-spin" /> Cargando…
           </div>
         ) : decks.length === 0 ? (
-          <div className="mt-6 text-center border border-dashed border-slate-300 rounded-2xl py-16 text-slate-400" data-testid="decks-empty">
-            <Library className="w-8 h-8 mx-auto mb-2" />
+          <div className="mt-6 text-center border border-dashed border-slate-300 rounded-2xl py-16 text-slate-400">
             Aún no tienes mazos. Crea tu primer mazo usando el botón inferior.
           </div>
-        ) : processedDecks.length === 0 ? (
-          <div className="mt-6 text-center border border-dashed border-slate-200 rounded-2xl py-14 bg-white text-slate-400 text-xs font-medium animate-[fadeIn_0.1s_ease]">
-            No se encontraron mazos que coincidan con la búsqueda.
-          </div>
         ) : (
-          <div 
-            data-testid="decks-grid" 
-            className={
-              viewMode === 'grid'
-                ? "mt-4 grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 pb-12"
-                : "mt-4 flex flex-col gap-3 pb-12"
-            }
-          >
+          <div className="mt-4 grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 pb-12">
             {processedDecks.map((deck) => (
               <DeckCard
                 key={deck.id}
@@ -226,21 +210,15 @@ export default function LibrarySection({
                 onDelete={handleDeleteDeck}
                 onToggleStar={handleToggleStar}
                 onToggleDefault={handleToggleDefault}
+                onTogglePublicReadOnly={handleTogglePublicReadOnly} // 👈 Inyección de prop
               />
             ))}
           </div>
         )}
       </div>
 
-      {modal && (
-        <DeckModal initial={modal.editing} onClose={() => setModal(null)} onSave={handleSaveDeck} />
-      )}
-
-      <LibraryFAB 
-        setModal={setModal} 
-        fileInputRef={fileInputRef} 
-        importing={importing} 
-      />
+      {modal && <DeckModal initial={modal.editing} onClose={() => setModal(null)} onSave={handleSaveDeck} />}
+      <LibraryFAB setModal={setModal} fileInputRef={fileInputRef} importing={importing} />
     </div>
   );
 }
