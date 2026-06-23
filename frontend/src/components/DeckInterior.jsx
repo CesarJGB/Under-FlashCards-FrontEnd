@@ -1,6 +1,6 @@
 // ARCHIVO: frontend/src/components/DeckInterior.jsx
 import { useState, useEffect, useCallback } from 'react';
-import { Loader2, ChevronDown, ChevronUp } from 'lucide-react'; 
+import { Loader2, ChevronDown, ChevronUp, Eye } from 'lucide-react'; 
 import ReviewMode from './ReviewMode';
 import DeckHeader from './DeckHeader';
 import FlashcardCreator from './FlashcardCreator';
@@ -14,9 +14,14 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
   const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState(initialMode);
-  const [showGrid, setShowGrid] = useState(false);
   
-  // Estados compartidos del formulario
+  // 🧠 REGLA DE PRIVILEGIOS: Tienen permiso de edición el dueño real O cualquiera si el mazo es un default editable global
+  const isOwner = deck.userId === userId;
+  const canEdit = isOwner || deck.isDefault === true;
+
+  // Despliega la rejilla por defecto solo si entran a un mazo protegido de solo lectura
+  const [showGrid, setShowGrid] = useState(() => !canEdit);
+  
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState('');
   const [bgImage, setBgImage] = useState('');
@@ -34,7 +39,15 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => { if (initialMode) setMode(initialMode); }, [initialMode]);
+  useEffect(() => { 
+    if (initialMode) {
+      if (!canEdit && (initialMode === 'fast-delete')) {
+        setMode('edit');
+      } else {
+        setMode(initialMode); 
+      }
+    }
+  }, [initialMode, canEdit]);
 
   const loadCards = useCallback(async () => {
     setLoading(true);
@@ -87,6 +100,7 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
   };
 
   const handleImportJSON = async (file) => {
+    if (!canEdit) return;
     setError('');
     try {
       const text = await file.text();
@@ -130,6 +144,7 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!canEdit) return;
     setSaving(true);
     setError('');
 
@@ -207,6 +222,7 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
   };
 
   const handleEdit = (card) => {
+    if (!canEdit) return;
     setIsBulk(false); setEditingId(card.id); setQuestion(card.question); setAnswer(card.answer);
     setBgImage(card.bgImage || ''); setTextAlign(card.textAlign || 'center'); setFontSize(card.fontSize || 'text-base');
     setContentImage(card.contentImage || '');
@@ -216,6 +232,7 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
   };
 
   const handleDelete = async (card) => {
+    if (!canEdit) return;
     try {
       const res = await fetch(`${BACKEND_URL}/api/flashcards/${card.id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error();
@@ -233,7 +250,7 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
         onBack={onBack} 
         onExport={handleExport} 
         onExportPDF={handleExportPDF} 
-        onImport={handleImportJSON} 
+        onImport={canEdit ? handleImportJSON : undefined} 
       />
 
       {mode === 'review' && loading ? (
@@ -245,7 +262,7 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
         <>
           {mode === 'review' && <ReviewMode cards={cards} loading={loading} />}
           
-          {mode === 'fast-delete' && (
+          {mode === 'fast-delete' && canEdit && (
             <FastDeleteMode 
               cards={cards} 
               onDelete={handleDelete} 
@@ -255,21 +272,32 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
 
           {mode === 'edit' && (
             <>
-              {/* ✨ OPTIMIZACIÓN 1: "hasCards" lee el metadato del mazo al instante. El botón de borrado rápido jamás parpadea ni se oculta */}
-              <FlashcardCreator
-                question={question} setQuestion={setQuestion} answer={answer} setAnswer={setAnswer}
-                bgImage={bgImage} setBgImage={setBgImage} textAlign={textAlign} setTextAlign={setTextAlign}
-                fontSize={fontSize} setFontSize={setFontSize} showStyles={showStyles} setShowStyles={setShowStyles}
-                isBulk={isBulk} setIsBulk={setIsBulk} bulkText={bulkText} setBulkText={setBulkText}
-                editingId={editingId} saving={saving} error={error} setError={setError}
-                onSubmit={handleSubmit} onCancel={resetForm}
-                contentImage={contentImage} setContentImage={setContentImage}
-                imageSide={imageSide} setImageSide={setImageSide}
-                onFastDelete={() => setMode('fast-delete')}
-                hasCards={(deck.cardCount ?? cards.length) > 0}
-              />
+              {/* ✨ ADAPTACIÓN FINAL: Si el mazo es dueño o editable global, abre el creador. Si no, muestra el banner de bloqueo */}
+              {canEdit ? (
+                <FlashcardCreator
+                  question={question} setQuestion={setQuestion} answer={answer} setAnswer={setAnswer}
+                  bgImage={bgImage} setBgImage={setBgImage} textAlign={textAlign} setTextAlign={setTextAlign}
+                  fontSize={fontSize} setFontSize={setFontSize} showStyles={showStyles} setShowStyles={setShowStyles}
+                  isBulk={isBulk} setIsBulk={setIsBulk} bulkText={bulkText} setBulkText={setBulkText}
+                  editingId={editingId} saving={saving} error={error} setError={setError}
+                  onSubmit={handleSubmit} onCancel={resetForm}
+                  contentImage={contentImage} setContentImage={setContentImage}
+                  imageSide={imageSide} setImageSide={setImageSide}
+                  onFastDelete={() => setMode('fast-delete')}
+                  hasCards={(deck.cardCount ?? cards.length) > 0}
+                />
+              ) : (
+                <div className="bg-blue-50/60 border border-blue-200/50 rounded-2xl p-4 flex items-center gap-3.5 text-blue-800 text-xs font-semibold shadow-3xs animate-[fadeIn_0.15s_ease] mb-2">
+                  <div className="w-8 h-8 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-600 shrink-0">
+                    <Eye className="w-4 h-4 stroke-[2.5]" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-blue-950 font-bold text-sm">Plantilla Protegida de Solo Lectura</p>
+                    <p className="text-blue-600/90 font-medium mt-0.5">Estás explorando un mazo oficial configurado en modo consulta. Puedes ver y repasar todas sus tarjetas libremente, pero no se permiten modificaciones.</p>
+                  </div>
+                </div>
+              )}
               
-              {/* El botón contenedor de colección se dibuja al 100% de su tamaño desde el milisegundo cero */}
               <button
                 type="button"
                 onClick={() => setShowGrid(!showGrid)}
@@ -280,7 +308,6 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
                     Colección de tarjetas del mazo
                   </h3>
                   
-                  {/* ✨ OPTIMIZACIÓN 2: Muestra el número pre-calculado del mazo de inmediato. Si está cargando, agrega un loader sutil al lado sin alterar las dimensiones */}
                   <span className="bg-slate-100 text-slate-700 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border border-slate-200/50 inline-flex items-center gap-1.5 h-5">
                     {loading && <Loader2 className="w-2.5 h-2.5 animate-spin text-slate-400 shrink-0" />}
                     <span>
@@ -305,7 +332,11 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
                       <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-500" /> Sincronizando colección…
                     </div>
                   ) : (
-                    <FlashcardCollection cards={cards} onEdit={handleEdit} onDelete={handleDelete} />
+                    <FlashcardCollection 
+                      cards={cards} 
+                      onEdit={canEdit ? handleEdit : undefined} 
+                      onDelete={canEdit ? handleDelete : undefined} 
+                    />
                   )}
                 </div>
               )}
