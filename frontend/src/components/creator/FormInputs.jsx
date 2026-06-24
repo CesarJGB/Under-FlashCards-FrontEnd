@@ -1,4 +1,4 @@
-import { ImagePlus, X, Sparkles, FileText, Layers } from 'lucide-react';
+import { ImagePlus, X, FileText, Layers } from 'lucide-react';
 
 export default function FormInputs({
   isBulk, isAi, question, setQuestion, answer, setAnswer, bulkText, setBulkText,
@@ -25,7 +25,7 @@ export default function FormInputs({
           />
         </div>
 
-        {/* Selector de cantidad estimada / Sistema Híbrido Dinámico (Ref. image_4.png) */}
+        {/* Selector de cantidad estimada / Sistema Híbrido Estricto (Solución a image_5.png) */}
         <div className="bg-slate-50 border border-slate-200/60 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <Layers className="w-4 h-4 text-slate-400 shrink-0" />
@@ -35,8 +35,8 @@ export default function FormInputs({
             </div>
           </div>
           
-          {/* Contenedor elástico adaptativo para móviles y escritorio */}
-          <div className="flex flex-wrap bg-white p-1 rounded-xl border border-slate-200 items-center gap-1 shrink-0 self-end sm:self-auto">
+          {/* 🚀 CAMBIO GEOMÉTRICO: grid-cols-3 en móvil para los botones, forzando al input a expandirse simétricamente abajo */}
+          <div className="grid grid-cols-3 sm:flex bg-white p-1 rounded-xl border border-slate-200 items-center gap-1 shrink-0 w-full sm:w-auto">
             {[5, 10, 15].map((num) => {
               const isSelected = aiNumCards === num;
               return (
@@ -44,7 +44,7 @@ export default function FormInputs({
                   key={num}
                   type="button"
                   onClick={() => setAiNumCards(num)}
-                  className={`px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
+                  className={`px-2 sm:px-3 py-2 sm:py-1.5 text-[11px] font-bold rounded-lg transition-all cursor-pointer text-center ${
                     isSelected 
                       ? 'bg-slate-900 text-white shadow-3xs' 
                       : 'text-slate-500 hover:text-slate-900'
@@ -55,27 +55,26 @@ export default function FormInputs({
               );
             })}
             
-            {/* Divisor estético sutil antes del input personalizado */}
+            {/* Divisor de entorno: oculto en cuadrícula móvil, visible en flujo de escritorio */}
             <div className="hidden sm:block h-4 w-[1px] bg-slate-200 mx-1" />
 
-            {/* Input numérico inteligente para cantidades libres */}
+            {/* 🚀 INPUT EXPANDIDO: col-span-3 y w-full obligan al campo a abarcar todo el ancho inferior de forma pareja */}
             <input
               type="number"
               min="1"
               max="50"
-              placeholder="Otro (ej. 8)"
+              placeholder="Cantidad libre (ej. 8)"
               value={[5, 10, 15].includes(aiNumCards) ? '' : aiNumCards}
               onChange={(e) => {
                 const rawVal = e.target.value;
                 if (rawVal === '') {
-                  setAiNumCards(''); // Permite limpiar la caja de texto para escribir libremente
+                  setAiNumCards(''); 
                 } else {
                   const parsed = parseInt(rawVal, 10);
-                  // Limitador de seguridad para evitar sobrecargas de tokens (>50)
                   setAiNumCards(isNaN(parsed) ? '' : Math.min(50, Math.max(1, parsed)));
                 }
               }}
-              className={`w-24 text-center text-[11px] font-bold rounded-lg py-1 border transition-all outline-none ${
+              className={`col-span-3 w-full sm:w-36 text-center text-[11px] font-bold rounded-lg py-2 sm:py-1.5 border transition-all outline-none ${
                 ![5, 10, 15].includes(aiNumCards) && aiNumCards !== ''
                   ? 'bg-slate-900 text-white border-slate-900 shadow-3xs placeholder:text-slate-400' 
                   : 'bg-slate-50 text-slate-600 border-slate-200 placeholder:text-slate-400 focus:bg-white focus:border-slate-300'
