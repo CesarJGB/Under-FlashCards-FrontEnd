@@ -60,7 +60,6 @@ const deckSchema = new mongoose.Schema(
     coverImage: { type: String, default: '' },
     cardBackgrounds: { type: [String], default: [] },
     isStarred: { type: Boolean, default: false },
-    // ✨ ACTUALIZADO: Nuevos Atributos de Mazos Semilla del Ecosistema Multiusuario
     isDefault: { type: Boolean, default: false },
     isPublicReadOnly: { type: Boolean, default: false }
   },
@@ -124,7 +123,6 @@ const serializeDeck = (d, cardCount) => ({
   cardCount: typeof cardCount === 'number' ? cardCount : undefined,
   cardBackgrounds: d.cardBackgrounds || [], 
   isStarred: d.isStarred || false,
-  // ✨ ACTUALIZADO: Exponer las nuevas banderas globales hacia el cliente React
   isDefault: d.isDefault || false,
   isPublicReadOnly: d.isPublicReadOnly || false,
   createdAt: d.createdAt,
@@ -288,8 +286,6 @@ app.put('/api/user/settings', async (req, res) => {
 // -----------------------------------------------------------------------------
 // DECKS — CRUD
 // -----------------------------------------------------------------------------
-
-// ✨ REINGENIERÍA: Listar los mazos del usuario MÁS las plantillas globales (Inyectando conteo multiusuario real)
 app.get('/api/decks/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
@@ -297,7 +293,6 @@ app.get('/api/decks/:userId', async (req, res) => {
       return res.status(400).json({ error: 'Invalid user id.' });
     }
     
-    // Consulta lógica OR: Trae lo que me pertenece O lo que César marcó como semilla oficial
     const decks = await Deck.find({
       $or: [
         { userId },
@@ -306,7 +301,6 @@ app.get('/api/decks/:userId', async (req, res) => {
       ]
     }).sort({ createdAt: -1 });
 
-    // Extraemos todos los IDs de la colección unificada para contar sus tarjetas de forma precisa
     const deckIds = decks.map((d) => d._id);
     const counts = await Flashcard.aggregate([
       { $match: { deckId: { $in: deckIds } } },
@@ -321,7 +315,6 @@ app.get('/api/decks/:userId', async (req, res) => {
   }
 });
 
-// POST /api/decks — create a deck
 app.post('/api/decks', async (req, res) => {
   try {
     const { userId, title, coverColor, coverImage } = req.body || {};
@@ -344,7 +337,6 @@ app.post('/api/decks', async (req, res) => {
   }
 });
 
-// PUT /api/decks/:id — update a deck
 app.put('/api/decks/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -367,7 +359,6 @@ app.put('/api/decks/:id', async (req, res) => {
   }
 });
 
-// 🚀 NUEVO ENDPOINT: Setea o remueve un mazo como plantilla global editable (Garantiza exclusión mutua)
 app.put('/api/decks/:id/default', async (req, res) => {
   try {
     const { id } = req.params;
@@ -378,7 +369,7 @@ app.put('/api/decks/:id/default', async (req, res) => {
 
     const update = { 
       isDefault: !!isDefault,
-      ...(isDefault ? { isPublicReadOnly: false } : {}) // Si se activa, apaga el modo lectura para evitar colisiones
+      ...(isDefault ? { isPublicReadOnly: false } : {})
     };
 
     const deck = await Deck.findByIdAndUpdate(id, { $set: update }, { new: true });
@@ -390,7 +381,6 @@ app.put('/api/decks/:id/default', async (req, res) => {
   }
 });
 
-// 🚀 NUEVO ENDPOINT: Setea o remueve un mazo como plantilla global protegida de solo lectura
 app.put('/api/decks/:id/public-readonly', async (req, res) => {
   try {
     const { id } = req.params;
@@ -401,7 +391,7 @@ app.put('/api/decks/:id/public-readonly', async (req, res) => {
 
     const update = { 
       isPublicReadOnly: !!isPublicReadOnly,
-      ...(isPublicReadOnly ? { isDefault: false } : {}) // Si se activa, desactiva el modo editable
+      ...(isPublicReadOnly ? { isDefault: false } : {})
     };
 
     const deck = await Deck.findByIdAndUpdate(id, { $set: update }, { new: true });
@@ -413,7 +403,6 @@ app.put('/api/decks/:id/public-readonly', async (req, res) => {
   }
 });
 
-// DELETE /api/decks/:id
 app.delete('/api/decks/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -430,7 +419,6 @@ app.delete('/api/decks/:id', async (req, res) => {
   }
 });
 
-// GET /api/decks/:id/export
 app.get('/api/decks/:id/export', async (req, res) => {
   try {
     const { id } = req.params;
@@ -459,7 +447,6 @@ app.get('/api/decks/:id/export', async (req, res) => {
   }
 });
 
-// POST /api/decks/import
 app.post('/api/decks/import', async (req, res) => {
   try {
     const { userId, deck, cards } = req.body || {};
@@ -513,6 +500,122 @@ app.post('/api/decks/import', async (req, res) => {
 // -----------------------------------------------------------------------------
 // FLASHCARDS
 // -----------------------------------------------------------------------------
+
+// ✨ NUEVO ENDPOINT: Generación inteligente mediante OpenAI (Formatos JSON Nativos)
+app.post('/api/flashcards/generate-ai', async (req, res) => {
+  try {
+    const { userId, deckId, text, count, batchStyles } = req.body || {};
+    
+    if (!mongoose.isValidObjectId(userId) || !mongoose.isValidObjectId(deckId)) {
+      return res.status(400).json({ message: 'IDs de usuario o mazo inválidos.' });
+    }
+    if (!text?.trim()) {
+      return res.status(400).json({ message: 'Proporciona anotaciones o apuntes para procesar.' });
+    }
+
+    // 1. Extraer la API Key privada guardada de forma segura en tu Mongoose User
+    const user = await User.findById(userId);
+    if (!user || !user.aiApiKey) {
+      return res.status(400).json({ message: 'No has configurado tu API Key en la sección de Ajustes.' });
+    }
+
+    const currentDeck = await Deck.findById(deckId);
+    if (!currentDeck) return res.status(404).json({ message: 'Mazo no encontrado en la base de datos.' });
+
+    const targetCount = parseInt(count, 10) || 5;
+
+    // 2. Comunicarse directamente con OpenAI forzando un objeto de respuesta JSON estructurado
+    const openAiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${user.aiApiKey}`
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini', 
+        response_format: { type: "json_object" }, 
+        messages: [
+          {
+            role: 'system',
+            content: `Eres un procesador educativo de alta precisión. Tu tarea es generar exactamente ${targetCount} flashcards en español basadas exclusivamente en el texto y las directrices provistas por el usuario. 
+            Debes responder ÚNICAMENTE con un objeto JSON válido que contenga la propiedad "cards" mapeada a un arreglo de objetos. Cada objeto debe contener de manera obligatoria y exclusiva las llaves "question" y "answer" en formato string de texto plano. No inyectes bloques markdown ni texto explicativo adicional.`
+          },
+          { role: 'user', content: text }
+        ],
+        temperature: 0.4
+      })
+    });
+
+    if (!openAiResponse.ok) {
+      const errorText = await openAiResponse.text().catch(() => '');
+      console.error('[OpenAI Error Downstream]:', errorText);
+      return res.status(502).json({ message: 'El motor de IA rechazó la solicitud. Revisa la vigencia y saldo de tu clave.' });
+    }
+
+    const aiResponseData = await openAiResponse.json();
+    let rawJsonString = aiResponseData.choices?.[0]?.message?.content?.trim() || "{}";
+
+    // Sanitizador preventivo por si el modelo ignora el response_format e inserta bloques de código markdown
+    if (rawJsonString.startsWith('```')) {
+      rawJsonString = rawJsonString.replace(/```json|```/g, '').trim();
+    }
+
+    const parsedAiResult = JSON.parse(rawJsonString);
+    const generatedCardsArray = parsedAiResult.cards;
+
+    if (!Array.isArray(generatedCardsArray) || generatedCardsArray.length === 0) {
+      return res.status(422).json({ message: 'La IA no devolvió un lote de tarjetas con la estructura esperada.' });
+    }
+
+    // 3. Procesar las tarjetas inyectando estilos e insertando en bloque en MongoDB
+    const globalBg = batchStyles?.bgImage || '';
+    const globalAlign = batchStyles?.textAlign || 'center';
+    const globalSize = batchStyles?.fontSize || 'text-base';
+
+    const documentsToInsert = [];
+    for (const cardData of generatedCardsArray) {
+      if (!cardData || !cardData.question?.trim() || !cardData.answer?.trim()) continue;
+
+      let bgImageIndex = -1;
+      if (globalBg) {
+        let idx = currentDeck.cardBackgrounds.indexOf(globalBg);
+        if (idx === -1) {
+          currentDeck.cardBackgrounds.push(globalBg);
+          idx = currentDeck.cardBackgrounds.length - 1;
+        }
+        bgImageIndex = idx;
+      }
+
+      documentsToInsert.push({
+        userId,
+        deckId,
+        question: String(cardData.question).trim(),
+        answer: String(cardData.answer).trim(),
+        bgImageIndex,
+        textAlign: ['left', 'center', 'right'].includes(globalAlign) ? globalAlign : 'center',
+        fontSize: globalSize,
+        contentImage: '',
+        imageSide: ''
+      });
+    }
+
+    if (documentsToInsert.length === 0) {
+      return res.status(400).json({ message: 'Las tarjetas devueltas por la IA no contenían datos válidos para guardar.' });
+    }
+
+    // Persistir cambios en la colección de fondos del mazo e insertar flashcards
+    await currentDeck.save();
+    const insertedFlashcards = await Flashcard.insertMany(documentsToInsert);
+    const backgrounds = currentDeck.cardBackgrounds || [];
+
+    // Retornar al cliente React el listado serializado listo para renderizar a 0ms
+    return res.status(201).json(insertedFlashcards.map((c) => serializeFlashcard(c, backgrounds)));
+
+  } catch (err) {
+    console.error('[flashcards:generate-ai] fatal error:', err.message);
+    return res.status(500).json({ message: 'Ocurrió un colapso interno al intentar fabricar las tarjetas artificiales.' });
+  }
+});
 
 // POST /api/flashcards/bulk
 app.post('/api/flashcards/bulk', async (req, res) => {
@@ -671,8 +774,9 @@ app.delete('/api/flashcards/:id', async (req, res) => {
     if (!mongoose.isValidObjectId(id)) {
       return res.status(400).json({ error: 'Invalid flashcard id.' });
     }
-    const card = await Flashcard.findByIdAndDelete(id);
-    if (!card) return res.status(404).json({ error: 'Flashcard not found.' });
+    const card = await Flashcard.filterByIdAndDelete(id);
+    const cardDeleted = await Flashcard.findByIdAndDelete(id);
+    if (!cardDeleted) return res.status(404).json({ error: 'Flashcard not found.' });
     return res.json({ success: true, id });
   } catch (err) {
     console.error('[flashcards:delete] error:', err.message);
