@@ -1,10 +1,8 @@
 import { ImagePlus, X, Sparkles, FileText, Layers } from 'lucide-react';
 
 export default function FormInputs({
-  // Props Clásicas
   isBulk, isAi, question, setQuestion, answer, setAnswer, bulkText, setBulkText,
   contentImage, imageSide, handleContentImageFile, removeContentImage,
-  // ✨ Nuevas Props para el Modo IA
   aiText, setAiText, aiNumCards, setAiNumCards
 }) {
   
@@ -21,13 +19,13 @@ export default function FormInputs({
             value={aiText}
             onChange={(e) => setAiText(e.target.value)}
             placeholder={
-              "Pega aquí el texto de tus diapositivas, capítulos de libros o simplemente escribe una orden:\n\nEjemplo: 'Genera 5 tarjetas de estudio sobre la nomenclatura de los ácidos carboxílicos enfocándote en las reglas de la IUPAC.'"
+              "Pega aquí el texto de tus diapositivas, capítulos de libros o simplemente escribe una orden:\n\nEjemplo: 'Genera tarjetas de estudio sobre la nomenclatura de los ácidos carboxílicos enfocándote en las reglas de la IUPAC.'"
             }
             className="min-h-[160px] w-full text-xs rounded-xl border border-slate-200 px-3 py-2.5 outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 placeholder:text-slate-300 leading-relaxed"
           />
         </div>
 
-        {/* Selector de cantidad estimada de tarjetas */}
+        {/* Selector de cantidad estimada / Sistema Híbrido Dinámico (Ref. image_4.png) */}
         <div className="bg-slate-50 border border-slate-200/60 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <Layers className="w-4 h-4 text-slate-400 shrink-0" />
@@ -37,28 +35,59 @@ export default function FormInputs({
             </div>
           </div>
           
-          <div className="flex bg-white p-1 rounded-lg border border-slate-200 items-center shrink-0 self-end sm:self-auto">
-            {[5, 10, 15].map((num) => (
-              <button
-                key={num}
-                type="button"
-                onClick={() => setAiNumCards(num)}
-                className={`px-3 py-1 text-[11px] font-bold rounded-md transition-all cursor-pointer ${
-                  aiNumCards === num 
-                    ? 'bg-slate-900 text-white shadow-3xs' 
-                    : 'text-slate-500 hover:text-slate-900'
-                }`}
-              >
-                {num} tarjetas
-              </button>
-            ))}
+          {/* Contenedor elástico adaptativo para móviles y escritorio */}
+          <div className="flex flex-wrap bg-white p-1 rounded-xl border border-slate-200 items-center gap-1 shrink-0 self-end sm:self-auto">
+            {[5, 10, 15].map((num) => {
+              const isSelected = aiNumCards === num;
+              return (
+                <button
+                  key={num}
+                  type="button"
+                  onClick={() => setAiNumCards(num)}
+                  className={`px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
+                    isSelected 
+                      ? 'bg-slate-900 text-white shadow-3xs' 
+                      : 'text-slate-500 hover:text-slate-900'
+                  }`}
+                >
+                  {num} tarjetas
+                </button>
+              );
+            })}
+            
+            {/* Divisor estético sutil antes del input personalizado */}
+            <div className="hidden sm:block h-4 w-[1px] bg-slate-200 mx-1" />
+
+            {/* Input numérico inteligente para cantidades libres */}
+            <input
+              type="number"
+              min="1"
+              max="50"
+              placeholder="Otro (ej. 8)"
+              value={[5, 10, 15].includes(aiNumCards) ? '' : aiNumCards}
+              onChange={(e) => {
+                const rawVal = e.target.value;
+                if (rawVal === '') {
+                  setAiNumCards(''); // Permite limpiar la caja de texto para escribir libremente
+                } else {
+                  const parsed = parseInt(rawVal, 10);
+                  // Limitador de seguridad para evitar sobrecargas de tokens (>50)
+                  setAiNumCards(isNaN(parsed) ? '' : Math.min(50, Math.max(1, parsed)));
+                }
+              }}
+              className={`w-24 text-center text-[11px] font-bold rounded-lg py-1 border transition-all outline-none ${
+                ![5, 10, 15].includes(aiNumCards) && aiNumCards !== ''
+                  ? 'bg-slate-900 text-white border-slate-900 shadow-3xs placeholder:text-slate-400' 
+                  : 'bg-slate-50 text-slate-600 border-slate-200 placeholder:text-slate-400 focus:bg-white focus:border-slate-300'
+              }`}
+            />
           </div>
         </div>
       </div>
     );
   }
 
-  // 2. MODO EN LOTE (Mantiene tu diseño intacto)
+  // 2. MODO EN LOTE
   if (isBulk) {
     return (
       <div className="animate-[fadeIn_0.2s_ease]">
@@ -73,7 +102,7 @@ export default function FormInputs({
     );
   }
 
-  // 3. MODO INDIVIDUAL (Mantiene tu diseño intacto)
+  // 3. MODO INDIVIDUAL
   return (
     <div className="grid sm:grid-cols-2 gap-4 animate-[fadeIn_0.2s_ease]">
       {/* Columna de Pregunta */}
