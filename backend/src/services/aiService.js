@@ -105,11 +105,18 @@ async function criticizeAndRefineCards(originalText, rawCards, apiKey) {
   const data = await response.json();
   const refinedJson = data.choices?.[0]?.message?.content?.trim() || "{}";
   const parsed = JSON.parse(refinedJson);
+  const cards = parsed.cards || [];
 
-  // ✨ Procesamiento optimizado: Al retornar parsed.cards, el backend de Node obtiene el arreglo limpio
-  // esperado por el bucle controlador, mientras que el objeto "proceso_analisis_4_pasos" cumplió su cometido
-  // de actuar como ancla de atención secuencial en DeepSeek y se descarta del guardado en DB de forma limpia.
-  return parsed.cards || [];
+  // 🔍 Log de depuración: status + reason por tarjeta (no se guarda en DB, solo consola/logs)
+  const counts = { sin_cambios: 0, corregida: 0, fusionada: 0, eliminada: 0 };
+  cards.forEach((c, i) => {
+    counts[c.status] = (counts[c.status] || 0) + 1;
+    console.log(`[Fase 2 Audit] #${i} [${c.status?.toUpperCase()}] "${(c.question || '').slice(0, 60)}" → ${c.reason}`);
+  });
+  console.log('[Fase 2 Audit Summary]', counts);
+
+  // Solo se guarda question/answer en DB; status y reason quedan en logs para debug.
+  return cards.map(({ question, answer }) => ({ question, answer }));
 }
 
 module.exports = {
