@@ -1,10 +1,10 @@
 /**
- * Servicio de Inteligencia Artificial para Under-FlashCards
- * Implementa el patrón Generator-Critic utilizando la API oficial de DeepSeek.
+ * backend/src/services/aiService.js
+ * Servicio de Inteligencia Artificial optimizado para Under-FlashCards
  */
 
 /**
- * Fase 1: Generación de la propuesta inicial de tarjetas.
+ * FASE 1: Generador de Tarjetas Crudas (Insufla padding si está configurado)
  */
 async function generateRawCards(text, targetCount, apiKey) {
   const response = await fetch('https://api.deepseek.com/chat/completions', {
@@ -16,12 +16,12 @@ async function generateRawCards(text, targetCount, apiKey) {
     body: JSON.stringify({
       model: 'deepseek-chat',
       response_format: { type: "json_object" },
-      temperature: 0.5, // Balance ideal entre creatividad y precisión académica
+      temperature: 0.5,
       messages: [
         {
           role: 'system',
-          content: `Eres un procesador educativo de alta precisión. Tu tarea es generar exactamente ${targetCount} flashcards en español basadas exclusivamente en el texto provisto por el usuario.
-          Debes responder ÚNICAMENTE con un objeto JSON válido que contenga la propiedad "cards" mapeada a un arreglo de objetos. Cada objeto debe contener obligatoriamente las llaves "question" y "answer" en formato string de texto plano. No inyectes bloques markdown ni texto explicativo adicional.`
+          content: `Eres un procesador educativo de alta precisión. Tu tarea es generar exactamente ${targetCount} flashcards en español basadas exclusivamente en el texto provesto por el usuario.
+          Debes responder ÚNICAMENTE con un objeto JSON válido que contenga la propiedad "cards" mapeada a un arreglo de objetos. Cada objeto debe contener de manera obligatoria y exclusiva las llaves "question" y "answer" en formato string de texto plano.`
         },
         { role: 'user', content: text }
       ]
@@ -36,15 +36,11 @@ async function generateRawCards(text, targetCount, apiKey) {
   const data = await response.json();
   const rawJson = data.choices?.[0]?.message?.content?.trim() || "{}";
   const parsed = JSON.parse(rawJson);
-  
-  if (!Array.isArray(parsed.cards)) {
-    throw new Error('El generador no devolvió la estructura de tarjetas esperada.');
-  }
-  return parsed.cards;
+  return parsed.cards || [];
 }
 
 /**
- * Fase 2: Crítica, deduplicación y control de calidad factual.
+ * FASE 2: Auditor y Crítico Estricto (Manejo de Metadatos de Calidad)
  */
 async function criticizeAndRefineCards(originalText, rawCards, apiKey) {
   const response = await fetch('https://api.deepseek.com/chat/completions', {
@@ -56,18 +52,22 @@ async function criticizeAndRefineCards(originalText, rawCards, apiKey) {
     body: JSON.stringify({
       model: 'deepseek-chat',
       response_format: { type: "json_object" },
-      temperature: 0.1, // Temperatura ultra-baja para máxima fidelidad lógica y cero inventiva
+      temperature: 0.1, // Ultra-determinista
       messages: [
         {
           role: 'system',
-          content: `Eres un Supervisor de Control de Calidad Académica de Inteligencia Artificial. Tu objetivo es revisar, corregir, filtrar y optimizar un conjunto de flashcards preliminares basándote en el texto fuente original.
+          content: `Eres un Supervisor de Control de Calidad Académica de Inteligencia Artificial. Tu objetivo es auditar un lote de flashcards preliminares comparándolas con el Texto Fuente Original.
           
-          REGLAS DE EVALUACIÓN OBLIGATORIAS:
-          1. DETECCIÓN DE REDUNDANCIAS: Si dos o más tarjetas evalúan exactamente el mismo concepto o tienen respuestas casi idénticas, fusiónalas en una sola o quédate únicamente con la mejor redactada.
-          2. CORRECCIÓN FACTUAL: Contrasta cada pregunta y respuesta con el Texto Fuente Original. Si hay errores, datos tergiversados o alucinaciones, corrígelos inmediatamente. Si la tarjeta inventa conceptos que no están en el texto original, elimínala por completo.
-          3. SIMPLICIDAD PEDAGÓGICA: Asegúrate de que las preguntas sean atómicas, directas y concisas. Evita rodeos gramaticales.
-          
-          Debes responder ÚNICAMENTE con un objeto JSON válido que contenga la propiedad "cards" mapeada al arreglo de objetos refinados finales (que tengan exclusivamente las llaves "question" y "answer"). No agregues comentarios extra.`
+          Debes procesar TODO el lote en esta única llamada y devolver obligatoriamente un objeto JSON con la propiedad "cards", la cual contiene un arreglo de objetos. Cada objeto DEBE incluir de forma estricta las siguientes cuatro llaves:
+          - "question": El texto de la pregunta (optimizado o el original).
+          - "answer": El texto de la respuesta (optimizado o el original).
+          - "status": Un string exacto que debe ser uno de estos cuatro valores: "sin_cambios" | "corregida" | "fusionada" | "eliminada".
+          - "reason": Un string breve en español explicando la razón de la acción (obligatorio si el status es corregida, fusionada o eliminada; vacío "" si es sin_cambios).
+
+          REGLAS DE ACCIÓN EXPLÍCITAS:
+          1. CORREGIR ("status": "corregida"): Aplícalo si la tarjeta tiene problemas de redacción, longitud excesiva, ambigüedad o falta de atomicidad, pero el dato central es verídico. Reescríbela para que sea concisa.
+          2. ELIMINAR ("status": "eliminada"): Aplícalo de inmediato si la tarjeta presenta un error factual grave, inventa datos, fórmulas o conceptos que NO existen en el Texto Fuente Original. No intentes salvarla.
+          3. REDUNDANCIA CONCEPTUAL ("status": "fusionada"): Compara los conceptos subyacentes. Si dos tarjetas evalúan el mismo núcleo de conocimiento (ej: una pregunta por la capital de un país y otra por la ubicación de su palacio de gobierno principal si el texto los unifica como el mismo dato clave), mantén solo una de ellas (márcala como "sin_cambios" o "corregida") y marca la redundante como "fusionada", detallando con qué otra tarjeta colisionó en la llave "reason".`
         },
         {
           role: 'user',
@@ -88,11 +88,7 @@ async function criticizeAndRefineCards(originalText, rawCards, apiKey) {
   const data = await response.json();
   const refinedJson = data.choices?.[0]?.message?.content?.trim() || "{}";
   const parsed = JSON.parse(refinedJson);
-
-  if (!Array.isArray(parsed.cards)) {
-    throw new Error('El crítico no devolvió el formato simétrico requerido.');
-  }
-  return parsed.cards;
+  return parsed.cards || [];
 }
 
 module.exports = {
