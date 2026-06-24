@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { SlidersHorizontal, Loader2, Plus, Check, Eye, EyeOff, Trash2, AlignLeft, AlignCenter, AlignRight, Sparkles, FileText, Layers } from 'lucide-react';
+import { SlidersHorizontal, Loader2, Plus, Check, Eye, EyeOff, Trash2, AlignLeft, AlignCenter, AlignRight, Sparkles, Layers } from 'lucide-react';
 
 import FormInputs from './creator/FormInputs';
 import StylePanel from './creator/StylePanel';
@@ -26,19 +26,15 @@ export default function FlashcardCreator({
   fontSize, setFontSize, showStyles, setShowStyles, isBulk, setIsBulk, bulkText, setBulkText,
   editingId, saving, error, setError, onSubmit, onCancel, contentImage, setContentImage,
   imageSide, setImageSide, onFastDelete, hasCards,
-  
-  // ✨ NUEVAS PROPS: Conexión con el orquestador DeckInterior
   deckId, onAiSuccess
 }) {
   const [showPreview, setShowPreview] = useState(false);
   
-  // ✨ ESTADOS LOCALES: Control de la interfaz inteligente artificial
   const [isAi, setIsAi] = useState(false);
   const [aiText, setAiText] = useState('');
   const [aiNumCards, setAiNumCards] = useState(5);
   const [aiSaving, setAiSaving] = useState(false);
 
-  // Determinar la pestaña activa basándonos en la combinación de estados externos y locales
   const activeTab = editingId ? 'single' : (isAi ? 'ai' : (isBulk ? 'bulk' : 'single'));
 
   const handleTabChange = (tabId) => {
@@ -119,7 +115,6 @@ export default function FlashcardCreator({
     e.target.value = '';
   };
 
-  // INTERCEPTOR LOGÍSTICO: Desvía el envío si estamos pidiéndole datos a la IA
   const handleFormSubmit = async (e) => {
     e.preventDefault();
     if (activeTab === 'ai') {
@@ -147,7 +142,6 @@ export default function FlashcardCreator({
         const newCards = await res.json();
         if (onAiSuccess) onAiSuccess(newCards);
         
-        // Limpieza y reseteo estético post-generación exitosa
         setAiText('');
         setIsAi(false); 
       } catch (err) {
@@ -163,18 +157,19 @@ export default function FlashcardCreator({
   return (
     <form onSubmit={handleFormSubmit} className="mt-4 bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
       
-      {/* SECTOR DE CABECERA EXPANSIBLE (Sustituye la leyenda de texto plano por pestañas geométricas) */}
+      {/* SECTOR DE CABECERA CON CONTROL SEGMENTADO GEOMÉTRICO */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 border-b border-slate-100 pb-3">
         <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
           {editingId ? 'Modo de edición activa' : 'Método de construcción'}
         </p>
         
         {!editingId && (
-          <div className="flex bg-slate-100 p-0.5 border border-slate-200/60 rounded-xl items-center w-full sm:w-auto self-center">
+          /* 🚀 CAMBIO CRÍTICO: grid-cols-3 forzado en móvil + p-1 para simetría pura */
+          <div className="grid grid-cols-3 sm:flex bg-slate-100 p-1 border border-slate-200/60 rounded-xl items-center w-full sm:w-auto self-center">
             {[
               { id: 'single', label: 'Manual', Icon: Plus },
-              { id: 'bulk', label: 'Lote (Mazo)', Icon: Layers },
-              { id: 'ai', label: 'IA Inteligente', Icon: Sparkles }
+              { id: 'bulk', label: 'Lote', Icon: Layers }, // ✨ Simplificado a "Lote"
+              { id: 'ai', label: 'IA', Icon: Sparkles }     // ✨ Simplificado a "IA"
             ].map((tab) => {
               const TabIcon = tab.Icon;
               const isSelected = activeTab === tab.id;
@@ -183,14 +178,15 @@ export default function FlashcardCreator({
                   key={tab.id}
                   type="button"
                   onClick={() => handleTabChange(tab.id)}
-                  className={`flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                  /* py-2 estricto e inline-flex equilibrado para rellenar todo el bloque uniformemente */
+                  className={`inline-flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
                     isSelected 
                       ? 'bg-white text-slate-900 shadow-2xs' 
                       : 'text-slate-500 hover:text-slate-800'
                   }`}
                 >
-                  <TabIcon className={`w-3.5 h-3.5 ${isSelected && tab.id === 'ai' ? 'text-indigo-500 animate-pulse' : ''}`} />
-                  <span>{tab.label}</span>
+                  <TabIcon className={`w-3.5 h-3.5 shrink-0 ${isSelected && tab.id === 'ai' ? 'text-indigo-500 animate-pulse' : ''}`} />
+                  <span className="truncate">{tab.label}</span>
                 </button>
               );
             })}
@@ -198,7 +194,6 @@ export default function FlashcardCreator({
         )}
       </div>
 
-      {/* RENDERIZADO DINÁMICO DE INPUTS CORE */}
       <FormInputs 
         isBulk={isBulk} 
         isAi={isAi}
@@ -212,7 +207,6 @@ export default function FlashcardCreator({
         aiNumCards={aiNumCards} setAiNumCards={setAiNumCards}
       />
 
-      {/* CONTROLES DE PREVISUALIZACIÓN Y ACCESORIOS ESTÉTICOS (Ocultos coherentemente en modo IA) */}
       {activeTab !== 'ai' && (
         <div className="mt-4 grid grid-cols-2 gap-3">
           <button 
@@ -258,7 +252,6 @@ export default function FlashcardCreator({
         />
       )}
 
-      {/* BOTONERA DE ACCIÓN Y CONFIRMACIÓN SEMÁNTICA */}
       <div className="mt-3 grid grid-cols-2 gap-3 border-t border-slate-100 pt-3.5">
         {!editingId ? (
           onFastDelete && hasCards ? (
