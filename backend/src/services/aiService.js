@@ -107,7 +107,7 @@ async function criticizeAndRefineCards(originalText, rawCards, apiKey) {
   const parsed = JSON.parse(refinedJson);
   const cards = parsed.cards || [];
 
-  // 🔍 Log de depuración: status + reason por tarjeta (no se guarda en DB, solo consola/logs)
+  // 🔍 Log de depuración: status + reason por tarjeta (visibilidad interna, no afecta lo guardado)
   const counts = { sin_cambios: 0, corregida: 0, fusionada: 0, eliminada: 0 };
   cards.forEach((c, i) => {
     counts[c.status] = (counts[c.status] || 0) + 1;
@@ -115,8 +115,9 @@ async function criticizeAndRefineCards(originalText, rawCards, apiKey) {
   });
   console.log('[Fase 2 Audit Summary]', counts);
 
-  // Solo se guarda question/answer en DB; status y reason quedan en logs para debug.
-  return cards.map(({ question, answer }) => ({ question, answer }));
+  // Devolver tarjetas completas (status + reason incluidos);
+  // el controlador (flashcardController.js) decide qué se filtra y qué se persiste en Mongoose.
+  return cards;
 }
 
 module.exports = {
