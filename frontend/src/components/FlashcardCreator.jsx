@@ -1,6 +1,5 @@
-// ARCHIVO: frontend/src/components/FlashcardCreator.jsx
 import { useState } from 'react';
-import { SlidersHorizontal, Loader2, Plus, Check, Eye, EyeOff, Trash2, AlignLeft, AlignCenter, AlignRight } from 'lucide-react';
+import { SlidersHorizontal, Loader2, Plus, Check, Eye, EyeOff, Trash2, AlignLeft, AlignCenter, AlignRight, Sparkles, FileText, Layers } from 'lucide-react';
 
 import FormInputs from './creator/FormInputs';
 import StylePanel from './creator/StylePanel';
@@ -26,12 +25,39 @@ export default function FlashcardCreator({
   question, setQuestion, answer, setAnswer, bgImage, setBgImage, textAlign, setTextAlign,
   fontSize, setFontSize, showStyles, setShowStyles, isBulk, setIsBulk, bulkText, setBulkText,
   editingId, saving, error, setError, onSubmit, onCancel, contentImage, setContentImage,
-  imageSide, setImageSide, onFastDelete, hasCards
+  imageSide, setImageSide, onFastDelete, hasCards,
+  
+  // ✨ NUEVAS PROPS: Conexión con el orquestador DeckInterior
+  deckId, onAiSuccess
 }) {
-
   const [showPreview, setShowPreview] = useState(false);
+  
+  // ✨ ESTADOS LOCALES: Control de la interfaz inteligente artificial
+  const [isAi, setIsAi] = useState(false);
+  const [aiText, setAiText] = useState('');
+  const [aiNumCards, setAiNumCards] = useState(5);
+  const [aiSaving, setAiSaving] = useState(false);
 
-  // 🧠 PARSEADOR ACTUALIZADO: Mapea la propiedad de color de fondo sólida 'bgColor'
+  // Determinar la pestaña activa basándonos en la combinación de estados externos y locales
+  const activeTab = editingId ? 'single' : (isAi ? 'ai' : (isBulk ? 'bulk' : 'single'));
+
+  const handleTabChange = (tabId) => {
+    setError('');
+    setShowPreview(false);
+    setShowStyles(false);
+    
+    if (tabId === 'single') {
+      setIsBulk(false);
+      setIsAi(false);
+    } else if (tabId === 'bulk') {
+      setIsBulk(true);
+      setIsAi(false);
+    } else if (tabId === 'ai') {
+      setIsBulk(false);
+      setIsAi(true);
+    }
+  };
+
   const parseCurrentStyles = () => {
     if (fontSize && fontSize.startsWith('{')) {
       try { 
@@ -43,7 +69,7 @@ export default function FlashcardCreator({
         return {
           qSize: mapOldSize(p.qSize), qBold: p.qBold ?? true, qItalic: p.qItalic ?? false, qColor: p.qColor || '',
           aSize: mapOldSize(p.aSize), aBold: p.aBold ?? false, aItalic: p.aItalic ?? false, aColor: p.aColor || '',
-          bgColor: p.bgColor || '' // 🚀 Añadido al parseador JSON
+          bgColor: p.bgColor || ''
         };
       } catch (e) {}
     }
@@ -93,71 +119,150 @@ export default function FlashcardCreator({
     e.target.value = '';
   };
 
+  // INTERCEPTOR LOGÍSTICO: Desvía el envío si estamos pidiéndole datos a la IA
+  const handleFormSubmit = async (e) => {
+    e.preventDefault();
+    if (activeTab === 'ai') {
+      if (!aiText.trim() || aiSaving) return;
+      setAiSaving(true);
+      setError('');
+      try {
+        const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+        const res = await fetch(`${BACKEND_URL}/api/flashcards/generate-ai`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            deckId,
+            text: aiText,
+            count: aiNumCards,
+            batchStyles: { bgImage, textAlign, fontSize }
+          })
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.message || 'El motor de IA experimentó una saturación. Reintenta en unos instantes.');
+        }
+
+        const newCards = await res.json();
+        if (onAiSuccess) onAiSuccess(newCards);
+        
+        // Limpieza y reseteo estético post-generación exitosa
+        setAiText('');
+        setIsAi(false); 
+      } catch (err) {
+        setError(err.message || 'Error de conexión con el nodo de Inteligencia Artificial.');
+      } finally {
+        setAiSaving(false);
+      }
+    } else {
+      onSubmit(e);
+    }
+  };
+
   return (
-    <form onSubmit={onSubmit} className="mt-4 bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-      <div className="flex items-center justify-between mb-3 border-b border-slate-50 pb-2">
-        <p className="text-sm font-bold text-slate-700">
-          {editingId ? 'Editar tarjeta' : isBulk ? 'Creación masiva por mazo de texto' : 'Nueva tarjeta'}
+    <form onSubmit={handleFormSubmit} className="mt-4 bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+      
+      {/* SECTOR DE CABECERA EXPANSIBLE (Sustituye la leyenda de texto plano por pestañas geométricas) */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 border-b border-slate-100 pb-3">
+        <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
+          {editingId ? 'Modo de edición activa' : 'Método de construcción'}
         </p>
+        
         {!editingId && (
-          <button type="button" onClick={() => { setIsBulk(!isBulk); setError(''); setShowPreview(false); }} className="text-xs font-semibold text-slate-500 hover:text-slate-900 underline transition-colors">
-            {isBulk ? 'Volver a tarjeta única' : 'Cambiar a creación en lote'}
-          </button>
+          <div className="flex bg-slate-100 p-0.5 border border-slate-200/60 rounded-xl items-center w-full sm:w-auto self-center">
+            {[
+              { id: 'single', label: 'Manual', Icon: Plus },
+              { id: 'bulk', label: 'Lote (Mazo)', Icon: Layers },
+              { id: 'ai', label: 'IA Inteligente', Icon: Sparkles }
+            ].map((tab) => {
+              const TabIcon = tab.Icon;
+              const isSelected = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => handleTabChange(tab.id)}
+                  className={`flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                    isSelected 
+                      ? 'bg-white text-slate-900 shadow-2xs' 
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  <TabIcon className={`w-3.5 h-3.5 ${isSelected && tab.id === 'ai' ? 'text-indigo-500 animate-pulse' : ''}`} />
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
+          </div>
         )}
       </div>
 
+      {/* RENDERIZADO DINÁMICO DE INPUTS CORE */}
       <FormInputs 
-        isBulk={isBulk} question={question} setQuestion={setQuestion} answer={answer} setAnswer={setAnswer} bulkText={bulkText} setBulkText={setBulkText}
-        contentImage={contentImage} imageSide={imageSide} handleContentImageFile={handleContentImageFile} removeContentImage={() => { setContentImage(''); setImageSide(''); }}
+        isBulk={isBulk} 
+        isAi={isAi}
+        question={question} setQuestion={setQuestion} 
+        answer={answer} setAnswer={setAnswer} 
+        bulkText={bulkText} setBulkText={setBulkText}
+        contentImage={contentImage} imageSide={imageSide} 
+        handleContentImageFile={handleContentImageFile} 
+        removeContentImage={() => { setContentImage(''); setImageSide(''); }}
+        aiText={aiText} setAiText={setAiText}
+        aiNumCards={aiNumCards} setAiNumCards={setAiNumCards}
       />
 
-      <div className="mt-4 grid grid-cols-2 gap-3">
-        <button 
-          type="button" 
-          onClick={() => { setShowPreview(!showPreview); setShowStyles(false); }} 
-          className={`flex w-full flex-col sm:flex-row items-center justify-center text-center gap-1 sm:gap-2 text-xs font-bold rounded-xl h-12 sm:h-11 border transition-all active:scale-[0.98] shadow-3xs cursor-pointer p-1 ${
-            showPreview ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
-          }`}
-        >
-          {showPreview ? <EyeOff className="w-3.5 h-3.5 shrink-0" /> : <Eye className="w-3.5 h-3.5 shrink-0" />}
-          <span className="text-center leading-tight">{showPreview ? 'Cerrar vista' : 'Previsualizar Tarjeta'}</span>
-        </button>
+      {/* CONTROLES DE PREVISUALIZACIÓN Y ACCESORIOS ESTÉTICOS (Ocultos coherentemente en modo IA) */}
+      {activeTab !== 'ai' && (
+        <div className="mt-4 grid grid-cols-2 gap-3">
+          <button 
+            type="button" 
+            onClick={() => { setShowPreview(!showPreview); setShowStyles(false); }} 
+            className={`flex w-full flex-col sm:flex-row items-center justify-center text-center gap-1 sm:gap-2 text-xs font-bold rounded-xl h-12 sm:h-11 border transition-all active:scale-[0.98] shadow-3xs cursor-pointer p-1 ${
+              showPreview ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
+            }`}
+          >
+            {showPreview ? <EyeOff className="w-3.5 h-3.5 shrink-0" /> : <Eye className="w-3.5 h-3.5 shrink-0" />}
+            <span className="text-center leading-tight">{showPreview ? 'Cerrar vista' : 'Previsualizar Tarjeta'}</span>
+          </button>
 
-        <button 
-          type="button" 
-          onClick={() => { if (!showPreview) setShowStyles(!showStyles); }} 
-          disabled={showPreview} 
-          className={`flex w-full flex-col sm:flex-row items-center justify-center text-center gap-1 sm:gap-2 text-xs font-bold rounded-xl h-12 sm:h-11 border transition-all active:scale-[0.98] shadow-3xs cursor-pointer p-1 ${
-            showPreview 
-              ? 'opacity-40 cursor-not-allowed bg-slate-50 text-slate-400 border-slate-200' 
-              : showStyles 
-              ? 'bg-slate-100 text-slate-900 border-slate-300' 
-              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
-          }`}
-        >
-          <SlidersHorizontal className="w-3.5 h-3.5 shrink-0" />
-          <span className="text-center leading-tight">Estilo rápido</span>
-        </button>
-      </div>
+          <button 
+            type="button" 
+            onClick={() => { if (!showPreview) setShowStyles(!showStyles); }} 
+            disabled={showPreview} 
+            className={`flex w-full flex-col sm:flex-row items-center justify-center text-center gap-1 sm:gap-2 text-xs font-bold rounded-xl h-12 sm:h-11 border transition-all active:scale-[0.98] shadow-3xs cursor-pointer p-1 ${
+              showPreview 
+                ? 'opacity-40 cursor-not-allowed bg-slate-50 text-slate-400 border-slate-200' 
+                : showStyles 
+                ? 'bg-slate-100 text-slate-900 border-slate-300' 
+                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
+            }`}
+          >
+            <SlidersHorizontal className="w-3.5 h-3.5 shrink-0" />
+            <span className="text-center leading-tight">Estilo rápido</span>
+          </button>
+        </div>
+      )}
 
-      {showPreview && (
+      {showPreview && activeTab !== 'ai' && (
         <LivePreview 
           question={question} answer={answer} bgImage={bgImage} textAlign={textAlign} styles={styles} contentImage={contentImage} imageSide={imageSide}
           ALIGNS={ALIGNS} SWATCHES={SWATCHES} setTextAlign={setTextAlign} handleBgFile={handleBgFile} updateStyle={updateStyle}
         />
       )}
 
-      {!showPreview && showStyles && (
+      {!showPreview && showStyles && activeTab !== 'ai' && (
         <StylePanel 
           ALIGNS={ALIGNS} SWATCHES={SWATCHES} textAlign={textAlign} setTextAlign={setTextAlign} bgImage={bgImage} setBgImage={setBgImage}
           styles={styles} updateStyle={updateStyle} handleBgFile={handleBgFile}
         />
       )}
 
+      {/* BOTONERA DE ACCIÓN Y CONFIRMACIÓN SEMÁNTICA */}
       <div className="mt-3 grid grid-cols-2 gap-3 border-t border-slate-100 pt-3.5">
         {!editingId ? (
           onFastDelete && hasCards ? (
-            <button type="button" onClick={onFastDelete} className="flex w-full flex-col sm:flex-row items-center justify-center text-center gap-1 sm:gap-2 text-xs font-bold h-12 sm:h-11 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all active:scale-[0.98] shadow-3xs cursor-pointer">
+            <button type="button" disabled={aiSaving} onClick={onFastDelete} className="flex w-full flex-col sm:flex-row items-center justify-center text-center gap-1 sm:gap-2 text-xs font-bold h-12 sm:h-11 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all active:scale-[0.98] shadow-3xs cursor-pointer disabled:opacity-50">
               <Trash2 className="w-3.5 h-3.5 text-red-500 shrink-0" /> <span className="text-center">Borrado Rápido</span>
             </button>
           ) : <div className="w-full h-12 sm:h-11" />
@@ -167,12 +272,31 @@ export default function FlashcardCreator({
           </button>
         )}
 
-        <button type="submit" disabled={saving || (isBulk ? !bulkText.trim() : (!question.trim() || !answer.trim()))} className="flex w-full flex-col sm:flex-row items-center justify-center text-center gap-1 sm:gap-2 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white text-xs font-bold h-12 sm:h-11 transition-all active:scale-[0.98] shadow-sm cursor-pointer">
-          {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : editingId ? <Check className="w-3.5 h-3.5 shrink-0" /> : <Plus className="w-3.5 h-3.5 shrink-0" />}
-          <span className="text-center">{editingId ? 'Guardar' : isBulk ? 'Generar lote' : 'Agregar tarjeta'}</span>
+        <button 
+          type="submit" 
+          disabled={saving || aiSaving || (activeTab === 'ai' ? !aiText.trim() : (activeTab === 'bulk' ? !bulkText.trim() : (!question.trim() || !answer.trim())))} 
+          className={`flex w-full flex-col sm:flex-row items-center justify-center text-center gap-1 sm:gap-2 rounded-xl text-xs font-bold h-12 sm:h-11 transition-all active:scale-[0.98] cursor-pointer shadow-sm ${
+            activeTab === 'ai' 
+              ? 'bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 hover:from-slate-800 hover:to-slate-800 text-white border border-indigo-950/20' 
+              : 'bg-slate-900 hover:bg-slate-800 text-white'
+          }`}
+        >
+          {saving || aiSaving ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          ) : editingId ? (
+            <Check className="w-3.5 h-3.5 shrink-0" />
+          ) : activeTab === 'ai' ? (
+            <Sparkles className="w-3.5 h-3.5 text-indigo-400 shrink-0 animate-[pulse_1.5s_infinite]" />
+          ) : (
+            <Plus className="w-3.5 h-3.5 shrink-0" />
+          )}
+          <span className="text-center">
+            {editingId ? 'Guardar' : activeTab === 'ai' ? 'Generar con IA' : activeTab === 'bulk' ? 'Generar lote' : 'Agregar tarjeta'}
+          </span>
         </button>
       </div>
-      {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
+      
+      {error && <p className="mt-2 text-xs text-red-600 font-semibold bg-red-50 border border-red-100 px-3 py-1.5 rounded-xl animate-[fadeIn_0.1s_ease]">{error}</p>}
     </form>
   );
 }
