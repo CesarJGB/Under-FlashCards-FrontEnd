@@ -5,7 +5,6 @@
 
 /**
  * FASE 1: Generador de Tarjetas Crudas
- * MANTENIDO INTACTO por requerimiento.
  */
 async function generateRawCards(text, targetCount, apiKey) {
   const response = await fetch('https://api.deepseek.com/chat/completions', {
@@ -37,7 +36,13 @@ async function generateRawCards(text, targetCount, apiKey) {
   const data = await response.json();
   const rawJson = data.choices?.[0]?.message?.content?.trim() || "{}";
   const parsed = JSON.parse(rawJson);
-  return parsed.cards || [];
+  const cards = parsed.cards || [];
+
+  // 🔍 Log temporal de depuración: ver las tarjetas crudas ANTES de que pasen por Fase 2
+  console.log(`[Fase 1 Raw Output] ${cards.length} tarjetas generadas:`);
+  cards.forEach((c, i) => console.log(`  #${i}: ${c.question}`));
+
+  return cards;
 }
 
 /**
