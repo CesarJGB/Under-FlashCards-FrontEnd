@@ -43,14 +43,14 @@ export default function PdfPageThumbnail({ pdf, pageNum, isSelected, onToggle, o
           : 'border-slate-200 hover:border-slate-300 shadow-3xs'
       }`}
     >
-      {/* Contenedor central del documento (Ahora es el eje maestro de alineación) */}
+      {/* Contenedor central del documento */}
       <div className="w-full flex flex-col items-center justify-center min-h-[110px] bg-slate-50 rounded-lg overflow-hidden border border-slate-100 relative">
         {rendering && (
           <Loader2 className="w-4 h-4 animate-spin text-slate-300 absolute" />
         )}
         <canvas ref={canvasRef} className="w-full h-auto block" />
 
-        {/* 🚀 1. SECTOR SELECCIÓN: Movido aquí adentro (Esquina superior derecha) */}
+        {/* 1. SECTOR SELECCIÓN (Esquina superior derecha) */}
         <button
           type="button"
           onClick={() => onToggle(pageNum)}
@@ -64,7 +64,7 @@ export default function PdfPageThumbnail({ pdf, pageNum, isSelected, onToggle, o
           )}
         </button>
 
-        {/* 🚀 2. SECTOR LUPA: (Esquina inferior derecha) */}
+        {/* 2. SECTOR LUPA (Esquina inferior derecha) */}
         <button
           type="button"
           onClick={() => onPreview(pageNum)}
@@ -75,4 +75,10 @@ export default function PdfPageThumbnail({ pdf, pageNum, isSelected, onToggle, o
         </button>
       </div>
 
-      <span className={`text-[10px] font-bold mt-2 ${isSelected ? 'text-indigo-700' : 'text-slate-500
+      {/* ✨ SINTAXIS CORREGIDA: Candado de comillas y llaves cerrado perfectamente */}
+      <span className={`text-[10px] font-bold mt-2 ${isSelected ? 'text-indigo-700' : 'text-slate-500'}`}>
+        Pág. {pageNum}
+      </span>
+    </div>
+  );
+}
