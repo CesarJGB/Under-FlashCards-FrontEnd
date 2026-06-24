@@ -1,6 +1,7 @@
 const Flashcard = require('../models/Flashcard');
 const Deck = require('../models/Deck');
 const User = require('../models/User');
+const aiService = require('../services/aiService');
 
 // Helper interno para resolver índices de fondo
 async function getOrCreateBgIndex(deckId, bgImageString) {
@@ -176,54 +177,22 @@ exports.generateAiCards = async (req, res) => {
 
     const targetCount = parseInt(count, 10) || 5;
 
-    // 🚀 MODIFICADO: Ahora apuntamos al endpoint oficial de DeepSeek
-    const deepSeekResponse = await fetch('https://api.deepseek.com/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${user.aiApiKey}`
-      },
-      body: JSON.stringify({
-        model: 'deepseek-chat', // 🧠 El modelo bandera de DeepSeek (compatible con JSON estructurado)
-        response_format: { type: "json_object" }, 
-        messages: [
-          {
-            role: 'system',
-            content: `Eres un procesador educativo de alta precisión. Tu tarea es generar exactamente ${targetCount} flashcards en español basadas exclusivamente en el texto y las directrices provistas por el usuario. 
-            Debes responder ÚNICAMENTE con un objeto JSON válido que contenga la propiedad "cards" mapeada a un arreglo de objetos. Cada objeto debe contener de manera obligatoria y exclusiva las llaves "question" y "answer" en formato string de texto plano. No inyectes bloques markdown ni texto explicativo adicional.`
-          },
-          { role: 'user', content: text }
-        ],
-        temperature: 0.4
-      })
-    });
+    // ─── PIPELINE GENERATOR-CRITIC (DEEPSEEK) ───
+    console.log(`[AI Pipeline] Iniciando Fase 1 para usuario ${userId} (Target: ${targetCount})`);
+    const rawCards = await aiService.generateRawCards(text, targetCount, user.aiApiKey);
+    
+    console.log(`[AI Pipeline] Fase 1 Completa (${rawCards.length} crudas). Iniciando Fase 2 de Auditoría...`);
+    const refinedCards = await aiService.criticizeAndRefineCards(text, rawCards, user.aiApiKey);
+    
+    console.log(`[AI Pipeline] Fase 2 Completa (${refinedCards.length} refinadas y listas)`);
 
-    if (!deepSeekResponse.ok) {
-      const errorText = await deepSeekResponse.text().catch(() => '');
-      console.error('[DeepSeek Error Downstream]:', errorText);
-      return res.status(502).json({ message: 'El motor de DeepSeek rechazó la solicitud. Revisa el saldo o vigencia de tu clave.' });
-    }
-
-    const aiResponseData = await deepSeekResponse.json();
-    let rawJsonString = aiResponseData.choices?.[0]?.message?.content?.trim() || "{}";
-
-    if (rawJsonString.startsWith('```')) {
-      rawJsonString = rawJsonString.replace(/```json|```/g, '').trim();
-    }
-
-    const parsedAiResult = JSON.parse(rawJsonString);
-    const generatedCardsArray = parsedAiResult.cards;
-
-    if (!Array.isArray(generatedCardsArray) || generatedCardsArray.length === 0) {
-      return res.status(422).json({ message: 'La IA no devolvió un mazo con la estructura esperada.' });
-    }
-
+    // ─── MAPEO E INSERCIÓN EN BASE DE DATOS ───
     const globalBg = batchStyles?.bgImage || '';
     const globalAlign = batchStyles?.textAlign || 'center';
     const globalSize = batchStyles?.fontSize || 'text-base';
 
     const documentsToInsert = [];
-    for (const cardData of generatedCardsArray) {
+    for (const cardData of refinedCards) {
       if (!cardData || !cardData.question?.trim() || !cardData.answer?.trim()) continue;
 
       let bgImageIndex = -1;
@@ -250,7 +219,7 @@ exports.generateAiCards = async (req, res) => {
     }
 
     if (documentsToInsert.length === 0) {
-      return res.status(400).json({ message: 'Las tarjetas devueltas por la IA no contenían datos válidos.' });
+      return res.status(422).json({ message: 'La auditoría de la IA determinó que ninguna tarjeta cumplía con los estándares mínimos.' });
     }
 
     await currentDeck.save();
@@ -261,6 +230,9 @@ exports.generateAiCards = async (req, res) => {
 
   } catch (err) {
     console.error('[flashcards:generate-ai] fatal error:', err.message);
-    return res.status(500).json({ message: 'Ocurrió un error al fabricar las tarjetas artificiales.' });
+    if (err.message.includes('DeepSeek')) {
+      return res.status(502).json({ message: 'El motor de DeepSeek rechazó la solicitud. Revisa el saldo o vigencia de tu clave.' });
+    }
+    return res.status(500).json({ message: 'Ocurrió un error al fabricar y auditar las tarjetas artificiales.' });
   }
 };
