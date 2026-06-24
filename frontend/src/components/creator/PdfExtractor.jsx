@@ -2,10 +2,10 @@ import { useState, useEffect, useRef } from 'react';
 import { FileUp, FileText, ChevronDown, ChevronUp, CheckSquare, Square, Loader2 } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
 
-// 🚀 SOLUCIÓN AL CONGELAMIENTO: Importamos el Worker localmente usando la directiva nativa de Vite (?url)
+// Importamos el Worker localmente usando la directiva nativa de Vite (?url)
 import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.mjs?url';
 
-// Asignamos el recurso local empaquetado por Vite. Adios problemas de red o CORS de CDNs externos.
+// Asignamos el recurso local empaquetado por Vite
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
 function PdfPageThumbnail({ pdf, pageNum, isSelected, onToggle }) {
@@ -67,8 +67,9 @@ function PdfPageThumbnail({ pdf, pageNum, isSelected, onToggle }) {
         <canvas ref={canvasRef} className="w-full h-auto block" />
       </div>
 
+      {/* ✨ CORREGIDO: Cambiado {page} por {pageNum} para evitar el colapso de React */}
       <span className={`text-[10px] font-bold mt-2 ${isSelected ? 'text-indigo-700' : 'text-slate-500'}`}>
-        Pág. {page}
+        Pág. {pageNum}
       </span>
     </button>
   );
@@ -82,8 +83,6 @@ export default function PdfExtractor({ onTextExtracted }) {
   const [selectedPages, setSelectedPages] = useState([]);
   const [scope, setScope] = useState('all');
   const [loading, setLoading] = useState(false);
-  
-  // ✨ NUEVO: Estado para capturar y mostrar errores en la interfaz
   const [localError, setLocalError] = useState('');
 
   const handleFileChange = async (e) => {
@@ -110,7 +109,7 @@ export default function PdfExtractor({ onTextExtracted }) {
           setSelectedPages(Array.from({ length: pdf.numPages }, (_, i) => i + 1));
         } catch (pdfErr) {
           console.error(pdfErr);
-          setLocalError('No se pudo procesar la estructura del PDF. Asegúrate de que no esté encriptado o protegido.');
+          setLocalError('No se pudo procesar la estructura del PDF. Asegúrate de que no esté protegido.');
           setPdfDoc(null);
         } finally {
           setLoading(false);
@@ -147,7 +146,7 @@ export default function PdfExtractor({ onTextExtracted }) {
       }
 
       if (!completeText.trim()) {
-        throw new Error('El PDF parece estar compuesto únicamente por imágenes escaneadas. No se detectaron capas de texto plano legibles.');
+        throw new Error('El PDF parece estar compuesto únicamente por imágenes escaneadas. No se detectaron capas de texto legibles.');
       }
 
       onTextExtracted(completeText.trim());
@@ -276,7 +275,6 @@ export default function PdfExtractor({ onTextExtracted }) {
             </div>
           )}
           
-          {/* Alerta de error en la interfaz */}
           {localError && (
             <p className="text-[11px] font-semibold text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2 animate-[fadeIn_0.12s_ease]">
               {localError}
