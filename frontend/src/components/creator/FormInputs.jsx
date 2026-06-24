@@ -1,10 +1,64 @@
-// ARCHIVO: frontend/src/components/creator/FormInputs.jsx
-import { ImagePlus, X } from 'lucide-react';
+import { ImagePlus, X, Sparkles, FileText, Layers } from 'lucide-react';
 
 export default function FormInputs({
-  isBulk, question, setQuestion, answer, setAnswer, bulkText, setBulkText,
-  contentImage, imageSide, handleContentImageFile, removeContentImage
+  // Props Clásicas
+  isBulk, isAi, question, setQuestion, answer, setAnswer, bulkText, setBulkText,
+  contentImage, imageSide, handleContentImageFile, removeContentImage,
+  // ✨ Nuevas Props para el Modo IA
+  aiText, setAiText, aiNumCards, setAiNumCards
 }) {
+  
+  // 1. MODO IA: Panel de procesamiento inteligente
+  if (isAi) {
+    return (
+      <div className="animate-[fadeIn_0.2s_ease] flex flex-col gap-4">
+        <div>
+          <label className="block text-xs font-bold text-slate-600 mb-1.5 flex items-center gap-1.5">
+            <FileText className="w-3.5 h-3.5 text-slate-400" />
+            Apuntes, lecturas o indicaciones para la IA:
+          </label>
+          <textarea
+            value={aiText}
+            onChange={(e) => setAiText(e.target.value)}
+            placeholder={
+              "Pega aquí el texto de tus diapositivas, capítulos de libros o simplemente escribe una orden:\n\nEjemplo: 'Genera 5 tarjetas de estudio sobre la nomenclatura de los ácidos carboxílicos enfocándote en las reglas de la IUPAC.'"
+            }
+            className="min-h-[160px] w-full text-xs rounded-xl border border-slate-200 px-3 py-2.5 outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 placeholder:text-slate-300 leading-relaxed"
+          />
+        </div>
+
+        {/* Selector de cantidad estimada de tarjetas */}
+        <div className="bg-slate-50 border border-slate-200/60 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Layers className="w-4 h-4 text-slate-400 shrink-0" />
+            <div>
+              <p className="text-xs font-bold text-slate-700">Densidad del mazo</p>
+              <p className="text-[10px] text-slate-400 font-medium leading-none mt-0.5">¿Cuántas tarjetas deseas extraer aproximadamente?</p>
+            </div>
+          </div>
+          
+          <div className="flex bg-white p-1 rounded-lg border border-slate-200 items-center shrink-0 self-end sm:self-auto">
+            {[5, 10, 15].map((num) => (
+              <button
+                key={num}
+                type="button"
+                onClick={() => setAiNumCards(num)}
+                className={`px-3 py-1 text-[11px] font-bold rounded-md transition-all cursor-pointer ${
+                  aiNumCards === num 
+                    ? 'bg-slate-900 text-white shadow-3xs' 
+                    : 'text-slate-500 hover:text-slate-900'
+                }`}
+              >
+                {num} tarjetas
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 2. MODO EN LOTE (Mantiene tu diseño intacto)
   if (isBulk) {
     return (
       <div className="animate-[fadeIn_0.2s_ease]">
@@ -19,6 +73,7 @@ export default function FormInputs({
     );
   }
 
+  // 3. MODO INDIVIDUAL (Mantiene tu diseño intacto)
   return (
     <div className="grid sm:grid-cols-2 gap-4 animate-[fadeIn_0.2s_ease]">
       {/* Columna de Pregunta */}
