@@ -176,14 +176,15 @@ exports.generateAiCards = async (req, res) => {
 
     const targetCount = parseInt(count, 10) || 5;
 
-    const openAiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+    // 🚀 MODIFICADO: Ahora apuntamos al endpoint oficial de DeepSeek
+    const deepSeekResponse = await fetch('https://api.deepseek.com/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${user.aiApiKey}`
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini', 
+        model: 'deepseek-chat', // 🧠 El modelo bandera de DeepSeek (compatible con JSON estructurado)
         response_format: { type: "json_object" }, 
         messages: [
           {
@@ -197,11 +198,13 @@ exports.generateAiCards = async (req, res) => {
       })
     });
 
-    if (!openAiResponse.ok) {
-      return res.status(502).json({ message: 'El motor de IA rechazó la solicitud. Revisa la vigencia y saldo de tu clave.' });
+    if (!deepSeekResponse.ok) {
+      const errorText = await deepSeekResponse.text().catch(() => '');
+      console.error('[DeepSeek Error Downstream]:', errorText);
+      return res.status(502).json({ message: 'El motor de DeepSeek rechazó la solicitud. Revisa el saldo o vigencia de tu clave.' });
     }
 
-    const aiResponseData = await openAiResponse.json();
+    const aiResponseData = await deepSeekResponse.json();
     let rawJsonString = aiResponseData.choices?.[0]?.message?.content?.trim() || "{}";
 
     if (rawJsonString.startsWith('```')) {
@@ -212,7 +215,7 @@ exports.generateAiCards = async (req, res) => {
     const generatedCardsArray = parsedAiResult.cards;
 
     if (!Array.isArray(generatedCardsArray) || generatedCardsArray.length === 0) {
-      return res.status(422).json({ message: 'La IA no devolvió un lote de tarjetas con la estructura esperada.' });
+      return res.status(422).json({ message: 'La IA no devolvió un mazo con la estructura esperada.' });
     }
 
     const globalBg = batchStyles?.bgImage || '';
@@ -247,7 +250,7 @@ exports.generateAiCards = async (req, res) => {
     }
 
     if (documentsToInsert.length === 0) {
-      return res.status(400).json({ message: 'Las tarjetas devueltas por la IA no contenían datos válidos para guardar.' });
+      return res.status(400).json({ message: 'Las tarjetas devueltas por la IA no contenían datos válidos.' });
     }
 
     await currentDeck.save();
