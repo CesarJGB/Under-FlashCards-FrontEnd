@@ -4,7 +4,8 @@
  */
 
 /**
- * FASE 1: Generador de Tarjetas Crudas (Insufla padding si está configurado)
+ * FASE 1: Generador de Tarjetas Crudas
+ * MANTENIDO INTACTO por requerimiento.
  */
 async function generateRawCards(text, targetCount, apiKey) {
   const response = await fetch('https://api.deepseek.com/chat/completions', {
@@ -40,7 +41,7 @@ async function generateRawCards(text, targetCount, apiKey) {
 }
 
 /**
- * FASE 2: Auditor y Crítico Estricto (Manejo de Metadatos de Calidad)
+ * FASE 2: Auditor y Crítico Estricto con Bloqueo de Deriva Cognitiva (CoT Estructurado)
  */
 async function criticizeAndRefineCards(originalText, rawCards, apiKey) {
   const response = await fetch('https://api.deepseek.com/chat/completions', {
@@ -52,22 +53,38 @@ async function criticizeAndRefineCards(originalText, rawCards, apiKey) {
     body: JSON.stringify({
       model: 'deepseek-chat',
       response_format: { type: "json_object" },
-      temperature: 0.1, // Ultra-determinista
+      temperature: 0.1, // Máximo determinismo y fidelidad lógica
       messages: [
         {
           role: 'system',
-          content: `Eres un Supervisor de Control de Calidad Académica de Inteligencia Artificial. Tu objetivo es auditar un lote de flashcards preliminares comparándolas con el Texto Fuente Original.
-          
-          Debes procesar TODO el lote en esta única llamada y devolver obligatoriamente un objeto JSON con la propiedad "cards", la cual contiene un arreglo de objetos. Cada objeto DEBE incluir de forma estricta las siguientes cuatro llaves:
-          - "question": El texto de la pregunta (optimizado o el original).
-          - "answer": El texto de la respuesta (optimizado o el original).
-          - "status": Un string exacto que debe ser uno de estos cuatro valores: "sin_cambios" | "corregida" | "fusionada" | "eliminada".
-          - "reason": Un string breve en español explicando la razón de la acción (obligatorio si el status es corregida, fusionada o eliminada; vacío "" si es sin_cambios).
+          content: `Eres un Supervisor de Control de Calidad Académica de Inteligencia Artificial. Tu objetivo es auditar un mazo completo de flashcards preliminares comparándolas minuciosamente con el Texto Fuente Original.
 
-          REGLAS DE ACCIÓN EXPLÍCITAS:
-          1. CORREGIR ("status": "corregida"): Aplícalo si la tarjeta tiene problemas de redacción, longitud excesiva, ambigüedad o falta de atomicidad, pero el dato central es verídico. Reescríbela para que sea concisa.
-          2. ELIMINAR ("status": "eliminada"): Aplícalo de inmediato si la tarjeta presenta un error factual grave, inventa datos, fórmulas o conceptos que NO existen en el Texto Fuente Original. No intentes salvarla.
-          3. REDUNDANCIA CONCEPTUAL ("status": "fusionada"): Compara los conceptos subyacentes. Si dos tarjetas evalúan el mismo núcleo de conocimiento (ej: una pregunta por la capital de un país y otra por la ubicación de su palacio de gobierno principal si el texto los unifica como el mismo dato clave), mantén solo una de ellas (márcala como "sin_cambios" o "corregida") y marca la redundante como "fusionada", detallando con qué otra tarjeta colisionó en la llave "reason".`
+          Para evitar evaluaciones aisladas y asegurar la consistencia absoluta en el control de calidad, debes ejecutar obligatoriamente un proceso analítico de 4 pasos antes de rellenar el arreglo final.
+
+          Debes responder con un objeto JSON que tenga exactamente esta estructura de raíz:
+          {
+            "proceso_analisis_4_pasos": {
+              "paso_a_conceptos_clave": "Mapeo interno y breve de cada tarjeta preliminar con el núcleo de conocimiento exacto que evalúa",
+              "paso_b_comparacion_redundancias": "Análisis cruzado explícito buscando pares que apunten al mismo concepto subyacente o dato clave aunque estén redactadas de forma totalmente distinta",
+              "paso_c_verificacion_factual_esceptica": "Contraste duro con el Texto Fuente Original, partiendo de la premisa de que el lote preliminar tiene al menos un error factual o alucinación hasta confirmar lo contrario"
+            },
+            "cards": [
+              {
+                "question": "Texto de la pregunta (optimizado o el original)",
+                "answer": "Texto de la respuesta (optimizado o el original)",
+                "status": "sin_cambios" | "corregida" | "fusionada" | "eliminada",
+                "reason": "Justificación obligatoria y detallada de la auditoría efectuada para esta tarjeta"
+              }
+            ]
+          }
+
+          REGLAS CRÍTICAS DE ACCIÓN PARA EL PASO D (Asignación de propiedades en 'cards'):
+          1. CORREGIR ("status": "corregida"): Si la tarjeta presenta problemas de redacción, longitud excesiva, ambigüedad o falta de atomicidad (ej: preguntas demasiado abiertas o vagas), pero el dato central es verídico. Reescríbela para que sea directa, concisa y perfectamente atómica.
+          2. ELIMINAR ("status": "eliminada"): Si la tarjeta presenta un error factual, altera de raíz los datos del documento o inventa fórmulas/conceptos que NO están presentes de forma explícita en el Texto Fuente Original. Elimínala directamente, no intentes salvarla.
+          3. REDUNDANCIA CONCEPTUAL ("status": "fusionada"): Si en el 'paso_b' detectaste que dos tarjetas evalúan el mismo concepto básico subyacente (ej: una pregunta por la capital de un lugar y otra por la ubicación del centro gubernamental de ese mismo lugar si el texto los unifica), mantén una sola tarjeta viva (como 'sin_cambios' o 'corregida') y marca la otra como 'fusionada', indicando con cuál colisionó.
+
+          REGLA DE OBLIGATORIEDAD ABSOLUTA PARA "reason":
+          La llave "reason" debe ser completada en TODOS los casos sin excepción. Si el estatus es "sin_cambios", debes explicar con precisión qué se verificó (ejemplo: 'Dato verificado en texto fuente, estructura perfectamente atómica y sin colisiones conceptuales detectadas tras el análisis cruzado con el lote').`
         },
         {
           role: 'user',
@@ -88,6 +105,10 @@ async function criticizeAndRefineCards(originalText, rawCards, apiKey) {
   const data = await response.json();
   const refinedJson = data.choices?.[0]?.message?.content?.trim() || "{}";
   const parsed = JSON.parse(refinedJson);
+
+  // ✨ Procesamiento optimizado: Al retornar parsed.cards, el backend de Node obtiene el arreglo limpio
+  // esperado por el bucle controlador, mientras que el objeto "proceso_analisis_4_pasos" cumplió su cometido
+  // de actuar como ancla de atención secuencial en DeepSeek y se descarta del guardado en DB de forma limpia.
   return parsed.cards || [];
 }
 
