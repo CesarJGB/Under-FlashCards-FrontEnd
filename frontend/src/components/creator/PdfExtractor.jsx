@@ -4,7 +4,8 @@ import * as pdfjsLib from 'pdfjs-dist';
 
 // Subcomponentes modulares atómicos
 import PdfPageThumbnail from './pdf/PdfPageThumbnail';
-import LargePagePreview from './pdf/LargePagePreview';
+// 🚀 CAMBIO: Importamos el nuevo carrusel interactivo con soporte de swipes
+import PdfCarousel from './pdf/PdfCarousel';
 
 // Importación del worker de empaquetado nativo de Vite
 import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.mjs?url';
@@ -20,7 +21,7 @@ export default function PdfExtractor({ onTextExtracted }) {
   const [loading, setLoading] = useState(false);
   const [localError, setLocalError] = useState('');
 
-  // Control del modal de lupa
+  // Control del mazo/índice del carrusel flotante
   const [previewPageNum, setPreviewPageNum] = useState(null);
 
   const handleFileChange = async (e) => {
@@ -222,11 +223,14 @@ export default function PdfExtractor({ onTextExtracted }) {
         </div>
       )}
 
-      {/* RENDERIZADO DEL MODAL DE DETALLE COMPLETO (LUPA) */}
+      {/* 🚀 RENDERIZADO DEL CARRUSEL DE ENTORNO COMPLETO CON CONEXIÓN EN TIEMPO REAL */}
       {previewPageNum !== null && (
-        <LargePagePreview
+        <PdfCarousel
           pdf={pdfDoc}
-          pageNum={previewPageNum}
+          initialPage={previewPageNum}
+          totalPages={totalPages}
+          selectedPages={selectedPages}
+          onToggle={togglePage}
           onClose={() => setPreviewPageNum(null)}
         />
       )}
