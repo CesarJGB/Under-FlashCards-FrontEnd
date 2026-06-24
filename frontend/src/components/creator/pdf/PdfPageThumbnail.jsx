@@ -57,21 +57,21 @@ export default function PdfPageThumbnail({ pdf, pageNum, isSelected, onToggle, o
         )}
       </button>
 
-      {/* Cuerpo central del canvas informativo */}
+      {/* Contenedor del canvas informativo */}
       <div className="w-full flex flex-col items-center justify-center min-h-[110px] bg-slate-50 rounded-lg overflow-hidden border border-slate-100 relative">
         {rendering && (
           <Loader2 className="w-4 h-4 animate-spin text-slate-300 absolute" />
         )}
         <canvas ref={canvasRef} className="w-full h-auto block" />
 
-        {/* 🚀 2. BOTÓN DE LUPA PERMANENTE (Esquina inferior derecha) */}
+        {/* 🚀 2. BOTÓN DE LUPA CLONADO (Esquina inferior derecha - Alineación vertical perfecta) */}
         <button
           type="button"
           onClick={() => onPreview(pageNum)}
-          className="absolute bottom-1.5 right-1.5 z-10 p-2 bg-slate-900/90 text-white hover:bg-slate-900 rounded-full shadow-md cursor-pointer transition-all active:scale-95 border border-slate-800 flex items-center justify-center"
+          className="absolute bottom-1.5 right-1.5 z-10 p-1.5 bg-white/95 hover:bg-white rounded-lg shadow-3xs border border-slate-100 cursor-pointer transition-all active:scale-90 flex items-center justify-center"
           title="Ver en pantalla completa"
         >
-          <ZoomIn className="w-3.5 h-3.5 stroke-[2.5]" />
+          <ZoomIn className="w-4 h-4 text-indigo-600 stroke-[2.5]" />
         </button>
       </div>
 
