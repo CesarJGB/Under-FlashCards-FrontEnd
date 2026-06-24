@@ -26,7 +26,7 @@ export default function FlashcardCreator({
   fontSize, setFontSize, showStyles, setShowStyles, isBulk, setIsBulk, bulkText, setBulkText,
   editingId, saving, error, setError, onSubmit, onCancel, contentImage, setContentImage,
   imageSide, setImageSide, onFastDelete, hasCards,
-  userId, deckId, onAiSuccess // 🚀 Inyectado userId para comunicación segura con el backend
+  userId, deckId, onAiSuccess
 }) {
   const [showPreview, setShowPreview] = useState(false);
   
@@ -127,7 +127,7 @@ export default function FlashcardCreator({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            userId, // 🧠 Enviado para que el backend localice la clave segura del usuario
+            userId,
             deckId,
             text: aiText,
             count: aiNumCards,
@@ -206,45 +206,48 @@ export default function FlashcardCreator({
         aiNumCards={aiNumCards} setAiNumCards={setAiNumCards}
       />
 
-      {activeTab !== 'ai' && (
-        <div className="mt-4 grid grid-cols-2 gap-3">
-          <button 
-            type="button" 
-            onClick={() => { setShowPreview(!showPreview); setShowStyles(false); }} 
-            className={`flex w-full flex-col sm:flex-row items-center justify-center text-center gap-1 sm:gap-2 text-xs font-bold rounded-xl h-12 sm:h-11 border transition-all active:scale-[0.98] shadow-3xs cursor-pointer p-1 ${
-              showPreview ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
-            }`}
-          >
-            {showPreview ? <EyeOff className="w-3.5 h-3.5 shrink-0" /> : <Eye className="w-3.5 h-3.5 shrink-0" />}
-            <span className="text-center leading-tight">{showPreview ? 'Cerrar vista' : 'Previsualizar Tarjeta'}</span>
-          </button>
+      {/* ✨ ACTUALIZADO: Retiramos 'activeTab !== "ai"' para que la botonera de estilos esté siempre disponible */}
+      <div className="mt-4 grid grid-cols-2 gap-3">
+        <button 
+          type="button" 
+          onClick={() => { setShowPreview(!showPreview); setShowStyles(false); }} 
+          className={`flex w-full flex-col sm:flex-row items-center justify-center text-center gap-1 sm:gap-2 text-xs font-bold rounded-xl h-12 sm:h-11 border transition-all active:scale-[0.98] shadow-3xs cursor-pointer p-1 ${
+            showPreview ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
+          }`}
+        >
+          {showPreview ? <EyeOff className="w-3.5 h-3.5 shrink-0" /> : <Eye className="w-3.5 h-3.5 shrink-0" />}
+          <span className="text-center leading-tight">{showPreview ? 'Cerrar vista' : 'Previsualizar Tarjeta'}</span>
+        </button>
 
-          <button 
-            type="button" 
-            onClick={() => { if (!showPreview) setShowStyles(!showStyles); }} 
-            disabled={showPreview} 
-            className={`flex w-full flex-col sm:flex-row items-center justify-center text-center gap-1 sm:gap-2 text-xs font-bold rounded-xl h-12 sm:h-11 border transition-all active:scale-[0.98] shadow-3xs cursor-pointer p-1 ${
-              showPreview 
-                ? 'opacity-40 cursor-not-allowed bg-slate-50 text-slate-400 border-slate-200' 
-                : showStyles 
-                ? 'bg-slate-100 text-slate-900 border-slate-300' 
-                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
-            }`}
-          >
-            <SlidersHorizontal className="w-3.5 h-3.5 shrink-0" />
-            <span className="text-center leading-tight">Estilo rápido</span>
-          </button>
-        </div>
-      )}
+        <button 
+          type="button" 
+          onClick={() => { if (!showPreview) setShowStyles(!showStyles); }} 
+          disabled={showPreview} 
+          className={`flex w-full flex-col sm:flex-row items-center justify-center text-center gap-1 sm:gap-2 text-xs font-bold rounded-xl h-12 sm:h-11 border transition-all active:scale-[0.98] shadow-3xs cursor-pointer p-1 ${
+            showPreview 
+              ? 'opacity-40 cursor-not-allowed bg-slate-50 text-slate-400 border-slate-200' 
+              : showStyles 
+              ? 'bg-slate-100 text-slate-900 border-slate-300' 
+              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
+          }`}
+        >
+          <SlidersHorizontal className="w-3.5 h-3.5 shrink-0" />
+          <span className="text-center leading-tight">Estilo rápido</span>
+        </button>
+      </div>
 
-      {showPreview && activeTab !== 'ai' && (
+      {/* ✨ ACTUALIZADO: Inyección inteligente de placeholders dinámicos si están en modo IA */}
+      {showPreview && (
         <LivePreview 
-          question={question} answer={answer} bgImage={bgImage} textAlign={textAlign} styles={styles} contentImage={contentImage} imageSide={imageSide}
+          question={activeTab === 'ai' ? '¿Pregunta muestra generada por la IA?' : question} 
+          answer={activeTab === 'ai' ? 'Esta será la respuesta explicativa de tu tarjeta inteligente.' : answer} 
+          bgImage={bgImage} textAlign={textAlign} styles={styles} contentImage={contentImage} imageSide={imageSide}
           ALIGNS={ALIGNS} SWATCHES={SWATCHES} setTextAlign={setTextAlign} handleBgFile={handleBgFile} updateStyle={updateStyle}
         />
       )}
 
-      {!showPreview && showStyles && activeTab !== 'ai' && (
+      {/* ✨ ACTUALIZADO: Unificado el panel de control estético rápido para los 3 modos */}
+      {!showPreview && showStyles && (
         <StylePanel 
           ALIGNS={ALIGNS} SWATCHES={SWATCHES} textAlign={textAlign} setTextAlign={setTextAlign} bgImage={bgImage} setBgImage={setBgImage}
           styles={styles} updateStyle={updateStyle} handleBgFile={handleBgFile}
