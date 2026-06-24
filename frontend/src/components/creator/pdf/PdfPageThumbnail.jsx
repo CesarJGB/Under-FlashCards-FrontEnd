@@ -43,28 +43,28 @@ export default function PdfPageThumbnail({ pdf, pageNum, isSelected, onToggle, o
           : 'border-slate-200 hover:border-slate-300 shadow-3xs'
       }`}
     >
-      {/* 1. BOTÓN DE SELECCIÓN (Esquina superior derecha) */}
-      <button
-        type="button"
-        onClick={() => onToggle(pageNum)}
-        className="absolute top-1.5 right-1.5 z-10 p-1.5 bg-white/95 hover:bg-white rounded-lg shadow-3xs border border-slate-100 cursor-pointer transition-all active:scale-90"
-        title={isSelected ? "Quitar página" : "Incluir página"}
-      >
-        {isSelected ? (
-          <CheckSquare className="w-4 h-4 text-indigo-600" />
-        ) : (
-          <Square className="w-4 h-4 text-slate-300" />
-        )}
-      </button>
-
-      {/* Contenedor del canvas informativo */}
+      {/* Contenedor central del documento (Ahora es el eje maestro de alineación) */}
       <div className="w-full flex flex-col items-center justify-center min-h-[110px] bg-slate-50 rounded-lg overflow-hidden border border-slate-100 relative">
         {rendering && (
           <Loader2 className="w-4 h-4 animate-spin text-slate-300 absolute" />
         )}
         <canvas ref={canvasRef} className="w-full h-auto block" />
 
-        {/* 🚀 2. BOTÓN DE LUPA CLONADO (Esquina inferior derecha - Alineación vertical perfecta) */}
+        {/* 🚀 1. SECTOR SELECCIÓN: Movido aquí adentro (Esquina superior derecha) */}
+        <button
+          type="button"
+          onClick={() => onToggle(pageNum)}
+          className="absolute top-1.5 right-1.5 z-10 p-1.5 bg-white/95 hover:bg-white rounded-lg shadow-3xs border border-slate-100 cursor-pointer transition-all active:scale-90"
+          title={isSelected ? "Quitar página" : "Incluir página"}
+        >
+          {isSelected ? (
+            <CheckSquare className="w-4 h-4 text-indigo-600" />
+          ) : (
+            <Square className="w-4 h-4 text-slate-300" />
+          )}
+        </button>
+
+        {/* 🚀 2. SECTOR LUPA: (Esquina inferior derecha) */}
         <button
           type="button"
           onClick={() => onPreview(pageNum)}
@@ -75,9 +75,4 @@ export default function PdfPageThumbnail({ pdf, pageNum, isSelected, onToggle, o
         </button>
       </div>
 
-      <span className={`text-[10px] font-bold mt-2 ${isSelected ? 'text-indigo-700' : 'text-slate-500'}`}>
-        Pág. {pageNum}
-      </span>
-    </div>
-  );
-}
+      <span className={`text-[10px] font-bold mt-2 ${isSelected ? 'text-indigo-700' : 'text-slate-500
