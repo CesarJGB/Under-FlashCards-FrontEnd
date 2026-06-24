@@ -26,7 +26,7 @@ export default function FlashcardCreator({
   fontSize, setFontSize, showStyles, setShowStyles, isBulk, setIsBulk, bulkText, setBulkText,
   editingId, saving, error, setError, onSubmit, onCancel, contentImage, setContentImage,
   imageSide, setImageSide, onFastDelete, hasCards,
-  deckId, onAiSuccess
+  userId, deckId, onAiSuccess // 🚀 Inyectado userId para comunicación segura con el backend
 }) {
   const [showPreview, setShowPreview] = useState(false);
   
@@ -127,6 +127,7 @@ export default function FlashcardCreator({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            userId, // 🧠 Enviado para que el backend localice la clave segura del usuario
             deckId,
             text: aiText,
             count: aiNumCards,
@@ -136,7 +137,7 @@ export default function FlashcardCreator({
 
         if (!res.ok) {
           const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.message || 'El motor de IA experimentó una saturación. Reintenta en unos instantes.');
+          throw new Error(errData.message || 'El motor de IA experimentó una saturación o no configuraste tu API Key.');
         }
 
         const newCards = await res.json();
@@ -164,12 +165,11 @@ export default function FlashcardCreator({
         </p>
         
         {!editingId && (
-          /* 🚀 CAMBIO CRÍTICO: grid-cols-3 forzado en móvil + p-1 para simetría pura */
           <div className="grid grid-cols-3 sm:flex bg-slate-100 p-1 border border-slate-200/60 rounded-xl items-center w-full sm:w-auto self-center">
             {[
               { id: 'single', label: 'Manual', Icon: Plus },
-              { id: 'bulk', label: 'Lote', Icon: Layers }, // ✨ Simplificado a "Lote"
-              { id: 'ai', label: 'IA', Icon: Sparkles }     // ✨ Simplificado a "IA"
+              { id: 'bulk', label: 'Lote', Icon: Layers },
+              { id: 'ai', label: 'IA', Icon: Sparkles }
             ].map((tab) => {
               const TabIcon = tab.Icon;
               const isSelected = activeTab === tab.id;
@@ -178,7 +178,6 @@ export default function FlashcardCreator({
                   key={tab.id}
                   type="button"
                   onClick={() => handleTabChange(tab.id)}
-                  /* py-2 estricto e inline-flex equilibrado para rellenar todo el bloque uniformemente */
                   className={`inline-flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
                     isSelected 
                       ? 'bg-white text-slate-900 shadow-2xs' 
