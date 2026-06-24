@@ -1,4 +1,3 @@
-// ARCHIVO: frontend/src/components/DeckInterior.jsx
 import { useState, useEffect, useCallback } from 'react';
 import { Loader2, ChevronDown, ChevronUp, Eye } from 'lucide-react'; 
 import ReviewMode from './ReviewMode';
@@ -226,7 +225,7 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
     setIsBulk(false); setEditingId(card.id); setQuestion(card.question); setAnswer(card.answer);
     setBgImage(card.bgImage || ''); setTextAlign(card.textAlign || 'center'); setFontSize(card.fontSize || 'text-base');
     setContentImage(card.contentImage || '');
-    setImageSide(card.imageSide || '');
+    imageSide(card.imageSide || '');
     window.scrollTo({ top: 0, behavior: 'smooth' });
     setShowGrid(true);
   };
@@ -272,7 +271,6 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
 
           {mode === 'edit' && (
             <>
-              {/* ✨ ADAPTACIÓN FINAL: Si el mazo es dueño o editable global, abre el creador. Si no, muestra el banner de bloqueo */}
               {canEdit ? (
                 <FlashcardCreator
                   question={question} setQuestion={setQuestion} answer={answer} setAnswer={setAnswer}
@@ -285,6 +283,13 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
                   imageSide={imageSide} setImageSide={setImageSide}
                   onFastDelete={() => setMode('fast-delete')}
                   hasCards={(deck.cardCount ?? cards.length) > 0}
+                  
+                  // ✨ CONEXIÓN DIRECTA CON EL MÓDULO IA:
+                  userId={userId}
+                  deckId={deck.id}
+                  onAiSuccess={(newCards) => {
+                    setCards((prev) => [...newCards, ...prev]);
+                  }}
                 />
               ) : (
                 <div className="bg-blue-50/60 border border-blue-200/50 rounded-2xl p-4 flex items-center gap-3.5 text-blue-800 text-xs font-semibold shadow-3xs animate-[fadeIn_0.15s_ease] mb-2">
