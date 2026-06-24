@@ -1,3 +1,4 @@
+// backend/src/controllers/flashcardController.js
 const Flashcard = require('../models/Flashcard');
 const Deck = require('../models/Deck');
 const User = require('../models/User');
@@ -92,7 +93,6 @@ exports.updateCard = async (req, res) => {
 exports.deleteCard = async (req, res) => {
   try {
     const { id } = req.params;
-    // ✨ BUG CORREGIDO: Se removió la línea duplicada rota del archivo original
     const cardDeleted = await Flashcard.findByIdAndDelete(id);
     if (!cardDeleted) return res.status(404).json({ error: 'Flashcard not found.' });
     return res.json({ success: true, id });
@@ -177,23 +177,64 @@ exports.generateAiCards = async (req, res) => {
 
     const targetCount = parseInt(count, 10) || 5;
 
-    // ─── PIPELINE GENERATOR-CRITIC (DEEPSEEK) ───
-    console.log(`[AI Pipeline] Iniciando Fase 1 para usuario ${userId} (Target: ${targetCount})`);
-    const rawCards = await aiService.generateRawCards(text, targetCount, user.aiApiKey);
-    
-    console.log(`[AI Pipeline] Fase 1 Completa (${rawCards.length} crudas). Iniciando Fase 2 de Auditoría...`);
-    const refinedCards = await aiService.criticizeAndRefineCards(text, rawCards, user.aiApiKey);
-    
-    console.log(`[AI Pipeline] Fase 2 Completa (${refinedCards.length} refinadas y listas)`);
+    // 🎯 PUNTO 3: Ajuste inflado dinámico (Padding factor configurable)
+    // Lee desde las variables de entorno (.env). Por ejemplo: AI_TARGET_PADDING_FACTOR=0.30
+    const paddingFactor = parseFloat(process.env.AI_TARGET_PADDING_FACTOR) || 0.30;
+    const phase1Target = Math.ceil(targetCount * (1 + paddingFactor));
 
-    // ─── MAPEO E INSERCIÓN EN BASE DE DATOS ───
+    // ─── PIPELINE FASE 1: GENERACIÓN CRUDA ───
+    const startTimePhase1 = Date.now();
+    console.log(`[AI Pipeline] Iniciando Fase 1 para usuario ${userId} (Target Solicitado: ${targetCount} | Inflado a: ${phase1Target})`);
+    
+    const rawCards = await aiService.generateRawCards(text, phase1Target, user.aiApiKey);
+    const durationPhase1 = Date.now() - startTimePhase1;
+    console.log(`[AI Pipeline] Fase 1 Terminar. Recibidas ${rawCards.length} tarjetas crudas en ${durationPhase1}ms.`);
+
+    // ─── PIPELINE FASE 2: AUDITORÍA ESTRICTA (BATCH) ───
+    const startTimePhase2 = Date.now();
+    console.log(`[AI Pipeline] Iniciando Fase 2 de Auditoría Conceptual y Factual...`);
+    
+    const auditedCards = await aiService.criticizeAndRefineCards(text, rawCards, user.aiApiKey);
+    const durationPhase2 = Date.now() - startTimePhase2;
+
+    // 📊 PUNTOS 4 Y 5: Métricas avanzadas de Logging y análisis de motivos
+    const metrics = {
+      fase: 2,
+      recibidas: rawCards.length,
+      eliminadas: 0,
+      fusionadas: 0,
+      corregidas: 0,
+      sin_cambios: 0,
+      tiempo_ms: durationPhase2
+    };
+
+    const documentsToInsert = [];
     const globalBg = batchStyles?.bgImage || '';
     const globalAlign = batchStyles?.textAlign || 'center';
     const globalSize = batchStyles?.fontSize || 'text-base';
 
-    const documentsToInsert = [];
-    for (const cardData of refinedCards) {
-      if (!cardData || !cardData.question?.trim() || !cardData.answer?.trim()) continue;
+    for (const card of auditedCards) {
+      if (!card || !card.status) continue;
+
+      // Acumular contadores de métricas según la respuesta estructurada de DeepSeek
+      if (metrics[`${card.status}s`] !== undefined) {
+        metrics[`${card.status}s`]++;
+      } else if (card.status === 'sin_cambios') {
+        metrics.sin_cambios++;
+      }
+
+      // Loggear en consola los motivos específicos de depuración (Solo visualización interna)
+      if (['corregida', 'fusionada', 'eliminada'].includes(card.status)) {
+        console.log(`   [Quality Alert] Tarjeta marcada como [${card.status.toUpperCase()}]. Motivo: "${card.reason || 'No especificado'}"`);
+        console.log(`   └─ Q: "${card.question}"`);
+      }
+
+      // Filtrar: Solo guardamos las tarjetas que pasaron limpias o que fueron optimizadas estéticamente
+      if (card.status === 'eliminada' || card.status === 'fusionada') {
+        continue; 
+      }
+
+      if (!card.question?.trim() || !card.answer?.trim()) continue;
 
       let bgImageIndex = -1;
       if (globalBg) {
@@ -205,11 +246,12 @@ exports.generateAiCards = async (req, res) => {
         bgImageIndex = idx;
       }
 
+      // Empaquetar para MongoDB limpia de metadatos de IA
       documentsToInsert.push({
         userId,
         deckId,
-        question: String(cardData.question).trim(),
-        answer: String(cardData.answer).trim(),
+        question: String(card.question).trim(),
+        answer: String(card.answer).trim(),
         bgImageIndex,
         textAlign: ['left', 'center', 'right'].includes(globalAlign) ? globalAlign : 'center',
         fontSize: globalSize,
@@ -218,10 +260,14 @@ exports.generateAiCards = async (req, res) => {
       });
     }
 
+    // Imprimir el objeto de log estructurado final requerido
+    console.log(`[AI Pipeline Metrics]:`, JSON.stringify(metrics));
+
     if (documentsToInsert.length === 0) {
-      return res.status(422).json({ message: 'La auditoría de la IA determinó que ninguna tarjeta cumplía con los estándares mínimos.' });
+      return res.status(422).json({ message: 'La auditoría determinó que ninguna tarjeta generada cumplía con los estándares de veracidad del documento.' });
     }
 
+    // Persistir mazo refinado
     await currentDeck.save();
     const insertedFlashcards = await Flashcard.insertMany(documentsToInsert);
     const backgrounds = currentDeck.cardBackgrounds || [];
