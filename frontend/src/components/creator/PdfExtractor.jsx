@@ -1,8 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
-import { FileUp, FileText, ChevronDown, ChevronUp, CheckSquare, Square, Loader2, Layers } from 'lucide-react';
+import { FileUp, FileText, ChevronDown, ChevronUp, CheckSquare, Square, Loader2 } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
 
-// Mini-componente interno para renderizar visualmente la página real en un canvas
+// 🚀 SOLUCIÓN AL CONGELAMIENTO: Importamos el Worker localmente usando la directiva nativa de Vite (?url)
+import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.mjs?url';
+
+// Asignamos el recurso local empaquetado por Vite. Adios problemas de red o CORS de CDNs externos.
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
+
 function PdfPageThumbnail({ pdf, pageNum, isSelected, onToggle }) {
   const canvasRef = useRef(null);
   const [rendering, setRendering] = useState(true);
@@ -12,7 +17,6 @@ function PdfPageThumbnail({ pdf, pageNum, isSelected, onToggle }) {
     (async () => {
       try {
         const page = await pdf.getPage(pageNum);
-        // Escala baja (0.25) para que actúe como una miniatura rápida sin saturar memoria
         const viewport = page.getViewport({ scale: 0.25 });
         const canvas = canvasRef.current;
         if (!canvas) return;
@@ -48,7 +52,6 @@ function PdfPageThumbnail({ pdf, pageNum, isSelected, onToggle }) {
           : 'border-slate-200 hover:border-slate-300 shadow-3xs'
       }`}
     >
-      {/* Checkbox flotante estético */}
       <div className="absolute top-1.5 right-1.5 z-10 bg-white rounded-md shadow-3xs">
         {isSelected ? (
           <CheckSquare className="w-4 h-4 text-indigo-600" />
@@ -57,7 +60,6 @@ function PdfPageThumbnail({ pdf, pageNum, isSelected, onToggle }) {
         )}
       </div>
 
-      {/* Contenedor del lienzo de dibujo gráfico */}
       <div className="w-full flex items-center justify-center min-h-[100px] bg-slate-50 rounded-lg overflow-hidden border border-slate-100">
         {rendering && (
           <Loader2 className="w-4 h-4 animate-spin text-slate-300 absolute" />
@@ -66,7 +68,7 @@ function PdfPageThumbnail({ pdf, pageNum, isSelected, onToggle }) {
       </div>
 
       <span className={`text-[10px] font-bold mt-2 ${isSelected ? 'text-indigo-700' : 'text-slate-500'}`}>
-        Pág. {pageNum}
+        Pág. {page}
       </span>
     </button>
   );
@@ -78,30 +80,46 @@ export default function PdfExtractor({ onTextExtracted }) {
   const [fileName, setFileName] = useState('');
   const [totalPages, setTotalPages] = useState(0);
   const [selectedPages, setSelectedPages] = useState([]);
-  const [scope, setScope] = useState('all'); // 'all' | 'custom'
+  const [scope, setScope] = useState('all');
   const [loading, setLoading] = useState(false);
+  
+  // ✨ NUEVO: Estado para capturar y mostrar errores en la interfaz
+  const [localError, setLocalError] = useState('');
 
   const handleFileChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file || file.type !== 'application/pdf') return;
 
     setLoading(true);
+    setLocalError('');
     setFileName(file.name);
     
     try {
       const fileReader = new FileReader();
+      fileReader.onerror = () => {
+        setLocalError('Error físico al leer el archivo desde el disco.');
+        setLoading(false);
+      };
+      
       fileReader.onload = async function () {
-        const typedarray = new Uint8Array(this.result);
-        const pdf = await pdfjsLib.getDocument({ data: typedarray }).promise;
-        setPdfDoc(pdf);
-        setTotalPages(pdf.numPages);
-        // Seleccionar todas por defecto
-        setSelectedPages(Array.from({ length: pdf.numPages }, (_, i) => i + 1));
+        try {
+          const typedarray = new Uint8Array(this.result);
+          const pdf = await pdfjsLib.getDocument({ data: typedarray }).promise;
+          setPdfDoc(pdf);
+          setTotalPages(pdf.numPages);
+          setSelectedPages(Array.from({ length: pdf.numPages }, (_, i) => i + 1));
+        } catch (pdfErr) {
+          console.error(pdfErr);
+          setLocalError('No se pudo procesar la estructura del PDF. Asegúrate de que no esté encriptado o protegido.');
+          setPdfDoc(null);
+        } finally {
+          setLoading(false);
+        }
       };
       fileReader.readAsArrayBuffer(file);
     } catch (err) {
-      console.error("Error al cargar estructura del PDF:", err);
-    } finally {
+      console.error(err);
+      setLocalError('Ocurrió un fallo inesperado al precargar el documento.');
       setLoading(false);
     }
   };
@@ -109,6 +127,7 @@ export default function PdfExtractor({ onTextExtracted }) {
   const handleProcessText = async () => {
     if (!pdfDoc) return;
     setLoading(true);
+    setLocalError('');
 
     try {
       let completeText = "";
@@ -117,21 +136,28 @@ export default function PdfExtractor({ onTextExtracted }) {
         : [...selectedPages].sort((a, b) => a - b);
 
       for (const pageNum of pagesToRead) {
-        const page = await pdfDoc.getPage(pageNum);
-        const textContent = await page.getTextContent();
-        const pageStrings = textContent.items.map(item => item.str);
-        completeText += `\n--- [Texto de la Página ${pageNum}] ---\n` + pageStrings.join(" ");
+        try {
+          const page = await pdfDoc.getPage(pageNum);
+          const textContent = await page.getTextContent();
+          const pageStrings = textContent.items.map(item => item.str);
+          completeText += `\n--- [Texto de la Página ${pageNum}] ---\n` + pageStrings.join(" ");
+        } catch (pageErr) {
+          console.warn(`Error al extraer texto de la página ${pageNum}, saltando...`);
+        }
+      }
+
+      if (!completeText.trim()) {
+        throw new Error('El PDF parece estar compuesto únicamente por imágenes escaneadas. No se detectaron capas de texto plano legibles.');
       }
 
       onTextExtracted(completeText.trim());
       
-      // Resetear estado tras volcado exitoso
       setPdfDoc(null);
       setTotalPages(0);
       setFileName('');
       setIsOpen(false);
     } catch (err) {
-      console.error("Error extrayendo texto del PDF:", err);
+      setLocalError(err.message || 'Error durante el volcado de texto.');
     } finally {
       setLoading(false);
     }
@@ -172,7 +198,6 @@ export default function PdfExtractor({ onTextExtracted }) {
             </label>
           ) : (
             <div className="flex flex-col gap-3">
-              {/* Encabezado del archivo activo */}
               <div className="flex items-center justify-between bg-slate-50 border border-slate-200 p-2.5 rounded-xl">
                 <div className="flex items-center gap-2 truncate max-w-[75%]">
                   <FileText className="w-4 h-4 text-indigo-500 shrink-0" />
@@ -180,14 +205,13 @@ export default function PdfExtractor({ onTextExtracted }) {
                 </div>
                 <button 
                   type="button" 
-                  onClick={() => { setPdfDoc(null); setTotalPages(0); setFileName(''); }}
+                  onClick={() => { setPdfDoc(null); setTotalPages(0); setFileName(''); setLocalError(''); }}
                   className="text-slate-400 hover:text-red-500 text-xs font-bold p-1 transition-colors cursor-pointer"
                 >
                   Cambiar
                 </button>
               </div>
 
-              {/* Selector de Alcance Segmentado */}
               <div className="flex bg-slate-100 p-1 border border-slate-200/60 rounded-xl items-center w-full grid grid-cols-2">
                 <button
                   type="button"
@@ -209,7 +233,6 @@ export default function PdfExtractor({ onTextExtracted }) {
                 </button>
               </div>
 
-              {/* 🖼️ MESA DE LUZ VISUAL: Cuadrícula con renderizado de páginas reales */}
               {scope === 'custom' && (
                 <div className="border border-slate-200 rounded-xl p-3 bg-slate-50/50 flex flex-col gap-2">
                   <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 border-b border-slate-200 pb-2">
@@ -220,7 +243,6 @@ export default function PdfExtractor({ onTextExtracted }) {
                     </div>
                   </div>
 
-                  {/* Grid responsivo con scroll interno para no romper la pantalla */}
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-56 overflow-y-auto p-1.5 bg-white border border-slate-200 rounded-xl">
                     {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
                       <PdfPageThumbnail
@@ -235,7 +257,6 @@ export default function PdfExtractor({ onTextExtracted }) {
                 </div>
               )}
 
-              {/* Botón de volcado final */}
               <button
                 type="button"
                 disabled={loading || (scope === 'custom' && selectedPages.length === 0)}
@@ -244,7 +265,7 @@ export default function PdfExtractor({ onTextExtracted }) {
               >
                 {loading ? (
                   <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" /> Extrayendo lectura clínica...
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" /> Procesando...
                   </>
                 ) : (
                   <>
@@ -253,6 +274,13 @@ export default function PdfExtractor({ onTextExtracted }) {
                 )}
               </button>
             </div>
+          )}
+          
+          {/* Alerta de error en la interfaz */}
+          {localError && (
+            <p className="text-[11px] font-semibold text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2 animate-[fadeIn_0.12s_ease]">
+              {localError}
+            </p>
           )}
         </div>
       )}
