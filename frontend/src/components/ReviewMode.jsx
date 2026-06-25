@@ -1,33 +1,12 @@
-// ARCHIVO: frontend/src/components/ReviewMode.jsx
+// FILE: frontend/src/components/ReviewMode.jsx
+
 import { useState, useEffect, useRef } from 'react';
 import { ChevronLeft, ChevronRight, RotateCw, BookOpen, Loader2, Maximize2, X } from 'lucide-react';
 
-const ALIGN_CLASS = { left: 'text-left', center: 'text-center', right: 'text-right' };
+// Importamos la función de parseo unificada y centralizada
+import { parseCardStyles } from '../lib/utils';
 
-// 🧠 DESEMPAQUETADOR RETROCOMPATIBLE: Parsea la configuración incluyendo el color de fondo sólido
-const parseCardStyles = (fontSizeField) => {
-  if (fontSizeField && fontSizeField.startsWith('{')) {
-    try {
-      const p = JSON.parse(fontSizeField);
-      return {
-        qSize: p.qSize || 'text-base',
-        qBold: p.qBold ?? true,
-        qItalic: p.qItalic ?? false,
-        qColor: p.qColor || '',
-        aSize: p.aSize || 'text-base',
-        aBold: p.aBold ?? false,
-        aItalic: p.aItalic ?? false,
-        aColor: p.aColor || '',
-        bgColor: p.bgColor || '' // 🚀 Extraído con éxito del string JSON
-      };
-    } catch (e) {}
-  }
-  return {
-    qSize: fontSizeField || 'text-base', qBold: true, qItalic: false, qColor: '',
-    aSize: fontSizeField || 'text-base', aBold: false, aItalic: false, aColor: '',
-    bgColor: ''
-  };
-};
+const ALIGN_CLASS = { left: 'text-left', center: 'text-center', right: 'text-right' };
 
 export default function ReviewMode({ cards, loading }) {
   const [index, setIndex] = useState(0);
@@ -35,14 +14,9 @@ export default function ReviewMode({ cards, loading }) {
   const [isZoomed, setIsZoomed] = useState(false);
   const touchStartX = useRef(null);
 
-  useEffect(() => {
-    const originalOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = originalOverflow || 'unset';
-    };
-  }, []);
-
+  // 🩹 CORREGIDO: Removimos el bloqueo estricto de 'overflow = hidden' en el body.
+  // Esto previene que en pantallas pequeñas o modos horizontales (landscape) 
+  // los botones de control queden completamente inaccesibles y fuera de la vista.
   useEffect(() => {
     if (index > cards.length - 1) setIndex(Math.max(0, cards.length - 1));
   }, [cards.length, index]);
@@ -68,6 +42,8 @@ export default function ReviewMode({ cards, loading }) {
   const hasBg = !!card.bgImage;
   const alignClass = ALIGN_CLASS[card.textAlign] || 'text-center';
   
+  // El parseador repetido local fue removido con éxito.
+  // Ahora consumimos la lógica centralizada de src/lib/utils.js
   const st = parseCardStyles(card.fontSize);
 
   const currentSize = showAnswer ? st.aSize : st.qSize;
@@ -79,7 +55,7 @@ export default function ReviewMode({ cards, loading }) {
   const sizeStyle = isNumSize ? { fontSize: `${currentSize}px` } : {};
   const sizeClass = isNumSize ? '' : currentSize;
 
-  // 🚀 ACTUALIZADO: cardStyle ahora fusiona el color sólido con el fallback blanco y la imagen si existiera
+  // 🚀 Fusión limpia de color sólido con el fallback blanco y la imagen si existiera
   const cardStyle = {
     backgroundColor: st.bgColor || '#ffffff',
     ...(hasBg ? { backgroundImage: `url(${card.bgImage})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {})
@@ -150,7 +126,7 @@ export default function ReviewMode({ cards, loading }) {
                   ...sizeStyle,
                   ...(currentColor ? { color: currentColor } : {})
                 }}
-                className={`whitespace-pre-wrap ${alignClass} ${sizeClass} ${currentBold ? 'font-bold' : 'font-normal'} ${currentItalic ? 'italic' : ''} ${hasBg && !currentColor ? 'text-white' : (!currentColor ? 'text-slate-900' : '')}`}
+                className={`whitespace-pre-wrap ${alignClass} ${sizeClass} ${currentBold ? 'font-bold' : 'font-normal'} ${st.qItalic ? 'italic' : ''} ${hasBg && !currentColor ? 'text-white' : (!currentColor ? 'text-slate-900' : '')}`}
               >
                 {showAnswer ? card.answer : card.question}
               </p>
