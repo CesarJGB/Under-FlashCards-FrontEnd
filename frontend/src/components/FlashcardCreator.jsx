@@ -1,9 +1,14 @@
+// FILE: frontend/src/components/FlashcardCreator.jsx
+
 import { useState } from 'react';
 import { SlidersHorizontal, Loader2, Plus, Check, Eye, EyeOff, Trash2, AlignLeft, AlignCenter, AlignRight, Sparkles, Layers } from 'lucide-react';
 
 import FormInputs from './creator/FormInputs';
 import StylePanel from './creator/StylePanel';
 import LivePreview from './creator/LivePreview';
+
+// Importamos la función de parseo unificada y centralizada
+import { parseCardStyles } from '../lib/utils';
 
 const ALIGNS = [
   { label: 'Izquierda', value: 'left', Icon: AlignLeft },
@@ -22,7 +27,7 @@ const SWATCHES = [
 ];
 
 // Umbral usado solo para decidir el mensaje de progreso en el frontend.
-// Debe ser coherente con AI_REASONER_THRESHOLD del backend (cantidad de tarjetas
+// Debe ser coherent con AI_REASONER_THRESHOLD del backend (cantidad de tarjetas
 // CRUDAS, ya con padding aplicado) para avisar bien cuándo puede tardar más.
 const LIKELY_REASONER_INPUT_THRESHOLD = 15;
 
@@ -60,26 +65,9 @@ export default function FlashcardCreator({
     }
   };
 
-  const parseCurrentStyles = () => {
-    if (fontSize && fontSize.startsWith('{')) {
-      try { 
-        const p = JSON.parse(fontSize);
-        const mapOldSize = (val) => {
-          if (typeof val === 'number') return val;
-          return { 'text-sm': 14, 'text-base': 16, 'text-lg': 18, 'text-xl': 20, 'text-2xl': 24 }[val] || 16;
-        };
-        return {
-          qSize: mapOldSize(p.qSize), qBold: p.qBold ?? true, qItalic: p.qItalic ?? false, qColor: p.qColor || '',
-          aSize: mapOldSize(p.aSize), aBold: p.aBold ?? false, aItalic: p.aItalic ?? false, aColor: p.aColor || '',
-          bgColor: p.bgColor || ''
-        };
-      } catch (e) {}
-    }
-    const numSize = { 'text-sm': 14, 'text-base': 16, 'text-lg': 18, 'text-xl': 20, 'text-2xl': 24 }[fontSize] || 16;
-    return { qSize: numSize, qBold: true, qItalic: false, qColor: '', aSize: numSize, aBold: false, aItalic: false, aColor: '', bgColor: '' };
-  };
-
-  const styles = parseCurrentStyles();
+  // El motor redundante parseCurrentStyles fue removido con éxito.
+  // Ahora consumimos directamente la utilidad unificada de la aplicación.
+  const styles = parseCardStyles(fontSize);
 
   const updateStyle = (key, value) => {
     setFontSize(JSON.stringify({ ...styles, [key]: value }));
