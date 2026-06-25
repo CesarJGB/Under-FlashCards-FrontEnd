@@ -225,7 +225,7 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
     setIsBulk(false); setEditingId(card.id); setQuestion(card.question); setAnswer(card.answer);
     setBgImage(card.bgImage || ''); setTextAlign(card.textAlign || 'center'); setFontSize(card.fontSize || 'text-base');
     setContentImage(card.contentImage || '');
-    imageSide(card.imageSide || '');
+    setImageSide(card.imageSide || '');
     window.scrollTo({ top: 0, behavior: 'smooth' });
     setShowGrid(true);
   };
