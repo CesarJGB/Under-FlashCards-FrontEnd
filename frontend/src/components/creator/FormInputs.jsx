@@ -70,7 +70,7 @@ export default function FormInputs({
             <input
               type="number"
               min="1"
-              max="50"
+              max="100"
               placeholder="Cantidad libre (ej. 8)"
               value={[5, 10, 15].includes(aiNumCards) ? '' : aiNumCards}
               onChange={(e) => {
@@ -79,7 +79,7 @@ export default function FormInputs({
                   setAiNumCards(''); 
                 } else {
                   const parsed = parseInt(rawVal, 10);
-                  setAiNumCards(isNaN(parsed) ? '' : Math.min(50, Math.max(1, parsed)));
+                  setAiNumCards(isNaN(parsed) ? '' : Math.min(100, Math.max(1, parsed)));
                 }
               }}
               className={`col-span-3 w-full sm:w-36 text-center text-[11px] font-bold rounded-lg py-2 sm:py-1.5 border transition-all outline-none ${
