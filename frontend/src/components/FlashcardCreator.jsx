@@ -21,6 +21,11 @@ const SWATCHES = [
   { label: 'Azul', value: '#3b82f6' },
 ];
 
+// Umbral usado solo para decidir el mensaje de progreso en el frontend.
+// Debe ser coherente con AI_REASONER_THRESHOLD del backend (cantidad de tarjetas
+// CRUDAS, ya con padding aplicado) para avisar bien cuándo puede tardar más.
+const LIKELY_REASONER_INPUT_THRESHOLD = 15;
+
 export default function FlashcardCreator({
   question, setQuestion, answer, setAnswer, bgImage, setBgImage, textAlign, setTextAlign,
   fontSize, setFontSize, showStyles, setShowStyles, isBulk, setIsBulk, bulkText, setBulkText,
@@ -34,6 +39,7 @@ export default function FlashcardCreator({
   const [aiText, setAiText] = useState('');
   const [aiNumCards, setAiNumCards] = useState(5);
   const [aiSaving, setAiSaving] = useState(false);
+  const [aiStageMsg, setAiStageMsg] = useState('');
 
   const activeTab = editingId ? 'single' : (isAi ? 'ai' : (isBulk ? 'bulk' : 'single'));
 
@@ -121,6 +127,19 @@ export default function FlashcardCreator({
       if (!aiText.trim() || aiSaving) return;
       setAiSaving(true);
       setError('');
+      setAiStageMsg('Generando tarjetas...');
+
+      // Mensajes de progreso simulados. El backend no reporta estado en tiempo real
+      // (es una sola llamada request/response), así que avisamos por tiempo transcurrido
+      // para que la espera larga (especialmente con el modelo razonador) no se sienta colgada.
+      const isLikelyLargeBatch = aiNumCards > LIKELY_REASONER_INPUT_THRESHOLD;
+      const stageTimers = [
+        setTimeout(() => setAiStageMsg('Auditando calidad y verificando datos contra el texto fuente...'), 8000),
+        isLikelyLargeBatch
+          ? setTimeout(() => setAiStageMsg('Verificación profunda en curso (lote grande), esto puede tardar hasta 90 segundos...'), 20000)
+          : null,
+      ].filter(Boolean);
+
       try {
         const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
         const res = await fetch(`${BACKEND_URL}/api/flashcards/generate-ai`, {
@@ -148,6 +167,8 @@ export default function FlashcardCreator({
       } catch (err) {
         setError(err.message || 'Error de conexión con el nodo de Inteligencia Artificial.');
       } finally {
+        stageTimers.forEach(clearTimeout);
+        setAiStageMsg('');
         setAiSaving(false);
       }
     } else {
@@ -290,7 +311,12 @@ export default function FlashcardCreator({
           </span>
         </button>
       </div>
-      
+
+      {/* Mensaje de progreso durante la generación con IA (solo informativo, no bloquea nada) */}
+      {aiSaving && aiStageMsg && (
+        <p className="mt-2 text-xs text-slate-500 text-center animate-pulse">{aiStageMsg}</p>
+      )}
+
       {error && <p className="mt-2 text-xs text-red-600 font-semibold bg-red-50 border border-red-100 px-3 py-1.5 rounded-xl animate-[fadeIn_0.1s_ease]">{error}</p>}
     </form>
   );
