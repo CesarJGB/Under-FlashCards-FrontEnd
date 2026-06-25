@@ -1,21 +1,12 @@
-// ARCHIVO: frontend/src/components/FastDeleteMode.jsx
+// FILE: frontend/src/components/FastDeleteMode.jsx
+
 import { useState, useEffect, useRef } from 'react';
 import { Trash2, ArrowUp, ArrowDown, X, Layers, Check } from 'lucide-react';
 
-const ALIGN_CLASS = { left: 'text-left', center: 'text-center', right: 'text-right' };
+// Importamos la función de parseo unificada y centralizada
+import { parseCardStyles } from '../lib/utils';
 
-const parseCardStyles = (fontSizeField) => {
-  if (fontSizeField && fontSizeField.startsWith('{')) {
-    try {
-      const p = JSON.parse(fontSizeField);
-      return {
-        qSize: p.qSize || 'text-base', qBold: p.qBold ?? true, qItalic: p.qItalic ?? false, qColor: p.qColor || '',
-        aSize: p.aSize || 'text-base', aBold: p.aBold ?? false, aItalic: p.aItalic ?? false, aColor: p.aColor || ''
-      };
-    } catch (e) {}
-  }
-  return { qSize: fontSizeField || 'text-base', qBold: true, qItalic: false, qColor: '', aSize: fontSizeField || 'text-base', aBold: false, aItalic: false, aColor: '' };
-};
+const ALIGN_CLASS = { left: 'text-left', center: 'text-center', right: 'text-right' };
 
 export default function FastDeleteMode({ cards, onDelete, onClose }) {
   const [index, setIndex] = useState(0);
@@ -25,6 +16,7 @@ export default function FastDeleteMode({ cards, onDelete, onClose }) {
   const [swipeAction, setSwipeAction] = useState(null); // 'delete' | 'keep' | null
   
   const touchStartY = useRef(null);
+  const cardRef = useRef(null); // Ref para interceptar y anular el scroll nativo móvil
 
   // ⌨️ ATAJOS DE TECLADO: Agiliza el filtrado drásticamente en escritorio
   useEffect(() => {
@@ -42,6 +34,26 @@ export default function FastDeleteMode({ cards, onDelete, onClose }) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [index, cards]);
 
+  // 📱 PREVENCIÓN DE SCROLL PARÁSITO: Bloquea el rebote elástico del móvil mientras se arrastra la tarjeta
+  useEffect(() => {
+    const handleTouchMove = (e) => {
+      if (touchStartY.current !== null) {
+        e.preventDefault();
+      }
+    };
+
+    const element = cardRef.current;
+    if (element) {
+      element.addEventListener('touchmove', handleTouchMove, { passive: false });
+    }
+
+    return () => {
+      if (element) {
+        element.removeEventListener('touchmove', handleTouchMove);
+      }
+    };
+  }, []);
+
   if (cards.length === 0 || index >= cards.length) {
     return (
       <div className="mt-4 text-center border border-dashed border-slate-300 rounded-2xl py-16 bg-white p-6 max-w-xl mx-auto animate-[fadeIn_0.2s_ease]">
@@ -58,11 +70,19 @@ export default function FastDeleteMode({ cards, onDelete, onClose }) {
   const card = cards[index];
   const hasBg = !!card.bgImage;
   const alignClass = ALIGN_CLASS[card.textAlign] || 'text-center';
+  
+  // El parseador local redundante fue removido con éxito.
+  // Ahora consumimos la lógica compartida globalmente.
   const st = parseCardStyles(card.fontSize);
 
   const finalQStyle = { ...(st.qColor ? { color: st.qColor } : {}), ...(typeof st.qSize === 'number' ? { fontSize: `${st.qSize}px` } : {}) };
   const finalAStyle = { ...(st.aColor ? { color: st.aColor } : {}), ...(typeof st.aSize === 'number' ? { fontSize: `${st.aSize}px` } : {}) };
-  const cardStyle = hasBg ? { backgroundImage: `url(${card.bgImage})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {};
+  
+  // 🚀 Integración del color de fondo sólido unificado junto a la imagen
+  const cardStyle = {
+    backgroundColor: st.bgColor || '#ffffff',
+    ...(hasBg ? { backgroundImage: `url(${card.bgImage})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {})
+  };
 
   // 🛠️ ANIMACIÓN E INTERACCIÓN POR BOTÓN O TECLADO
   const triggerAction = async (action) => {
@@ -70,11 +90,9 @@ export default function FastDeleteMode({ cards, onDelete, onClose }) {
     setTimeout(async () => {
       if (action === 'delete') {
         await onDelete(card);
-        // Nota: Al eliminar, el array 'cards' reduce su tamaño, reduciendo el index de forma natural
       } else {
         setIndex((prev) => prev + 1);
       }
-      // Reajuste de estados de animación
       setDragY(0);
       setSwipeAction(null);
     }, 200);
@@ -147,11 +165,12 @@ export default function FastDeleteMode({ cards, onDelete, onClose }) {
       {/* Contenedor del mazo interactivo */}
       <div className="relative w-full h-[360px] sm:h-[410px] flex items-center justify-center touch-none">
         <div
+          ref={cardRef}
           onTouchStart={onTouchStart}
           onTouchMove={onTouchMove}
           onTouchEnd={onTouchEnd}
           style={dynamicCardStyle}
-          className="absolute w-full h-full rounded-2xl border border-slate-200 shadow-xl overflow-hidden bg-white flex flex-col justify-between p-6 sm:p-8 select-none cursor-grab active:cursor-grabbing"
+          className="absolute w-full h-full rounded-2xl border border-slate-200 shadow-xl overflow-hidden flex flex-col justify-between p-6 sm:p-8 select-none cursor-grab active:cursor-grabbing"
         >
           {hasBg && <span className="absolute inset-0 bg-black/55 z-0" />}
           <span className="absolute top-3 left-1/2 -translate-x-1/2 w-9 h-1.5 rounded-full bg-slate-300/50 z-10" />
