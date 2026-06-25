@@ -1,5 +1,8 @@
-// ARCHIVO: frontend/src/utils/pdfExporter.js
+// FILE: frontend/src/utils/pdfExporter.js
 import { jsPDF } from 'jspdf';
+
+// Importamos la función de parseo unificada y centralizada
+import { parseCardStyles } from '../lib/utils';
 
 // 🧠 AYUDANTE: Convierte colores HEX a RGB puro para garantizar compatibilidad con jsPDF
 const hexToRgb = (hex) => {
@@ -22,24 +25,7 @@ const hexToRgb = (hex) => {
   return null;
 };
 
-// 🧠 DESEMPAQUETADOR RETROCOMPATIBLE: Rescata las fuentes, tamaños y el color 'bgColor'
-const parseCardStyles = (fontSizeField) => {
-  if (fontSizeField && fontSizeField.startsWith('{')) {
-    try {
-      const p = JSON.parse(fontSizeField);
-      return {
-        qSize: p.qSize || 'text-base', qBold: p.qBold ?? true, qItalic: p.qItalic ?? false, qColor: p.qColor || '',
-        aSize: p.aSize || 'text-base', aBold: p.aBold ?? false, aItalic: p.aItalic ?? false, aColor: p.aColor || '',
-        bgColor: p.bgColor || ''
-      };
-    } catch (e) {}
-  }
-  return {
-    qSize: fontSizeField || 'text-base', qBold: true, qItalic: false, qColor: '',
-    aSize: fontSizeField || 'text-base', aBold: false, aItalic: false, aColor: '',
-    bgColor: ''
-  };
-};
+// El bloque redundante local "parseCardStyles" fue removido con éxito.
 
 /**
  * Genera y descarga un documento PDF basado en las tarjetas de un mazo con soporte de color.
@@ -76,6 +62,7 @@ export const exportDeckToPDF = (deckTitle, cards, type = 'guide') => {
 
       if (y - 6 + totalBlockHeight > 280) { doc.addPage(); y = 22; }
 
+      // Consumimos la utilidad global centralizada
       const st = parseCardStyles(card.fontSize);
       const bgRgb = hexToRgb(st.bgColor);
 
@@ -155,6 +142,7 @@ export const exportDeckToPDF = (deckTitle, cards, type = 'guide') => {
       const x = marginX + col * (cardW + gapX);
       const y = marginY + row * (cardH + gapY);
 
+      // Consumimos la utilidad global centralizada
       const st = parseCardStyles(card.fontSize);
       const bgRgb = hexToRgb(st.bgColor);
 
@@ -220,7 +208,6 @@ export const exportDeckToPDF = (deckTitle, cards, type = 'guide') => {
 
       // Pintar marco contenedor
       doc.setDrawColor(203, 213, 225); doc.setLineWidth(0.2);
-      // 🚀 CORRECCIÓN CRÍTICA: card.bgImage ? 'S' : 'FD' para asegurar que el color sólido pinte de fondo
       doc.rect(x, y, cardW, cardH, card.bgImage ? 'S' : 'FD');
 
       // Dibujar línea discontinua equilibrada
