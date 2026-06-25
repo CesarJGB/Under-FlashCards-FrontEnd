@@ -175,7 +175,9 @@ exports.generateAiCards = async (req, res) => {
     const currentDeck = await Deck.findById(deckId);
     if (!currentDeck) return res.status(404).json({ message: 'Mazo no encontrado en la base de datos.' });
 
-    const targetCount = parseInt(count, 10) || 5;
+    // Tope de seguridad independiente del frontend: garantiza que targetCount
+    // siempre quede entre 1 y 100, sin importar de dónde venga la petición.
+    const targetCount = Math.min(100, Math.max(1, parseInt(count, 10) || 5));
 
     // 🎯 PUNTO 3: Ajuste inflado dinámico (Padding factor configurable)
     // Lee desde las variables de entorno (.env). Por ejemplo: AI_TARGET_PADDING_FACTOR=0.30
@@ -216,12 +218,16 @@ exports.generateAiCards = async (req, res) => {
     for (const card of auditedCards) {
       if (!card || !card.status) continue;
 
-      // Acumular contadores de métricas según la respuesta estructurada de DeepSeek
-      if (metrics[`${card.status}s`] !== undefined) {
-        metrics[`${card.status}s`]++;
-      } else if (card.status === 'sin_cambios') {
-        metrics.sin_cambios++;
-      }
+      // Acumular contadores de métricas según la respuesta estructurada de DeepSeek.
+      // Nota: se usa un mapa explícito en vez de `${card.status}s` para evitar el bug
+      // de pluralización ("sin_cambios" + "s" = "sin_cambioss", clave inexistente).
+      const metricKey = {
+        sin_cambios: 'sin_cambios',
+        corregida: 'corregidas',
+        fusionada: 'fusionadas',
+        eliminada: 'eliminadas'
+      }[card.status];
+      if (metricKey) metrics[metricKey]++;
 
       // Loggear en consola los motivos específicos de depuración (Solo visualización interna)
       if (['corregida', 'fusionada', 'eliminada'].includes(card.status)) {
