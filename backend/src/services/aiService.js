@@ -38,7 +38,6 @@ async function generateRawCards(text, targetCount, apiKey) {
   const parsed = JSON.parse(rawJson);
   const cards = parsed.cards || [];
 
-  // 🔍 Log temporal de depuración: ver las tarjetas crudas ANTES de que pasen por Fase 2
   console.log(`[Fase 1 Raw Output] ${cards.length} tarjetas generadas:`);
   cards.forEach((c, i) => console.log(`  #${i}: ${c.question}`));
 
@@ -46,7 +45,9 @@ async function generateRawCards(text, targetCount, apiKey) {
 }
 
 /**
- * FASE 2: Auditor y Crítico Estricto con Bloqueo de Deriva Cognitiva (CoT Estructurado)
+ * FASE 2: Auditor y Crítico Estricto con Razonamiento Extendido (deepseek-reasoner)
+ * NOTA: deepseek-reasoner no soporta `temperature` (se ignora si se envía), por eso se removió.
+ * El determinismo ahora se busca por instrucción explícita en el prompt, no por sampling.
  */
 async function criticizeAndRefineCards(originalText, rawCards, apiKey) {
   const response = await fetch('https://api.deepseek.com/chat/completions', {
@@ -56,9 +57,8 @@ async function criticizeAndRefineCards(originalText, rawCards, apiKey) {
       'Authorization': `Bearer ${apiKey}`
     },
     body: JSON.stringify({
-      model: 'deepseek-chat',
+      model: 'deepseek-reasoner',
       response_format: { type: "json_object" },
-      temperature: 0.1, // Máximo determinismo y fidelidad lógica
       messages: [
         {
           role: 'system',
@@ -86,7 +86,7 @@ async function criticizeAndRefineCards(originalText, rawCards, apiKey) {
           REGLAS CRÍTICAS DE ACCIÓN PARA EL PASO D (Asignación de propiedades en 'cards'):
           1. CORREGIR ("status": "corregida"): Si la tarjeta presenta problemas de redacción, longitud excesiva, ambigüedad o falta de atomicidad (ej: preguntas demasiado abiertas o vagas), pero el dato central es verídico. Reescríbela para que sea directa, concisa y perfectamente atómica.
           2. ELIMINAR ("status": "eliminada"): Si la tarjeta presenta un error factual, altera de raíz los datos del documento o inventa fórmulas/conceptos que NO están presentes de forma explícita en el Texto Fuente Original. Elimínala directamente, no intentes salvarla.
-          3. REDUNDANCIA CONCEPTUAL ("status": "fusionada"): Si en el 'paso_b' detectaste que dos tarjetas evalúan el mismo concepto básico subyacente (ej: una pregunta por la capital de un lugar y otra por la ubicación del centro gubernamental de ese mismo lugar si el texto los unifica), mantén una sola tarjeta viva (como 'sin_cambios' o 'corregida') y marca la otra como 'fusionada', indicando con cuál colisionó.
+          3. REDUNDANCIA CONCEPTUAL ("status": "fusionada"): Si en el 'paso_b' detectaste que dos tarjetas evalúan el mismo concepto básico subyacente, AUNQUE UNA LO PREGUNTE DESDE EL ÁNGULO OPUESTO O COMPLEMENTARIO (ej: "¿cuántos días tienes para hacer X a tiempo?" y "¿cuándo se considera X fuera de tiempo?" dependen del mismo dato numérico y son redundantes entre sí), mantén una sola tarjeta viva (como 'sin_cambios' o 'corregida') y marca la otra como 'fusionada', indicando con cuál colisionó.
 
           REGLA DE OBLIGATORIEDAD ABSOLUTA PARA "reason":
           La llave "reason" debe ser completada en TODOS los casos sin excepción. Si el estatus es "sin_cambios", debes explicar con precisión qué se verificó (ejemplo: 'Dato verificado en texto fuente, estructura perfectamente atómica y sin colisiones conceptuales detectadas tras el análisis cruzado con el lote').`
@@ -108,11 +108,17 @@ async function criticizeAndRefineCards(originalText, rawCards, apiKey) {
   }
 
   const data = await response.json();
-  const refinedJson = data.choices?.[0]?.message?.content?.trim() || "{}";
+  const message = data.choices?.[0]?.message;
+  const refinedJson = message?.content?.trim() || "{}";
+
+  // 🧠 Log opcional del razonamiento interno del modelo (solo deepseek-reasoner lo expone)
+  if (message?.reasoning_content) {
+    console.log('[Fase 2 Reasoning]', message.reasoning_content.slice(0, 2000));
+  }
+
   const parsed = JSON.parse(refinedJson);
   const cards = parsed.cards || [];
 
-  // 🔍 Log de depuración: status + reason por tarjeta (visibilidad interna, no afecta lo guardado)
   const counts = { sin_cambios: 0, corregida: 0, fusionada: 0, eliminada: 0 };
   cards.forEach((c, i) => {
     counts[c.status] = (counts[c.status] || 0) + 1;
@@ -120,8 +126,6 @@ async function criticizeAndRefineCards(originalText, rawCards, apiKey) {
   });
   console.log('[Fase 2 Audit Summary]', counts);
 
-  // Devolver tarjetas completas (status + reason incluidos);
-  // el controlador (flashcardController.js) decide qué se filtra y qué se persiste en Mongoose.
   return cards;
 }
 
