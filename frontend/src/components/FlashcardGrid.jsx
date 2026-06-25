@@ -1,27 +1,12 @@
-// ARCHIVO: frontend/src/components/FlashcardGrid.jsx
+// FILE: frontend/src/components/FlashcardGrid.jsx
+
 import { useState } from 'react';
 import { Pencil, Trash2, Layers, Image, X } from 'lucide-react';
 
-const ALIGN_CLASS = { left: 'text-left', center: 'text-center', right: 'text-right' };
+// Importamos la función de parseo unificada y centralizada
+import { parseCardStyles } from '../lib/utils';
 
-// 🧠 DESEMPAQUETADOR RETROCOMPATIBLE: Parsea la configuración incluyendo el color de fondo sólido
-const parseCardStyles = (fontSizeField, hasBg) => {
-  if (fontSizeField && fontSizeField.startsWith('{')) {
-    try {
-      const p = JSON.parse(fontSizeField);
-      return {
-        qSize: p.qSize || 'text-base', qBold: p.qBold ?? true, qItalic: p.qItalic ?? false, qColor: p.qColor || '',
-        aSize: p.aSize || 'text-base', aBold: p.aBold ?? false, aItalic: p.aItalic ?? false, aColor: p.aColor || '',
-        bgColor: p.bgColor || '' // 🚀 Extraído con éxito del string JSON para el Grid
-      };
-    } catch (e) {}
-  }
-  return {
-    qSize: fontSizeField || 'text-base', qBold: true, qItalic: false, qColor: '',
-    aSize: fontSizeField || 'text-base', aBold: false, aItalic: false, aColor: '',
-    bgColor: ''
-  };
-};
+const ALIGN_CLASS = { left: 'text-left', center: 'text-center', right: 'text-right' };
 
 export default function FlashcardGrid({ cards, onEdit, onDelete }) {
   const [activePreview, setActivePreview] = useState(null);
@@ -40,7 +25,10 @@ export default function FlashcardGrid({ cards, onEdit, onDelete }) {
       {cards.map((card) => {
         const hasBg = !!card.bgImage;
         const alignClass = ALIGN_CLASS[card.textAlign] || 'text-center';
-        const st = parseCardStyles(card.fontSize, hasBg);
+        
+        // El desatascador redundante local fue removido con éxito.
+        // Ahora consumimos directamente la utilidad central en src/lib/utils.js
+        const st = parseCardStyles(card.fontSize);
 
         const isQNum = typeof st.qSize === 'number';
         const qSizeStyle = isQNum ? { fontSize: `${st.qSize}px` } : {};
@@ -50,7 +38,7 @@ export default function FlashcardGrid({ cards, onEdit, onDelete }) {
         const aSizeStyle = isANum ? { fontSize: `${st.aSize}px` } : {};
         const aSizeClass = isANum ? '' : st.aSize;
 
-        // 🚀 ACTUALIZADO: cardStyle ahora fusiona el color sólido con el fallback blanco y la imagen si existiera
+        // 🚀 Fusión limpia de color sólido con el fallback blanco y la imagen si existiera
         const cardStyle = {
           backgroundColor: st.bgColor || '#ffffff',
           ...(hasBg ? { backgroundImage: `url(${card.bgImage})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {})
