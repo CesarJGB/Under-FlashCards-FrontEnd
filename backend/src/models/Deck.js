@@ -1,3 +1,5 @@
+// FILE: backend/src/models/Deck.js
+
 const mongoose = require('mongoose');
 
 const deckSchema = new mongoose.Schema(
@@ -14,12 +16,40 @@ const deckSchema = new mongoose.Schema(
     cardBackgrounds: { type: [String], default: [] },
     isStarred: { type: Boolean, default: false },
     isDefault: { type: Boolean, default: false },
-    isPublicReadOnly: { type: Boolean, default: false }
+    isPublicReadOnly: { type: Boolean, default: false },
+
+    // ==========================================
+    // NUEVOS CAMPOS DE JERARQUÍA ACADÉMICA
+    // ==========================================
+    materiaId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Materia',
+      default: null,
+      index: true,
+    },
+    parcialNumber: {
+      type: Number,
+      enum: [1, 2, 3],
+      default: null,
+      index: true,
+    },
+    temaId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Tema',
+      default: null,
+      index: true,
+    },
+    subtemaId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Subtema',
+      default: null,
+      index: true,
+    }
   },
   { timestamps: true }
 );
 
-// Serializador nativo adjunto al esquema
+// Serializador nativo adjunto al esquema actualizado
 deckSchema.methods.serialize = function (cardCount) {
   return {
     id: this._id,
@@ -32,6 +62,13 @@ deckSchema.methods.serialize = function (cardCount) {
     isStarred: this.isStarred || false,
     isDefault: this.isDefault || false,
     isPublicReadOnly: this.isPublicReadOnly || false,
+    
+    // Inyección en la serialización para el cliente
+    materiaId: this.materiaId || null,
+    parcialNumber: this.parcialNumber || null,
+    temaId: this.temaId || null,
+    subtemaId: this.subtemaId || null,
+    
     createdAt: this.createdAt,
   };
 };
