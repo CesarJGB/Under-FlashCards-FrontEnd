@@ -5,6 +5,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
+
 const connectDB = async () => {
   const MONGO_URI = process.env.MONGO_URL || process.env.MONGO_URI;
   const DB_NAME = process.env.DB_NAME || 'flashcards';
@@ -18,10 +19,14 @@ const connectDB = async () => {
   }
 };
 
+// -----------------------------------------------------------------------------
+// Importación de Enrutadores Modulares
+// -----------------------------------------------------------------------------
 const authRoutes = require('./routes/authRoutes');
 const deckRoutes = require('./routes/deckRoutes');
 const flashcardRoutes = require('./routes/flashcardRoutes');
-const academicRoutes = require('./routes/academicRoutes'); // 👈 NUEVO: Importación de las rutas de jerarquía
+const academicRoutes = require('./routes/academicRoutes'); 
+const reviewRoutes = require('./routes/reviewRoutes'); // 👈 NUEVO: Motor del Radar de Conocimiento
 
 const app = express();
 const PORT = process.env.PORT || 8001;
@@ -68,7 +73,8 @@ app.get('/api/health', (req, res) => {
 app.use('/api', authRoutes);
 app.use('/api', deckRoutes);
 app.use('/api', flashcardRoutes);
-app.use('/api', academicRoutes); // 👈 NUEVO: Registro del router unificado para Materias, Temas y Subtemas
+app.use('/api', academicRoutes); 
+app.use('/api', reviewRoutes); // 👈 NUEVO: Registro de la telemetría de repasos en cascada
 
 // Encendido del servidor
 app.listen(PORT, '0.0.0.0', () => {
