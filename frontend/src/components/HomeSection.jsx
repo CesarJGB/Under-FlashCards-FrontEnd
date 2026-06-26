@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/HomeSection.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useMemo } from 'react';
 import { 
   BookOpen, 
   Layers, 
@@ -7,106 +7,72 @@ import {
   GraduationCap, 
   TrendingUp, 
   AlertCircle,
-  ChevronRight 
+  ChevronRight,
+  Loader2
 } from 'lucide-react';
 
-export default function HomeSection({ onSelectMateria, onSelectDeckLegacy }) {
-  const [materias, setMaterias] = useState([]);
-  const [unclassifiedDecks, setUnclassifiedDecks] = useState([]);
-  const [globalStats, setGlobalStats] = useState({ totalCards: 0, globalMastery: 0 });
-  const [loading, setLoading] = useState(true);
+export default function HomeSection({ 
+  userId, 
+  materias,          // 🚀 Conectado al estado vivo de App.jsx
+  decks,             // 🚀 Conectado al estado vivo de App.jsx
+  loading,           // 🚀 Conectado al estado vivo de App.jsx
+  onSelectMateria, 
+  onSelectDeckLegacy 
+}) {
 
-  useEffect(() => {
-    try {
-      const session = JSON.parse(localStorage.getItem('user_session') || localStorage.getItem('user'));
-      const userId = session?.id || session?._id || session?.userId || session?.user?.id || session?.user?._id;
-
-      if (!userId) {
-        console.warn("⚠️ [Under-FlashCards] No se detectó sesión de usuario activa en el LocalStorage.");
-        setLoading(false);
-        return;
-      }
-
-      const materiasKey = `materias_${userId}`;
-      const decksKey = `decks_${userId}`;
-      const foldersKey = `folders_${userId}`; // Fallback por si la librería unifica carpetas
-
-      // 1. Extracción e inspección adaptativa de Materias/Carpetas
-      let rawMaterias = JSON.parse(localStorage.getItem(materiasKey)) 
-                        || JSON.parse(localStorage.getItem('materias'))
-                        || JSON.parse(localStorage.getItem(foldersKey))
-                        || [];
-
-      // Si la librería guarda un objeto contenedor en lugar de un array nativo, extraemos el nodo
-      if (rawMaterias && !Array.isArray(rawMaterias)) {
-        rawMaterias = rawMaterias.materias || rawMaterias.folders || rawMaterias.data || [];
-      }
-
-      // 2. Extracción adaptativa de Mazos (Decks)
-      let rawDecks = JSON.parse(localStorage.getItem(decksKey)) 
-                     || JSON.parse(localStorage.getItem('decks')) 
-                     || [];
-      if (rawDecks && !Array.isArray(rawDecks)) {
-        rawDecks = rawDecks.decks || rawDecks.data || [];
-      }
-
-      // Si venían de un sistema unificado de carpetas, filtramos solo las que actúan como Materia (Raíz)
-      const filtradasComoMaterias = rawMaterias.filter(item => {
-        if (item.type) return item.type === 'materia';
-        // Si no tiene tipo pero no tiene padre, asumimos que es una carpeta raíz (Materia)
-        return !item.parentId && !item.parent;
-      });
-
-      // 3. Procesamiento y Enriquecimiento Jerárquico Molecular
-      const enrichedMaterias = filtradasComoMaterias.map(materia => {
-        const currentMateriaId = String(materia.id || materia._id || '');
-        
-        // Filtrado de mazos con comparativa de tipos tolerante (String vs ObjectId stringified)
-        const materiaDecks = rawDecks.filter(d => String(d.materiaId || '') === currentMateriaId);
-        
-        // Sumar tarjetas vivas de este mazo
-        const totalCards = materiaDecks.reduce((acc, curr) => acc + (curr.cardCount || 0), 0);
-        
-        // Calcular temas únicos asociados a estos mazos
-        const uniqueTemasCount = materia.themesCount || new Set(materiaDecks.map(d => d.temaId).filter(Boolean)).size;
-
-        return {
-          ...materia,
-          id: currentMateriaId,
-          // ALINEACIÓN CON LIBRERÍA: Soporte total a .name (Carpetas), .title y .nombre
-          title: materia.name || materia.title || materia.nombre || 'Asignatura sin nombre',
-          decksCount: materiaDecks.length,
-          temasCount: uniqueTemasCount,
-          totalCards,
-          masteryPercentage: materia.analytics?.masteryPercentage ?? 0
-        };
-      });
-
-      // 4. Separación de Mazos Heredados / Sin Clasificar
-      const unclassified = rawDecks.filter(deck => {
-        const mId = deck.materiaId;
-        if (!mId) return true;
-        // Si tiene un ID de materia pero dicha materia ya no existe en el cliente, va a "sin clasificar"
-        return !filtradasComoMaterias.some(m => String(m.id || m._id) === String(mId));
-      });
-
-      // 5. Cálculo del Score Global del Dashboard
-      const totalCardsGlobal = rawDecks.reduce((acc, curr) => acc + (curr.cardCount || 0), 0);
-      const activeMaterias = enrichedMaterias.filter(m => m.decksCount > 0);
-      const globalMasterySum = activeMaterias.reduce((acc, curr) => acc + curr.masteryPercentage, 0);
-      const globalMastery = activeMaterias.length > 0 ? Math.round(globalMasterySum / activeMaterias.length) : 0;
-
-      setMaterias(enrichedMaterias);
-      setUnclassifiedDecks(unclassified);
-      setGlobalStats({ totalCards: totalCardsGlobal, globalMastery });
-
-    } catch (error) {
-      console.error("❌ Error en el mapeo jerárquico de HomeSection:", error);
-    } finally {
-      setLoading(false);
+  // =========================================================================
+  // MOTOR DE PROCESAMIENTO REACTIVO (0ms)
+  // Re-calcula el mapa analítico universitario cada vez que cambien los decks o materias
+  // =========================================================================
+  const { enrichedMaterias, unclassifiedDecks, globalStats } = useMemo(() => {
+    if (!materias || !decks) {
+      return { enrichedMaterias: [], unclassifiedDecks: [], globalStats: { totalCards: 0, globalMastery: 0 } };
     }
-  }, []);
 
+    // 1. Enriquecer las materias del usuario mapeando la nomenclatura de la librería (.name e ._id)
+    const enriched = materias.map(materia => {
+      const currentMateriaId = String(materia._id || materia.id || '');
+      
+      // Filtrar los mazos que pertenecen a esta materia de forma segura
+      const materiaDecks = decks.filter(d => String(d.materiaId || '') === currentMateriaId);
+      
+      // Conteo molecular de tarjetas y temas
+      const totalCards = materiaDecks.reduce((acc, curr) => acc + (curr.cardCount || 0), 0);
+      const uniqueTemasCount = materia.themesCount || new Set(materiaDecks.map(d => d.temaId).filter(Boolean)).size;
+
+      return {
+        ...materia,
+        id: currentMateriaId,
+        title: materia.name || materia.title || 'Asignatura sin nombre', // Alineado con m.name de la librería
+        decksCount: materiaDecks.length,
+        temasCount: uniqueTemasCount,
+        totalCards,
+        masteryPercentage: materia.analytics?.masteryPercentage ?? 0
+      };
+    });
+
+    // 2. Aislar mazos heredados (que no tienen materia asignada o cuya materia ya no existe)
+    const unclassified = decks.filter(deck => {
+      if (!deck.materiaId) return true;
+      return !materias.some(m => String(m._id || m.id) === String(deck.materiaId));
+    });
+
+    // 3. Computar métricas globales del Dashboard
+    const totalCardsGlobal = decks.reduce((acc, curr) => acc + (curr.cardCount || 0), 0);
+    const activeMaterias = enriched.filter(m => m.decksCount > 0);
+    const globalMasterySum = activeMaterias.reduce((acc, curr) => acc + curr.masteryPercentage, 0);
+    const globalMastery = activeMaterias.length > 0 ? Math.round(globalMasterySum / activeMaterias.length) : 0;
+
+    return {
+      enrichedMaterias: enriched,
+      unclassifiedDecks: unclassified,
+      globalStats: { totalCards: totalCardsGlobal, globalMastery }
+    };
+  }, [materias, decks]);
+
+  /**
+   * SISTEMA DE COLOR DINÁMICO SEGÚN NIVEL DE CONOCIMIENTO
+   */
   const getKnowledgeStyle = (percentage) => {
     if (percentage >= 80) return {
       bg: 'bg-emerald-50 dark:bg-emerald-950/20',
@@ -132,14 +98,19 @@ export default function HomeSection({ onSelectMateria, onSelectDeckLegacy }) {
   };
 
   if (loading) {
-    return <div className="p-6 text-center text-zinc-500 animate-pulse">Sincronizando biblioteca...</div>;
+    return (
+      <div className="flex flex-col items-center justify-center p-12 text-zinc-500 gap-2">
+        <Loader2 className="w-6 h-6 animate-spin text-indigo-500" />
+        <span className="text-xs font-semibold animate-pulse">Sincronizando analíticas de conocimiento...</span>
+      </div>
+    );
   }
 
   return (
-    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-8">
+    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-8 animate-[fadeIn_0.15s_ease]">
       
       {/* Resumen Global */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white dark:bg-zinc-900 p-6 rounded-2xl shadow-sm border border-zinc-100 dark:border-zinc-800">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white dark:bg-zinc-900 p-6 rounded-2xl shadow-xs border border-zinc-100 dark:border-zinc-800">
         <div>
           <h1 className="text-2xl font-bold text-zinc-900 dark:text-white tracking-tight">Mi Espacio Universitario</h1>
           <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">Estructura académica de parciales fijos y medición activa de conocimiento.</p>
@@ -160,22 +131,22 @@ export default function HomeSection({ onSelectMateria, onSelectDeckLegacy }) {
         </div>
       </div>
 
-      {/* Grid de Materias */}
+      {/* Rejilla Principal de Materias */}
       <div className="space-y-4">
         <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200 flex items-center gap-2">
           <BookOpen className="w-5 h-5 text-indigo-500" />
           Asignaturas y Progreso de Dominio
         </h2>
         
-        {materias.length === 0 ? (
-          <div className="p-12 text-center rounded-2xl border-2 border-dashed border-zinc-200 dark:border-zinc-800">
+        {enrichedMaterias.length === 0 ? (
+          <div className="p-12 text-center rounded-2xl border-2 border-dashed border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/50">
             <AlertCircle className="w-8 h-8 text-zinc-400 mx-auto mb-3" />
-            <p className="text-zinc-600 dark:text-zinc-400 font-medium">No se encontraron carpetas de materia en la raíz.</p>
-            <p className="text-sm text-zinc-400 mt-1">Asegúrate de que tus carpetas principales estén creadas en el apartado de Librería.</p>
+            <p className="text-zinc-600 dark:text-zinc-400 font-medium">No se encontraron materias creadas.</p>
+            <p className="text-sm text-zinc-400 mt-1">Dirígete a la sección de "Librería" para dar de alta tu primera asignatura.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {materias.map((materia) => {
+            {enrichedMaterias.map((materia) => {
               const styles = getKnowledgeStyle(materia.masteryPercentage);
               
               return (
@@ -194,6 +165,7 @@ export default function HomeSection({ onSelectMateria, onSelectDeckLegacy }) {
                       </span>
                     </div>
 
+                    {/* Barra de progreso visual */}
                     <div className="w-full bg-zinc-200 dark:bg-zinc-800 h-2 rounded-full mt-3 overflow-hidden">
                       <div 
                         className={`h-full ${styles.bar} transition-all duration-500`} 
@@ -202,23 +174,24 @@ export default function HomeSection({ onSelectMateria, onSelectDeckLegacy }) {
                     </div>
                   </div>
 
+                  {/* Bloque Metatablas solicitado (Temas, Mazos, Tarjetas) */}
                   <div className="mt-6 pt-4 border-t border-zinc-200/50 dark:border-zinc-800/50 grid grid-cols-3 gap-2 text-center">
                     <div className="flex flex-col items-center">
                       <Layers className="w-4 h-4 text-zinc-400 mb-1" />
                       <span className="text-xs font-semibold text-zinc-800 dark:text-zinc-300">{materia.temasCount}</span>
-                      <span className="text-[10px] text-zinc-400 font-medium uppercase">Temas</span>
+                      <span className="text-[10px] text-zinc-400 font-medium uppercase tracking-wider">Temas</span>
                     </div>
                     
                     <div className="flex flex-col items-center">
                       <Folder className="w-4 h-4 text-zinc-400 mb-1" />
                       <span className="text-xs font-semibold text-zinc-800 dark:text-zinc-300">{materia.decksCount}</span>
-                      <span className="text-[10px] text-zinc-400 font-medium uppercase">Mazos</span>
+                      <span className="text-[10px] text-zinc-400 font-medium uppercase tracking-wider">Mazos</span>
                     </div>
 
                     <div className="flex flex-col items-center">
                       <TrendingUp className="w-4 h-4 text-zinc-400 mb-1" />
                       <span className="text-xs font-semibold text-zinc-800 dark:text-zinc-300">{materia.totalCards}</span>
-                      <span className="text-[10px] text-zinc-400 font-medium uppercase">Tarjetas</span>
+                      <span className="text-[10px] text-zinc-400 font-medium uppercase tracking-wider">Tarjetas</span>
                     </div>
                   </div>
 
@@ -232,7 +205,7 @@ export default function HomeSection({ onSelectMateria, onSelectDeckLegacy }) {
         )}
       </div>
 
-      {/* Mazos Sin Clasificar / Legacy */}
+      {/* Retrocompatibilidad: Mazos sin clasificar */}
       {unclassifiedDecks.length > 0 && (
         <div className="pt-4 border-t border-zinc-200 dark:border-zinc-800">
           <div className="mb-4">
