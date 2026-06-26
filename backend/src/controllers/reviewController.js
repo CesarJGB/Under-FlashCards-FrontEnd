@@ -36,7 +36,7 @@ function getResilienceScore(errors) {
 }
 
 // =========================================================================
-// MOTOR DE CÁLCULO DE RADAR (Calibración de Acumulación Estricta)
+// MOTOR DE CÁLCULO DE RADAR (Calibración de Acumulación Estricta y Lineal)
 // =========================================================================
 function calculateRadarMetrics(items, isDeckLevel = false, currentReview = null) {
   const total = items.length;
@@ -52,7 +52,6 @@ function calculateRadarMetrics(items, isDeckLevel = false, currentReview = null)
       // 🎯 NIVEL MICRO: Evaluación de Flashcards individuales
       const hasHistory = item.totalReviews && item.totalReviews > 0;
       
-      // Captura el tiempo de respuesta instantáneo si es la tarjeta actual del repaso
       const cardSpeed = (currentReview && String(item._id) === String(currentReview.cardId))
         ? currentReview.responseTimeMs 
         : (TARGETS.FLUID_MS * 1.5);
@@ -66,7 +65,8 @@ function calculateRadarMetrics(items, isDeckLevel = false, currentReview = null)
         lastReview: item.lastReviewedAt,
         fluidity: hasHistory ? getFluidityScore(cardSpeed) : 0,
         retention: hasHistory ? getRetentionScore(item.lastReviewedAt) : 0,
-        resilience: hasHistory ? getResilienceScore(item.consecutiveErrors) : 1.0
+        // REFACTORIZACIÓN: Si la tarjeta no se ha visto, aporta 0 en resiliencia para evitar saltos del 10%
+        resilience: hasHistory ? getResilienceScore(item.consecutiveErrors) : 0 
       };
 
       if (hasHistory) reviewedCount++;
@@ -83,7 +83,7 @@ function calculateRadarMetrics(items, isDeckLevel = false, currentReview = null)
         lastReview: item.knowledgeMetrics?.lastReview,
         fluidity: hasData ? getFluidityScore(item.knowledgeMetrics?.speed) : 0,
         retention: hasData ? getRetentionScore(item.knowledgeMetrics?.lastReview) : 0,
-        resilience: hasData ? 1.0 : 0 // Resiliencia base para nodos agregados activos
+        resilience: hasData ? (item.knowledgeMetrics?.mastery / 100) : 0 
       };
 
       if (hasData) reviewedCount++;
@@ -115,7 +115,7 @@ function calculateRadarMetrics(items, isDeckLevel = false, currentReview = null)
   const globalVolume = getVolumeScore(isDeckLevel ? (aggReviews / total) : aggReviews);
 
   // =========================================================================
-  // FUSIÓN DE MATRIZ PONDERADA REALISTA (Gamificación UI/UX)
+  // FUSIÓN DE MATRIZ PONDERADA REALISTA (Gamificación UI/UX estricta)
   // =========================================================================
   let masteryScore = 
     (avgAccuracy * WEIGHTS.accuracy) +
