@@ -1,4 +1,4 @@
-// backend/src/controllers/reviewController.js
+// FILE: backend/src/controllers/reviewController.js
 const Flashcard = require('../models/Flashcard');
 const ReviewLog = require('../models/ReviewLog');
 const Deck = require('../models/Deck');
@@ -36,9 +36,9 @@ function getResilienceScore(errors) {
 }
 
 // =========================================================================
-// MOTOR DE CÁLCULO DE RADAR (Aplica la Matriz Ponderada a cualquier colección)
+// MOTOR DE CÁLCULO DE RADAR (Calibración de Acumulación Estricta)
 // =========================================================================
-function calculateRadarMetrics(items, isDeckLevel = false) {
+function calculateRadarMetrics(items, isDeckLevel = false, currentReview = null) {
   const total = items.length;
   if (total === 0) return { accuracy: 0, speed: 0, reviews: 0, mastery: 0, confidence: 0, difficulty: 0, lastReview: null, knowledgeScore: 0 };
 
@@ -46,28 +46,48 @@ function calculateRadarMetrics(items, isDeckLevel = false) {
   let reviewedCount = 0, latestReviewDate = null;
 
   items.forEach(item => {
-    // Si estamos mapeando desde Flashcards (Deck) o desde sub-radares (Subtema/Tema/Materia)
-    const metrics = isDeckLevel ? {
-      accuracy: 1.0 - (item.difficulty ?? 0.3),
-      speed: item.avgResponseTimeMs || (TARGETS.FLUID_MS * 1.5),
-      reviews: item.totalReviews ?? 0,
-      confidence: item.easeFactor ?? 2.5,
-      difficulty: item.difficulty ?? 0.3,
-      lastReview: item.lastReviewedAt,
-      fluidity: getFluidityScore(item.avgResponseTimeMs || (TARGETS.FLUID_MS * 1.5)),
-      retention: getRetentionScore(item.lastReviewedAt),
-      resilience: getResilienceScore(item.consecutiveErrors)
-    } : {
-      accuracy: item.knowledgeMetrics?.accuracy ?? 0,
-      speed: item.knowledgeMetrics?.speed ?? 0,
-      reviews: item.knowledgeMetrics?.reviews ?? 0,
-      confidence: item.knowledgeMetrics?.confidence ?? 0,
-      difficulty: item.knowledgeMetrics?.difficulty ?? 0,
-      lastReview: item.knowledgeMetrics?.lastReview,
-      fluidity: getFluidityScore(item.knowledgeMetrics?.speed ?? 0),
-      retention: getRetentionScore(item.knowledgeMetrics?.lastReview),
-      resilience: getResilienceScore(0) // Simplificado para agregados altos
-    };
+    let metrics;
+
+    if (isDeckLevel) {
+      // 🎯 NIVEL MICRO: Evaluación de Flashcards individuales
+      const hasHistory = item.totalReviews && item.totalReviews > 0;
+      
+      // Captura el tiempo de respuesta instantáneo si es la tarjeta actual del repaso
+      const cardSpeed = (currentReview && String(item._id) === String(currentReview.cardId))
+        ? currentReview.responseTimeMs 
+        : (TARGETS.FLUID_MS * 1.5);
+
+      metrics = {
+        accuracy: hasHistory ? (1.0 - (item.difficulty ?? 0.3)) : 0,
+        speed: hasHistory ? cardSpeed : 0,
+        reviews: item.totalReviews ?? 0,
+        confidence: hasHistory ? (item.easeFactor ?? 2.5) : 0,
+        difficulty: item.difficulty ?? 0.3,
+        lastReview: item.lastReviewedAt,
+        fluidity: hasHistory ? getFluidityScore(cardSpeed) : 0,
+        retention: hasHistory ? getRetentionScore(item.lastReviewedAt) : 0,
+        resilience: hasHistory ? getResilienceScore(item.consecutiveErrors) : 1.0
+      };
+
+      if (hasHistory) reviewedCount++;
+    } else {
+      // 🏢 NIVEL MACRO: Consolidación jerárquica (Subtemas, Temas, Materias)
+      const hasData = item.knowledgeMetrics && item.knowledgeMetrics.reviews > 0;
+
+      metrics = {
+        accuracy: item.knowledgeMetrics?.accuracy ?? 0,
+        speed: item.knowledgeMetrics?.speed ?? 0,
+        reviews: item.knowledgeMetrics?.reviews ?? 0,
+        confidence: item.knowledgeMetrics?.confidence ?? 0,
+        difficulty: item.knowledgeMetrics?.difficulty ?? 0,
+        lastReview: item.knowledgeMetrics?.lastReview,
+        fluidity: hasData ? getFluidityScore(item.knowledgeMetrics?.speed) : 0,
+        retention: hasData ? getRetentionScore(item.knowledgeMetrics?.lastReview) : 0,
+        resilience: hasData ? 1.0 : 0 // Resiliencia base para nodos agregados activos
+      };
+
+      if (hasData) reviewedCount++;
+    }
 
     aggAccuracy += metrics.accuracy;
     aggSpeed += metrics.speed;
@@ -77,24 +97,26 @@ function calculateRadarMetrics(items, isDeckLevel = false) {
     aggResilience += metrics.resilience;
     aggConfidence += metrics.confidence;
 
-    if (metrics.reviews > 0 || !isDeckLevel) reviewedCount++;
     if (metrics.lastReview && (!latestReviewDate || new Date(metrics.lastReview) > new Date(latestReviewDate))) {
       latestReviewDate = metrics.lastReview;
     }
   });
 
+  // Promedios basados rigurosamente en la densidad total del mazo/contenedor
   const avgAccuracy = aggAccuracy / total;
   const avgSpeed = reviewedCount > 0 ? (aggSpeed / reviewedCount) : 0;
   const avgFluidity = aggFluidity / total;
   const avgRetention = aggRetention / total;
   const avgResilience = aggResilience / total;
   const avgConfidence = aggConfidence / total;
-  const avgDifficulty = 1.0 - avgAccuracy;
+  const avgDifficulty = reviewedCount > 0 ? (1.0 - (aggAccuracy / total)) : 1.0;
 
-  // Cálculo de volumen adaptativo basado en la densidad
+  // El volumen mide el progreso real en base a la meta de madurez
   const globalVolume = getVolumeScore(isDeckLevel ? (aggReviews / total) : aggReviews);
 
-  // Fusión de la Matriz Ponderada Core
+  // =========================================================================
+  // FUSIÓN DE MATRIZ PONDERADA REALISTA (Gamificación UI/UX)
+  // =========================================================================
   let masteryScore = 
     (avgAccuracy * WEIGHTS.accuracy) +
     (avgRetention * WEIGHTS.retention) +
@@ -102,7 +124,8 @@ function calculateRadarMetrics(items, isDeckLevel = false) {
     (globalVolume * WEIGHTS.volume) +
     (avgResilience * WEIGHTS.resilience);
 
-  const mastery = Math.min(100, Math.max(0, Math.round(masteryScore * 100)));
+  // Forzado de Cero Absoluto si no se registra actividad real en el mazo
+  const mastery = reviewedCount === 0 ? 0 : Math.min(100, Math.max(0, Math.round(masteryScore * 100)));
   const knowledgeScore = parseFloat(((reviewedCount * avgAccuracy) / Math.max(1, aggReviews)).toFixed(2));
 
   return {
@@ -134,11 +157,11 @@ exports.registerReview = async (req, res) => {
     
     if (wasCorrect) {
       card.consecutiveErrors = 0;
-      card.difficulty = Math.max(0.0, card.difficulty - 0.1); // Reduce fricción
+      card.difficulty = Math.max(0.0, card.difficulty - 0.1); 
       card.easeFactor += 0.15;
     } else {
       card.consecutiveErrors += 1;
-      card.difficulty = Math.min(1.0, card.difficulty + 0.15); // Aumenta fricción
+      card.difficulty = Math.min(1.0, card.difficulty + 0.15); 
       card.easeFactor = Math.max(1.3, card.easeFactor - 0.2);
     }
     await card.save();
@@ -159,11 +182,12 @@ exports.registerReview = async (req, res) => {
     // =========================================================================
     // DISPARADOR EN CASCADA VERTICAL (Actualización de Radares hacia arriba)
     // =========================================================================
+    const currentReviewContext = { cardId, responseTimeMs };
     
     // Nivel A: Recalcular el Mazo (Deck)
     const allCards = await Flashcard.find({ deckId });
     const deck = await Deck.findById(deckId);
-    deck.knowledgeMetrics = calculateRadarMetrics(allCards, true);
+    deck.knowledgeMetrics = calculateRadarMetrics(allCards, true, currentReviewContext);
     await deck.save();
 
     // Nivel B: Recalcular Subtema (Si está mapeado)
@@ -176,7 +200,6 @@ exports.registerReview = async (req, res) => {
 
     // Nivel C: Recalcular Tema
     if (deck.temaId) {
-      // Si hay subtemas, promediamos sus radares, si no, promediamos los mazos directos del tema
       const childSubtemas = await Subtema.find({ temaId: deck.temaId });
       if (childSubtemas.length > 0) {
         await Tema.findByIdAndUpdate(deck.temaId, { knowledgeMetrics: calculateRadarMetrics(childSubtemas) });
