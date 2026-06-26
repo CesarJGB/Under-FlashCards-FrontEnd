@@ -7,57 +7,59 @@ import {
   GraduationCap, 
   TrendingUp, 
   AlertCircle,
-  ChevronRight,
-  Loader2
+  ChevronRight
 } from 'lucide-react';
 
 export default function HomeSection({ 
-  userId, 
-  materias,          // 🚀 Conectado al estado vivo de App.jsx
-  decks,             // 🚀 Conectado al estado vivo de App.jsx
-  loading,           // 🚀 Conectado al estado vivo de App.jsx
-  onSelectMateria, 
-  onSelectDeckLegacy 
+  user,          // 🚀 Recibe el objeto user directo de tu App.jsx
+  decks,         // 🚀 Recibe el estado vivo de App.jsx
+  materias,      // 🚀 Recibe el estado vivo de App.jsx
+  onOpenReview,  // 🚀 Recibe el manejador de repaso rápido de tu App.jsx
+  onLogout 
 }) {
 
   // =========================================================================
-  // MOTOR DE PROCESAMIENTO REACTIVO (0ms)
-  // Re-calcula el mapa analítico universitario cada vez que cambien los decks o materias
+  // MOTOR DE PROCESAMIENTO REACTIVO EN MEMORIA (0ms)
+  // Re-calcula la analítica cada vez que App.jsx actualice los mazos o materias
   // =========================================================================
   const { enrichedMaterias, unclassifiedDecks, globalStats } = useMemo(() => {
+    const userIdStr = user?.id ? String(user.id) : '';
+
     if (!materias || !decks) {
       return { enrichedMaterias: [], unclassifiedDecks: [], globalStats: { totalCards: 0, globalMastery: 0 } };
     }
 
-    // 1. Enriquecer las materias del usuario mapeando la nomenclatura de la librería (.name e ._id)
+    // 1. Enriquecer las materias emparejando la nomenclatura de tu LibrarySection (.name y ._id)
     const enriched = materias.map(materia => {
       const currentMateriaId = String(materia._id || materia.id || '');
       
-      // Filtrar los mazos que pertenecen a esta materia de forma segura
+      // Filtrado seguro de los mazos que pertenecen a esta asignatura
       const materiaDecks = decks.filter(d => String(d.materiaId || '') === currentMateriaId);
       
-      // Conteo molecular de tarjetas y temas
+      // Agregación instantánea de tarjetas y temas
       const totalCards = materiaDecks.reduce((acc, curr) => acc + (curr.cardCount || 0), 0);
+      
+      // Si el backend no envía conteo de temas, calculamos los temas únicos basados en los mazos
       const uniqueTemasCount = materia.themesCount || new Set(materiaDecks.map(d => d.temaId).filter(Boolean)).size;
 
       return {
         ...materia,
         id: currentMateriaId,
-        title: materia.name || materia.title || 'Asignatura sin nombre', // Alineado con m.name de la librería
+        title: materia.name || materia.title || 'Asignatura sin nombre', // Mapea .name usado en tu librería
         decksCount: materiaDecks.length,
         temasCount: uniqueTemasCount,
         totalCards,
-        masteryPercentage: materia.analytics?.masteryPercentage ?? 0
+        masteryPercentage: materia.analytics?.masteryPercentage ?? 0 // Conectado al nuevo modelo
       };
     });
 
-    // 2. Aislar mazos heredados (que no tienen materia asignada o cuya materia ya no existe)
+    // 2. Aislar mazos legacy/sueltos (sin materiaId o huérfanos)
     const unclassified = decks.filter(deck => {
       if (!deck.materiaId) return true;
       return !materias.some(m => String(m._id || m.id) === String(deck.materiaId));
     });
 
-    // 3. Computar métricas globales del Dashboard
+    // 3. Computar métricas globales para los widgets del Dashboard
     const totalCardsGlobal = decks.reduce((acc, curr) => acc + (curr.cardCount || 0), 0);
     const activeMaterias = enriched.filter(m => m.decksCount > 0);
     const globalMasterySum = activeMaterias.reduce((acc, curr) => acc + curr.masteryPercentage, 0);
@@ -68,10 +70,10 @@ export default function HomeSection({
       unclassifiedDecks: unclassified,
       globalStats: { totalCards: totalCardsGlobal, globalMastery }
     };
-  }, [materias, decks]);
+  }, [materias, decks, user]);
 
   /**
-   * SISTEMA DE COLOR DINÁMICO SEGÚN NIVEL DE CONOCIMIENTO
+   * SEMAFORIZACIÓN SEMÁNTICA DINÁMICA DE CONOCIMIENTO
    */
   const getKnowledgeStyle = (percentage) => {
     if (percentage >= 80) return {
@@ -97,76 +99,67 @@ export default function HomeSection({
     };
   };
 
-  if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center p-12 text-zinc-500 gap-2">
-        <Loader2 className="w-6 h-6 animate-spin text-indigo-500" />
-        <span className="text-xs font-semibold animate-pulse">Sincronizando analíticas de conocimiento...</span>
-      </div>
-    );
-  }
-
   return (
-    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-8 animate-[fadeIn_0.15s_ease]">
+    <div className="w-full space-y-8 animate-[fadeIn_0.15s_ease]">
       
-      {/* Resumen Global */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white dark:bg-zinc-900 p-6 rounded-2xl shadow-xs border border-zinc-100 dark:border-zinc-800">
+      {/* 1. MÓDULO DE ANALÍTICAS GENERALES */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white dark:bg-zinc-900 p-6 rounded-2xl border border-zinc-200/60 dark:border-zinc-800 shadow-3xs">
         <div>
-          <h1 className="text-2xl font-bold text-zinc-900 dark:text-white tracking-tight">Mi Espacio Universitario</h1>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">Estructura académica de parciales fijos y medición activa de conocimiento.</p>
+          <h1 className="text-xl font-bold text-zinc-900 dark:text-white tracking-tight">
+            ¡Hola de nuevo, {user?.name?.split(' ')[0] || 'Estudiante'}!
+          </h1>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">Este es el estado actual de tu mapa de conocimiento universitario.</p>
         </div>
         
         <div className="flex items-center gap-6 divide-x divide-zinc-200 dark:divide-zinc-800">
-          <div className="px-2">
-            <span className="block text-xs font-medium text-zinc-400 uppercase tracking-wider">Tarjetas Totales</span>
-            <span className="text-xl font-bold text-zinc-800 dark:text-zinc-200">{globalStats.totalCards}</span>
+          <div className="px-1">
+            <span className="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Tarjetas Totales</span>
+            <span className="text-lg font-black text-zinc-800 dark:text-zinc-200">{globalStats.totalCards}</span>
           </div>
           <div className="pl-6">
-            <span className="block text-xs font-medium text-zinc-400 uppercase tracking-wider">Dominio General</span>
-            <div className="flex items-center gap-2 mt-0.5">
-              <GraduationCap className="w-5 h-5 text-indigo-500" />
-              <span className="text-xl font-bold text-zinc-800 dark:text-zinc-200">{globalStats.globalMastery}%</span>
+            <span className="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Dominio Global</span>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <GraduationCap className="w-4 h-4 text-indigo-500" />
+              <span className="text-lg font-black text-zinc-800 dark:text-zinc-200">{globalStats.globalMastery}%</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Rejilla Principal de Materias */}
+      {/* 2. REJILLA DE ASIGNATURAS REQUISITO */}
       <div className="space-y-4">
-        <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200 flex items-center gap-2">
-          <BookOpen className="w-5 h-5 text-indigo-500" />
-          Asignaturas y Progreso de Dominio
+        <h2 className="text-sm font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-2">
+          <BookOpen className="w-4 h-4 text-indigo-500" />
+          Tus Asignaturas
         </h2>
         
         {enrichedMaterias.length === 0 ? (
-          <div className="p-12 text-center rounded-2xl border-2 border-dashed border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/50">
-            <AlertCircle className="w-8 h-8 text-zinc-400 mx-auto mb-3" />
-            <p className="text-zinc-600 dark:text-zinc-400 font-medium">No se encontraron materias creadas.</p>
-            <p className="text-sm text-zinc-400 mt-1">Dirígete a la sección de "Librería" para dar de alta tu primera asignatura.</p>
+          <div className="p-10 text-center rounded-2xl border border-dashed border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/40">
+            <AlertCircle className="w-7 h-7 text-zinc-400 mx-auto mb-2" />
+            <p className="text-zinc-700 dark:text-zinc-300 text-xs font-bold">No tienes materias configuradas en tu perfil.</p>
+            <p className="text-[11px] text-zinc-400 mt-0.5">Ve a la sección de Archivos para crear tu primera materia raíz.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {enrichedMaterias.map((materia) => {
               const styles = getKnowledgeStyle(materia.masteryPercentage);
               
               return (
                 <div 
                   key={materia.id}
-                  onClick={() => onSelectMateria(materia)}
-                  className={`group relative p-5 rounded-2xl border ${styles.border} ${styles.bg} transition-all duration-200 hover:shadow-md hover:scale-[1.01] cursor-pointer flex flex-col justify-between`}
+                  className={`group relative p-5 rounded-xl border ${styles.border} ${styles.bg} transition-all duration-200 hover:shadow-2xs flex flex-col justify-between`}
                 >
                   <div>
-                    <div className="flex justify-between items-start gap-3">
-                      <h3 className="text-lg font-bold text-zinc-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors line-clamp-1">
+                    <div className="flex justify-between items-start gap-2">
+                      <h3 className="text-base font-bold text-zinc-800 dark:text-white truncate max-w-[70%]">
                         {materia.title}
                       </h3>
-                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 ${styles.badge}`}>
-                        Dominio {materia.masteryPercentage}%
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md shrink-0 ${styles.badge}`}>
+                        {materia.masteryPercentage}% Dominio
                       </span>
                     </div>
 
-                    {/* Barra de progreso visual */}
-                    <div className="w-full bg-zinc-200 dark:bg-zinc-800 h-2 rounded-full mt-3 overflow-hidden">
+                    <div className="w-full bg-zinc-200/70 dark:bg-zinc-800 h-1.5 rounded-full mt-2.5 overflow-hidden">
                       <div 
                         className={`h-full ${styles.bar} transition-all duration-500`} 
                         style={{ width: `${materia.masteryPercentage}%` }}
@@ -174,29 +167,20 @@ export default function HomeSection({
                     </div>
                   </div>
 
-                  {/* Bloque Metatablas solicitado (Temas, Mazos, Tarjetas) */}
-                  <div className="mt-6 pt-4 border-t border-zinc-200/50 dark:border-zinc-800/50 grid grid-cols-3 gap-2 text-center">
-                    <div className="flex flex-col items-center">
-                      <Layers className="w-4 h-4 text-zinc-400 mb-1" />
-                      <span className="text-xs font-semibold text-zinc-800 dark:text-zinc-300">{materia.temasCount}</span>
-                      <span className="text-[10px] text-zinc-400 font-medium uppercase tracking-wider">Temas</span>
+                  {/* Bloque Cuadrícula Interna: Temas, Mazos y Tarjetas */}
+                  <div className="mt-5 pt-3.5 border-t border-zinc-200/60 dark:border-zinc-800/60 grid grid-cols-3 gap-1 text-center">
+                    <div>
+                      <span className="block text-sm font-bold text-zinc-800 dark:text-zinc-200">{materia.temasCount}</span>
+                      <span className="text-[9px] text-zinc-400 font-bold uppercase">Temas</span>
                     </div>
-                    
-                    <div className="flex flex-col items-center">
-                      <Folder className="w-4 h-4 text-zinc-400 mb-1" />
-                      <span className="text-xs font-semibold text-zinc-800 dark:text-zinc-300">{materia.decksCount}</span>
-                      <span className="text-[10px] text-zinc-400 font-medium uppercase tracking-wider">Mazos</span>
+                    <div>
+                      <span className="block text-sm font-bold text-zinc-800 dark:text-zinc-200">{materia.decksCount}</span>
+                      <span className="text-[9px] text-zinc-400 font-bold uppercase">Mazos</span>
                     </div>
-
-                    <div className="flex flex-col items-center">
-                      <TrendingUp className="w-4 h-4 text-zinc-400 mb-1" />
-                      <span className="text-xs font-semibold text-zinc-800 dark:text-zinc-300">{materia.totalCards}</span>
-                      <span className="text-[10px] text-zinc-400 font-medium uppercase tracking-wider">Tarjetas</span>
+                    <div>
+                      <span className="block text-sm font-bold text-zinc-800 dark:text-zinc-200">{materia.totalCards}</span>
+                      <span className="text-[9px] text-zinc-400 font-bold uppercase">Tarjetas</span>
                     </div>
-                  </div>
-
-                  <div className="absolute top-1/2 right-2 -translate-y-1/2 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all text-zinc-400">
-                    <ChevronRight className="w-5 h-5" />
                   </div>
                 </div>
               );
@@ -205,31 +189,33 @@ export default function HomeSection({
         )}
       </div>
 
-      {/* Retrocompatibilidad: Mazos sin clasificar */}
+      {/* 3. RETROCOMPATIBILIDAD: MAZOS SUELTOS */}
       {unclassifiedDecks.length > 0 && (
-        <div className="pt-4 border-t border-zinc-200 dark:border-zinc-800">
-          <div className="mb-4">
-            <h3 className="text-sm font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+        <div className="pt-6 border-t border-zinc-200 dark:border-zinc-800">
+          <div className="mb-3">
+            <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider">
               Mazos Fuera de la Jerarquía ({unclassifiedDecks.length})
             </h3>
-            <p className="text-xs text-zinc-400">Mazos sueltos que puedes reubicar dentro de tus materias asignadas.</p>
+            <p className="text-[11px] text-zinc-400">Presiona un mazo para iniciar un repaso de contingencia inmediato.</p>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
             {unclassifiedDecks.map((deck) => (
               <div
                 key={deck.id || deck._id}
-                onClick={() => onSelectDeckLegacy(deck)}
-                style={{ borderLeftColor: deck.coverColor || '#a1a1aa' }}
-                className="p-3 bg-white dark:bg-zinc-900 border-l-4 border-y border-r border-zinc-200 dark:border-zinc-800 rounded-xl cursor-pointer hover:shadow-sm hover:translate-y-[-1px] transition-all"
+                onClick={() => onOpenReview(deck)} // Detona la revisión directa mapeada desde App.jsx
+                style={{ borderLeftColor: deck.coverColor || '#cbd5e1' }}
+                className="p-3 bg-white dark:bg-zinc-900 border-l-4 border-y border-r border-zinc-200 dark:border-zinc-800 rounded-xl cursor-pointer hover:border-zinc-400 dark:hover:border-zinc-600 hover:translate-y-[-1px] transition-all group flex flex-col justify-between min-h-[70px]"
               >
-                <h4 className="text-xs font-bold text-zinc-700 dark:text-zinc-300 truncate">{deck.title}</h4>
-                <p className="text-[10px] text-zinc-400 mt-1">{deck.cardCount || 0} tarjetas</p>
-                {deck.analytics?.masteryPercentage !== undefined && (
-                  <span className="text-[9px] font-medium text-indigo-500 block mt-0.5">
-                    {deck.analytics.masteryPercentage}% dom.
-                  </span>
-                )}
+                <h4 className="text-xs font-bold text-zinc-700 dark:text-zinc-300 truncate group-hover:text-indigo-600 transition-colors">{deck.title}</h4>
+                <div className="flex items-center justify-between mt-2">
+                  <span className="text-[10px] text-zinc-400 font-medium">{deck.cardCount || 0} cards</span>
+                  {deck.analytics?.masteryPercentage !== undefined && (
+                    <span className="text-[9px] font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded">
+                      {deck.analytics.masteryPercentage}% d.
+                    </span>
+                  )}
+                </div>
               </div>
             ))}
           </div>
