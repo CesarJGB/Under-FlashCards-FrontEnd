@@ -18,56 +18,78 @@ export default function HomeSection({ onSelectMateria, onSelectDeckLegacy }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // ESTRATEGIA HÍBRIDA (0ms): Carga síncrona inmediata desde LocalStorage
-    try {
-      const session = JSON.parse(localStorage.getItem('user_session'));
-      const userId = session?.id;
+  // ESTRATEGIA HÍBRIDA MEJORADA: Tolerancia absoluta a variaciones de ID y Keys
+  try {
+    // 1. Intentar capturar la sesión desde las variantes más comunes
+    const rawSession = localStorage.getItem('user_session') || localStorage.getItem('user');
+    let userId = null;
 
-      if (userId) {
-        const localMaterias = JSON.parse(localStorage.getItem(`materias_${userId}`)) || [];
-        const localDecks = JSON.parse(localStorage.getItem(`decks_${userId}`)) || [];
-
-        // 1. Separar mazos asignados de los heredados (retrocompatibilidad)
-        const unclassified = localDecks.filter(deck => !deck.materiaId);
-        
-        // 2. Procesar y enriquecer las materias con conteos vivos del cliente
-        const enrichedMaterias = localMaterias.map(materia => {
-          const materiaDecks = localDecks.filter(d => d.materiaId === materia.id || d.materiaId === materia._id);
-          
-          // Agregaciones flash de tarjetas y temas
-          const totalCards = materiaDecks.reduce((acc, curr) => acc + (curr.cardCount || 0), 0);
-          
-          // El número de temas únicos se calcula de los mazos o del contador del backend
-          const uniqueTemasCount = materia.themesCount || new Set(materiaDecks.map(d => d.temaId).filter(Boolean)).size;
-
-          return {
-            ...materia,
-            decksCount: materiaDecks.length,
-            temasCount: uniqueTemasCount,
-            totalCards,
-            // Recuperamos el porcentaje del nuevo motor embebido en el modelo
-            masteryPercentage: materia.analytics?.masteryPercentage ?? 0
-          };
-        });
-
-        // 3. Calcular Métricas Globales del Dashboard
-        const totalCardsGlobal = localDecks.reduce((acc, curr) => acc + (curr.cardCount || 0), 0);
-        const activeMateriasWithMastery = enrichedMaterias.filter(m => m.decksCount > 0);
-        const globalMasterySum = activeMateriasWithMastery.reduce((acc, curr) => acc + curr.masteryPercentage, 0);
-        const globalMastery = activeMateriasWithMastery.length > 0 
-          ? Math.round(globalMasterySum / activeMateriasWithMastery.length) 
-          : 0;
-
-        setMaterias(enrichedMaterias);
-        setUnclassifiedDecks(unclassified);
-        setGlobalStats({ totalCards: totalCardsGlobal, globalMastery });
-      }
-    } catch (error) {
-      console.error("Error leyendo caché local en HomeSection:", error);
-    } finally {
-      setLoading(false);
+    if (rawSession) {
+      const session = JSON.parse(rawSession);
+      // Extrae el ID sin importar si viene de Google OAuth, Mongo puro o sub-objeto user
+      userId = session.id || session._id || session.userId || session.user?.id || session.user?._id;
     }
-  }, []);
+
+    console.log("🔍 [Under-FlashCards Debug] ID de usuario detectado:", userId);
+
+    // 2. Intentar leer con sufijo de ID, si no se encuentra, buscar la clave global limpia
+    const materiasKeyWithId = `materias_${userId}`;
+    const decksKeyWithId = `decks_${userId}`;
+    
+    // Fallback dinámico: Si no hay ID o no existen esas llaves, leemos las genéricas
+    const localMaterias = JSON.parse(localStorage.getItem(materiasKeyWithId)) 
+                          || JSON.parse(localStorage.getItem('materias')) 
+                          || [];
+                          
+    const localDecks = JSON.parse(localStorage.getItem(decksKeyWithId)) 
+                       || JSON.parse(localStorage.getItem('decks')) 
+                       || [];
+
+    console.log("📂 [Under-FlashCards Debug] Materias crudas encontradas en LocalStorage:", localMaterias);
+    console.log("🗂️ [Under-FlashCards Debug] Mazos crudos encontrados en LocalStorage:", localDecks);
+
+    // 3. Separar mazos asignados de los heredados (retrocompatibilidad)
+    const unclassified = localDecks.filter(deck => !deck.materiaId);
+    
+    // 4. Procesar y enriquecer las materias
+    const enrichedMaterias = localMaterias.map(materia => {
+      // Tolerancia a si el objeto usa .id o ._id
+      const currentMateriaId = materia.id || materia._id;
+      const materiaDecks = localDecks.filter(d => d.materiaId === currentMateriaId);
+      
+      const totalCards = materiaDecks.reduce((acc, curr) => acc + (curr.cardCount || 0), 0);
+      const uniqueTemasCount = materia.themesCount || new Set(materiaDecks.map(d => d.temaId).filter(Boolean)).size;
+
+      return {
+        ...materia,
+        id: currentMateriaId, // Homologamos a .id para que el componente no rompa
+        title: materia.title || materia.nombre || 'Asignatura sin nombre', // Tolerancia a campos
+        decksCount: materiaDecks.length,
+        temasCount: uniqueTemasCount,
+        totalCards,
+        masteryPercentage: materia.analytics?.masteryPercentage ?? 0
+      };
+    });
+
+    // 5. Calcular Métricas Globales
+    const totalCardsGlobal = localDecks.reduce((acc, curr) => acc + (curr.cardCount || 0), 0);
+    const activeMateriasWithMastery = enrichedMaterias.filter(m => m.decksCount > 0);
+    const globalMasterySum = activeMateriasWithMastery.reduce((acc, curr) => acc + curr.masteryPercentage, 0);
+    const globalMastery = activeMateriasWithMastery.length > 0 
+      ? Math.round(globalMasterySum / activeMateriasWithMastery.length) 
+      : 0;
+
+    setMaterias(enrichedMaterias);
+    setUnclassifiedDecks(unclassified);
+    setGlobalStats({ totalCards: totalCardsGlobal, globalMastery });
+
+  } catch (error) {
+    console.error("❌ Error crítico leyendo la caché local en HomeSection:", error);
+  } finally {
+    setLoading(false);
+  }
+}, []);
+
 
   /**
    * SISTEMA DE COLOR DINÁMICO SEGÚN NIVEL DE CONOCIMIENTO
