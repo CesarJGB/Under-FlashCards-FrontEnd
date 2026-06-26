@@ -11,55 +11,43 @@ import {
 } from 'lucide-react';
 
 export default function HomeSection({ 
-  user,          // 🚀 Recibe el objeto user directo de tu App.jsx
-  decks,         // 🚀 Recibe el estado vivo de App.jsx
-  materias,      // 🚀 Recibe el estado vivo de App.jsx
-  onOpenReview,  // 🚀 Recibe el manejador de repaso rápido de tu App.jsx
+  user,          
+  decks,         
+  materias,      
+  onOpenReview,  
   onLogout 
 }) {
 
   // =========================================================================
   // MOTOR DE PROCESAMIENTO REACTIVO EN MEMORIA (0ms)
-  // Re-calcula la analítica cada vez que App.jsx actualice los mazos o materias
   // =========================================================================
   const { enrichedMaterias, unclassifiedDecks, globalStats } = useMemo(() => {
-    const userIdStr = user?.id ? String(user.id) : '';
-
     if (!materias || !decks) {
       return { enrichedMaterias: [], unclassifiedDecks: [], globalStats: { totalCards: 0, globalMastery: 0 } };
     }
 
-    // 1. Enriquecer las materias emparejando la nomenclatura de tu LibrarySection (.name y ._id)
     const enriched = materias.map(materia => {
       const currentMateriaId = String(materia._id || materia.id || '');
-      
-      // Filtrado seguro de los mazos que pertenecen a esta asignatura
       const materiaDecks = decks.filter(d => String(d.materiaId || '') === currentMateriaId);
-      
-      // Agregación instantánea de tarjetas y temas
       const totalCards = materiaDecks.reduce((acc, curr) => acc + (curr.cardCount || 0), 0);
-      
-      // Si el backend no envía conteo de temas, calculamos los temas únicos basados en los mazos
       const uniqueTemasCount = materia.themesCount || new Set(materiaDecks.map(d => d.temaId).filter(Boolean)).size;
 
       return {
         ...materia,
         id: currentMateriaId,
-        title: materia.name || materia.title || 'Asignatura sin nombre', // Mapea .name usado en tu librería
+        title: materia.name || materia.title || 'Asignatura sin nombre',
         decksCount: materiaDecks.length,
         temasCount: uniqueTemasCount,
         totalCards,
-        masteryPercentage: materia.analytics?.masteryPercentage ?? 0 // Conectado al nuevo modelo
+        masteryPercentage: materia.analytics?.masteryPercentage ?? 0
       };
     });
 
-    // 2. Aislar mazos legacy/sueltos (sin materiaId o huérfanos)
     const unclassified = decks.filter(deck => {
       if (!deck.materiaId) return true;
       return !materias.some(m => String(m._id || m.id) === String(deck.materiaId));
     });
 
-    // 3. Computar métricas globales para los widgets del Dashboard
     const totalCardsGlobal = decks.reduce((acc, curr) => acc + (curr.cardCount || 0), 0);
     const activeMaterias = enriched.filter(m => m.decksCount > 0);
     const globalMasterySum = activeMaterias.reduce((acc, curr) => acc + curr.masteryPercentage, 0);
@@ -73,42 +61,37 @@ export default function HomeSection({
   }, [materias, decks, user]);
 
   /**
-   * SEMAFORIZACIÓN SEMÁNTICA DINÁMICA DE CONOCIMIENTO
+   * REFACTORIZACIÓN DE ESTILOS: Control de acentos semánticos de alta legibilidad
+   * Mantiene el fondo neutro y distribuye el color únicamente en componentes clave.
    */
-  const getKnowledgeStyle = (percentage) => {
+  const getKnowledgeAccent = (percentage) => {
     if (percentage >= 80) return {
-      bg: 'bg-emerald-50 dark:bg-emerald-950/20',
-      border: 'border-emerald-500/20 dark:border-emerald-500/40',
-      text: 'text-emerald-600 dark:text-emerald-400',
-      bar: 'bg-emerald-500',
-      badge: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+      borderLeft: 'border-l-emerald-500',
+      badge: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+      bar: 'bg-emerald-500'
     };
     if (percentage >= 50) return {
-      bg: 'bg-amber-50 dark:bg-amber-950/20',
-      border: 'border-amber-500/20 dark:border-amber-500/40',
-      text: 'text-amber-600 dark:text-amber-400',
-      bar: 'bg-amber-500',
-      badge: 'bg-amber-500/10 text-amber-700 dark:text-amber-300'
+      borderLeft: 'border-l-amber-500',
+      badge: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
+      bar: 'bg-amber-500'
     };
     return {
-      bg: 'bg-rose-50 dark:bg-rose-950/20',
-      border: 'border-rose-500/20 dark:border-rose-500/40',
-      text: 'text-rose-600 dark:text-rose-400',
-      bar: 'bg-rose-500',
-      badge: 'bg-rose-500/10 text-rose-700 dark:text-rose-300'
+      borderLeft: 'border-l-rose-500',
+      badge: 'bg-rose-500/10 text-rose-600 dark:text-rose-400', // Contraste perfecto garantizado
+      bar: 'bg-rose-500'
     };
   };
 
   return (
     <div className="w-full space-y-8 animate-[fadeIn_0.15s_ease]">
       
-      {/* 1. MÓDULO DE ANALÍTICAS GENERALES */}
+      {/* Resumen Global */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white dark:bg-zinc-900 p-6 rounded-2xl border border-zinc-200/60 dark:border-zinc-800 shadow-3xs">
         <div>
           <h1 className="text-xl font-bold text-zinc-900 dark:text-white tracking-tight">
-            ¡Hola de nuevo, {user?.name?.split(' ')[0] || 'Estudiante'}!
+            ¡Hola, {user?.name?.split(' ')[0] || 'Estudiante'}!
           </h1>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">Este es el estado actual de tu mapa de conocimiento universitario.</p>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">Este es el estado de tu mapa de conocimiento universitario.</p>
         </div>
         
         <div className="flex items-center gap-6 divide-x divide-zinc-200 dark:divide-zinc-800">
@@ -126,7 +109,7 @@ export default function HomeSection({
         </div>
       </div>
 
-      {/* 2. REJILLA DE ASIGNATURAS REQUISITO */}
+      {/* Rejilla de Materias */}
       <div className="space-y-4">
         <h2 className="text-sm font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-2">
           <BookOpen className="w-4 h-4 text-indigo-500" />
@@ -136,50 +119,51 @@ export default function HomeSection({
         {enrichedMaterias.length === 0 ? (
           <div className="p-10 text-center rounded-2xl border border-dashed border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/40">
             <AlertCircle className="w-7 h-7 text-zinc-400 mx-auto mb-2" />
-            <p className="text-zinc-700 dark:text-zinc-300 text-xs font-bold">No tienes materias configuradas en tu perfil.</p>
+            <p className="text-zinc-700 dark:text-zinc-300 text-xs font-bold">No tienes materias configuradas.</p>
             <p className="text-[11px] text-zinc-400 mt-0.5">Ve a la sección de Archivos para crear tu primera materia raíz.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {enrichedMaterias.map((materia) => {
-              const styles = getKnowledgeStyle(materia.masteryPercentage);
+              const accent = getKnowledgeAccent(materia.masteryPercentage);
               
               return (
                 <div 
                   key={materia.id}
-                  className={`group relative p-5 rounded-xl border ${styles.border} ${styles.bg} transition-all duration-200 hover:shadow-2xs flex flex-col justify-between`}
+                  className={`group relative bg-white dark:bg-zinc-900 p-5 rounded-xl border border-zinc-200/70 dark:border-zinc-800 border-l-4 ${accent.borderLeft} transition-all duration-200 hover:shadow-sm flex flex-col justify-between`}
                 >
                   <div>
-                    <div className="flex justify-between items-start gap-2">
-                      <h3 className="text-base font-bold text-zinc-800 dark:text-white truncate max-w-[70%]">
+                    <div className="flex justify-between items-start gap-3">
+                      <h3 className="text-sm font-bold text-zinc-800 dark:text-zinc-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors truncate max-w-[70%]">
                         {materia.title}
                       </h3>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md shrink-0 ${styles.badge}`}>
-                        {materia.masteryPercentage}% Dominio
+                      <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md shrink-0 tracking-wide ${accent.badge}`}>
+                        {materia.masteryPercentage}% DOMINIO
                       </span>
                     </div>
 
-                    <div className="w-full bg-zinc-200/70 dark:bg-zinc-800 h-1.5 rounded-full mt-2.5 overflow-hidden">
+                    {/* Contenedor de Barra estilizado (Solución al bloque negro tosco) */}
+                    <div className="w-full bg-zinc-100 dark:bg-zinc-800/80 h-1.5 rounded-full mt-3 overflow-hidden">
                       <div 
-                        className={`h-full ${styles.bar} transition-all duration-500`} 
+                        className={`h-full ${accent.bar} rounded-full transition-all duration-500`} 
                         style={{ width: `${materia.masteryPercentage}%` }}
                       />
                     </div>
                   </div>
 
-                  {/* Bloque Cuadrícula Interna: Temas, Mazos y Tarjetas */}
-                  <div className="mt-5 pt-3.5 border-t border-zinc-200/60 dark:border-zinc-800/60 grid grid-cols-3 gap-1 text-center">
+                  {/* Datos Inferiores Uniformes */}
+                  <div className="mt-5 pt-3.5 border-t border-zinc-100 dark:border-zinc-800/60 grid grid-cols-3 gap-1 text-center">
                     <div>
-                      <span className="block text-sm font-bold text-zinc-800 dark:text-zinc-200">{materia.temasCount}</span>
-                      <span className="text-[9px] text-zinc-400 font-bold uppercase">Temas</span>
+                      <span className="block text-xs font-bold text-zinc-700 dark:text-zinc-200">{materia.temasCount}</span>
+                      <span className="text-[9px] text-zinc-400 dark:text-zinc-500 font-bold uppercase tracking-wider">Temas</span>
                     </div>
                     <div>
-                      <span className="block text-sm font-bold text-zinc-800 dark:text-zinc-200">{materia.decksCount}</span>
-                      <span className="text-[9px] text-zinc-400 font-bold uppercase">Mazos</span>
+                      <span className="block text-xs font-bold text-zinc-700 dark:text-zinc-200">{materia.decksCount}</span>
+                      <span className="text-[9px] text-zinc-400 dark:text-zinc-500 font-bold uppercase tracking-wider">Mazos</span>
                     </div>
                     <div>
-                      <span className="block text-sm font-bold text-zinc-800 dark:text-zinc-200">{materia.totalCards}</span>
-                      <span className="text-[9px] text-zinc-400 font-bold uppercase">Tarjetas</span>
+                      <span className="block text-xs font-bold text-zinc-700 dark:text-zinc-200">{materia.totalCards}</span>
+                      <span className="text-[9px] text-zinc-400 dark:text-zinc-500 font-bold uppercase tracking-wider">Tarjetas</span>
                     </div>
                   </div>
                 </div>
@@ -189,7 +173,7 @@ export default function HomeSection({
         )}
       </div>
 
-      {/* 3. RETROCOMPATIBILIDAD: MAZOS SUELTOS */}
+      {/* Retrocompatibilidad: Mazos sueltos */}
       {unclassifiedDecks.length > 0 && (
         <div className="pt-6 border-t border-zinc-200 dark:border-zinc-800">
           <div className="mb-3">
@@ -203,7 +187,7 @@ export default function HomeSection({
             {unclassifiedDecks.map((deck) => (
               <div
                 key={deck.id || deck._id}
-                onClick={() => onOpenReview(deck)} // Detona la revisión directa mapeada desde App.jsx
+                onClick={() => onOpenReview(deck)} 
                 style={{ borderLeftColor: deck.coverColor || '#cbd5e1' }}
                 className="p-3 bg-white dark:bg-zinc-900 border-l-4 border-y border-r border-zinc-200 dark:border-zinc-800 rounded-xl cursor-pointer hover:border-zinc-400 dark:hover:border-zinc-600 hover:translate-y-[-1px] transition-all group flex flex-col justify-between min-h-[70px]"
               >
