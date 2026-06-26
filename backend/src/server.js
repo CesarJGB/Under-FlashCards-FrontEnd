@@ -1,3 +1,5 @@
+// FILE: backend/src/server.js
+
 require('dotenv').config();
 
 const express = require('express');
@@ -19,6 +21,7 @@ const connectDB = async () => {
 const authRoutes = require('./routes/authRoutes');
 const deckRoutes = require('./routes/deckRoutes');
 const flashcardRoutes = require('./routes/flashcardRoutes');
+const academicRoutes = require('./routes/academicRoutes'); // 👈 NUEVO: Importación de las rutas de jerarquía
 
 const app = express();
 const PORT = process.env.PORT || 8001;
@@ -65,6 +68,7 @@ app.get('/api/health', (req, res) => {
 app.use('/api', authRoutes);
 app.use('/api', deckRoutes);
 app.use('/api', flashcardRoutes);
+app.use('/api', academicRoutes); // 👈 NUEVO: Registro del router unificado para Materias, Temas y Subtemas
 
 // Encendido del servidor
 app.listen(PORT, '0.0.0.0', () => {
