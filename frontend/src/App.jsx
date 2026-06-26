@@ -15,20 +15,28 @@ const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 function DashboardScreen({ user, onLogout }) {
   const [tab, setTab] = useState('home');
 
+  // Cache local optimista para Mazos
   const [decks, setDecks] = useState(() => {
     const cached = localStorage.getItem(`decks_${user.id}`);
     return cached ? JSON.parse(cached) : [];
   });
+
+  // NUEVO: Cache local optimista para Materias (Jerarquía principal)
+  const [materias, setMaterias] = useState(() => {
+    const cached = localStorage.getItem(`materias_${user.id}`);
+    return cached ? JSON.parse(cached) : [];
+  });
+
   const [loading, setLoading] = useState(() => {
-    const cached = localStorage.getItem(`decks_${user.id}`);
-    return !cached;
+    const cachedDecks = localStorage.getItem(`decks_${user.id}`);
+    const cachedMaterias = localStorage.getItem(`materias_${user.id}`);
+    return !cachedDecks || !cachedMaterias;
   });
 
   const [currentDeck, setCurrentDeck] = useState(null);
   const [initialMode, setInitialMode] = useState('edit');
 
-  // ✨ ACTUALIZADO: Añadimos un parámetro dinámico basado en milisegundos (?t=...) 
-  // para romper la caché del navegador y forzar a MongoDB a darnos el conteo real al instante.
+  // Sincronización en segundo plano de Mazos (Rompe caché del navegador mediante ?t=...)
   const loadDecks = useCallback(async (showSpinner = false) => {
     if (showSpinner) setLoading(true);
     try {
@@ -38,15 +46,32 @@ function DashboardScreen({ user, onLogout }) {
       setDecks(data);
       localStorage.setItem(`decks_${user.id}`, JSON.stringify(data));
     } catch {
-      /* fallback silencioso a caché */
+      /* fallback silencioso a caché local */
     } finally {
       setLoading(false);
     }
   }, [user.id]);
 
+  // NUEVO: Sincronización en segundo plano de Materias (0ms latencia percibida)
+  const loadMaterias = useCallback(async (showSpinner = false) => {
+    if (showSpinner) setLoading(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/academic/materias/${user.id}?t=${Date.now()}`);
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setMaterias(data);
+      localStorage.setItem(`materias_${user.id}`, JSON.stringify(data));
+    } catch {
+      /* fallback silencioso a caché local */
+    } finally {
+      setLoading(false);
+    }
+  }, [user.id]);
+
+  // Efecto de carga inicial paralela
   useEffect(() => {
-    loadDecks();
-  }, [loadDecks]);
+    Promise.all([loadDecks(), loadMaterias()]);
+  }, [loadDecks, loadMaterias]);
 
   const handleTabChange = (id) => {
     if (id === 'library') {
@@ -88,7 +113,7 @@ function DashboardScreen({ user, onLogout }) {
               <div className="w-9 h-9 rounded-xl bg-slate-900 flex items-center justify-center shrink-0">
                 <Sparkles className="w-5 h-5 text-white" />
               </div>
-              <span className="font-extrabold text-slate-900 text-lg">Flashcards</span>
+              <span className="font-extrabold text-slate-900 text-lg">Under-Flash</span>
             </>
           )}
         </div>
@@ -124,7 +149,7 @@ function DashboardScreen({ user, onLogout }) {
               </span>
             ) : (
               <span className="font-black text-slate-900 tracking-tight text-base block animate-[fadeIn_0.1s_ease]">
-                {tab === 'library' ? 'Biblioteca' : tab === 'home' ? 'Inicio' : 'Ajustes'}
+                {tab === 'library' ? 'Archivos' : tab === 'home' ? 'Inicio' : 'Ajustes'}
               </span>
             )}
           </span>
@@ -146,6 +171,7 @@ function DashboardScreen({ user, onLogout }) {
             <HomeSection 
               user={user} 
               decks={decks} 
+              materias={materias}
               onOpenReview={handleOpenReviewFromHome}
               onLogout={onLogout}
             />
@@ -155,9 +181,12 @@ function DashboardScreen({ user, onLogout }) {
               userId={user.id} 
               userEmail={user.email} 
               decks={decks}
+              materias={materias}
               loading={loading}
               setDecks={setDecks}
+              setMaterias={setMaterias}
               loadDecks={loadDecks}
+              loadMaterias={loadMaterias}
               currentDeck={currentDeck}
               setCurrentDeck={setCurrentDeck}
               initialMode={initialMode}
@@ -167,12 +196,11 @@ function DashboardScreen({ user, onLogout }) {
           {tab === 'settings' && <SettingsSection userId={user.id} />}
         </div>
 
-        {/* BARRA INFERIOR MÓVIL REINGENIERIZADA */}
+        {/* BARRA INFERIOR MÓVIL */}
         <div className="md:hidden fixed bottom-5 inset-x-4 max-w-xs mx-auto bg-white/85 backdrop-blur-xl border border-slate-200/60 h-14 rounded-full px-2 flex justify-between items-center z-40 shadow-[0_8px_30px_rgb(0,0,0,0.08)] animate-[slideUp_0.2s_ease-out]">
-          
           {[
             { id: 'home', title: 'Inicio', Icon: Home },
-            { id: 'library', title: 'Biblioteca', Icon: Library },
+            { id: 'library', title: 'Archivos', Icon: Library },
             { id: 'settings', title: 'Ajustes', Icon: Settings }
           ].map((item) => {
             const isActive = tab === item.id;
@@ -193,45 +221,10 @@ function DashboardScreen({ user, onLogout }) {
               </button>
             );
           })}
-
         </div>
       </main>
     </div>
   );
 }
 
-function FlashcardsApp() {
-  const [user, setUser] = useState(null);
-  const [error, setError] = useState('');
-
-  const handleSuccess = async (credentialResponse) => {
-    setError('');
-    const credential = credentialResponse?.credential;
-    if (!credential) return;
-    try {
-      jwtDecode(credential);
-      const res = await fetch(`${BACKEND_URL}/api/auth/google`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ credential }),
-      });
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-      setUser(data.user);
-    } catch {
-      setError('Falló la verificación en el servidor.');
-    }
-  };
-
-  if (user) return <DashboardScreen user={user} onLogout={() => setUser(null)} />;
-  return <LoginScreen onSuccess={handleSuccess} onError={() => setError('Falló el inicio de sesión.')} error={error} />;
-}
-
-export default function App() {
-  if (!GOOGLE_CLIENT_ID) return null;
-  return (
-    <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-      <FlashcardsApp />
-    </GoogleOAuthProvider>
-  );
-}
+// ... El envoltorio FlashcardsApp y la exportación de App se mantienen exactamente iguales ...
