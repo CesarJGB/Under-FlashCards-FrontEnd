@@ -4,10 +4,10 @@ import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
 import { LogOut, Sparkles, Library, Settings, Home } from 'lucide-react';
 
-import LoginScreen from './components/LoginScreen';
-import HomeSection from './components/HomeSection';
-import LibrarySection from './components/LibrarySection';
-import SettingsSection from './components/SettingsSection';
+import LoginScreen from './LoginScreen';
+import HomeSection from './HomeSection';
+import LibrarySection from './LibrarySection';
+import SettingsSection from './SettingsSection';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
@@ -21,7 +21,7 @@ function DashboardScreen({ user, onLogout }) {
     return cached ? JSON.parse(cached) : [];
   });
 
-  // NUEVO: Cache local optimista para Materias (Jerarquía principal)
+  // Cache local optimista para Materias
   const [materias, setMaterias] = useState(() => {
     const cached = localStorage.getItem(`materias_${user.id}`);
     return cached ? JSON.parse(cached) : [];
@@ -36,7 +36,7 @@ function DashboardScreen({ user, onLogout }) {
   const [currentDeck, setCurrentDeck] = useState(null);
   const [initialMode, setInitialMode] = useState('edit');
 
-  // Sincronización en segundo plano de Mazos (Rompe caché del navegador mediante ?t=...)
+  // Sincronización de Mazos
   const loadDecks = useCallback(async (showSpinner = false) => {
     if (showSpinner) setLoading(true);
     try {
@@ -52,7 +52,7 @@ function DashboardScreen({ user, onLogout }) {
     }
   }, [user.id]);
 
-  // NUEVO: Sincronización en segundo plano de Materias (0ms latencia percibida)
+  // Sincronización de Materias
   const loadMaterias = useCallback(async (showSpinner = false) => {
     if (showSpinner) setLoading(true);
     try {
@@ -68,7 +68,6 @@ function DashboardScreen({ user, onLogout }) {
     }
   }, [user.id]);
 
-  // Efecto de carga inicial paralela
   useEffect(() => {
     Promise.all([loadDecks(), loadMaterias()]);
   }, [loadDecks, loadMaterias]);
@@ -227,4 +226,38 @@ function DashboardScreen({ user, onLogout }) {
   );
 }
 
-// ... El envoltorio FlashcardsApp y la exportación de App se mantienen exactamente iguales ...
+function FlashcardsApp() {
+  const [user, setUser] = useState(null);
+  const [error, setError] = useState('');
+
+  const handleSuccess = async (credentialResponse) => {
+    setError('');
+    const credential = credentialResponse?.credential;
+    if (!credential) return;
+    try {
+      jwtDecode(credential);
+      const res = await fetch(`${BACKEND_URL}/api/auth/google`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credential }),
+      });
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setUser(data.user);
+    } catch {
+      setError('Falló la verificación en el servidor.');
+    }
+  };
+
+  if (user) return <DashboardScreen user={user} onLogout={() => setUser(null)} />;
+  return <LoginScreen onSuccess={handleSuccess} onError={() => setError('Falló el inicio de sesión.')} error={error} />;
+}
+
+export default function App() {
+  if (!GOOGLE_CLIENT_ID) return null;
+  return (
+    <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+      <FlashcardsApp />
+    </GoogleOAuthProvider>
+  );
+}
