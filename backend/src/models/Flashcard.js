@@ -1,3 +1,5 @@
+// FILE: backend/src/models/Flashcard.js
+
 const mongoose = require('mongoose');
 
 const flashcardSchema = new mongoose.Schema(
@@ -21,12 +23,38 @@ const flashcardSchema = new mongoose.Schema(
     textAlign: { type: String, enum: ['left', 'center', 'right'], default: 'center' },
     fontSize: { type: String, default: 'text-base' },
     contentImage: { type: String, default: '' },
-    imageSide: { type: String, enum: ['question', 'answer', ''], default: '' }
+    imageSide: { type: String, enum: ['question', 'answer', ''], default: '' },
+
+    // =========================================================================
+    // NUEVOS CAMPOS DE TELEMETRÍA Y MÉTRICAS DE CONOCIMIENTO (NIVEL MICRO)
+    // =========================================================================
+    difficulty: { 
+      type: Number, 
+      default: 0.3, // Escala de 0.0 (Dominio total/Regalo) a 1.0 (Máxima dificultad)
+      min: 0.0,
+      max: 1.0,
+      index: true 
+    },
+    totalReviews: { 
+      type: Number, 
+      default: 0 
+    }, // Cantidad de repasos individuales para calcular madurez de retención
+    consecutiveErrors: { 
+      type: Number, 
+      default: 0 
+    }, // Control de rachas de fallos para el índice de resiliencia
+    lastReviewedAt: { 
+      type: Date, 
+      default: null 
+    } // Esencial para ponderar el tiempo transcurrido desde el último repaso
   },
   { timestamps: true }
 );
 
-// Serializador nativo adjunto al esquema
+/**
+ * Serializador nativo adjunto al esquema
+ * Exporta el estado telemetrado de la flashcard garantizando la carga reactiva optimista.
+ */
 flashcardSchema.methods.serialize = function (cardBackgrounds = []) {
   return {
     id: this._id,
@@ -40,6 +68,13 @@ flashcardSchema.methods.serialize = function (cardBackgrounds = []) {
     fontSize: this.fontSize,
     contentImage: this.contentImage || '', 
     imageSide: this.imageSide || '',       
+    
+    // Inyección atómica de variables para el motor de métricas del frontend
+    difficulty: this.difficulty ?? 0.3,
+    totalReviews: this.totalReviews ?? 0,
+    consecutiveErrors: this.consecutiveErrors ?? 0,
+    lastReviewedAt: this.lastReviewedAt || null,
+
     createdAt: this.createdAt,
   };
 };
