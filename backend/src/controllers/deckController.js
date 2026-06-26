@@ -166,6 +166,7 @@ exports.exportDeck = async (req, res) => {
     return res.json({
       deck: deck.serialize(cards.length),
       cards: cards.map((c) => ({
+        id: c._id, // 👈 INYECCIÓN REQUERIDA: Añade el ObjectId único de cada tarjeta para el Radar y la IA
         question: c.question,
         answer: c.answer,
         bgImageIndex: c.bgImageIndex,
