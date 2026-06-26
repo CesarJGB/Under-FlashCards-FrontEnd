@@ -1,13 +1,13 @@
-// ARCHIVO: frontend/src/components/App.jsx
+// ARCHIVO: frontend/src/App.jsx
 import { useState, useEffect, useCallback } from 'react';
-import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google';
+import { GoogleOAuthProvider } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
 import { LogOut, Sparkles, Library, Settings, Home } from 'lucide-react';
 
-import LoginScreen from './LoginScreen';
-import HomeSection from './HomeSection';
-import LibrarySection from './LibrarySection';
-import SettingsSection from './SettingsSection';
+import LoginScreen from './components/LoginScreen';
+import HomeSection from './components/HomeSection';
+import LibrarySection from './components/LibrarySection';
+import SettingsSection from './components/SettingsSection';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
