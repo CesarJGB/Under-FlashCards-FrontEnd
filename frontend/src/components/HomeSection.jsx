@@ -1,6 +1,7 @@
-import { Sparkles, BookOpen, Flame, Star } from 'lucide-react';
+// ARCHIVO: frontend/src/components/HomeSection.jsx
+import { Sparkles, BookOpen, Flame, Star, Folder } from 'lucide-react';
 
-export default function HomeSection({ user, decks, onOpenReview }) {
+export default function HomeSection({ user, decks, materias = [], onOpenReview }) {
   const getGreeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return '¡Buenos días';
@@ -68,6 +69,33 @@ export default function HomeSection({ user, decks, onOpenReview }) {
                     </p>
                   </div>
                 </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* 📚 NUEVO APARTADO: DISTRIBUCIÓN POR MATERIA */}
+      <div className="mt-6">
+        <h3 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-1.5">
+          <Folder className="w-4 h-4 text-slate-600" /> Distribución por Materia
+        </h3>
+        {materias.length === 0 ? (
+          <div className="text-center border border-dashed border-slate-300 rounded-2xl p-6 text-slate-400 text-xs bg-white">
+            Aún no hay materias dadas de alta. Ve a la pestaña de Archivos para configurar tus asignaturas universitarias.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {materias.map((m) => {
+              const count = decks.filter(d => d.materiaId === m._id).length;
+              return (
+                <div key={m._id} className="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm flex items-center justify-between group">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-bold text-slate-800 truncate">{m.name}</p>
+                    <p className="text-[10px] font-medium text-slate-400 mt-0.5">{count} {count === 1 ? 'mazo cargado' : 'mazos cargados'}</p>
+                  </div>
+                  <div className="w-2 h-2 rounded-full bg-indigo-500/20 group-hover:bg-indigo-500 transition-colors shrink-0 ml-2" />
+                </div>
               );
             })}
           </div>
