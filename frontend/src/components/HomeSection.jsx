@@ -9,13 +9,16 @@ import {
   AlertCircle,
   ChevronRight
 } from 'lucide-react';
+import RadarDebugPanel from './RadarDebugPanel'; // 👈 NUEVO: Importación del panel de control analítico
 
 export default function HomeSection({ 
   user,          
   decks,         
   materias,      
   onOpenReview,  
-  onLogout 
+  onLogout,
+  loadDecks,     // 👈 NUEVO: Propagación de refresco de caché de red
+  loadMaterias   // 👈 NUEVO: Propagación de refresco de caché de red
 }) {
 
   // =========================================================================
@@ -77,7 +80,7 @@ export default function HomeSection({
     };
     return {
       borderLeft: 'border-l-rose-500',
-      badge: 'bg-rose-500/10 text-rose-600 dark:text-rose-400', // Contraste perfecto garantizado
+      badge: 'bg-rose-500/10 text-rose-600 dark:text-rose-400', 
       bar: 'bg-rose-500'
     };
   };
@@ -142,7 +145,6 @@ export default function HomeSection({
                       </span>
                     </div>
 
-                    {/* Contenedor de Barra estilizado (Solución al bloque negro tosco) */}
                     <div className="w-full bg-zinc-100 dark:bg-zinc-800/80 h-1.5 rounded-full mt-3 overflow-hidden">
                       <div 
                         className={`h-full ${accent.bar} rounded-full transition-all duration-500`} 
@@ -151,7 +153,6 @@ export default function HomeSection({
                     </div>
                   </div>
 
-                  {/* Datos Inferiores Uniformes */}
                   <div className="mt-5 pt-3.5 border-t border-zinc-100 dark:border-zinc-800/60 grid grid-cols-3 gap-1 text-center">
                     <div>
                       <span className="block text-xs font-bold text-zinc-700 dark:text-zinc-200">{materia.temasCount}</span>
@@ -205,6 +206,15 @@ export default function HomeSection({
           </div>
         </div>
       )}
+
+      {/* ⚡ PANEL DE TELEMETRÍA Y DEBUGGING DEL RADAR DE CONOCIMIENTO (Abajo del todo) */}
+      <RadarDebugPanel 
+        userId={user?.id}
+        decks={decks}
+        loadDecks={loadDecks}
+        loadMaterias={loadMaterias}
+      />
+
     </div>
   );
 }
