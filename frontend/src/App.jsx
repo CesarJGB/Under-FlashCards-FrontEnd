@@ -173,6 +173,8 @@ function DashboardScreen({ user, onLogout }) {
               materias={materias}
               onOpenReview={handleOpenReviewFromHome}
               onLogout={onLogout}
+              loadDecks={loadDecks}       // 👈 CONEXIÓN INYECTADA: Habilita recarga atómica de mazos
+              loadMaterias={loadMaterias} // 👈 CONEXIÓN INYECTADA: Habilita recarga atómica de asignaturas
             />
           )}
           {tab === 'library' && (
