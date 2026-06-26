@@ -1,0 +1,207 @@
+// backend/src/controllers/reviewController.js
+const Flashcard = require('../models/Flashcard');
+const ReviewLog = require('../models/ReviewLog');
+const Deck = require('../models/Deck');
+const Subtema = require('../models/Subtema');
+const Tema = require('../models/Tema');
+const Materia = require('../models/Materia');
+
+// =========================================================================
+// COEFICIENTES CORE DEL RADAR (Single Source of Truth del Servidor)
+// =========================================================================
+const WEIGHTS = { accuracy: 0.40, retention: 0.20, fluidity: 0.15, volume: 0.15, resilience: 0.10 };
+const TARGETS = { FLUID_MS: 3000, MAX_MS: 12000, MATURITY_REVIEWS: 20, HALF_LIFE_DAYS: 7 };
+
+// --- Helpers Matemáticos de Normalización ---
+function getFluidityScore(ms) {
+  if (!ms || ms <= TARGETS.FLUID_MS) return 1.0;
+  if (ms >= TARGETS.MAX_MS) return 0.0;
+  return 1 - ((ms - TARGETS.FLUID_MS) / (TARGETS.MAX_MS - TARGETS.FLUID_MS));
+}
+
+function getRetentionScore(lastDate) {
+  if (!lastDate) return 0.5;
+  const days = (Date.now() - new Date(lastDate).getTime()) / (1000 * 60 * 60 * 24);
+  return Math.max(0.1, Math.exp(-(Math.LN2 / TARGETS.HALF_LIFE_DAYS) * days));
+}
+
+function getVolumeScore(reviews) {
+  if (!reviews) return 0.0;
+  return Math.min(1.0, Math.log1p(reviews) / Math.log1p(TARGETS.MATURITY_REVIEWS));
+}
+
+function getResilienceScore(errors) {
+  if (!errors || errors === 0) return 1.0;
+  return Math.max(0.0, Math.pow(0.5, errors));
+}
+
+// =========================================================================
+// MOTOR DE CÁLCULO DE RADAR (Aplica la Matriz Ponderada a cualquier colección)
+// =========================================================================
+function calculateRadarMetrics(items, isDeckLevel = false) {
+  const total = items.length;
+  if (total === 0) return { accuracy: 0, speed: 0, reviews: 0, mastery: 0, confidence: 0, difficulty: 0, lastReview: null, knowledgeScore: 0 };
+
+  let aggAccuracy = 0, aggSpeed = 0, aggReviews = 0, aggFluidity = 0, aggRetention = 0, aggResilience = 0, aggConfidence = 0;
+  let reviewedCount = 0, latestReviewDate = null;
+
+  items.forEach(item => {
+    // Si estamos mapeando desde Flashcards (Deck) o desde sub-radares (Subtema/Tema/Materia)
+    const metrics = isDeckLevel ? {
+      accuracy: 1.0 - (item.difficulty ?? 0.3),
+      speed: item.avgResponseTimeMs || (TARGETS.FLUID_MS * 1.5),
+      reviews: item.totalReviews ?? 0,
+      confidence: item.easeFactor ?? 2.5,
+      difficulty: item.difficulty ?? 0.3,
+      lastReview: item.lastReviewedAt,
+      fluidity: getFluidityScore(item.avgResponseTimeMs || (TARGETS.FLUID_MS * 1.5)),
+      retention: getRetentionScore(item.lastReviewedAt),
+      resilience: getResilienceScore(item.consecutiveErrors)
+    } : {
+      accuracy: item.knowledgeMetrics?.accuracy ?? 0,
+      speed: item.knowledgeMetrics?.speed ?? 0,
+      reviews: item.knowledgeMetrics?.reviews ?? 0,
+      confidence: item.knowledgeMetrics?.confidence ?? 0,
+      difficulty: item.knowledgeMetrics?.difficulty ?? 0,
+      lastReview: item.knowledgeMetrics?.lastReview,
+      fluidity: getFluidityScore(item.knowledgeMetrics?.speed ?? 0),
+      retention: getRetentionScore(item.knowledgeMetrics?.lastReview),
+      resilience: getResilienceScore(0) // Simplificado para agregados altos
+    };
+
+    aggAccuracy += metrics.accuracy;
+    aggSpeed += metrics.speed;
+    aggReviews += metrics.reviews;
+    aggFluidity += metrics.fluidity;
+    aggRetention += metrics.retention;
+    aggResilience += metrics.resilience;
+    aggConfidence += metrics.confidence;
+
+    if (metrics.reviews > 0 || !isDeckLevel) reviewedCount++;
+    if (metrics.lastReview && (!latestReviewDate || new Date(metrics.lastReview) > new Date(latestReviewDate))) {
+      latestReviewDate = metrics.lastReview;
+    }
+  });
+
+  const avgAccuracy = aggAccuracy / total;
+  const avgSpeed = reviewedCount > 0 ? (aggSpeed / reviewedCount) : 0;
+  const avgFluidity = aggFluidity / total;
+  const avgRetention = aggRetention / total;
+  const avgResilience = aggResilience / total;
+  const avgConfidence = aggConfidence / total;
+  const avgDifficulty = 1.0 - avgAccuracy;
+
+  // Cálculo de volumen adaptativo basado en la densidad
+  const globalVolume = getVolumeScore(isDeckLevel ? (aggReviews / total) : aggReviews);
+
+  // Fusión de la Matriz Ponderada Core
+  let masteryScore = 
+    (avgAccuracy * WEIGHTS.accuracy) +
+    (avgRetention * WEIGHTS.retention) +
+    (avgFluidity * WEIGHTS.fluidity) +
+    (globalVolume * WEIGHTS.volume) +
+    (avgResilience * WEIGHTS.resilience);
+
+  const mastery = Math.min(100, Math.max(0, Math.round(masteryScore * 100)));
+  const knowledgeScore = parseFloat(((reviewedCount * avgAccuracy) / Math.max(1, aggReviews)).toFixed(2));
+
+  return {
+    accuracy: parseFloat(avgAccuracy.toFixed(2)),
+    speed: Math.round(avgSpeed),
+    reviews: aggReviews,
+    mastery,
+    confidence: parseFloat(avgConfidence.toFixed(2)),
+    difficulty: parseFloat(avgDifficulty.toFixed(2)),
+    lastReview: latestReviewDate,
+    knowledgeScore
+  };
+}
+
+// =========================================================================
+// ACTION HANDLER: REGISTRO DE REPASO Y PROPAGACIÓN EN CASCADA
+// =========================================================================
+exports.registerReview = async (req, res) => {
+  const { deckId } = req.params;
+  const { cardId, userId, wasCorrect, responseTimeMs } = req.body;
+
+  try {
+    // 1. Mutación Atómica de la Flashcard (Nivel Micro)
+    const card = await Flashcard.findOne({ _id: cardId, deckId, userId });
+    if (!card) return res.status(404).json({ error: 'Flashcard no encontrada.' });
+
+    card.totalReviews += 1;
+    card.lastReviewedAt = new Date();
+    
+    if (wasCorrect) {
+      card.consecutiveErrors = 0;
+      card.difficulty = Math.max(0.0, card.difficulty - 0.1); // Reduce fricción
+      card.easeFactor += 0.15;
+    } else {
+      card.consecutiveErrors += 1;
+      card.difficulty = Math.min(1.0, card.difficulty + 0.15); // Aumenta fricción
+      card.easeFactor = Math.max(1.3, card.easeFactor - 0.2);
+    }
+    await card.save();
+
+    // 2. Insertar entrada inmutable en el Libro Contable (Ledger)
+    const log = new ReviewLog({
+      userId,
+      cardId,
+      deckId,
+      materiaId: (await Deck.findById(deckId))?.materiaId || null,
+      wasCorrect,
+      responseTimeMs,
+      currentDifficulty: card.difficulty,
+      reviewNumber: card.totalReviews
+    });
+    await log.save();
+
+    // =========================================================================
+    // DISPARADOR EN CASCADA VERTICAL (Actualización de Radares hacia arriba)
+    // =========================================================================
+    
+    // Nivel A: Recalcular el Mazo (Deck)
+    const allCards = await Flashcard.find({ deckId });
+    const deck = await Deck.findById(deckId);
+    deck.knowledgeMetrics = calculateRadarMetrics(allCards, true);
+    await deck.save();
+
+    // Nivel B: Recalcular Subtema (Si está mapeado)
+    if (deck.subtemaId) {
+      const sisterDecks = await Deck.find({ subtemaId: deck.subtemaId });
+      await Subtema.findByIdAndUpdate(deck.subtemaId, {
+        knowledgeMetrics: calculateRadarMetrics(sisterDecks)
+      });
+    }
+
+    // Nivel C: Recalcular Tema
+    if (deck.temaId) {
+      // Si hay subtemas, promediamos sus radares, si no, promediamos los mazos directos del tema
+      const childSubtemas = await Subtema.find({ temaId: deck.temaId });
+      if (childSubtemas.length > 0) {
+        await Tema.findByIdAndUpdate(deck.temaId, { knowledgeMetrics: calculateRadarMetrics(childSubtemas) });
+      } else {
+        const directDecks = await Deck.find({ temaId: deck.temaId, subtemaId: null });
+        await Tema.findByIdAndUpdate(deck.temaId, { knowledgeMetrics: calculateRadarMetrics(directDecks) });
+      }
+    }
+
+    // Nivel D: Recalcular Materia (Raíz Global)
+    if (deck.materiaId) {
+      const childTemas = await Tema.find({ materiaId: deck.materiaId });
+      await Materia.findByIdAndUpdate(deck.materiaId, {
+        knowledgeMetrics: calculateRadarMetrics(childTemas)
+      });
+    }
+
+    return res.status(201).json({ 
+      success: true, 
+      log: log.serialize(), 
+      updatedDeckMetrics: deck.serialize().analytics 
+    });
+
+  } catch (error) {
+    console.error("Error crítico en cascada del Radar:", error);
+    return res.status(500).json({ error: 'Fallo interno en el motor de métricas.' });
+  }
+};
