@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Infinity, Calendar, Zap, ArrowRight, ArrowLeft, Layers, Bookmark } from 'lucide-react';
+// 👈 AQUÍ ESTÁ EL AJUSTE: Se incluye 'Play' en la importación de lucide-react
+import { Infinity, Calendar, Zap, ArrowRight, ArrowLeft, Layers, Bookmark, Play } from 'lucide-react';
 
 export default function StudySection({ decks, materias, onOpenReview }) {
   const [selectedMethod, setSelectedMethod] = useState(null);
@@ -111,7 +112,7 @@ export default function StudySection({ decks, materias, onOpenReview }) {
             return (
               <div 
                 key={deck._id || deck.id}
-                onClick={() => onOpenReview(deck)} // 👈 Lanza el flujo seguro nativo
+                onClick={() => onOpenReview(deck)}
                 className="bg-white border border-slate-200 hover:border-slate-300 rounded-xl p-4 flex justify-between items-center shadow-3xs hover:shadow-xs transition-all cursor-pointer group active:scale-[0.995]"
               >
                 <div className="space-y-0.5 min-w-0 pr-4">
