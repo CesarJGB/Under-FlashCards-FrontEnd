@@ -86,9 +86,9 @@ function DashboardScreen({ user, onLogout }) {
     setTab('library');
   };
 
-  // Manejador especializado para lanzar el modo de repaso continuo desde la sección de estudio
-  const handleOpenReviewFromStudy = (deck, mode = 'continuous-review') => {
-    setInitialMode(mode);
+  // 👈 CORRECCIÓN AQUÍ: Forzamos 'review' para que el motor de LibrarySection cargue las tarjetas de forma segura antes de renderizar el juego
+  const handleOpenReviewFromStudy = (deck) => {
+    setInitialMode('review');
     setCurrentDeck(deck);
     setTab('library');
   };
