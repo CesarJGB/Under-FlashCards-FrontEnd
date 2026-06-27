@@ -1,5 +1,6 @@
+
 // FILE: frontend/src/components/LibrarySection.jsx
-import { useRef, useState, useMemo } from 'react';
+import { useRef, useState, useMemo, useEffect } from 'react'; // 🚀 Modificado: Añadido useEffect
 import { Library, Loader2, Folder, ChevronRight, ArrowLeft, Plus, Trash2, Layers, Bookmark } from 'lucide-react';
 import { useLibraryState } from '../hooks/useLibraryState';
 import DeckCard from './DeckCard';
@@ -17,6 +18,14 @@ export default function LibrarySection({
   currentDeck, setCurrentDeck, initialMode, setInitialMode
 }) {
   
+  // =========================================================================
+  // 🔄 DISPARADOR DE SINCRONIZACIÓN PASIVA AL MONTAR LA BIBLIOTECA
+  // =========================================================================
+  useEffect(() => {
+    if (typeof loadDecks === 'function') loadDecks();
+    if (typeof loadMaterias === 'function') loadMaterias();
+  }, [loadDecks, loadMaterias]);
+
   // Consumo del Hook de Estado e Inteligencia de Negocio
   const {
     currentPath, setCurrentPath, temas, setTemas, subtemas, setSubtemas,
@@ -165,8 +174,26 @@ export default function LibrarySection({
     } catch {} finally { setImporting(false); e.target.value = ''; }
   };
 
+  // =========================================================================
+  // ⚡ CONEXIÓN REACTIVA E INYECCIÓN DE CACHÉ SILENCIOSA EN DECKINTERIOR
+  // =========================================================================
   if (currentDeck) {
-    return <DeckInterior deck={currentDeck} userId={userId} initialMode={initialMode} onBack={() => { setCurrentDeck(null); loadDecks(); }} />;
+    return (
+      <DeckInterior 
+        deck={currentDeck} 
+        userId={userId} 
+        initialMode={initialMode} 
+        onBack={() => { 
+          setCurrentDeck(null); 
+          if (typeof loadDecks === 'function') loadDecks(); 
+          if (typeof loadMaterias === 'function') loadMaterias();
+        }} 
+        onRefreshData={() => {
+          if (typeof loadDecks === 'function') loadDecks();
+          if (typeof loadMaterias === 'function') loadMaterias();
+        }}
+      />
+    );
   }
 
   return (
@@ -193,10 +220,6 @@ export default function LibrarySection({
       <div className="animate-[fadeIn_0.15s_ease]">
         {decks.length > 0 && <LibraryToolbar searchQuery={searchQuery} setSearchQuery={setSearchQuery} sortBy={sortBy} setSortBy={setSortBy} viewMode={viewMode} setViewMode={setViewMode} />}
 
-        {/* ==========================================
-            RENDERIZADO CONDICIONAL DE NIVELES ACADÉMICOS
-            ========================================== */}
-        
         {/* NIVEL 1: MATERIAS RAÍZ */}
         {currentPath.materiaId === null && (
           <div className="space-y-6 mt-4">
