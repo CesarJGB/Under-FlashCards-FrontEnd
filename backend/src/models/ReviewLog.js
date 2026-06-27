@@ -29,6 +29,16 @@ const reviewLogSchema = new mongoose.Schema(
       default: null,
       index: true,
     },
+
+    // Vinculación opcional a la sesión de estudio (Bucle Activo) en la que ocurrió este repaso.
+    // null para repasos que no ocurren dentro de una sesión trackeada (ej. modo deck simple,
+    // o logs históricos previos a la introducción de StudySession).
+    sessionId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'StudySession',
+      default: null,
+      index: true,
+    },
     
     // Telemetría de la respuesta
     wasCorrect: {
@@ -67,6 +77,9 @@ reviewLogSchema.index({ userId: 1, materiaId: 1, timestamp: -1 });
 // Optimiza la telemetría interna por mazo
 reviewLogSchema.index({ userId: 1, deckId: 1, timestamp: -1 });
 
+// Optimiza la reconstrucción de detalle de una sesión específica (qué tarjetas se vieron y en qué orden)
+reviewLogSchema.index({ sessionId: 1, timestamp: 1 });
+
 
 /**
  * Serializador nativo adjunto al esquema
@@ -78,6 +91,7 @@ reviewLogSchema.methods.serialize = function () {
     cardId: this.cardId,
     deckId: this.deckId,
     materiaId: this.materiaId,
+    sessionId: this.sessionId,
     wasCorrect: this.wasCorrect,
     responseTimeMs: this.responseTimeMs,
     currentDifficulty: this.currentDifficulty,
