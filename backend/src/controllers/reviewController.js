@@ -5,6 +5,7 @@ const Deck = require('../models/Deck');
 const Subtema = require('../models/Subtema');
 const Tema = require('../models/Tema');
 const Materia = require('../models/Materia');
+const { enqueueForUser } = require('../utils/userQueue');
 
 // =========================================================================
 // COEFICIENTES CORE DEL RADAR (Single Source of Truth del Servidor)
@@ -189,48 +190,18 @@ exports.registerReview = async (req, res) => {
     });
     await log.save();
 
-    // =========================================================================
+        // =========================================================================
     // DISPARADOR EN CASCADA VERTICAL (Actualización de Radares hacia arriba)
+    // Encolado por usuario para evitar carreras de escritura entre cascadas
+    // disparadas casi simultáneamente (ej. respuestas muy rápidas en el modo continuo).
     // =========================================================================
     const currentReviewContext = { cardId, responseTimeMs };
-    
-    // Nivel A: Recalcular el Mazo (Deck)
-    const allCards = await Flashcard.find({ deckId });
-    const deck = await Deck.findById(deckId);
-    deck.knowledgeMetrics = calculateRadarMetrics(allCards, true, currentReviewContext);
-    await deck.save();
 
-    // Nivel B: Recalcular Subtema (Si está mapeado)
-    if (deck.subtemaId) {
-      const sisterDecks = await Deck.find({ subtemaId: deck.subtemaId });
-      await Subtema.findByIdAndUpdate(deck.subtemaId, {
-        knowledgeMetrics: calculateRadarMetrics(sisterDecks)
-      });
-    }
+    enqueueForUser(userId, () => runCascade(deckId, currentReviewContext));
 
-    // Nivel C: Recalcular Tema
-    if (deck.temaId) {
-      const childSubtemas = await Subtema.find({ temaId: deck.temaId });
-      if (childSubtemas.length > 0) {
-        await Tema.findByIdAndUpdate(deck.temaId, { knowledgeMetrics: calculateRadarMetrics(childSubtemas) });
-      } else {
-        const directDecks = await Deck.find({ temaId: deck.temaId, subtemaId: null });
-        await Tema.findByIdAndUpdate(deck.temaId, { knowledgeMetrics: calculateRadarMetrics(directDecks) });
-      }
-    }
-
-    // Nivel D: Recalcular Materia (Raíz Global)
-    if (deck.materiaId) {
-      const childTemas = await Tema.find({ materiaId: deck.materiaId });
-      await Materia.findByIdAndUpdate(deck.materiaId, {
-        knowledgeMetrics: calculateRadarMetrics(childTemas)
-      });
-    }
-
-    return res.status(201).json({ 
-      success: true, 
-      log: log.serialize(), 
-      updatedDeckMetrics: deck.serialize().analytics 
+    return res.status(201).json({
+      success: true,
+      log: log.serialize()
     });
 
   } catch (error) {
@@ -238,6 +209,47 @@ exports.registerReview = async (req, res) => {
     return res.status(500).json({ error: 'Fallo interno en el motor de métricas.' });
   }
 };
+
+// =========================================================================
+// CASCADA: recalcula y persiste los radares de Deck -> Subtema -> Tema -> Materia
+// Se ejecuta siempre dentro de la cola serializada por userId (ver userQueue.js)
+// =========================================================================
+async function runCascade(deckId, currentReviewContext) {
+  // Nivel A: Recalcular el Mazo (Deck)
+  const allCards = await Flashcard.find({ deckId });
+  const deck = await Deck.findById(deckId);
+  if (!deck) return;
+
+  deck.knowledgeMetrics = calculateRadarMetrics(allCards, true, currentReviewContext);
+  await deck.save();
+
+  // Nivel B: Recalcular Subtema (Si está mapeado)
+  if (deck.subtemaId) {
+    const sisterDecks = await Deck.find({ subtemaId: deck.subtemaId });
+    await Subtema.findByIdAndUpdate(deck.subtemaId, {
+      knowledgeMetrics: calculateRadarMetrics(sisterDecks)
+    });
+  }
+
+  // Nivel C: Recalcular Tema
+  if (deck.temaId) {
+    const childSubtemas = await Subtema.find({ temaId: deck.temaId });
+    if (childSubtemas.length > 0) {
+      await Tema.findByIdAndUpdate(deck.temaId, { knowledgeMetrics: calculateRadarMetrics(childSubtemas) });
+    } else {
+      const directDecks = await Deck.find({ temaId: deck.temaId, subtemaId: null });
+      await Tema.findByIdAndUpdate(deck.temaId, { knowledgeMetrics: calculateRadarMetrics(directDecks) });
+    }
+  }
+
+  // Nivel D: Recalcular Materia (Raíz Global)
+  if (deck.materiaId) {
+    const childTemas = await Tema.find({ materiaId: deck.materiaId });
+    await Materia.findByIdAndUpdate(deck.materiaId, {
+      knowledgeMetrics: calculateRadarMetrics(childTemas)
+    });
+  }
+}
 
 // =========================================================================
 // NUEVO: GENERADOR DE COLA INTELIGENTE PARA REPASO CONTINUO
