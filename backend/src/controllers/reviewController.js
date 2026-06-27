@@ -228,3 +228,36 @@ exports.registerReview = async (req, res) => {
     return res.status(500).json({ error: 'Fallo interno en el motor de métricas.' });
   }
 };
+
+// =========================================================================
+// NUEVO: GENERADOR DE COLA INTELIGENTE PARA REPASO CONTINUO
+// =========================================================================
+exports.getContinuousSessionCards = async (req, res) => {
+  const { deckId } = req.params;
+  const { userId } = req.query; // Al ser GET, viaja en la URL (?userId=...)
+
+  try {
+    if (!userId) {
+      return res.status(400).json({ error: 'El parámetro userId es requerido en el query string.' });
+    }
+
+    // Ataque directo a las debilidades:
+    // 1. Tarjetas con mayor racha de errores en el presente inmediato (consecutiveErrors DESC)
+    // 2. Tarjetas con mayor fricción histórica acumulada (difficulty DESC)
+    const prioritizedCards = await Flashcard.find({ deckId, userId })
+      .sort({ consecutiveErrors: -1, difficulty: -1 })
+      .limit(30); // Lote óptimo balanceado para mutar la cola tras cada ciclo
+
+    if (prioritizedCards.length === 0) {
+      return res.status(404).json({ error: 'No se encontraron flashcards activas para este mazo.' });
+    }
+
+    return res.status(200).json({
+      success: true,
+      cards: prioritizedCards
+    });
+  } catch (error) {
+    console.error("Error al generar la cola de repaso continuo:", error);
+    return res.status(500).json({ error: 'Fallo interno al construir la sesión continua.' });
+  }
+};
