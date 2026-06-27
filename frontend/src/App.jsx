@@ -191,8 +191,8 @@ function DashboardScreen({ user, onLogout }) {
   <StudySection 
     decks={decks}
     materias={materias}
-    userId={user.id}      {/* 👈 Inyectado */}
-    userEmail={user.email} {/* 👈 Inyectado */}
+    userId={user.id}
+    userEmail={user.email}
     onOpenReview={handleOpenReviewFromStudy}
   />
 )}
