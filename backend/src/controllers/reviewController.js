@@ -5,6 +5,7 @@ const Deck = require('../models/Deck');
 const Subtema = require('../models/Subtema');
 const Tema = require('../models/Tema');
 const Materia = require('../models/Materia');
+const StudySession = require('../models/StudySession');
 const { enqueueForUser } = require('../utils/userQueue');
 
 // =========================================================================
@@ -139,7 +140,7 @@ function calculateRadarMetrics(items, isDeckLevel = false, currentReview = null)
 // =========================================================================
 exports.registerReview = async (req, res) => {
   const { deckId } = req.params;
-  const { cardId, userId, wasCorrect, responseTimeMs } = req.body;
+  const { cardId, userId, wasCorrect, responseTimeMs, sessionId } = req.body;
 
   try {
     // 1. Mutación Atómica de la Flashcard (Nivel Micro) — pipeline update
@@ -174,12 +175,26 @@ exports.registerReview = async (req, res) => {
       cardId,
       deckId,
       materiaId: (await Deck.findById(deckId))?.materiaId || null,
+      sessionId: sessionId || null, // 🚀 Vínculo opcional a la sesión de estudio activa
       wasCorrect,
       responseTimeMs,
       currentDifficulty: card.difficulty,
       reviewNumber: card.totalReviews
     });
     await log.save();
+
+    // 2.b Si la respuesta viene asociada a una sesión activa, incrementamos sus
+    // contadores agregados de forma atómica (no bloquea ni depende de la cascada).
+    if (sessionId) {
+      StudySession.findByIdAndUpdate(sessionId, {
+        $inc: {
+          cardsAnswered: 1,
+          correctCount: wasCorrect ? 1 : 0,
+          incorrectCount: wasCorrect ? 0 : 1,
+          totalResponseTimeMs: responseTimeMs || 0,
+        }
+      }).catch(err => console.error('[StudySession] Error al incrementar contadores:', err));
+    }
 
     // =========================================================================
     // DISPARADOR EN CASCADA VERTICAL (Actualización de Radares hacia arriba)
@@ -294,7 +309,6 @@ exports.getContinuousSessionCards = async (req, res) => {
     let takenNew = Math.min(targetNewCount, shuffledNew.length);
     let takenReviewed = Math.min(targetReviewedCount, shuffledReviewed.length);
 
-    // Si un grupo no llega a su cupo, el otro grupo rellena el espacio sobrante
     const totalTaken = takenNew + takenReviewed;
     if (totalTaken < BATCH_SIZE) {
       const remaining = BATCH_SIZE - totalTaken;
@@ -310,7 +324,6 @@ exports.getContinuousSessionCards = async (req, res) => {
     const selectedNew = shuffledNew.slice(0, takenNew);
     const selectedReviewed = shuffledReviewed.slice(0, takenReviewed);
 
-    // Combinamos y mezclamos el orden final para que no salgan todas las "nuevas" juntas al principio
     const combined = [...selectedNew, ...selectedReviewed];
     for (let i = combined.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -324,5 +337,92 @@ exports.getContinuousSessionCards = async (req, res) => {
   } catch (error) {
     console.error("Error al generar la cola de repaso continuo:", error);
     return res.status(500).json({ error: 'Fallo interno al construir la sesión continua.' });
+  }
+};
+
+// =========================================================================
+// SESIONES DE ESTUDIO (Bucle Activo / Repaso Continuo)
+// =========================================================================
+
+/**
+ * Inicia una nueva sesión de estudio para un deck. El frontend llama esto
+ * una sola vez, al montar el Reproductor Continuo (primer fetchQueue).
+ */
+exports.startSession = async (req, res) => {
+  const { deckId } = req.params;
+  const { userId } = req.body;
+
+  try {
+    if (!userId) {
+      return res.status(400).json({ error: 'userId es requerido para iniciar una sesión.' });
+    }
+
+    const session = new StudySession({ userId, deckId });
+    await session.save();
+
+    return res.status(201).json({
+      success: true,
+      session: session.serialize()
+    });
+  } catch (error) {
+    console.error('Error al iniciar sesión de estudio:', error);
+    return res.status(500).json({ error: 'No se pudo iniciar la sesión de estudio.' });
+  }
+};
+
+/**
+ * Cierra una sesión activa (setea endedAt). El frontend llama esto al salir
+ * del Reproductor Continuo, ya sea por botón "Salir" o desmontaje del componente.
+ * Devuelve el resumen final serializado para mostrarlo en la UI si se desea.
+ */
+exports.closeSession = async (req, res) => {
+  const { sessionId } = req.params;
+
+  try {
+    const session = await StudySession.findByIdAndUpdate(
+      sessionId,
+      { endedAt: new Date() },
+      { new: true }
+    );
+
+    if (!session) {
+      return res.status(404).json({ error: 'Sesión de estudio no encontrada.' });
+    }
+
+    return res.status(200).json({
+      success: true,
+      session: session.serialize()
+    });
+  } catch (error) {
+    console.error('Error al cerrar sesión de estudio:', error);
+    return res.status(500).json({ error: 'No se pudo cerrar la sesión de estudio.' });
+  }
+};
+
+/**
+ * Incrementa el contador de lotes completados de una sesión. El frontend llama
+ * esto cada vez que el bucle recarga la cola de 30 tarjetas (fetchQueue(false)).
+ */
+exports.incrementSessionBatch = async (req, res) => {
+  const { sessionId } = req.params;
+
+  try {
+    const session = await StudySession.findByIdAndUpdate(
+      sessionId,
+      { $inc: { batchesCompleted: 1 } },
+      { new: true }
+    );
+
+    if (!session) {
+      return res.status(404).json({ error: 'Sesión de estudio no encontrada.' });
+    }
+
+    return res.status(200).json({
+      success: true,
+      session: session.serialize()
+    });
+  } catch (error) {
+    console.error('Error al incrementar lote de sesión:', error);
+    return res.status(500).json({ error: 'No se pudo actualizar el progreso de la sesión.' });
   }
 };
