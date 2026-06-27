@@ -9,8 +9,47 @@ export default function ContinuousSessionPlayer({ deckId, userId, onExit }) {
   const [isFlipped, setIsFlipped] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  
+
   const startTimeRef = useRef(null);
+  const sessionIdRef = useRef(null); // 🚀 sessionId vive en ref: no necesita re-render y evita stale closures en handleAnswer
+
+  // =========================================================================
+  // CICLO DE VIDA DE LA SESIÓN DE ESTUDIO
+  // =========================================================================
+  const startSession = async () => {
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/decks/${deckId}/sessions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId })
+      });
+      if (!response.ok) throw new Error('No se pudo iniciar la sesión.');
+
+      const data = await response.json();
+      sessionIdRef.current = data.session?.id || null;
+    } catch (err) {
+      // Si la sesión no se pudo crear, el bucle sigue funcionando igual,
+      // simplemente sin tracking agregado (sessionId queda null en cada respuesta).
+      console.error('Error al iniciar sesión de estudio:', err);
+      sessionIdRef.current = null;
+    }
+  };
+
+  const closeSession = () => {
+    if (!sessionIdRef.current) return;
+    // Fire-and-forget, igual que el resto de la telemetría: no bloquea la salida del usuario.
+    fetch(`${BACKEND_URL}/api/sessions/${sessionIdRef.current}/close`, {
+      method: 'PATCH'
+    }).catch(err => console.error('Error al cerrar sesión de estudio:', err));
+    sessionIdRef.current = null;
+  };
+
+  const notifyBatchCompleted = () => {
+    if (!sessionIdRef.current) return;
+    fetch(`${BACKEND_URL}/api/sessions/${sessionIdRef.current}/batch-completed`, {
+      method: 'PATCH'
+    }).catch(err => console.error('Error al actualizar lote de sesión:', err));
+  };
 
   const fetchQueue = async (isRefresh = false) => {
     try {
@@ -37,7 +76,17 @@ export default function ContinuousSessionPlayer({ deckId, userId, onExit }) {
   };
 
   useEffect(() => {
+    // Arrancamos la sesión y, en paralelo, la primera carga de la cola.
+    // No necesitamos esperar a que la sesión termine de crearse para mostrar tarjetas:
+    // si la sesión tarda o falla, el bucle igual funciona (ver nota en startSession).
+    startSession();
     fetchQueue(true);
+
+    // Al desmontar el componente (ej. el usuario navega fuera sin tocar "Salir"),
+    // cerramos la sesión igual para no dejarla "colgada" sin endedAt.
+    return () => {
+      closeSession();
+    };
   }, [deckId, userId]);
 
   useEffect(() => {
@@ -64,7 +113,8 @@ export default function ContinuousSessionPlayer({ deckId, userId, onExit }) {
         cardId: currentCard.id || currentCard._id,
         userId,
         wasCorrect,
-        responseTimeMs
+        responseTimeMs,
+        sessionId: sessionIdRef.current // 🚀 vincula este repaso a la sesión activa (null si no hay)
       })
     }).catch(err => console.error("Error síncrono de telemetría:", err));
 
@@ -72,9 +122,16 @@ export default function ContinuousSessionPlayer({ deckId, userId, onExit }) {
     if (currentIndex < cards.length - 1) {
       setCurrentIndex((prev) => prev + 1);
     } else {
-      // Fin del lote: recalculamos la cola en caliente con los nuevos pesos del servidor
+      // Fin del lote: notificamos el batch completado y recalculamos la cola
+      // en caliente con los nuevos pesos del servidor
+      notifyBatchCompleted();
       await fetchQueue(false);
     }
+  };
+
+  const handleExit = () => {
+    closeSession();
+    onExit();
   };
 
   if (loading) {
@@ -91,7 +148,7 @@ export default function ContinuousSessionPlayer({ deckId, userId, onExit }) {
       <div className="p-6 bg-red-50 border border-red-100 rounded-2xl text-center max-w-md mx-auto my-12">
         <p className="text-red-800 text-sm font-semibold mb-4">{error}</p>
         <button 
-          onClick={onExit}
+          onClick={handleExit}
           className="bg-white border border-red-200 text-red-700 px-4 py-2 rounded-xl text-xs font-bold shadow-xs hover:bg-red-100 transition-colors"
         >
           Regresar al Mazo
@@ -107,7 +164,7 @@ export default function ContinuousSessionPlayer({ deckId, userId, onExit }) {
       {/* Navbar Minimalista Premium de Sesión */}
       <div className="flex justify-between items-center mb-6">
         <button 
-          onClick={onExit}
+          onClick={handleExit}
           className="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-slate-800 transition-colors uppercase tracking-wider"
         >
           <ArrowLeft className="w-4 h-4 stroke-[2.5]" /> Salir de la sesión
