@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/HomeSection.jsx
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react'; // 🚀 Inyectado: useEffect para sync pasiva
 import { 
   BookOpen, 
   Layers, 
@@ -9,7 +9,7 @@ import {
   AlertCircle,
   ChevronRight
 } from 'lucide-react';
-import RadarDebugPanel from './RadarDebugPanel'; // 👈 NUEVO: Importación del panel de control analítico
+import RadarDebugPanel from './RadarDebugPanel';
 
 export default function HomeSection({ 
   user,          
@@ -17,9 +17,18 @@ export default function HomeSection({
   materias,      
   onOpenReview,  
   onLogout,
-  loadDecks,     // 👈 NUEVO: Propagación de refresco de caché de red
-  loadMaterias   // 👈 NUEVO: Propagación de refresco de caché de red
+  loadDecks,     
+  loadMaterias   
 }) {
+
+  // =========================================================================
+  // 🔄 DISPARADOR DE SINCRONIZACIÓN PASIVA EN SEGUNDO PLANO
+  // =========================================================================
+  useEffect(() => {
+    // Al montar la sección de Inicio, disparamos las funciones de red de forma silenciosa
+    if (typeof loadDecks === 'function') loadDecks();
+    if (typeof loadMaterias === 'function') loadMaterias();
+  }, [loadDecks, loadMaterias]);
 
   // =========================================================================
   // MOTOR DE PROCESAMIENTO REACTIVO EN MEMORIA (0ms)
@@ -65,7 +74,6 @@ export default function HomeSection({
 
   /**
    * REFACTORIZACIÓN DE ESTILOS: Control de acentos semánticos de alta legibilidad
-   * Mantiene el fondo neutro y distribuye el color únicamente en componentes clave.
    */
   const getKnowledgeAccent = (percentage) => {
     if (percentage >= 80) return {
@@ -207,7 +215,7 @@ export default function HomeSection({
         </div>
       )}
 
-      {/* ⚡ PANEL DE TELEMETRÍA Y DEBUGGING DEL RADAR DE CONOCIMIENTO (Abajo del todo) */}
+      {/* ⚡ PANEL DE TELEMETRÍA Y DEBUGGING DEL RADAR DE CONOCIMIENTO */}
       <RadarDebugPanel 
         userId={user?.id}
         decks={decks}
