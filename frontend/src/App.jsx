@@ -80,11 +80,11 @@ function DashboardScreen({ user, onLogout }) {
     setTab(id);
   };
 
-  const handleOpenReviewFromHome = (deck) => {
-    setInitialMode('review');
-    setCurrentDeck(deck);
-    setTab('library');
-  };
+  const handleOpenReviewFromStudy = (deck, mode = 'continuous-review') => {
+  setInitialMode(mode); 
+  setCurrentDeck(deck);
+  setTab('library');
+};
 
   // 👈 CORRECCIÓN AQUÍ: Forzamos 'review' para que el motor de LibrarySection cargue las tarjetas de forma segura antes de renderizar el juego
   const handleOpenReviewFromStudy = (deck) => {
