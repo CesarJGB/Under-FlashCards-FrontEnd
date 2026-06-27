@@ -1,11 +1,11 @@
-// ARCHIVO: frontend/src/App.jsx
 import { useState, useEffect, useCallback } from 'react';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
-import { LogOut, Sparkles, Library, Settings, Home } from 'lucide-react';
+import { LogOut, Sparkles, Library, Settings, Home, BookOpen } from 'lucide-react';
 
 import LoginScreen from './components/LoginScreen';
 import HomeSection from './components/HomeSection';
+import StudySection from './components/StudySection';
 import LibrarySection from './components/LibrarySection';
 import SettingsSection from './components/SettingsSection';
 
@@ -86,11 +86,18 @@ function DashboardScreen({ user, onLogout }) {
     setTab('library');
   };
 
+  // Manejador especializado para lanzar el modo de repaso continuo desde la sección de estudio
+  const handleOpenReviewFromStudy = (deck, mode = 'continuous-review') => {
+    setInitialMode(mode);
+    setCurrentDeck(deck);
+    setTab('library');
+  };
+
   const navItem = (id, label, Icon) => (
     <button
       onClick={() => handleTabChange(id)}
-      className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-        tab === id ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'
+      className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors cursor-pointer ${
+        tab === id ? 'bg-slate-900 text-white font-semibold' : 'text-slate-600 hover:bg-slate-100'
       }`}
     >
       <Icon className="w-4 h-4" />
@@ -119,6 +126,7 @@ function DashboardScreen({ user, onLogout }) {
 
         <nav className="space-y-1.5">
           {navItem('home', 'Inicio', Home)}
+          {navItem('study', 'Modo Estudio', BookOpen)}
           {navItem('library', 'Archivos', Library)}
           {navItem('settings', 'Ajustes', Settings)}
         </nav>
@@ -131,7 +139,7 @@ function DashboardScreen({ user, onLogout }) {
               <p className="text-xs text-slate-400 truncate">{user.email}</p>
             </div>
           </div>
-          <button onClick={onLogout} className="mt-3 w-full inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium py-2.5 transition-colors">
+          <button onClick={onLogout} className="mt-3 w-full inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium py-2.5 transition-colors cursor-pointer">
             <LogOut className="w-4 h-4" /> Cerrar sesión
           </button>
         </div>
@@ -148,7 +156,7 @@ function DashboardScreen({ user, onLogout }) {
               </span>
             ) : (
               <span className="font-black text-slate-900 tracking-tight text-base block animate-[fadeIn_0.1s_ease]">
-                {tab === 'library' ? 'Archivos' : tab === 'home' ? 'Inicio' : 'Ajustes'}
+                {tab === 'library' ? 'Archivos' : tab === 'home' ? 'Inicio' : tab === 'study' ? 'Estudio' : 'Ajustes'}
               </span>
             )}
           </span>
@@ -173,10 +181,19 @@ function DashboardScreen({ user, onLogout }) {
               materias={materias}
               onOpenReview={handleOpenReviewFromHome}
               onLogout={onLogout}
-              loadDecks={loadDecks}       // 👈 CONEXIÓN INYECTADA: Habilita recarga atómica de mazos
-              loadMaterias={loadMaterias} // 👈 CONEXIÓN INYECTADA: Habilita recarga atómica de asignaturas
+              loadDecks={loadDecks}
+              loadMaterias={loadMaterias}
             />
           )}
+
+          {tab === 'study' && (
+            <StudySection 
+              decks={decks}
+              materias={materias}
+              onOpenReview={handleOpenReviewFromStudy}
+            />
+          )}
+
           {tab === 'library' && (
             <LibrarySection 
               userId={user.id} 
@@ -194,13 +211,15 @@ function DashboardScreen({ user, onLogout }) {
               setInitialMode={setInitialMode}
             />
           )}
+
           {tab === 'settings' && <SettingsSection userId={user.id} />}
         </div>
 
         {/* BARRA INFERIOR MÓVIL */}
-        <div className="md:hidden fixed bottom-5 inset-x-4 max-w-xs mx-auto bg-white/85 backdrop-blur-xl border border-slate-200/60 h-14 rounded-full px-2 flex justify-between items-center z-40 shadow-[0_8px_30px_rgb(0,0,0,0.08)] animate-[slideUp_0.2s_ease-out]">
+        <div className="md:hidden fixed bottom-5 inset-x-4 max-w-xs mx-auto bg-white/85 backdrop-blur-xl border border-slate-200/60 h-14 rounded-full px-1.5 flex justify-between items-center z-40 shadow-[0_8px_30px_rgb(0,0,0,0.08)] animate-[slideUp_0.2s_ease-out]">
           {[
             { id: 'home', title: 'Inicio', Icon: Home },
+            { id: 'study', title: 'Estudio', Icon: BookOpen },
             { id: 'library', title: 'Archivos', Icon: Library },
             { id: 'settings', title: 'Ajustes', Icon: Settings }
           ].map((item) => {
@@ -211,10 +230,10 @@ function DashboardScreen({ user, onLogout }) {
               <button
                 key={item.id}
                 onClick={() => handleTabChange(item.id)}
-                className={`h-10 flex items-center justify-center transition-all duration-200 rounded-full relative flex-1 cursor-pointer ${
+                className={`h-10 flex items-center justify-center transition-all duration-200 rounded-full relative flex-1 cursor-pointer active:scale-[0.96] ${
                   isActive 
-                    ? 'bg-slate-900 text-white font-bold px-6 shadow-2xs' 
-                    : 'text-slate-400 hover:text-slate-600 px-4'
+                    ? 'bg-slate-900 text-white font-bold px-4 shadow-2xs' 
+                    : 'text-slate-400 hover:text-slate-600 px-2'
                 }`}
                 title={item.title}
               >
