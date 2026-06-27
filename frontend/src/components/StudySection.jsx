@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Infinity, Calendar, ArrowLeft, Layers, Bookmark } from 'lucide-react';
+import { Infinity, Calendar, ArrowLeft, Layers } from 'lucide-react';
+import DeckCard from './DeckCard'; // 👈 REUTILIZACIÓN ATÓMICA: Tu componente nativo de la biblioteca
 
-export default function StudySection({ decks, materias, onOpenReview }) {
+export default function StudySection({ decks, materias, userId, userEmail, onOpenReview }) {
   const [selectedMethod, setSelectedMethod] = useState(null);
 
   const methods = [
@@ -28,6 +29,7 @@ export default function StudySection({ decks, materias, onOpenReview }) {
   ];
 
   const currentMethodObj = methods.find(m => m.id === selectedMethod);
+  const isAdmin = userEmail === "cesarjaviervebe@gmail.com";
 
   // VISTA 1: Catálogo de Estrategias de Estudio
   if (!selectedMethod) {
@@ -69,7 +71,7 @@ export default function StudySection({ decks, materias, onOpenReview }) {
                 
                 {method.active && (
                   <div className="flex items-center text-xs font-bold text-indigo-600 gap-1 transition-all group-hover:gap-2">
-                    Elegir mazo y comenzar <span className="tracking-normal">➔</span>
+                    Elegir mazo y comenzar ➔
                   </div>
                 )}
               </div>
@@ -80,10 +82,10 @@ export default function StudySection({ decks, materias, onOpenReview }) {
     );
   }
 
-  // VISTA 2: Selector del Mazo a entrenar (Apariencia Grid idéntica a la Biblioteca)
+  // VISTA 2: Selector del Mazo a entrenar (Idéntico a tu Biblioteca)
   return (
     <div className="space-y-6 animate-[fadeIn_0.15s_ease]">
-      {/* HEADER CON BOTÓN DE REGRESO */}
+      {/* ENCABEZADO Y CONTROL DE NAVEGACIÓN RETROACTIVA */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-slate-200/60 pb-4">
         <div className="flex items-center gap-3">
           <button 
@@ -104,55 +106,22 @@ export default function StudySection({ decks, materias, onOpenReview }) {
         </div>
       </div>
 
-      {/* RENDER EN FORMATO GRID CARD DE BIBLIOTECA */}
+      {/* CUADRÍCULA NATIVA USANDO TU COMPONENTE DECKCARD */}
       {decks.length > 0 ? (
         <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 pb-12">
-          {decks.map((deck) => {
-            const materiaVinculada = materias.find(
-              m => m.id === deck.materiaId || m._id === deck.materiaId
-            );
-            
-            // Determinar si la tarjeta usa el degradado rosa (favorito) o el limpio grisáceo
-            const isPinkGradient = deck.isStarred;
-
-            return (
-              <div 
-                key={deck._id || deck.id}
-                onClick={() => onOpenReview(deck, currentMethodObj?.modeMapping)}
-                className={`relative overflow-hidden rounded-2xl border p-5 flex flex-col justify-between h-36 transition-all duration-200 cursor-pointer shadow-3xs hover:shadow-md hover:border-slate-400/80 active:scale-[0.98] group ${
-                  isPinkGradient 
-                    ? 'bg-gradient-to-br from-pink-400 to-rose-500 text-white border-rose-300' 
-                    : 'bg-gradient-to-br from-white to-slate-50 text-slate-900 border-slate-200'
-                }`}
-              >
-                {/* Indicador superior con el nombre de la materia o icono */}
-                <div className="flex justify-between items-start">
-                  <span className={`text-[9px] font-bold uppercase tracking-wider truncate max-w-[80%] ${
-                    isPinkGradient ? 'text-pink-100' : 'text-slate-400 group-hover:text-indigo-500 transition-colors'
-                  }`}>
-                    {materiaVinculada ? materiaVinculada.name : 'Materia General'}
-                  </span>
-                  <Bookmark className={`w-3.5 h-3.5 shrink-0 ${
-                    isPinkGradient ? 'text-white/60' : 'text-slate-300'
-                  }`} />
-                </div>
-
-                {/* Título inferior y contador de tarjetas */}
-                <div className="space-y-0.5 min-w-0 select-none">
-                  <h4 className={`font-extrabold text-base tracking-tight truncate ${
-                    isPinkGradient ? 'text-white' : 'text-slate-800'
-                  }`}>
-                    {deck.title || deck.name}
-                  </h4>
-                  <span className={`text-xs font-medium block ${
-                    isPinkGradient ? 'text-pink-100/90' : 'text-slate-400'
-                  }`}>
-                    {deck.cardCount ?? 0} {deck.cardCount === 1 ? 'tarjeta' : 'tarjetas'}
-                  </span>
-                </div>
-              </div>
-            );
-          })}
+          {decks.map((deck) => (
+            <DeckCard 
+              key={deck.id} 
+              deck={deck} 
+              currentUserId={userId} 
+              isAdmin={isAdmin} 
+              isList={false} // Forzamos siempre el modo Grid/Cuadrícula que se ve espectacular
+              onOpen={(dk) => onOpenReview(dk, currentMethodObj?.modeMapping)} // Inyecta el modo de juego estratégico
+              
+              /* Omitimos intencionalmente las mutaciones CRUD (onEdit, onDelete, etc.) 
+                 para que actúe puramente como un disparador inmersivo de juego */
+            />
+          ))}
         </div>
       ) : (
         <div className="border border-dashed border-slate-200 bg-white rounded-2xl p-8 text-center max-w-md mx-auto mt-6">
@@ -161,7 +130,7 @@ export default function StudySection({ decks, materias, onOpenReview }) {
           </div>
           <h4 className="text-sm font-bold text-slate-800">No hay mazos en tu biblioteca</h4>
           <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-            Necesitas tener al menos un mazo configurado para poder iniciar un entrenamiento estratégico.
+            Necesitas tener al menos un mazo configurado en tu biblioteca para poder iniciar un entrenamiento estratégico.
           </p>
         </div>
       )}
