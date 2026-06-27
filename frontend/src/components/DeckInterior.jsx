@@ -5,6 +5,8 @@ import DeckHeader from './DeckHeader';
 import FlashcardCreator from './FlashcardCreator';
 import FlashcardCollection from './FlashcardCollection'; 
 import FastDeleteMode from './FastDeleteMode'; 
+import StudyMethodsZone from './StudyMethodsZone'; // 🚀 Nuevo
+import ContinuousSessionPlayer from './ContinuousSessionPlayer'; // 🚀 Nuevo
 import { exportDeckToPDF } from '../utils/pdfExporter'; 
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
@@ -14,11 +16,8 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState(initialMode);
   
-  // 🧠 REGLA DE PRIVILEGIOS: Tienen permiso de edición el dueño real O cualquiera si el mazo es un default editable global
   const isOwner = deck.userId === userId;
   const canEdit = isOwner || deck.isDefault === true;
-
-  // Despliega la rejilla por defecto solo si entran a un mazo protegido de solo lectura
   const [showGrid, setShowGrid] = useState(() => !canEdit);
   
   const [question, setQuestion] = useState('');
@@ -242,110 +241,114 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
 
   return (
     <div data-testid="deck-interior">
-      <DeckHeader 
-        deck={deck} 
-        mode={mode} 
-        setMode={setMode} 
-        onBack={onBack} 
-        onExport={handleExport} 
-        onExportPDF={handleExportPDF} 
-        onImport={canEdit ? handleImportJSON : undefined} 
-      />
+      {/* Ocultamos el header nativo solo si estamos jugando el bucle continuo para máxima inmersión */}
+      {mode !== 'continuous-review' && (
+        <DeckHeader 
+          deck={deck} 
+          mode={mode === 'continuous-review' ? 'review' : mode} 
+          setMode={setMode} 
+          onBack={onBack} 
+          onExport={handleExport} 
+          onExportPDF={handleExportPDF} 
+          onImport={canEdit ? handleImportJSON : undefined} 
+        />
+      )}
 
-      {mode === 'review' && loading ? (
-        <div className="mt-12 flex flex-col items-center justify-center gap-3 text-slate-400 py-12">
-          <Loader2 className="w-6 h-6 animate-spin text-slate-600" />
-          <p className="text-sm font-medium">Preparando tus tarjetas de estudio…</p>
-        </div>
-      ) : (
+      {/* 🧭 MODO ZONA DE MÉTODOS */}
+      {mode === 'review' && (
+        <StudyMethodsZone onSelectMethod={(methodId) => setMode(`${methodId}-review`)} />
+      )}
+
+      {/* 🕹️ MODO REPASO CONTINUO (Bucle Inteligente) */}
+      {mode === 'continuous-review' && (
+        <ContinuousSessionPlayer 
+          deckId={deck.id} 
+          userId={userId} 
+          onExit={() => setMode('review')} 
+        />
+      )}
+      
+      {mode === 'fast-delete' && canEdit && (
+        <FastDeleteMode 
+          cards={cards} 
+          onDelete={handleDelete} 
+          onClose={() => setMode('edit')} 
+        />
+      )}
+
+      {mode === 'edit' && (
         <>
-          {mode === 'review' && <ReviewMode cards={cards} loading={loading} />}
-          
-          {mode === 'fast-delete' && canEdit && (
-            <FastDeleteMode 
-              cards={cards} 
-              onDelete={handleDelete} 
-              onClose={() => setMode('edit')} 
+          {canEdit ? (
+            <FlashcardCreator
+              question={question} setQuestion={setQuestion} answer={answer} setAnswer={setAnswer}
+              bgImage={bgImage} setBgImage={setBgImage} textAlign={textAlign} setTextAlign={setTextAlign}
+              fontSize={fontSize} setFontSize={setFontSize} showStyles={showStyles} setShowStyles={setShowStyles}
+              isBulk={isBulk} setIsBulk={setIsBulk} bulkText={bulkText} setBulkText={setBulkText}
+              editingId={editingId} saving={saving} error={error} setError={setError}
+              onSubmit={handleSubmit} onCancel={resetForm}
+              contentImage={contentImage} setContentImage={setContentImage}
+              imageSide={imageSide} setImageSide={setImageSide}
+              onFastDelete={() => setMode('fast-delete')}
+              hasCards={(deck.cardCount ?? cards.length) > 0}
+              userId={userId}
+              deckId={deck.id}
+              onAiSuccess={(newCards) => {
+                setCards((prev) => [...newCards, ...prev]);
+              }}
             />
+          ) : (
+            <div className="bg-blue-50/60 border border-blue-200/50 rounded-2xl p-4 flex items-center gap-3.5 text-blue-800 text-xs font-semibold shadow-3xs animate-[fadeIn_0.15s_ease] mb-2">
+              <div className="w-8 h-8 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-600 shrink-0">
+                <Eye className="w-4 h-4 stroke-[2.5]" />
+              </div>
+              <div className="flex-1">
+                <p className="text-blue-950 font-bold text-sm">Plantilla Protegida de Solo Lectura</p>
+                <p className="text-blue-600/90 font-medium mt-0.5">Estás explorando un mazo oficial configurado en modo consulta. Puedes ver y repasar todas sus tarjetas libremente, pero no se permiten modificaciones.</p>
+              </div>
+            </div>
           )}
-
-          {mode === 'edit' && (
-            <>
-              {canEdit ? (
-                <FlashcardCreator
-                  question={question} setQuestion={setQuestion} answer={answer} setAnswer={setAnswer}
-                  bgImage={bgImage} setBgImage={setBgImage} textAlign={textAlign} setTextAlign={setTextAlign}
-                  fontSize={fontSize} setFontSize={setFontSize} showStyles={showStyles} setShowStyles={setShowStyles}
-                  isBulk={isBulk} setIsBulk={setIsBulk} bulkText={bulkText} setBulkText={setBulkText}
-                  editingId={editingId} saving={saving} error={error} setError={setError}
-                  onSubmit={handleSubmit} onCancel={resetForm}
-                  contentImage={contentImage} setContentImage={setContentImage}
-                  imageSide={imageSide} setImageSide={setImageSide}
-                  onFastDelete={() => setMode('fast-delete')}
-                  hasCards={(deck.cardCount ?? cards.length) > 0}
-                  
-                  // ✨ CONEXIÓN DIRECTA CON EL MÓDULO IA:
-                  userId={userId}
-                  deckId={deck.id}
-                  onAiSuccess={(newCards) => {
-                    setCards((prev) => [...newCards, ...prev]);
-                  }}
-                />
-              ) : (
-                <div className="bg-blue-50/60 border border-blue-200/50 rounded-2xl p-4 flex items-center gap-3.5 text-blue-800 text-xs font-semibold shadow-3xs animate-[fadeIn_0.15s_ease] mb-2">
-                  <div className="w-8 h-8 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-600 shrink-0">
-                    <Eye className="w-4 h-4 stroke-[2.5]" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-blue-950 font-bold text-sm">Plantilla Protegida de Solo Lectura</p>
-                    <p className="text-blue-600/90 font-medium mt-0.5">Estás explorando un mazo oficial configurado en modo consulta. Puedes ver y repasar todas sus tarjetas libremente, pero no se permiten modificaciones.</p>
-                  </div>
-                </div>
-              )}
+          
+          <button
+            type="button"
+            onClick={() => setShowGrid(!showGrid)}
+            className="mt-6 w-full flex items-center justify-between bg-white border border-slate-200 hover:bg-slate-50 rounded-2xl px-5 py-3.5 transition-colors shadow-xs active:scale-[0.99]"
+          >
+            <div className="flex items-center gap-2.5">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                Colección de tarjetas del mazo
+              </h3>
               
-              <button
-                type="button"
-                onClick={() => setShowGrid(!showGrid)}
-                className="mt-6 w-full flex items-center justify-between bg-white border border-slate-200 hover:bg-slate-50 rounded-2xl px-5 py-3.5 transition-colors shadow-xs active:scale-[0.99]"
-              >
-                <div className="flex items-center gap-2.5">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                    Colección de tarjetas del mazo
-                  </h3>
-                  
-                  <span className="bg-slate-100 text-slate-700 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border border-slate-200/50 inline-flex items-center gap-1.5 h-5">
-                    {loading && <Loader2 className="w-2.5 h-2.5 animate-spin text-slate-400 shrink-0" />}
-                    <span>
-                      {cards.length > 0 
-                        ? `${cards.length} ${cards.length === 1 ? 'tarjeta' : 'tarjetas'}`
-                        : `${deck.cardCount ?? 0} ${deck.cardCount === 1 ? 'tarjeta' : 'tarjetas'}`
-                      }
-                    </span>
-                  </span>
-                </div>
-                {showGrid ? (
-                  <ChevronUp className="w-4 h-4 text-slate-400" />
-                ) : (
-                  <ChevronDown className="w-4 h-4 text-slate-400" />
-                )}
-              </button>
+              <span className="bg-slate-100 text-slate-700 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border border-slate-200/50 inline-flex items-center gap-1.5 h-5">
+                {loading && <Loader2 className="w-2.5 h-2.5 animate-spin text-slate-400 shrink-0" />}
+                <span>
+                  {cards.length > 0 
+                    ? `${cards.length} ${cards.length === 1 ? 'tarjeta' : 'tarjetas'}`
+                    : `${deck.cardCount ?? 0} ${deck.cardCount === 1 ? 'tarjeta' : 'tarjetas'}`
+                  }
+                </span>
+              </span>
+            </div>
+            {showGrid ? (
+              <ChevronUp className="w-4 h-4 text-slate-400" />
+            ) : (
+              <ChevronDown className="w-4 h-4 text-slate-400" />
+            )}
+          </button>
 
-              {showGrid && (
-                <div className="animate-[fadeIn_0.18s_ease] pb-6">
-                  {loading ? (
-                    <div className="flex items-center justify-center gap-2 text-slate-400 py-8 text-xs font-medium">
-                      <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-500" /> Sincronizando colección…
-                    </div>
-                  ) : (
-                    <FlashcardCollection 
-                      cards={cards} 
-                      onEdit={canEdit ? handleEdit : undefined} 
-                      onDelete={canEdit ? handleDelete : undefined} 
-                    />
-                  )}
+          {showGrid && (
+            <div className="animate-[fadeIn_0.18s_ease] pb-6">
+              {loading ? (
+                <div className="flex items-center justify-center gap-2 text-slate-400 py-8 text-xs font-medium">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-500" /> Sincronizando colección…
                 </div>
+              ) : (
+                <FlashcardCollection 
+                  cards={cards} 
+                  onEdit={canEdit ? handleEdit : undefined} 
+                  onDelete={canEdit ? handleDelete : undefined} 
+                />
               )}
-            </>
+            </div>
           )}
         </>
       )}
