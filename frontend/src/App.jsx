@@ -188,12 +188,15 @@ function DashboardScreen({ user, onLogout }) {
           )}
 
           {tab === 'study' && (
-            <StudySection 
-              decks={decks}
-              materias={materias}
-              onOpenReview={handleOpenReviewFromStudy}
-            />
-          )}
+  <StudySection 
+    decks={decks}
+    materias={materias}
+    userId={user.id}      {/* 👈 Inyectado */}
+    userEmail={user.email} {/* 👈 Inyectado */}
+    onOpenReview={handleOpenReviewFromStudy}
+  />
+)}
+
 
           {tab === 'library' && (
             <LibrarySection 
