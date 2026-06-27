@@ -2,10 +2,8 @@ import React, { useState } from 'react';
 import { Infinity, Calendar, Zap, ArrowRight, ArrowLeft, Layers, Bookmark } from 'lucide-react';
 
 export default function StudySection({ decks, materias, onOpenReview }) {
-  // Estado para controlar qué método de estudio se seleccionó
   const [selectedMethod, setSelectedMethod] = useState(null);
 
-  // Configuración de los métodos (Estrategias) disponibles y futuros
   const methods = [
     {
       id: 'continuous',
@@ -14,8 +12,7 @@ export default function StudySection({ decks, materias, onOpenReview }) {
       icon: Infinity,
       color: 'from-amber-500 to-orange-600',
       badge: 'Recomendado Pre-Examen',
-      active: true,
-      modeMapping: 'continuous-review' // String exacto que espera tu LibrarySection
+      active: true
     },
     {
       id: 'anki',
@@ -24,15 +21,13 @@ export default function StudySection({ decks, materias, onOpenReview }) {
       icon: Calendar,
       color: 'from-blue-500 to-indigo-600',
       badge: 'Próximamente',
-      active: false,
-      modeMapping: 'anki-review'
+      active: false
     }
   ];
 
-  // Buscar el objeto del método seleccionado actualmente para pintar su header dinámico
   const currentMethodObj = methods.find(m => m.id === selectedMethod);
 
-  // VISTA 1: Selector de Estrategias de Estudio
+  // VISTA 1: Catálogo de Estrategias de Estudio
   if (!selectedMethod) {
     return (
       <div className="space-y-6 animate-[fadeIn_0.15s_ease]">
@@ -83,10 +78,9 @@ export default function StudySection({ decks, materias, onOpenReview }) {
     );
   }
 
-  // VISTA 2: Selector de Mazos (Se dispara al elegir una estrategia activa)
+  // VISTA 2: Selector del Mazo a entrenar
   return (
     <div className="space-y-6 animate-[fadeIn_0.15s_ease]">
-      {/* BOTÓN REGRESAR Y ENCABEZADO */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-slate-200/60 pb-4">
         <div className="flex items-center gap-3">
           <button 
@@ -107,11 +101,9 @@ export default function StudySection({ decks, materias, onOpenReview }) {
         </div>
       </div>
 
-      {/* RENDERIZADO DEL SELECTOR DE MAZOS */}
       {decks.length > 0 ? (
         <div className="grid grid-cols-1 gap-2">
           {decks.map((deck) => {
-            // Resolver relación con asignaturas/materias
             const materiaVinculada = materias.find(
               m => m.id === deck.materiaId || m._id === deck.materiaId
             );
@@ -119,7 +111,7 @@ export default function StudySection({ decks, materias, onOpenReview }) {
             return (
               <div 
                 key={deck._id || deck.id}
-                onClick={() => onOpenReview(deck, currentMethodObj.modeMapping)}
+                onClick={() => onOpenReview(deck)} // 👈 Lanza el flujo seguro nativo
                 className="bg-white border border-slate-200 hover:border-slate-300 rounded-xl p-4 flex justify-between items-center shadow-3xs hover:shadow-xs transition-all cursor-pointer group active:scale-[0.995]"
               >
                 <div className="space-y-0.5 min-w-0 pr-4">
@@ -137,7 +129,7 @@ export default function StudySection({ decks, materias, onOpenReview }) {
                     className="h-8 px-3 bg-slate-50 group-hover:bg-indigo-600 text-slate-700 group-hover:text-white border border-slate-200 group-hover:border-indigo-600 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-all"
                     tabIndex="-1"
                   >
-                    <span>Entrenar</span>
+                    <span>Abrir panel</span>
                     <Play className="w-2.5 h-2.5 fill-current stroke-[0]" />
                   </button>
                 </div>
