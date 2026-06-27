@@ -80,15 +80,16 @@ function DashboardScreen({ user, onLogout }) {
     setTab(id);
   };
 
-  const handleOpenReviewFromStudy = (deck, mode = 'continuous-review') => {
-  setInitialMode(mode); 
-  setCurrentDeck(deck);
-  setTab('library');
-};
-
-  // 👈 CORRECCIÓN AQUÍ: Forzamos 'review' para que el motor de LibrarySection cargue las tarjetas de forma segura antes de renderizar el juego
-  const handleOpenReviewFromStudy = (deck) => {
+  // Canal seguro desde el Dashboard de Inicio (Lanza menú de selección de estrategias)
+  const handleOpenReviewFromHome = (deck) => {
     setInitialMode('review');
+    setCurrentDeck(deck);
+    setTab('library');
+  };
+
+  // Canal seguro desde el Modo Estudio (Pasa el modo específico como 'continuous-review' de forma directa)
+  const handleOpenReviewFromStudy = (deck, mode = 'continuous-review') => {
+    setInitialMode(mode); 
     setCurrentDeck(deck);
     setTab('library');
   };
