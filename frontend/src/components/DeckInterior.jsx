@@ -5,13 +5,13 @@ import DeckHeader from './DeckHeader';
 import FlashcardCreator from './FlashcardCreator';
 import FlashcardCollection from './FlashcardCollection'; 
 import FastDeleteMode from './FastDeleteMode'; 
-import StudyMethodsZone from './StudyMethodsZone'; // 🚀 Nuevo
-import ContinuousSessionPlayer from './ContinuousSessionPlayer'; // 🚀 Nuevo
+import StudyMethodsZone from './StudyMethodsZone'; 
+import ContinuousSessionPlayer from './ContinuousSessionPlayer'; 
 import { exportDeckToPDF } from '../utils/pdfExporter'; 
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
-export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit' }) {
+export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit', onRefreshData }) {
   const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState(initialMode);
@@ -133,6 +133,10 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
       
       const batchData = await res.json();
       setCards((prev) => [...batchData, ...prev]); 
+      
+      // 🚀 Sincronizar recuento global tras importación externa exitosa
+      if (typeof onRefreshData === 'function') onRefreshData();
+
     } catch (err) {
       setError(err.message || 'Error al procesar la lectura del archivo estructurado.');
     } finally {
@@ -178,6 +182,10 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
         const batchData = await res.json();
         setCards((prev) => [...batchData, ...prev]);
         resetForm(); setIsBulk(false);
+        
+        // 🚀 Sincronizar recuento tras guardar un lote manual por texto
+        if (typeof onRefreshData === 'function') onRefreshData();
+
       } catch (err) { setError(err.message); } finally { setSaving(false); }
       return;
     }
@@ -197,6 +205,10 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
         const updated = await res.json();
         setCards((prev) => prev.map((c) => (c.id === editingId ? updated : c)));
         resetForm(); 
+        
+        // 🚀 Sincronizar cambios por si mutaron métricas de estilo o contenido
+        if (typeof onRefreshData === 'function') onRefreshData();
+
       } else {
         const res = await fetch(`${BACKEND_URL}/api/flashcards`, {
           method: 'POST',
@@ -211,6 +223,9 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
         setAnswer('');
         setContentImage(''); 
         setImageSide(''); 
+        
+        // 🚀 Sincronizar incremento en el contador de tarjetas del mazo
+        if (typeof onRefreshData === 'function') onRefreshData();
       }
     } catch (e) { 
       setError(e.message); 
@@ -236,7 +251,19 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
       if (!res.ok) throw new Error();
       setCards((prev) => prev.filter((c) => c.id !== card.id));
       if (editingId === card.id) resetForm();
+      
+      // 🚀 Sincronizar decremento de tarjeta en los contadores globales
+      if (typeof onRefreshData === 'function') onRefreshData();
+
     } catch { /* error */ }
+  };
+
+  // Handler para limpiar la sesión de estudio y forzar el refresco de métricas en paralelo
+  const handleExitContinuousReview = () => {
+    setMode('review');
+    if (typeof onRefreshData === 'function') {
+      onRefreshData();
+    }
   };
 
   return (
@@ -264,7 +291,7 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
         <ContinuousSessionPlayer 
           deckId={deck.id} 
           userId={userId} 
-          onExit={() => setMode('review')} 
+          onExit={handleExitContinuousReview} 
         />
       )}
       
@@ -294,6 +321,8 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
               deckId={deck.id}
               onAiSuccess={(newCards) => {
                 setCards((prev) => [...newCards, ...prev]);
+                // 🚀 Sincronizar contadores globales tras inyectar tarjetas con IA
+                if (typeof onRefreshData === 'function') onRefreshData();
               }}
             />
           ) : (
