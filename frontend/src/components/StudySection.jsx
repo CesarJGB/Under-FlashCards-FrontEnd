@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-// 👈 AQUÍ ESTÁ EL AJUSTE: Se incluye 'Play' en la importación de lucide-react
 import { Infinity, Calendar, Zap, ArrowRight, ArrowLeft, Layers, Bookmark, Play } from 'lucide-react';
 
 export default function StudySection({ decks, materias, onOpenReview }) {
@@ -13,7 +12,8 @@ export default function StudySection({ decks, materias, onOpenReview }) {
       icon: Infinity,
       color: 'from-amber-500 to-orange-600',
       badge: 'Recomendado Pre-Examen',
-      active: true
+      active: true,
+      modeMapping: 'continuous-review' // 👈 Mapeo directo al sub-modo real en tu DeckInterior
     },
     {
       id: 'anki',
@@ -22,7 +22,8 @@ export default function StudySection({ decks, materias, onOpenReview }) {
       icon: Calendar,
       color: 'from-blue-500 to-indigo-600',
       badge: 'Próximamente',
-      active: false
+      active: false,
+      modeMapping: 'anki-review'
     }
   ];
 
@@ -112,7 +113,8 @@ export default function StudySection({ decks, materias, onOpenReview }) {
             return (
               <div 
                 key={deck._id || deck.id}
-                onClick={() => onOpenReview(deck)}
+                {/* 👈 Inyectamos dinámicamente el modeMapping en el evento del contenedor */}
+                onClick={() => onOpenReview(deck, currentMethodObj?.modeMapping)}
                 className="bg-white border border-slate-200 hover:border-slate-300 rounded-xl p-4 flex justify-between items-center shadow-3xs hover:shadow-xs transition-all cursor-pointer group active:scale-[0.995]"
               >
                 <div className="space-y-0.5 min-w-0 pr-4">
@@ -130,7 +132,7 @@ export default function StudySection({ decks, materias, onOpenReview }) {
                     className="h-8 px-3 bg-slate-50 group-hover:bg-indigo-600 text-slate-700 group-hover:text-white border border-slate-200 group-hover:border-indigo-600 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-all"
                     tabIndex="-1"
                   >
-                    <span>Abrir panel</span>
+                    <span>Entrenar ya</span>
                     <Play className="w-2.5 h-2.5 fill-current stroke-[0]" />
                   </button>
                 </div>
