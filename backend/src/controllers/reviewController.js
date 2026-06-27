@@ -66,7 +66,6 @@ function calculateRadarMetrics(items, isDeckLevel = false, currentReview = null)
         lastReview: item.lastReviewedAt,
         fluidity: hasHistory ? getFluidityScore(cardSpeed) : 0,
         retention: hasHistory ? getRetentionScore(item.lastReviewedAt) : 0,
-        // REFACTORIZACIÓN: Si la tarjeta no se ha visto, aporta 0 en resiliencia para evitar saltos del 10%
         resilience: hasHistory ? getResilienceScore(item.consecutiveErrors) : 0 
       };
 
@@ -103,7 +102,6 @@ function calculateRadarMetrics(items, isDeckLevel = false, currentReview = null)
     }
   });
 
-  // Promedios basados rigurosamente en la densidad total del mazo/contenedor
   const avgAccuracy = aggAccuracy / total;
   const avgSpeed = reviewedCount > 0 ? (aggSpeed / reviewedCount) : 0;
   const avgFluidity = aggFluidity / total;
@@ -112,12 +110,8 @@ function calculateRadarMetrics(items, isDeckLevel = false, currentReview = null)
   const avgConfidence = aggConfidence / total;
   const avgDifficulty = reviewedCount > 0 ? (1.0 - (aggAccuracy / total)) : 1.0;
 
-  // El volumen mide el progreso real en base a la meta de madurez
   const globalVolume = getVolumeScore(isDeckLevel ? (aggReviews / total) : aggReviews);
 
-  // =========================================================================
-  // FUSIÓN DE MATRIZ PONDERADA REALISTA (Gamificación UI/UX estricta)
-  // =========================================================================
   let masteryScore = 
     (avgAccuracy * WEIGHTS.accuracy) +
     (avgRetention * WEIGHTS.retention) +
@@ -125,7 +119,6 @@ function calculateRadarMetrics(items, isDeckLevel = false, currentReview = null)
     (globalVolume * WEIGHTS.volume) +
     (avgResilience * WEIGHTS.resilience);
 
-  // Forzado de Cero Absoluto si no se registra actividad real en el mazo
   const mastery = reviewedCount === 0 ? 0 : Math.min(100, Math.max(0, Math.round(masteryScore * 100)));
   const knowledgeScore = parseFloat(((reviewedCount * avgAccuracy) / Math.max(1, aggReviews)).toFixed(2));
 
@@ -149,8 +142,7 @@ exports.registerReview = async (req, res) => {
   const { cardId, userId, wasCorrect, responseTimeMs } = req.body;
 
   try {
-    // 1. Mutación Atómica de la Flashcard (Nivel Micro) — FIX: pipeline update
-    // en vez de find() + mutar + save(), para eliminar la ventana de race condition
+    // 1. Mutación Atómica de la Flashcard (Nivel Micro) — pipeline update
     const difficultyDelta = wasCorrect ? -0.1 : 0.15;
     const easeFactorDelta = wasCorrect ? 0.15 : -0.2;
 
@@ -171,13 +163,12 @@ exports.registerReview = async (req, res) => {
           }
         }
       ],
-            { new: true, updatePipeline: true }
+      { new: true, updatePipeline: true }
     );
-
 
     if (!card) return res.status(404).json({ error: 'Flashcard no encontrada.' });
 
-    // 2. Insertar entrada inmutable en el Libro Contable (Ledger) — SIN CAMBIOS
+    // 2. Insertar entrada inmutable en el Libro Contable (Ledger)
     const log = new ReviewLog({
       userId,
       cardId,
@@ -190,7 +181,7 @@ exports.registerReview = async (req, res) => {
     });
     await log.save();
 
-        // =========================================================================
+    // =========================================================================
     // DISPARADOR EN CASCADA VERTICAL (Actualización de Radares hacia arriba)
     // Encolado por usuario para evitar carreras de escritura entre cascadas
     // disparadas casi simultáneamente (ej. respuestas muy rápidas en el modo continuo).
@@ -252,7 +243,7 @@ async function runCascade(deckId, currentReviewContext) {
 }
 
 // =========================================================================
-// NUEVO: GENERADOR DE COLA INTELIGENTE PARA REPASO CONTINUO
+// GENERADOR DE COLA INTELIGENTE PARA REPASO CONTINUO (Weighted Shuffle, 60/40)
 // =========================================================================
 exports.getContinuousSessionCards = async (req, res) => {
   const { deckId } = req.params;
@@ -263,20 +254,72 @@ exports.getContinuousSessionCards = async (req, res) => {
       return res.status(400).json({ error: 'El parámetro userId es requerido en el query string.' });
     }
 
-    // Ataque directo a las debilidades:
-    // 1. Tarjetas con mayor racha de errores en el presente inmediato (consecutiveErrors DESC)
-    // 2. Tarjetas con mayor fricción histórica acumulada (difficulty DESC)
-    const prioritizedCards = await Flashcard.find({ deckId, userId })
-      .sort({ consecutiveErrors: -1, difficulty: -1 })
-      .limit(30); // Lote óptimo balanceado para mutar la cola tras cada ciclo
+    const BATCH_SIZE = 30;
+    const NEW_CARD_RATIO = 0.6; // hasta 60% del lote puede ser tarjetas nunca repasadas
+    const ERROR_CAP = 5; // techo para que consecutiveErrors no monopolice infinitamente
 
-    if (prioritizedCards.length === 0) {
+    // Traemos TODAS las tarjetas candidatas del deck (escala esperada: decenas, hasta ~100)
+    const allCards = await Flashcard.find({ deckId, userId });
+
+    if (allCards.length === 0) {
       return res.status(404).json({ error: 'No se encontraron flashcards activas para este mazo.' });
+    }
+
+    // Separamos en dos grupos: nunca repasadas vs. con historial
+    const newCards = [];
+    const reviewedCards = [];
+    allCards.forEach(card => {
+      const isNew = !card.totalReviews || card.totalReviews === 0;
+      (isNew ? newCards : reviewedCards).push(card);
+    });
+
+    // Weighted shuffle (Efraimidis-Spirakis) dentro de cada grupo por separado
+    const shuffleByWeight = (list, weightFn) => {
+      return list
+        .map(card => ({ card, key: Math.pow(Math.random(), 1 / weightFn(card)) }))
+        .sort((a, b) => b.key - a.key)
+        .map(w => w.card);
+    };
+
+    const shuffledNew = shuffleByWeight(newCards, () => 1 + Math.random() * 2);
+    const shuffledReviewed = shuffleByWeight(
+      reviewedCards,
+      card => 1 + Math.min(card.consecutiveErrors ?? 0, ERROR_CAP) * 2 + (card.difficulty ?? 0.3) * 3
+    );
+
+    // Cupos objetivo respetando la proporción 60/40, ajustando si algún grupo no alcanza
+    const targetNewCount = Math.round(BATCH_SIZE * NEW_CARD_RATIO);
+    const targetReviewedCount = BATCH_SIZE - targetNewCount;
+
+    let takenNew = Math.min(targetNewCount, shuffledNew.length);
+    let takenReviewed = Math.min(targetReviewedCount, shuffledReviewed.length);
+
+    // Si un grupo no llega a su cupo, el otro grupo rellena el espacio sobrante
+    const totalTaken = takenNew + takenReviewed;
+    if (totalTaken < BATCH_SIZE) {
+      const remaining = BATCH_SIZE - totalTaken;
+      const extraFromReviewed = Math.min(remaining, shuffledReviewed.length - takenReviewed);
+      takenReviewed += extraFromReviewed;
+
+      const stillRemaining = BATCH_SIZE - (takenNew + takenReviewed);
+      if (stillRemaining > 0) {
+        takenNew += Math.min(stillRemaining, shuffledNew.length - takenNew);
+      }
+    }
+
+    const selectedNew = shuffledNew.slice(0, takenNew);
+    const selectedReviewed = shuffledReviewed.slice(0, takenReviewed);
+
+    // Combinamos y mezclamos el orden final para que no salgan todas las "nuevas" juntas al principio
+    const combined = [...selectedNew, ...selectedReviewed];
+    for (let i = combined.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [combined[i], combined[j]] = [combined[j], combined[i]];
     }
 
     return res.status(200).json({
       success: true,
-      cards: prioritizedCards
+      cards: combined
     });
   } catch (error) {
     console.error("Error al generar la cola de repaso continuo:", error);
