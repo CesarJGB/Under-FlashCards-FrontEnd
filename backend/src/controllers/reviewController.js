@@ -148,25 +148,34 @@ exports.registerReview = async (req, res) => {
   const { cardId, userId, wasCorrect, responseTimeMs } = req.body;
 
   try {
-    // 1. Mutación Atómica de la Flashcard (Nivel Micro)
-    const card = await Flashcard.findOne({ _id: cardId, deckId, userId });
+    // 1. Mutación Atómica de la Flashcard (Nivel Micro) — FIX: pipeline update
+    // en vez de find() + mutar + save(), para eliminar la ventana de race condition
+    const difficultyDelta = wasCorrect ? -0.1 : 0.15;
+    const easeFactorDelta = wasCorrect ? 0.15 : -0.2;
+
+    const card = await Flashcard.findOneAndUpdate(
+      { _id: cardId, deckId, userId },
+      [
+        {
+          $set: {
+            totalReviews: { $add: ['$totalReviews', 1] },
+            lastReviewedAt: new Date(),
+            consecutiveErrors: wasCorrect ? 0 : { $add: ['$consecutiveErrors', 1] },
+            difficulty: {
+              $max: [0.0, { $min: [1.0, { $add: ['$difficulty', difficultyDelta] }] }]
+            },
+            easeFactor: {
+              $max: [1.3, { $add: ['$easeFactor', easeFactorDelta] }]
+            }
+          }
+        }
+      ],
+      { new: true }
+    );
+
     if (!card) return res.status(404).json({ error: 'Flashcard no encontrada.' });
 
-    card.totalReviews += 1;
-    card.lastReviewedAt = new Date();
-    
-    if (wasCorrect) {
-      card.consecutiveErrors = 0;
-      card.difficulty = Math.max(0.0, card.difficulty - 0.1); 
-      card.easeFactor += 0.15;
-    } else {
-      card.consecutiveErrors += 1;
-      card.difficulty = Math.min(1.0, card.difficulty + 0.15); 
-      card.easeFactor = Math.max(1.3, card.easeFactor - 0.2);
-    }
-    await card.save();
-
-    // 2. Insertar entrada inmutable en el Libro Contable (Ledger)
+    // 2. Insertar entrada inmutable en el Libro Contable (Ledger) — SIN CAMBIOS
     const log = new ReviewLog({
       userId,
       cardId,
