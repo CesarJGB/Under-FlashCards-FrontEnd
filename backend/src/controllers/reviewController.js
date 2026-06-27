@@ -170,8 +170,9 @@ exports.registerReview = async (req, res) => {
           }
         }
       ],
-      { new: true }
+            { new: true, updatePipeline: true }
     );
+
 
     if (!card) return res.status(404).json({ error: 'Flashcard no encontrada.' });
 
