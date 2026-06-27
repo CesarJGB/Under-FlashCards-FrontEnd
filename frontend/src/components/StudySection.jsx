@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Infinity, Calendar, Zap, ArrowRight, ArrowLeft, Layers, Bookmark, Play } from 'lucide-react';
+import { Infinity, Calendar, ArrowLeft, Layers, Bookmark } from 'lucide-react';
 
 export default function StudySection({ decks, materias, onOpenReview }) {
   const [selectedMethod, setSelectedMethod] = useState(null);
@@ -69,7 +69,7 @@ export default function StudySection({ decks, materias, onOpenReview }) {
                 
                 {method.active && (
                   <div className="flex items-center text-xs font-bold text-indigo-600 gap-1 transition-all group-hover:gap-2">
-                    Elegir mazo y comenzar <ArrowRight className="w-3.5 h-3.5" />
+                    Elegir mazo y comenzar <span className="tracking-normal">➔</span>
                   </div>
                 )}
               </div>
@@ -80,9 +80,10 @@ export default function StudySection({ decks, materias, onOpenReview }) {
     );
   }
 
-  // VISTA 2: Selector del Mazo a entrenar
+  // VISTA 2: Selector del Mazo a entrenar (Apariencia Grid idéntica a la Biblioteca)
   return (
     <div className="space-y-6 animate-[fadeIn_0.15s_ease]">
+      {/* HEADER CON BOTÓN DE REGRESO */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-slate-200/60 pb-4">
         <div className="flex items-center gap-3">
           <button 
@@ -103,34 +104,51 @@ export default function StudySection({ decks, materias, onOpenReview }) {
         </div>
       </div>
 
+      {/* RENDER EN FORMATO GRID CARD DE BIBLIOTECA */}
       {decks.length > 0 ? (
-        <div className="grid grid-cols-1 gap-2">
+        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 pb-12">
           {decks.map((deck) => {
             const materiaVinculada = materias.find(
               m => m.id === deck.materiaId || m._id === deck.materiaId
             );
+            
+            // Determinar si la tarjeta usa el degradado rosa (favorito) o el limpio grisáceo
+            const isPinkGradient = deck.isStarred;
 
             return (
               <div 
                 key={deck._id || deck.id}
                 onClick={() => onOpenReview(deck, currentMethodObj?.modeMapping)}
-                className="bg-white border border-slate-200 hover:border-slate-300 rounded-xl p-4 flex justify-between items-center shadow-3xs hover:shadow-xs transition-all cursor-pointer group active:scale-[0.995]"
+                className={`relative overflow-hidden rounded-2xl border p-5 flex flex-col justify-between h-36 transition-all duration-200 cursor-pointer shadow-3xs hover:shadow-md hover:border-slate-400/80 active:scale-[0.98] group ${
+                  isPinkGradient 
+                    ? 'bg-gradient-to-br from-pink-400 to-rose-500 text-white border-rose-300' 
+                    : 'bg-gradient-to-br from-white to-slate-50 text-slate-900 border-slate-200'
+                }`}
               >
-                <div className="space-y-0.5 min-w-0 pr-4">
-                  <span className="font-bold text-slate-800 text-sm block truncate group-hover:text-indigo-600 transition-colors">
-                    {deck.title || deck.name}
-                  </span>
-                  <span className="text-[11px] text-slate-400 font-semibold flex items-center gap-1">
-                    <Bookmark className="w-3 h-3 text-slate-300 shrink-0" />
+                {/* Indicador superior con el nombre de la materia o icono */}
+                <div className="flex justify-between items-start">
+                  <span className={`text-[9px] font-bold uppercase tracking-wider truncate max-w-[80%] ${
+                    isPinkGradient ? 'text-pink-100' : 'text-slate-400 group-hover:text-indigo-500 transition-colors'
+                  }`}>
                     {materiaVinculada ? materiaVinculada.name : 'Materia General'}
                   </span>
+                  <Bookmark className={`w-3.5 h-3.5 shrink-0 ${
+                    isPinkGradient ? 'text-white/60' : 'text-slate-300'
+                  }`} />
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0">
-                  <div className="h-8 px-3 bg-slate-50 group-hover:bg-indigo-600 text-slate-700 group-hover:text-white border border-slate-200 group-hover:border-indigo-600 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-all">
-                    <span>Entrenar ya</span>
-                    <Play className="w-2.5 h-2.5 fill-current stroke-[0]" />
-                  </div>
+                {/* Título inferior y contador de tarjetas */}
+                <div className="space-y-0.5 min-w-0 select-none">
+                  <h4 className={`font-extrabold text-base tracking-tight truncate ${
+                    isPinkGradient ? 'text-white' : 'text-slate-800'
+                  }`}>
+                    {deck.title || deck.name}
+                  </h4>
+                  <span className={`text-xs font-medium block ${
+                    isPinkGradient ? 'text-pink-100/90' : 'text-slate-400'
+                  }`}>
+                    {deck.cardCount ?? 0} {deck.cardCount === 1 ? 'tarjeta' : 'tarjetas'}
+                  </span>
                 </div>
               </div>
             );
