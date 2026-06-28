@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { RotateCw, CheckCircle, XCircle, ArrowLeft, Loader2, RefreshCw, BarChart3 } from 'lucide-react';
+import { RotateCw, CheckCircle, XCircle, ArrowLeft, Loader2, RefreshCw, BarChart3, X } from 'lucide-react';
+import CardFace, { getCardBackgroundStyle } from './CardFace';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
@@ -42,6 +43,7 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
   const [error, setError] = useState('');
   const [sessionSummary, setSessionSummary] = useState(null); // resumen a mostrar al salir
   const [closing, setClosing] = useState(false); // true mientras se espera el flush de la cascada antes de cerrar
+  const [isZoomed, setIsZoomed] = useState(false); // true mientras se muestra la imagen de la tarjeta en pantalla completa
 
   const startTimeRef = useRef(null);
   const sessionIdRef = useRef(null); // sessionId vive en ref: evita stale closures en handleAnswer
@@ -146,6 +148,7 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
     if (cards.length > 0 && !loading) {
       startTimeRef.current = performance.now();
       setIsFlipped(false);
+      setIsZoomed(false);
     }
   }, [currentIndex, cards, loading]);
 
@@ -267,6 +270,7 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
   }
 
   const currentCard = cards[currentIndex];
+  const { style: bgStyle, hasBg } = getCardBackgroundStyle(currentCard);
 
   return (
     <div className="max-w-2xl mx-auto px-2 py-4 animate-[fadeIn_0.15s_ease]">
@@ -291,26 +295,26 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
         >
           <div className={`relative w-full h-full duration-500 [transform-style:preserve-3d] ${isFlipped ? '[transform:rotateY(180deg)]' : ''}`}>
             
-            {/* CARA PREGUNTA */}
-            <div className="absolute inset-0 [backface-visibility:hidden] bg-white border border-slate-200 rounded-3xl p-6 flex flex-col justify-between shadow-sm hover:shadow-md transition-all">
-              <span className="text-[10px] font-bold text-amber-500 tracking-widest uppercase">Pregunta</span>
-              <div className="flex-1 flex items-center justify-center px-4">
-                <p className="text-xl font-bold text-slate-800 text-center leading-relaxed">
-                  {currentCard?.question}
-                </p>
+            {/* CARA PREGUNTA — lleva el fondo decorativo (bgImage/bgColor) de la tarjeta */}
+            <div
+              style={bgStyle}
+              className="absolute inset-0 [backface-visibility:hidden] border border-slate-200 rounded-3xl p-6 flex flex-col justify-between shadow-sm hover:shadow-md transition-all overflow-y-auto overflow-hidden"
+            >
+              {hasBg && <span className="absolute inset-0 bg-black/55" />}
+              <span className={`relative z-10 text-[10px] font-bold tracking-widest uppercase ${hasBg ? 'text-white/70' : 'text-amber-500'}`}>Pregunta</span>
+              <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-4">
+                <CardFace card={currentCard} side="question" dark={hasBg} onExpandImage={() => setIsZoomed(true)} />
               </div>
-              <div className="text-[10px] font-semibold text-center text-slate-400 flex items-center justify-center gap-1.5 uppercase tracking-wider">
+              <div className={`relative z-10 text-[10px] font-semibold text-center flex items-center justify-center gap-1.5 uppercase tracking-wider ${hasBg ? 'text-white/60' : 'text-slate-400'}`}>
                 <RefreshCw className="w-3 h-3 animate-[spin_4s_linear_infinite]" /> Toca la tarjeta para voltear
               </div>
             </div>
 
-            {/* CARA RESPUESTA */}
-            <div className="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)] bg-slate-950 text-white rounded-3xl p-6 flex flex-col justify-between shadow-xl border border-slate-800">
+            {/* CARA RESPUESTA — fondo oscuro fijo, igual que el diseño original del Continuo */}
+            <div className="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)] bg-slate-950 text-white rounded-3xl p-6 flex flex-col justify-between shadow-xl border border-slate-800 overflow-y-auto">
               <span className="text-[10px] font-bold text-indigo-400 tracking-widest uppercase">Respuesta Correcta</span>
-              <div className="flex-1 flex items-center justify-center px-4">
-                <p className="text-xl font-bold text-slate-100 text-center leading-relaxed">
-                  {currentCard?.answer}
-                </p>
+              <div className="flex-1 flex flex-col items-center justify-center px-4">
+                <CardFace card={currentCard} side="answer" dark={true} onExpandImage={() => setIsZoomed(true)} />
               </div>
               <div className="text-[10px] font-medium text-center text-slate-500 uppercase tracking-wider">
                 Califica tu nivel de retención abajo
@@ -321,19 +325,19 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
         </div>
       ) : (
         // MODO ESTUDIO: pregunta y respuesta visibles juntas, sin flip.
-        // El usuario lee, asocia, y recién después decide si ya se la sabe.
-        <div className="h-72 w-full mb-6 bg-white border border-slate-200 rounded-3xl shadow-sm flex flex-col overflow-hidden">
-          <div className="flex-1 flex flex-col items-center justify-center px-6 py-4 border-b border-slate-100">
-            <span className="text-[10px] font-bold text-amber-500 tracking-widest uppercase mb-2">Pregunta</span>
-            <p className="text-lg font-bold text-slate-800 text-center leading-relaxed">
-              {currentCard?.question}
-            </p>
+        // El bloque superior lleva el fondo decorativo de la tarjeta (si tiene);
+        // el bloque inferior (respuesta) mantiene el fondo oscuro fijo.
+        <div className="h-72 w-full mb-6 border border-slate-200 rounded-3xl shadow-sm flex flex-col overflow-hidden">
+          <div style={bgStyle} className="relative flex-1 flex flex-col items-center justify-center px-6 py-4 border-b border-slate-100 overflow-y-auto overflow-hidden">
+            {hasBg && <span className="absolute inset-0 bg-black/55" />}
+            <span className={`relative z-10 text-[10px] font-bold tracking-widest uppercase mb-2 ${hasBg ? 'text-white/70' : 'text-amber-500'}`}>Pregunta</span>
+            <div className="relative z-10 flex flex-col items-center">
+              <CardFace card={currentCard} side="question" dark={hasBg} onExpandImage={() => setIsZoomed(true)} />
+            </div>
           </div>
-          <div className="flex-1 flex flex-col items-center justify-center px-6 py-4 bg-slate-950">
+          <div className="flex-1 flex flex-col items-center justify-center px-6 py-4 bg-slate-950 overflow-y-auto">
             <span className="text-[10px] font-bold text-indigo-400 tracking-widest uppercase mb-2">Respuesta</span>
-            <p className="text-lg font-bold text-slate-100 text-center leading-relaxed">
-              {currentCard?.answer}
-            </p>
+            <CardFace card={currentCard} side="answer" dark={true} onExpandImage={() => setIsZoomed(true)} />
           </div>
         </div>
       )}
@@ -358,6 +362,35 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
           </div>
         )}
       </div>
+
+      {isZoomed && currentCard?.contentImage && (
+        <div
+          onClick={() => setIsZoomed(false)}
+          className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-[fadeIn_0.15s_ease]"
+        >
+          <button
+            type="button"
+            onClick={() => setIsZoomed(false)}
+            className="absolute top-4 right-4 p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-colors border border-white/10"
+          >
+            <X className="w-5 h-5" />
+          </button>
+
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative max-w-3xl w-full flex flex-col items-center animate-[scaleIn_0.15s_ease-out]"
+          >
+            <img
+              src={currentCard.contentImage}
+              alt="Detalle ampliado"
+              className="max-h-[82vh] max-w-full object-contain rounded-2xl border-2 border-white/10 shadow-2xl bg-slate-900/40 p-1.5"
+            />
+            <p className="text-white/60 text-xs font-semibold mt-3 bg-black/40 px-3 py-1 rounded-full backdrop-blur-xs select-none">
+              Modo Detalle • Clic afuera para regresar
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
