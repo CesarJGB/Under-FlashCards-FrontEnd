@@ -7,6 +7,17 @@ export default function StudySection({ decks, materias, userId, userEmail, onOpe
 
   const methods = [
     {
+  id: 'normal',
+  title: 'Repaso Normal',
+  description: 'Recorre el mazo completo en orden aleatorio, sin priorizar errores. Ideal para una primera pasada o repasar todo el contenido.',
+  icon: BookOpen, // o el ícono que prefieras, ya importado de lucide-react
+  color: 'from-emerald-500 to-teal-600',
+  badge: 'Para empezar',
+  active: true,
+  modeMapping: 'normal-review'
+}
+
+    {
       id: 'continuous',
       title: 'Repaso Continuo',
       description: 'Bucle infinito sin bloqueos de fecha. El algoritmo prioriza automáticamente tus fallos recientes y conceptos de alta fricción.',
