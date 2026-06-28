@@ -13,17 +13,6 @@ import TemasLevel from './library/TemasLevel';
 import SubtemasLevel from './library/SubtemasLevel';
 import AcademicFolderModal from './library/AcademicFolderModal';
 
-import LibraryToolbar from './library/LibraryToolbar';
-import LibraryFAB from './library/LibraryFAB';
-
-// Nuevos subcomponentes modulares extraídos
-import Breadcrumbs from './library/Breadcrumbs';
-import MateriasLevel from './library/MateriasLevel';
-import ParcialesLevel from './library/ParcialesLevel';
-import TemasLevel from './library/TemasLevel';
-import SubtemasLevel from './library/SubtemasLevel';
-import AcademicFolderModal from './library/AcademicFolderModal';
-
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 const ADMIN_EMAIL = "cesarjaviervebe@gmail.com"; 
 
