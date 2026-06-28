@@ -22,5 +22,9 @@ router.post('/decks/import', deckController.importDeck);
 router.get('/decks/:deckId/continuous-session', reviewController.getContinuousSessionCards);
 // Obtener el mazo completo en orden aleatorio simple, sin ponderación (Repaso Normal)
 router.get('/decks/:deckId/normal-session', reviewController.getNormalSessionCards);
+// Cargar el mazo completo UNA SOLA VEZ (usado por SessionPlayer en ambos modos;
+// la selección/shuffle de lotes se hace en el cliente para evitar reenviar
+// imágenes pesadas en cada recarga)
+router.get('/decks/:deckId/all-cards', reviewController.getAllSessionCards);
 
 module.exports = router;
