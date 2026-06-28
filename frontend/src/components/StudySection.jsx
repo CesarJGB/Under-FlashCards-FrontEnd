@@ -16,7 +16,6 @@ export default function StudySection({ decks, materias, userId, userEmail, onOpe
   active: true,
   modeMapping: 'normal-review'
 }
-
     {
       id: 'continuous',
       title: 'Repaso Continuo',
