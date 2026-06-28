@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Infinity, Calendar, ArrowLeft, Layers } from 'lucide-react';
-import DeckCard from './DeckCard'; // 👈 REUTILIZACIÓN ATÓMICA: Tu componente nativo de la biblioteca
+import DeckCard from './DeckCard';
 
 export default function StudySection({ decks, materias, userId, userEmail, onOpenReview }) {
   const [selectedMethod, setSelectedMethod] = useState(null);
@@ -12,7 +12,7 @@ export default function StudySection({ decks, materias, userId, userEmail, onOpe
       description: 'Bucle infinito sin bloqueos de fecha. El algoritmo prioriza automáticamente tus fallos recientes y conceptos de alta fricción.',
       icon: Infinity,
       color: 'from-amber-500 to-orange-600',
-      badge: 'Recomendado Pre-Examen',
+      badge: 'Recomendado',
       active: true,
       modeMapping: 'continuous-review'
     },
@@ -31,49 +31,53 @@ export default function StudySection({ decks, materias, userId, userEmail, onOpe
   const currentMethodObj = methods.find(m => m.id === selectedMethod);
   const isAdmin = userEmail === "cesarjaviervebe@gmail.com";
 
-  // VISTA 1: Catálogo de Estrategias de Estudio
+  // VISTA 1: Catálogo de Estrategias de Estudio (Rediseñado Compacto)
   if (!selectedMethod) {
     return (
-      <div className="space-y-6 animate-[fadeIn_0.15s_ease]">
+      <div className="space-y-4 animate-[fadeIn_0.15s_ease] -mt-2">
         <div>
-          <h1 className="text-2xl font-black tracking-tight text-slate-900">Modo de Estudio</h1>
-          <p className="text-sm text-slate-500 mt-0.5">
-            Selecciona una estrategia de entrenamiento cognitivo para tus flashcards.
-          </p>
+          <h1 className="text-xl font-black tracking-tight text-slate-900">Modo de Estudio</h1>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="flex flex-col gap-2.5">
           {methods.map((method) => {
             const Icon = method.icon;
             return (
               <div 
                 key={method.id}
-                className={`p-5 rounded-2xl border bg-white text-left transition-all duration-200 group ${
+                className={`p-4 rounded-2xl border bg-white flex items-center gap-4 transition-all duration-200 group ${
                   method.active 
-                    ? 'border-slate-200 shadow-3xs hover:shadow-md cursor-pointer hover:border-slate-300 active:scale-[0.99]' 
+                    ? 'border-slate-200 shadow-3xs hover:shadow-xs hover:border-slate-300 cursor-pointer active:scale-[0.99]' 
                     : 'opacity-60 border-dashed border-slate-200 cursor-not-allowed select-none'
                 }`}
                 onClick={() => method.active && setSelectedMethod(method.id)}
               >
-                <div className="flex justify-between items-start mb-4">
-                  <div className={`p-2.5 rounded-xl bg-gradient-to-br ${method.color} text-white shadow-sm`}>
-                    <Icon className="w-5 h-5" />
-                  </div>
-                  <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider ${
-                    method.active ? 'bg-amber-50 text-amber-700 border border-amber-200/40' : 'bg-slate-100 text-slate-500'
-                  }`}>
-                    {method.badge}
-                  </span>
+                <div className={`p-3 rounded-xl bg-gradient-to-br ${method.color} text-white shadow-xs shrink-0`}>
+                  <Icon className="w-5 h-5" />
                 </div>
                 
-                <h3 className="text-base font-bold text-slate-900 mb-1">{method.title}</h3>
-                <p className="text-xs text-slate-500 leading-relaxed mb-4">{method.description}</p>
-                
-                {method.active && (
-                  <div className="flex items-center text-xs font-bold text-indigo-600 gap-1 transition-all group-hover:gap-2">
-                    Elegir mazo y comenzar ➔
+                <div className="flex-1 min-w-0 flex flex-col justify-center">
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="text-sm font-bold text-slate-900 tracking-tight">
+                      {method.title}
+                    </h3>
+                    <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider shrink-0 ${
+                      method.active ? 'bg-amber-50 text-amber-700 border border-amber-200/40' : 'bg-slate-100 text-slate-500'
+                    }`}>
+                      {method.badge}
+                    </span>
                   </div>
-                )}
+                  
+                  {method.active ? (
+                    <div className="text-xs font-bold text-indigo-600 mt-1 flex items-center gap-1 transition-all group-hover:text-indigo-700">
+                      Elegir mazo y comenzar ➔
+                    </div>
+                  ) : (
+                    <div className="text-xs font-medium text-slate-400 mt-1">
+                      No disponible
+                    </div>
+                  )}
+                </div>
               </div>
             );
           })}
@@ -82,10 +86,9 @@ export default function StudySection({ decks, materias, userId, userEmail, onOpe
     );
   }
 
-  // VISTA 2: Selector del Mazo a entrenar (Idéntico a tu Biblioteca)
+  // VISTA 2: Selector del Mazo a entrenar (Mantiene la apariencia nativa de la Biblioteca)
   return (
     <div className="space-y-6 animate-[fadeIn_0.15s_ease]">
-      {/* ENCABEZADO Y CONTROL DE NAVEGACIÓN RETROACTIVA */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-slate-200/60 pb-4">
         <div className="flex items-center gap-3">
           <button 
@@ -106,7 +109,6 @@ export default function StudySection({ decks, materias, userId, userEmail, onOpe
         </div>
       </div>
 
-      {/* CUADRÍCULA NATIVA USANDO TU COMPONENTE DECKCARD */}
       {decks.length > 0 ? (
         <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 pb-12">
           {decks.map((deck) => (
@@ -115,11 +117,8 @@ export default function StudySection({ decks, materias, userId, userEmail, onOpe
               deck={deck} 
               currentUserId={userId} 
               isAdmin={isAdmin} 
-              isList={false} // Forzamos siempre el modo Grid/Cuadrícula que se ve espectacular
-              onOpen={(dk) => onOpenReview(dk, currentMethodObj?.modeMapping)} // Inyecta el modo de juego estratégico
-              
-              /* Omitimos intencionalmente las mutaciones CRUD (onEdit, onDelete, etc.) 
-                 para que actúe puramente como un disparador inmersivo de juego */
+              isList={false} 
+              onOpen={(dk) => onOpenReview(dk, currentMethodObj?.modeMapping)} 
             />
           ))}
         </div>
