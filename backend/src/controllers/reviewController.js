@@ -341,6 +341,47 @@ exports.getContinuousSessionCards = async (req, res) => {
 };
 
 // =========================================================================
+// GENERADOR DE COLA PARA REPASO NORMAL (Mazo completo, shuffle simple)
+// =========================================================================
+// A diferencia del Repaso Continuo, esta cola NO prioriza por dificultad ni
+// errores: trae siempre el mazo completo, mezclado sin ponderación. Pensado
+// para una primera pasada de contenido nuevo o repaso general sin presión
+// algorítmica de "debilidades". Al agotarse el mazo, el frontend vuelve a
+// pedir esta misma cola, que entrega un shuffle nuevo de las mismas tarjetas.
+exports.getNormalSessionCards = async (req, res) => {
+  const { deckId } = req.params;
+  const { userId } = req.query;
+
+  try {
+    if (!userId) {
+      return res.status(400).json({ error: 'El parámetro userId es requerido en el query string.' });
+    }
+
+    const allCards = await Flashcard.find({ deckId, userId });
+
+    if (allCards.length === 0) {
+      return res.status(404).json({ error: 'No se encontraron flashcards activas para este mazo.' });
+    }
+
+    // Fisher-Yates simple, sin pesos: cada tarjeta tiene la misma probabilidad
+    // en cualquier posición, sin importar su historial de errores/dificultad.
+    const shuffled = [...allCards];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+
+    return res.status(200).json({
+      success: true,
+      cards: shuffled
+    });
+  } catch (error) {
+    console.error("Error al generar la cola de repaso normal:", error);
+    return res.status(500).json({ error: 'Fallo interno al construir la sesión normal.' });
+  }
+};
+
+// =========================================================================
 // SESIONES DE ESTUDIO (Bucle Activo / Repaso Continuo)
 // =========================================================================
 
