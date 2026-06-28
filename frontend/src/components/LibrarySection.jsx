@@ -5,7 +5,6 @@ import DeckModal from './DeckModal';
 import LibraryToolbar from './library/LibraryToolbar';
 import LibraryFAB from './library/LibraryFAB';
 
-// Subcomponentes modulares extraídos
 import Breadcrumbs from './library/Breadcrumbs';
 import MateriasLevel from './library/MateriasLevel';
 import ParcialesLevel from './library/ParcialesLevel';
@@ -302,10 +301,11 @@ export default function LibrarySection({
       )}
 
       <LibraryFAB 
+        currentPath={currentPath}
         setModal={setModal} 
+        setAcademicModal={setAcademicModal}
         fileInputRef={fileInputRef} 
         importing={importing} 
-        disabled={currentPath.materiaId !== null && currentPath.parcialNumber === null} 
       />
     </div>
   );
