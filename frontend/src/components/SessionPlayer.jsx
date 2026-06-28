@@ -310,13 +310,17 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
               </div>
             </div>
 
-            {/* CARA RESPUESTA — fondo oscuro fijo, igual que el diseño original del Continuo */}
-            <div className="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)] bg-slate-950 text-white rounded-3xl p-6 flex flex-col justify-between shadow-xl border border-slate-800 overflow-y-auto">
-              <span className="text-[10px] font-bold text-indigo-400 tracking-widest uppercase">Respuesta Correcta</span>
-              <div className="flex-1 flex flex-col items-center justify-center px-4">
+            {/* CARA RESPUESTA — mismo fondo decorativo que la pregunta; fallback oscuro si no hay */}
+            <div
+              style={hasBg ? bgStyle : undefined}
+              className={`absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)] text-white rounded-3xl p-6 flex flex-col justify-between shadow-xl border border-slate-800 overflow-y-auto overflow-hidden ${hasBg ? '' : 'bg-slate-950'}`}
+            >
+              {hasBg && <span className="absolute inset-0 bg-black/55" />}
+              <span className="relative z-10 text-[10px] font-bold text-indigo-400 tracking-widest uppercase">Respuesta Correcta</span>
+              <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-4">
                 <CardFace card={currentCard} side="answer" dark={true} onExpandImage={() => setIsZoomed(true)} />
               </div>
-              <div className="text-[10px] font-medium text-center text-slate-500 uppercase tracking-wider">
+              <div className="relative z-10 text-[10px] font-medium text-center text-slate-500 uppercase tracking-wider">
                 Califica tu nivel de retención abajo
               </div>
             </div>
@@ -325,8 +329,7 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
         </div>
       ) : (
         // MODO ESTUDIO: pregunta y respuesta visibles juntas, sin flip.
-        // El bloque superior lleva el fondo decorativo de la tarjeta (si tiene);
-        // el bloque inferior (respuesta) mantiene el fondo oscuro fijo.
+        // Ambos bloques llevan el mismo fondo decorativo de la tarjeta (si tiene).
         <div className="h-72 w-full mb-6 border border-slate-200 rounded-3xl shadow-sm flex flex-col overflow-hidden">
           <div style={bgStyle} className="relative flex-1 flex flex-col items-center justify-center px-6 py-4 border-b border-slate-100 overflow-y-auto overflow-hidden">
             {hasBg && <span className="absolute inset-0 bg-black/55" />}
@@ -335,9 +338,15 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
               <CardFace card={currentCard} side="question" dark={hasBg} onExpandImage={() => setIsZoomed(true)} />
             </div>
           </div>
-          <div className="flex-1 flex flex-col items-center justify-center px-6 py-4 bg-slate-950 overflow-y-auto">
-            <span className="text-[10px] font-bold text-indigo-400 tracking-widest uppercase mb-2">Respuesta</span>
-            <CardFace card={currentCard} side="answer" dark={true} onExpandImage={() => setIsZoomed(true)} />
+          <div
+            style={hasBg ? bgStyle : undefined}
+            className={`relative flex-1 flex flex-col items-center justify-center px-6 py-4 overflow-y-auto overflow-hidden ${hasBg ? '' : 'bg-slate-950'}`}
+          >
+            {hasBg && <span className="absolute inset-0 bg-black/55" />}
+            <span className="relative z-10 text-[10px] font-bold text-indigo-400 tracking-widest uppercase mb-2">Respuesta</span>
+            <div className="relative z-10 flex flex-col items-center">
+              <CardFace card={currentCard} side="answer" dark={true} onExpandImage={() => setIsZoomed(true)} />
+            </div>
           </div>
         </div>
       )}
