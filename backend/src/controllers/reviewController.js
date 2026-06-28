@@ -280,6 +280,12 @@ exports.getContinuousSessionCards = async (req, res) => {
       return res.status(404).json({ error: 'No se encontraron flashcards activas para este mazo.' });
     }
 
+    // El fondo decorativo (bgImage) de cada tarjeta vive como índice (bgImageIndex)
+    // contra el array cardBackgrounds del Deck, no como string directo en la card.
+    // Necesitamos el deck una sola vez para resolver ese campo al serializar.
+    const deck = await Deck.findById(deckId);
+    const cardBackgrounds = deck?.cardBackgrounds || [];
+
     // Separamos en dos grupos: nunca repasadas vs. con historial
     const newCards = [];
     const reviewedCards = [];
@@ -332,7 +338,7 @@ exports.getContinuousSessionCards = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      cards: combined
+      cards: combined.map(card => card.serialize(cardBackgrounds))
     });
   } catch (error) {
     console.error("Error al generar la cola de repaso continuo:", error);
@@ -363,6 +369,11 @@ exports.getNormalSessionCards = async (req, res) => {
       return res.status(404).json({ error: 'No se encontraron flashcards activas para este mazo.' });
     }
 
+    // Mismo motivo que en getContinuousSessionCards: bgImage se resuelve contra
+    // el array cardBackgrounds del Deck, no viene como string directo en la card.
+    const deck = await Deck.findById(deckId);
+    const cardBackgrounds = deck?.cardBackgrounds || [];
+
     // Fisher-Yates simple, sin pesos: cada tarjeta tiene la misma probabilidad
     // en cualquier posición, sin importar su historial de errores/dificultad.
     const shuffled = [...allCards];
@@ -373,7 +384,7 @@ exports.getNormalSessionCards = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      cards: shuffled
+      cards: shuffled.map(card => card.serialize(cardBackgrounds))
     });
   } catch (error) {
     console.error("Error al generar la cola de repaso normal:", error);
