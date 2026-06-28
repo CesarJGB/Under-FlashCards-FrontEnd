@@ -273,7 +273,8 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
   };
 
   const isSessionMode = SESSION_MODES.includes(mode);
-
+console.log('DEBUG mode actual:', mode, '| isSessionMode:', isSessionMode);
+  
   return (
     <div data-testid="deck-interior">
       {/* Ocultamos el header nativo durante cualquier sesión activa (continuo o normal) para máxima inmersión */}
