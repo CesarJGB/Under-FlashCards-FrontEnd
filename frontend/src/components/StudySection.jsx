@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Infinity, Calendar, ArrowLeft, Layers } from 'lucide-react';
+import { Infinity, Calendar, ArrowLeft, Layers, BookOpen } from 'lucide-react';
 import DeckCard from './DeckCard';
 
 export default function StudySection({ decks, materias, userId, userEmail, onOpenReview }) {
