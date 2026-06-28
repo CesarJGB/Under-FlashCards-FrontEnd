@@ -31,11 +31,11 @@ export default function StudySection({ decks, materias, userId, userEmail, onOpe
   const currentMethodObj = methods.find(m => m.id === selectedMethod);
   const isAdmin = userEmail === "cesarjaviervebe@gmail.com";
 
-  // VISTA 1: Catálogo de Estrategias de Estudio (Rediseñado Compacto)
+  // VISTA 1: Catálogo de Estrategias de Estudio (Optimizado para no duplicar Header)
   if (!selectedMethod) {
     return (
-      <div className="space-y-4 animate-[fadeIn_0.15s_ease] -mt-2">
-        <div>
+      <div className="space-y-4 animate-[fadeIn_0.15s_ease] md:-mt-2">
+        <div className="hidden md:block">
           <h1 className="text-xl font-black tracking-tight text-slate-900">Modo de Estudio</h1>
         </div>
 
@@ -86,7 +86,7 @@ export default function StudySection({ decks, materias, userId, userEmail, onOpe
     );
   }
 
-  // VISTA 2: Selector del Mazo a entrenar (Mantiene la apariencia nativa de la Biblioteca)
+  // VISTA 2: Selector del Mazo a entrenar (Mantiene consistencia estructural)
   return (
     <div className="space-y-6 animate-[fadeIn_0.15s_ease]">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-slate-200/60 pb-4">
