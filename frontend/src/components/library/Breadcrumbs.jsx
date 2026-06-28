@@ -8,11 +8,7 @@ export default function Breadcrumbs({
   const isRoot = !currentPath.materiaId;
 
   if (isRoot) {
-    return (
-      <div className="mb-6 mt-2">
-        <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Biblioteca</h2>
-      </div>
-    );
+    return null;
   }
 
   return (
