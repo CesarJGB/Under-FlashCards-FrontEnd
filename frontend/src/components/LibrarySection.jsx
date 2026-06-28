@@ -1,6 +1,21 @@
 import { useRef, useState, useMemo, useEffect } from 'react';
 import { useLibraryState } from '../hooks/useLibraryState';
 import DeckInterior from './DeckInterior';
+import { useRef, useState, useMemo, useEffect } from 'react';
+import { useLibraryState } from '../hooks/useLibraryState';
+import DeckInterior from './DeckInterior';
+import DeckModal from './DeckModal';
+import LibraryToolbar from './library/LibraryToolbar';
+import LibraryFAB from './library/LibraryFAB';
+
+// Subcomponentes modulares extraídos
+import Breadcrumbs from './library/Breadcrumbs';
+import MateriasLevel from './library/MateriasLevel';
+import ParcialesLevel from './library/ParcialesLevel';
+import TemasLevel from './library/TemasLevel';
+import SubtemasLevel from './library/SubtemasLevel';
+import AcademicFolderModal from './library/AcademicFolderModal';
+
 import LibraryToolbar from './library/LibraryToolbar';
 import LibraryFAB from './library/LibraryFAB';
 
