@@ -298,11 +298,11 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
             {/* CARA PREGUNTA — lleva el fondo decorativo (bgImage/bgColor) de la tarjeta */}
             <div
               style={bgStyle}
-              className="absolute inset-0 [backface-visibility:hidden] border border-slate-200 rounded-3xl p-6 flex flex-col justify-between shadow-sm hover:shadow-md transition-all overflow-y-auto overflow-hidden"
+              className="absolute inset-0 [backface-visibility:hidden] border border-slate-200 rounded-3xl p-6 flex flex-col justify-between shadow-sm hover:shadow-md transition-all"
             >
-              {hasBg && <span className="absolute inset-0 bg-black/55" />}
+              {hasBg && <span className="absolute inset-0 bg-black/55 rounded-3xl" />}
               <span className={`relative z-10 text-[10px] font-bold tracking-widest uppercase ${hasBg ? 'text-white/70' : 'text-amber-500'}`}>Pregunta</span>
-              <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-4">
+              <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-4 overflow-y-auto">
                 <CardFace card={currentCard} side="question" dark={hasBg} onExpandImage={() => setIsZoomed(true)} />
               </div>
               <div className={`relative z-10 text-[10px] font-semibold text-center flex items-center justify-center gap-1.5 uppercase tracking-wider ${hasBg ? 'text-white/60' : 'text-slate-400'}`}>
@@ -313,11 +313,11 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
             {/* CARA RESPUESTA — mismo fondo decorativo que la pregunta; fallback oscuro si no hay */}
             <div
               style={hasBg ? bgStyle : undefined}
-              className={`absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)] text-white rounded-3xl p-6 flex flex-col justify-between shadow-xl border border-slate-800 overflow-y-auto overflow-hidden ${hasBg ? '' : 'bg-slate-950'}`}
+              className={`absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)] text-white rounded-3xl p-6 flex flex-col justify-between shadow-xl border border-slate-800 ${hasBg ? '' : 'bg-slate-950'}`}
             >
-              {hasBg && <span className="absolute inset-0 bg-black/55" />}
+              {hasBg && <span className="absolute inset-0 bg-black/55 rounded-3xl" />}
               <span className="relative z-10 text-[10px] font-bold text-indigo-400 tracking-widest uppercase">Respuesta Correcta</span>
-              <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-4">
+              <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-4 overflow-y-auto">
                 <CardFace card={currentCard} side="answer" dark={true} onExpandImage={() => setIsZoomed(true)} />
               </div>
               <div className="relative z-10 text-[10px] font-medium text-center text-slate-500 uppercase tracking-wider">
@@ -331,20 +331,20 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
         // MODO ESTUDIO: pregunta y respuesta visibles juntas, sin flip.
         // Ambos bloques llevan el mismo fondo decorativo de la tarjeta (si tiene).
         <div className="h-72 w-full mb-6 border border-slate-200 rounded-3xl shadow-sm flex flex-col overflow-hidden">
-          <div style={bgStyle} className="relative flex-1 flex flex-col items-center justify-center px-6 py-4 border-b border-slate-100 overflow-y-auto overflow-hidden">
+          <div style={bgStyle} className="relative flex-1 flex flex-col items-center justify-center px-6 py-4 border-b border-slate-100 overflow-hidden">
             {hasBg && <span className="absolute inset-0 bg-black/55" />}
             <span className={`relative z-10 text-[10px] font-bold tracking-widest uppercase mb-2 ${hasBg ? 'text-white/70' : 'text-amber-500'}`}>Pregunta</span>
-            <div className="relative z-10 flex flex-col items-center">
+            <div className="relative z-10 flex flex-col items-center overflow-y-auto max-h-full">
               <CardFace card={currentCard} side="question" dark={hasBg} onExpandImage={() => setIsZoomed(true)} />
             </div>
           </div>
           <div
             style={hasBg ? bgStyle : undefined}
-            className={`relative flex-1 flex flex-col items-center justify-center px-6 py-4 overflow-y-auto overflow-hidden ${hasBg ? '' : 'bg-slate-950'}`}
+            className={`relative flex-1 flex flex-col items-center justify-center px-6 py-4 overflow-hidden ${hasBg ? '' : 'bg-slate-950'}`}
           >
             {hasBg && <span className="absolute inset-0 bg-black/55" />}
             <span className="relative z-10 text-[10px] font-bold text-indigo-400 tracking-widest uppercase mb-2">Respuesta</span>
-            <div className="relative z-10 flex flex-col items-center">
+            <div className="relative z-10 flex flex-col items-center overflow-y-auto max-h-full">
               <CardFace card={currentCard} side="answer" dark={true} onExpandImage={() => setIsZoomed(true)} />
             </div>
           </div>
