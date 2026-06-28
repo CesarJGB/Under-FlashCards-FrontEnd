@@ -6,7 +6,7 @@ const Subtema = require('../models/Subtema');
 const Tema = require('../models/Tema');
 const Materia = require('../models/Materia');
 const StudySession = require('../models/StudySession');
-const { enqueueForUser } = require('../utils/userQueue');
+const { enqueueForUser, flushUserQueue } = require('../utils/userQueue');
 
 // =========================================================================
 // COEFICIENTES CORE DEL RADAR (Single Source of Truth del Servidor)
@@ -424,5 +424,26 @@ exports.incrementSessionBatch = async (req, res) => {
   } catch (error) {
     console.error('Error al incrementar lote de sesión:', error);
     return res.status(500).json({ error: 'No se pudo actualizar el progreso de la sesión.' });
+  }
+};
+
+/**
+ * Espera a que termine de procesarse toda la cascada de métricas pendiente
+ * para un usuario (ver userQueue.js). El frontend llama esto justo antes de
+ * cerrar una sesión de estudio, para garantizar que el resumen final que se
+ * le muestra al usuario y el mastery que verá después en el deck reflejen
+ * exactamente el mismo estado consolidado en la base de datos.
+ */
+exports.waitForUserQueue = async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    await flushUserQueue(userId);
+    return res.status(200).json({ success: true, drained: true });
+  } catch (error) {
+    // flushUserQueue ya atrapa sus propios errores internamente (ver userQueue.js),
+    // así que llegar aquí sería un caso excepcional. No bloqueamos al usuario por esto.
+    console.error('Error al esperar la cola de cascada del usuario:', error);
+    return res.status(200).json({ success: true, drained: true, warning: 'No se pudo confirmar el drenado completo.' });
   }
 };
