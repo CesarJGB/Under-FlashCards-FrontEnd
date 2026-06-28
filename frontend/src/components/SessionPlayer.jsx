@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { RotateCw, CheckCircle, XCircle, ArrowLeft, Loader2, RefreshCw, BarChart3, X } from 'lucide-react';
 import CardFace, { getCardBackgroundStyle } from './CardFace';
+import FlipCard from './FlipCard';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
@@ -289,43 +290,41 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
 
       {/* Contenedor de la tarjeta: flip 3D (continuo) o pregunta+respuesta juntas (estudio) */}
       {config.cardStyle === 'flip' ? (
-        <div 
-          className="[perspective:1000px] h-72 w-full mb-6 cursor-pointer select-none" 
-          onClick={handleFlip}
-        >
-          <div className={`relative w-full h-full duration-500 [transform-style:preserve-3d] ${isFlipped ? '[transform:rotateY(180deg)]' : ''}`}>
-            
-            {/* CARA PREGUNTA — lleva el fondo decorativo (bgImage/bgColor) de la tarjeta */}
-            <div
-              style={bgStyle}
-              className="absolute inset-0 [backface-visibility:hidden] border border-slate-200 rounded-3xl p-6 flex flex-col justify-between shadow-sm hover:shadow-md transition-all"
-            >
-              {hasBg && <span className="absolute inset-0 bg-black/55 rounded-3xl" />}
-              <span className={`relative z-10 text-[10px] font-bold tracking-widest uppercase ${hasBg ? 'text-white/70' : 'text-amber-500'}`}>Pregunta</span>
-              <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-4 overflow-y-auto">
-                <CardFace card={currentCard} side="question" dark={hasBg} onExpandImage={() => setIsZoomed(true)} />
+        <div className="mb-6">
+          <FlipCard
+            isFlipped={isFlipped}
+            onFlip={handleFlip}
+            front={
+              <div
+                style={bgStyle}
+                className="relative w-full h-full border border-slate-200 p-6 flex flex-col justify-between bg-white"
+              >
+                {hasBg && <span className="absolute inset-0 bg-black/55" />}
+                <span className={`relative z-10 text-[10px] font-bold tracking-widest uppercase ${hasBg ? 'text-white/70' : 'text-amber-500'}`}>Pregunta</span>
+                <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-4 overflow-y-auto">
+                  <CardFace card={currentCard} side="question" dark={hasBg} onExpandImage={() => setIsZoomed(true)} />
+                </div>
+                <div className={`relative z-10 text-[10px] font-semibold text-center flex items-center justify-center gap-1.5 uppercase tracking-wider ${hasBg ? 'text-white/60' : 'text-slate-400'}`}>
+                  <RefreshCw className="w-3 h-3 animate-[spin_4s_linear_infinite]" /> Toca la tarjeta para voltear
+                </div>
               </div>
-              <div className={`relative z-10 text-[10px] font-semibold text-center flex items-center justify-center gap-1.5 uppercase tracking-wider ${hasBg ? 'text-white/60' : 'text-slate-400'}`}>
-                <RefreshCw className="w-3 h-3 animate-[spin_4s_linear_infinite]" /> Toca la tarjeta para voltear
+            }
+            back={
+              <div
+                style={hasBg ? bgStyle : undefined}
+                className={`relative w-full h-full p-6 flex flex-col justify-between text-white border border-slate-800 ${hasBg ? '' : 'bg-slate-950'}`}
+              >
+                {hasBg && <span className="absolute inset-0 bg-black/55" />}
+                <span className="relative z-10 text-[10px] font-bold text-indigo-400 tracking-widest uppercase">Respuesta Correcta</span>
+                <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-4 overflow-y-auto">
+                  <CardFace card={currentCard} side="answer" dark={true} onExpandImage={() => setIsZoomed(true)} />
+                </div>
+                <div className="relative z-10 text-[10px] font-medium text-center text-slate-500 uppercase tracking-wider">
+                  Califica tu nivel de retención abajo
+                </div>
               </div>
-            </div>
-
-            {/* CARA RESPUESTA — mismo fondo decorativo que la pregunta; fallback oscuro si no hay */}
-            <div
-              style={hasBg ? bgStyle : undefined}
-              className={`absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)] text-white rounded-3xl p-6 flex flex-col justify-between shadow-xl border border-slate-800 ${hasBg ? '' : 'bg-slate-950'}`}
-            >
-              {hasBg && <span className="absolute inset-0 bg-black/55 rounded-3xl" />}
-              <span className="relative z-10 text-[10px] font-bold text-indigo-400 tracking-widest uppercase">Respuesta Correcta</span>
-              <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-4 overflow-y-auto">
-                <CardFace card={currentCard} side="answer" dark={true} onExpandImage={() => setIsZoomed(true)} />
-              </div>
-              <div className="relative z-10 text-[10px] font-medium text-center text-slate-500 uppercase tracking-wider">
-                Califica tu nivel de retención abajo
-              </div>
-            </div>
-
-          </div>
+            }
+          />
         </div>
       ) : (
         // MODO ESTUDIO: pregunta y respuesta visibles juntas, sin flip.
