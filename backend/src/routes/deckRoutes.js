@@ -20,5 +20,7 @@ router.post('/decks/import', deckController.importDeck);
 // =========================================================================
 // Obtener la cola inteligente priorizada por errores y dificultad
 router.get('/decks/:deckId/continuous-session', reviewController.getContinuousSessionCards);
+// Obtener el mazo completo en orden aleatorio simple, sin ponderación (Repaso Normal)
+router.get('/decks/:deckId/normal-session', reviewController.getNormalSessionCards);
 
 module.exports = router;
