@@ -146,30 +146,32 @@ function DashboardScreen({ user, onLogout }) {
         </div>
       </aside>
 
-      {/* HEADER SUPERIOR MÓVIL */}
-<div className="md:hidden sticky top-0 z-30 bg-white border-b border-slate-200 px-4 py-3.5 flex items-center justify-between shadow-xs">
-  <span className="min-w-0 max-w-[80%]">
-    {currentDeck && tab === 'library' ? (
-      <span className="font-black text-slate-900 text-base border-l-4 border-slate-900 pl-2.5 block truncate">
-        {currentDeck.title}
-      </span>
-    ) : (
-      <span className="font-black text-slate-900 tracking-tight text-base block animate-[fadeIn_0.1s_ease]">
-        {tab === 'library' ? 'Archivos' : tab === 'home' ? 'Inicio' : tab === 'study' ? 'Modo de Estudio' : 'Ajustes'}
-      </span>
-    )}
-  </span>
+      {/* CONTENEDOR PRINCIPAL */}
+      <main className="flex-1 min-w-0 relative">
+        {/* HEADER SUPERIOR MÓVIL */}
+        <div className="md:hidden sticky top-0 z-30 bg-white border-b border-slate-200 px-4 py-3.5 flex items-center justify-between shadow-xs">
+          <span className="min-w-0 max-w-[80%]">
+            {currentDeck && tab === 'library' ? (
+              <span className="font-black text-slate-900 text-base border-l-4 border-slate-900 pl-2.5 block truncate">
+                {currentDeck.title}
+              </span>
+            ) : (
+              <span className="font-black text-slate-900 tracking-tight text-base block animate-[fadeIn_0.1s_ease]">
+                {tab === 'library' ? 'Archivos' : tab === 'home' ? 'Inicio' : tab === 'study' ? 'Modo de Estudio' : 'Ajustes'}
+              </span>
+            )}
+          </span>
 
-  {tab === 'home' && (
-    <button 
-      onClick={onLogout} 
-      className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50/50 rounded-lg transition-colors shrink-0 animate-[fadeIn_0.12s_ease] cursor-pointer"
-      title="Cerrar sesión"
-    >
-      <LogOut className="w-4 h-4" />
-    </button>
-  )}
-</div>
+          {tab === 'home' && (
+            <button 
+              onClick={onLogout} 
+              className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50/50 rounded-lg transition-colors shrink-0 animate-[fadeIn_0.12s_ease] cursor-pointer"
+              title="Cerrar sesión"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          )}
+        </div>
 
         {/* CONTENIDO INTERNO */}
         <div className="max-w-5xl mx-auto px-4 py-4 pb-24 md:pb-8 md:px-6 md:py-8">
@@ -186,15 +188,14 @@ function DashboardScreen({ user, onLogout }) {
           )}
 
           {tab === 'study' && (
-  <StudySection 
-    decks={decks}
-    materias={materias}
-    userId={user.id}
-    userEmail={user.email}
-    onOpenReview={handleOpenReviewFromStudy}
-  />
-)}
-
+            <StudySection 
+              decks={decks}
+              materias={materias}
+              userId={user.id}
+              userEmail={user.email}
+              onOpenReview={handleOpenReviewFromStudy}
+            />
+          )}
 
           {tab === 'library' && (
             <LibrarySection 
