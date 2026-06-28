@@ -6,7 +6,7 @@ import FlashcardCreator from './FlashcardCreator';
 import FlashcardCollection from './FlashcardCollection'; 
 import FastDeleteMode from './FastDeleteMode'; 
 import StudyMethodsZone from './StudyMethodsZone'; 
-import ContinuousSessionPlayer from './ContinuousSessionPlayer'; 
+import SessionPlayer from './SessionPlayer'; 
 import { exportDeckToPDF } from '../utils/pdfExporter'; 
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
@@ -288,12 +288,23 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
 
       {/* 🕹️ MODO REPASO CONTINUO (Bucle Inteligente) */}
       {mode === 'continuous-review' && (
-        <ContinuousSessionPlayer 
-          deckId={deck.id} 
-          userId={userId} 
-          onExit={handleExitContinuousReview} 
-        />
-      )}
+  <SessionPlayer 
+    deckId={deck.id} 
+    userId={userId} 
+    onExit={handleExitContinuousReview} 
+    mode="continuous"
+  />
+)}
+
+{mode === 'normal-review' && (
+  <SessionPlayer 
+    deckId={deck.id} 
+    userId={userId} 
+    onExit={handleExitContinuousReview} 
+    mode="normal"
+  />
+)}
+
       
       {mode === 'fast-delete' && canEdit && (
         <FastDeleteMode 
