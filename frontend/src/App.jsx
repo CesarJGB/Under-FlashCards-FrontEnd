@@ -15,13 +15,11 @@ const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 function DashboardScreen({ user, onLogout }) {
   const [tab, setTab] = useState('home');
 
-  // Cache local optimista para Mazos
   const [decks, setDecks] = useState(() => {
     const cached = localStorage.getItem(`decks_${user.id}`);
     return cached ? JSON.parse(cached) : [];
   });
 
-  // Cache local optimista para Materias
   const [materias, setMaterias] = useState(() => {
     const cached = localStorage.getItem(`materias_${user.id}`);
     return cached ? JSON.parse(cached) : [];
@@ -36,7 +34,6 @@ function DashboardScreen({ user, onLogout }) {
   const [currentDeck, setCurrentDeck] = useState(null);
   const [initialMode, setInitialMode] = useState('edit');
 
-  // Sincronización de Mazos
   const loadDecks = useCallback(async (showSpinner = false) => {
     if (showSpinner) setLoading(true);
     try {
@@ -52,7 +49,6 @@ function DashboardScreen({ user, onLogout }) {
     }
   }, [user.id]);
 
-  // Sincronización de Materias
   const loadMaterias = useCallback(async (showSpinner = false) => {
     if (showSpinner) setLoading(true);
     try {
@@ -80,14 +76,12 @@ function DashboardScreen({ user, onLogout }) {
     setTab(id);
   };
 
-  // Canal seguro desde el Dashboard de Inicio (Lanza menú de selección de estrategias)
   const handleOpenReviewFromHome = (deck) => {
     setInitialMode('review');
     setCurrentDeck(deck);
     setTab('library');
   };
 
-  // Canal seguro desde el Modo Estudio (Pasa el modo específico como 'continuous-review' de forma directa)
   const handleOpenReviewFromStudy = (deck, mode = 'continuous-review') => {
     setInitialMode(mode); 
     setCurrentDeck(deck);
@@ -96,6 +90,7 @@ function DashboardScreen({ user, onLogout }) {
 
   const navItem = (id, label, Icon) => (
     <button
+      type="button"
       onClick={() => handleTabChange(id)}
       className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors cursor-pointer ${
         tab === id ? 'bg-slate-900 text-white font-semibold' : 'text-slate-600 hover:bg-slate-100'
@@ -108,7 +103,6 @@ function DashboardScreen({ user, onLogout }) {
 
   return (
     <div className="min-h-screen w-full bg-slate-50 flex" data-testid="dashboard-screen">
-      {/* SIDEBAR (Escritorio) */}
       <aside className="hidden md:flex w-72 shrink-0 flex-col bg-white border-r border-slate-200 p-5">
         <div className="flex items-center gap-2 px-1 mb-8 h-9 min-w-0">
           {currentDeck && tab === 'library' ? (
@@ -128,7 +122,7 @@ function DashboardScreen({ user, onLogout }) {
         <nav className="space-y-1.5">
           {navItem('home', 'Inicio', Home)}
           {navItem('study', 'Modo Estudio', BookOpen)}
-          {navItem('library', 'Archivos', Library)}
+          {navItem('library', 'Biblioteca', Library)}
           {navItem('settings', 'Ajustes', Settings)}
         </nav>
 
@@ -140,15 +134,13 @@ function DashboardScreen({ user, onLogout }) {
               <p className="text-xs text-slate-400 truncate">{user.email}</p>
             </div>
           </div>
-          <button onClick={onLogout} className="mt-3 w-full inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium py-2.5 transition-colors cursor-pointer">
+          <button type="button" onClick={onLogout} className="mt-3 w-full inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium py-2.5 transition-colors cursor-pointer">
             <LogOut className="w-4 h-4" /> Cerrar sesión
           </button>
         </div>
       </aside>
 
-      {/* CONTENEDOR PRINCIPAL */}
       <main className="flex-1 min-w-0 relative">
-        {/* HEADER SUPERIOR MÓVIL */}
         <div className="md:hidden sticky top-0 z-30 bg-white border-b border-slate-200 px-4 py-3.5 flex items-center justify-between shadow-xs">
           <span className="min-w-0 max-w-[80%]">
             {currentDeck && tab === 'library' ? (
@@ -157,13 +149,14 @@ function DashboardScreen({ user, onLogout }) {
               </span>
             ) : (
               <span className="font-black text-slate-900 tracking-tight text-base block animate-[fadeIn_0.1s_ease]">
-                {tab === 'library' ? 'Archivos' : tab === 'home' ? 'Inicio' : tab === 'study' ? 'Modo de Estudio' : 'Ajustes'}
+                {tab === 'library' ? 'Biblioteca' : tab === 'home' ? 'Inicio' : tab === 'study' ? 'Modo de Estudio' : 'Ajustes'}
               </span>
             )}
           </span>
 
           {tab === 'home' && (
             <button 
+              type="button"
               onClick={onLogout} 
               className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50/50 rounded-lg transition-colors shrink-0 animate-[fadeIn_0.12s_ease] cursor-pointer"
               title="Cerrar sesión"
@@ -173,7 +166,6 @@ function DashboardScreen({ user, onLogout }) {
           )}
         </div>
 
-        {/* CONTENIDO INTERNO */}
         <div className="max-w-5xl mx-auto px-4 py-4 pb-24 md:pb-8 md:px-6 md:py-8">
           {tab === 'home' && (
             <HomeSection 
@@ -218,12 +210,11 @@ function DashboardScreen({ user, onLogout }) {
           {tab === 'settings' && <SettingsSection userId={user.id} />}
         </div>
 
-        {/* BARRA INFERIOR MÓVIL */}
         <div className="md:hidden fixed bottom-5 inset-x-4 max-w-xs mx-auto bg-white/85 backdrop-blur-xl border border-slate-200/60 h-14 rounded-full px-1.5 flex justify-between items-center z-40 shadow-[0_8px_30px_rgb(0,0,0,0.08)] animate-[slideUp_0.2s_ease-out]">
           {[
             { id: 'home', title: 'Inicio', Icon: Home },
             { id: 'study', title: 'Estudio', Icon: BookOpen },
-            { id: 'library', title: 'Archivos', Icon: Library },
+            { id: 'library', title: 'Biblioteca', Icon: Library },
             { id: 'settings', title: 'Ajustes', Icon: Settings }
           ].map((item) => {
             const isActive = tab === item.id;
