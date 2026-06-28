@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { RotateCw, CheckCircle, XCircle, ArrowLeft, Loader2, RefreshCw } from 'lucide-react';
+import { RotateCw, CheckCircle, XCircle, ArrowLeft, Loader2, RefreshCw, BarChart3 } from 'lucide-react';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
@@ -9,9 +9,12 @@ export default function ContinuousSessionPlayer({ deckId, userId, onExit }) {
   const [isFlipped, setIsFlipped] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [sessionSummary, setSessionSummary] = useState(null); // 🚀 resumen a mostrar al salir
+  const [closing, setClosing] = useState(false); // 🚀 true mientras se espera el flush de la cascada antes de cerrar
 
   const startTimeRef = useRef(null);
-  const sessionIdRef = useRef(null); // 🚀 sessionId vive en ref: no necesita re-render y evita stale closures en handleAnswer
+  const sessionIdRef = useRef(null); // sessionId vive en ref: evita stale closures en handleAnswer
+  const sessionClosedRef = useRef(false); // evita doble-cierre (botón + cleanup de useEffect)
 
   // =========================================================================
   // CICLO DE VIDA DE LA SESIÓN DE ESTUDIO
@@ -28,20 +31,43 @@ export default function ContinuousSessionPlayer({ deckId, userId, onExit }) {
       const data = await response.json();
       sessionIdRef.current = data.session?.id || null;
     } catch (err) {
-      // Si la sesión no se pudo crear, el bucle sigue funcionando igual,
-      // simplemente sin tracking agregado (sessionId queda null en cada respuesta).
       console.error('Error al iniciar sesión de estudio:', err);
       sessionIdRef.current = null;
     }
   };
 
-  const closeSession = () => {
-    if (!sessionIdRef.current) return;
-    // Fire-and-forget, igual que el resto de la telemetría: no bloquea la salida del usuario.
-    fetch(`${BACKEND_URL}/api/sessions/${sessionIdRef.current}/close`, {
-      method: 'PATCH'
-    }).catch(err => console.error('Error al cerrar sesión de estudio:', err));
-    sessionIdRef.current = null;
+  // showSummary: true cuando el cierre es explícito (botón "Salir"), para mostrar
+  // la pantalla de resumen. En el cleanup silencioso (desmontaje) no aplica.
+  const closeSession = async (showSummary = false) => {
+    if (!sessionIdRef.current || sessionClosedRef.current) return;
+    sessionClosedRef.current = true;
+
+    try {
+      // 🚀 Si vamos a mostrarle un resumen al usuario, primero esperamos a que
+      // termine de procesarse cualquier cascada pendiente de este usuario
+      // (la última respuesta puede seguir actualizando Deck/Subtema/Tema/Materia
+      // en background). Así el mastery que vea después en el deck coincide
+      // exactamente con lo que ya pasó al momento de cerrar esta sesión.
+      // Si esto falla, no bloqueamos la salida: seguimos con el cierre igual.
+      if (showSummary) {
+        setClosing(true);
+        await fetch(`${BACKEND_URL}/api/users/${userId}/queue-status`).catch(
+          err => console.error('Error al esperar la cola de cascada:', err)
+        );
+      }
+
+      const response = await fetch(`${BACKEND_URL}/api/sessions/${sessionIdRef.current}/close`, {
+        method: 'PATCH'
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (showSummary) setSessionSummary(data.session);
+      }
+    } catch (err) {
+      console.error('Error al cerrar sesión de estudio:', err);
+    } finally {
+      if (showSummary) setClosing(false);
+    }
   };
 
   const notifyBatchCompleted = () => {
@@ -76,16 +102,13 @@ export default function ContinuousSessionPlayer({ deckId, userId, onExit }) {
   };
 
   useEffect(() => {
-    // Arrancamos la sesión y, en paralelo, la primera carga de la cola.
-    // No necesitamos esperar a que la sesión termine de crearse para mostrar tarjetas:
-    // si la sesión tarda o falla, el bucle igual funciona (ver nota en startSession).
     startSession();
     fetchQueue(true);
 
-    // Al desmontar el componente (ej. el usuario navega fuera sin tocar "Salir"),
-    // cerramos la sesión igual para no dejarla "colgada" sin endedAt.
+    // Al desmontar el componente (ej. navegación sin tocar "Salir"), cerramos
+    // la sesión de forma silenciosa, sin mostrar el resumen.
     return () => {
-      closeSession();
+      closeSession(false);
     };
   }, [deckId, userId]);
 
@@ -114,7 +137,7 @@ export default function ContinuousSessionPlayer({ deckId, userId, onExit }) {
         userId,
         wasCorrect,
         responseTimeMs,
-        sessionId: sessionIdRef.current // 🚀 vincula este repaso a la sesión activa (null si no hay)
+        sessionId: sessionIdRef.current
       })
     }).catch(err => console.error("Error síncrono de telemetría:", err));
 
@@ -130,9 +153,67 @@ export default function ContinuousSessionPlayer({ deckId, userId, onExit }) {
   };
 
   const handleExit = () => {
-    closeSession();
-    onExit();
+    closeSession(true); // muestra el resumen al salir explícitamente
   };
+
+  // =========================================================================
+  // PANTALLA DE CIERRE (mientras se espera el flush de la cascada pendiente)
+  // =========================================================================
+  if (closing) {
+    return (
+      <div className="flex flex-col items-center justify-center h-80 animate-[fadeIn_0.1s_ease]">
+        <Loader2 className="w-8 h-8 text-indigo-600 animate-spin mb-3" />
+        <p className="text-slate-500 text-xs font-semibold uppercase tracking-wider">Consolidando tu progreso...</p>
+      </div>
+    );
+  }
+
+  // =========================================================================
+  // PANTALLA DE RESUMEN (se muestra después de cerrar sesión con el botón)
+  // =========================================================================
+  if (sessionSummary) {
+    return (
+      <div className="max-w-md mx-auto px-4 py-12 text-center animate-[fadeIn_0.15s_ease]">
+        <div className="w-14 h-14 rounded-2xl bg-indigo-50 flex items-center justify-center mx-auto mb-5">
+          <BarChart3 className="w-7 h-7 text-indigo-600" />
+        </div>
+        <h3 className="text-lg font-extrabold text-slate-800 mb-1">Sesión completada</h3>
+        <p className="text-xs text-slate-400 mb-6 uppercase tracking-wider font-semibold">Resumen del Bucle Activo</p>
+
+        <div className="grid grid-cols-2 gap-3 mb-6">
+          <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4">
+            <p className="text-2xl font-extrabold text-slate-800">{sessionSummary.cardsAnswered}</p>
+            <p className="text-[10px] text-slate-400 uppercase tracking-wider font-bold mt-1">Tarjetas</p>
+          </div>
+          <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4">
+            <p className="text-2xl font-extrabold text-slate-800">{sessionSummary.batchesCompleted}</p>
+            <p className="text-[10px] text-slate-400 uppercase tracking-wider font-bold mt-1">Lotes completados</p>
+          </div>
+          <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4">
+            <p className="text-2xl font-extrabold text-emerald-600">{sessionSummary.correctCount}</p>
+            <p className="text-[10px] text-emerald-500 uppercase tracking-wider font-bold mt-1">Correctas</p>
+          </div>
+          <div className="bg-red-50 border border-red-100 rounded-2xl p-4">
+            <p className="text-2xl font-extrabold text-red-500">{sessionSummary.incorrectCount}</p>
+            <p className="text-[10px] text-red-400 uppercase tracking-wider font-bold mt-1">Errores</p>
+          </div>
+        </div>
+
+        <p className="text-xs text-slate-400 mb-6">
+          Precisión: <span className="font-bold text-slate-600">{Math.round(sessionSummary.accuracyRate * 100)}%</span>
+          {' · '}
+          Tiempo promedio: <span className="font-bold text-slate-600">{sessionSummary.avgResponseTimeMs}ms</span>
+        </p>
+
+        <button
+          onClick={onExit}
+          className="w-full bg-slate-900 text-white py-3 rounded-2xl font-bold text-sm hover:bg-slate-800 transition-colors active:scale-[0.98]"
+        >
+          Volver al Mazo
+        </button>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
