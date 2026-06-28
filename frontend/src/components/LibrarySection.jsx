@@ -231,6 +231,7 @@ export default function LibrarySection({
             handleDeckMutation={handleDeckMutation}
             setInitialMode={setInitialMode}
             setCurrentDeck={setCurrentDeck}
+            setModal={setModal}
           />
         )}
 
@@ -260,6 +261,7 @@ export default function LibrarySection({
             handleDeckMutation={handleDeckMutation}
             setInitialMode={setInitialMode}
             setCurrentDeck={setCurrentDeck}
+            setModal={setModal}
           />
         )}
 
@@ -278,6 +280,7 @@ export default function LibrarySection({
             handleDeckMutation={handleDeckMutation}
             setInitialMode={setInitialMode}
             setCurrentDeck={setCurrentDeck}
+            setModal={setModal}
           />
         )}
       </div>
