@@ -136,6 +136,7 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
   };
 
   useEffect(() => {
+    startSession();
     loadDeck();
 
     return () => {
