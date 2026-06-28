@@ -393,6 +393,43 @@ exports.getNormalSessionCards = async (req, res) => {
 };
 
 // =========================================================================
+// CARGA ÚNICA DEL MAZO COMPLETO (usado por SessionPlayer en ambos modos)
+// =========================================================================
+// A diferencia de los endpoints de cola anteriores, este se llama una SOLA VEZ
+// al montar la sesión. El frontend guarda el resultado en memoria y arma sus
+// propios lotes (weighted shuffle o shuffle simple) localmente, sin volver a
+// pedir nada al backend entre lotes. Esto evita reenviar imágenes pesadas
+// (cardBackgrounds resueltos) en cada recarga de cola, que era el cuello de
+// botella real de performance en mazos con fondos/imágenes grandes.
+exports.getAllSessionCards = async (req, res) => {
+  const { deckId } = req.params;
+  const { userId } = req.query;
+
+  try {
+    if (!userId) {
+      return res.status(400).json({ error: 'El parámetro userId es requerido en el query string.' });
+    }
+
+    const allCards = await Flashcard.find({ deckId, userId });
+
+    if (allCards.length === 0) {
+      return res.status(404).json({ error: 'No se encontraron flashcards activas para este mazo.' });
+    }
+
+    const deck = await Deck.findById(deckId);
+    const cardBackgrounds = deck?.cardBackgrounds || [];
+
+    return res.status(200).json({
+      success: true,
+      cards: allCards.map(card => card.serialize(cardBackgrounds))
+    });
+  } catch (error) {
+    console.error("Error al cargar el mazo completo para la sesión:", error);
+    return res.status(500).json({ error: 'Fallo interno al cargar el mazo.' });
+  }
+};
+
+// =========================================================================
 // SESIONES DE ESTUDIO (Bucle Activo / Repaso Continuo)
 // =========================================================================
 
