@@ -152,14 +152,14 @@ exports.registerReview = async (req, res) => {
       [
         {
           $set: {
-            totalReviews: { $add: ['$totalReviews', 1] },
+            totalReviews: { $add: [{ $ifNull: ['$totalReviews', 0] }, 1] },
             lastReviewedAt: new Date(),
-            consecutiveErrors: wasCorrect ? 0 : { $add: ['$consecutiveErrors', 1] },
+            consecutiveErrors: wasCorrect ? 0 : { $add: [{ $ifNull: ['$consecutiveErrors', 0] }, 1] },
             difficulty: {
-              $max: [0.0, { $min: [1.0, { $add: ['$difficulty', difficultyDelta] }] }]
+              $max: [0.0, { $min: [1.0, { $add: [{ $ifNull: ['$difficulty', 0.3] }, difficultyDelta] }] }]
             },
             easeFactor: {
-              $max: [1.3, { $add: ['$easeFactor', easeFactorDelta] }]
+              $max: [1.3, { $add: [{ $ifNull: ['$easeFactor', 2.5] }, easeFactorDelta] }]
             }
           }
         }
