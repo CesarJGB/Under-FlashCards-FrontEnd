@@ -16,6 +16,9 @@ const MODE_CONFIG = {
     progressLabel: 'Bucle Activo',
     summaryTitle: 'Resumen del Bucle Activo',
     batchLabel: 'Lotes completados',
+    cardStyle: 'flip', // pregunta sola, voltear para ver respuesta, calificar al vuelo
+    incorrectLabel: 'No la recordé',
+    correctLabel: 'La dominé',
   },
   normal: {
     queueEndpoint: (deckId, userId) => `/api/decks/${deckId}/normal-session?userId=${userId}`,
@@ -23,6 +26,9 @@ const MODE_CONFIG = {
     progressLabel: 'Mazo',
     summaryTitle: 'Resumen del Repaso',
     batchLabel: 'Vueltas completas al mazo',
+    cardStyle: 'study', // pregunta y respuesta juntas, sin flip; calificar después de estudiar
+    incorrectLabel: 'Necesito verla de nuevo',
+    correctLabel: 'Ya me la sé',
   },
 };
 
@@ -144,7 +150,7 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
   }, [currentIndex, cards, loading]);
 
   const handleFlip = () => {
-    setIsFlipped(!isFlipped);
+    if (config.cardStyle === 'flip') setIsFlipped(!isFlipped);
   };
 
   const handleAnswer = async (wasCorrect) => {
@@ -277,58 +283,77 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
         </span>
       </div>
 
-      {/* Contenedor Efecto 3D Flip Card */}
-      <div 
-        className="[perspective:1000px] h-72 w-full mb-6 cursor-pointer select-none" 
-        onClick={handleFlip}
-      >
-        <div className={`relative w-full h-full duration-500 [transform-style:preserve-3d] ${isFlipped ? '[transform:rotateY(180deg)]' : ''}`}>
-          
-          {/* CARA PREGUNTA */}
-          <div className="absolute inset-0 [backface-visibility:hidden] bg-white border border-slate-200 rounded-3xl p-6 flex flex-col justify-between shadow-sm hover:shadow-md transition-all">
-            <span className="text-[10px] font-bold text-amber-500 tracking-widest uppercase">Pregunta</span>
-            <div className="flex-1 flex items-center justify-center px-4">
-              <p className="text-xl font-bold text-slate-800 text-center leading-relaxed">
-                {currentCard?.question}
-              </p>
+      {/* Contenedor de la tarjeta: flip 3D (continuo) o pregunta+respuesta juntas (estudio) */}
+      {config.cardStyle === 'flip' ? (
+        <div 
+          className="[perspective:1000px] h-72 w-full mb-6 cursor-pointer select-none" 
+          onClick={handleFlip}
+        >
+          <div className={`relative w-full h-full duration-500 [transform-style:preserve-3d] ${isFlipped ? '[transform:rotateY(180deg)]' : ''}`}>
+            
+            {/* CARA PREGUNTA */}
+            <div className="absolute inset-0 [backface-visibility:hidden] bg-white border border-slate-200 rounded-3xl p-6 flex flex-col justify-between shadow-sm hover:shadow-md transition-all">
+              <span className="text-[10px] font-bold text-amber-500 tracking-widest uppercase">Pregunta</span>
+              <div className="flex-1 flex items-center justify-center px-4">
+                <p className="text-xl font-bold text-slate-800 text-center leading-relaxed">
+                  {currentCard?.question}
+                </p>
+              </div>
+              <div className="text-[10px] font-semibold text-center text-slate-400 flex items-center justify-center gap-1.5 uppercase tracking-wider">
+                <RefreshCw className="w-3 h-3 animate-[spin_4s_linear_infinite]" /> Toca la tarjeta para voltear
+              </div>
             </div>
-            <div className="text-[10px] font-semibold text-center text-slate-400 flex items-center justify-center gap-1.5 uppercase tracking-wider">
-              <RefreshCw className="w-3 h-3 animate-[spin_4s_linear_infinite]" /> Toca la tarjeta para voltear
-            </div>
-          </div>
 
-          {/* CARA RESPUESTA */}
-          <div className="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)] bg-slate-950 text-white rounded-3xl p-6 flex flex-col justify-between shadow-xl border border-slate-800">
-            <span className="text-[10px] font-bold text-indigo-400 tracking-widest uppercase">Respuesta Correcta</span>
-            <div className="flex-1 flex items-center justify-center px-4">
-              <p className="text-xl font-bold text-slate-100 text-center leading-relaxed">
-                {currentCard?.answer}
-              </p>
+            {/* CARA RESPUESTA */}
+            <div className="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)] bg-slate-950 text-white rounded-3xl p-6 flex flex-col justify-between shadow-xl border border-slate-800">
+              <span className="text-[10px] font-bold text-indigo-400 tracking-widest uppercase">Respuesta Correcta</span>
+              <div className="flex-1 flex items-center justify-center px-4">
+                <p className="text-xl font-bold text-slate-100 text-center leading-relaxed">
+                  {currentCard?.answer}
+                </p>
+              </div>
+              <div className="text-[10px] font-medium text-center text-slate-500 uppercase tracking-wider">
+                Califica tu nivel de retención abajo
+              </div>
             </div>
-            <div className="text-[10px] font-medium text-center text-slate-500 uppercase tracking-wider">
-              Califica tu nivel de retención abajo
-            </div>
-          </div>
 
+          </div>
         </div>
-      </div>
+      ) : (
+        // MODO ESTUDIO: pregunta y respuesta visibles juntas, sin flip.
+        // El usuario lee, asocia, y recién después decide si ya se la sabe.
+        <div className="h-72 w-full mb-6 bg-white border border-slate-200 rounded-3xl shadow-sm flex flex-col overflow-hidden">
+          <div className="flex-1 flex flex-col items-center justify-center px-6 py-4 border-b border-slate-100">
+            <span className="text-[10px] font-bold text-amber-500 tracking-widest uppercase mb-2">Pregunta</span>
+            <p className="text-lg font-bold text-slate-800 text-center leading-relaxed">
+              {currentCard?.question}
+            </p>
+          </div>
+          <div className="flex-1 flex flex-col items-center justify-center px-6 py-4 bg-slate-950">
+            <span className="text-[10px] font-bold text-indigo-400 tracking-widest uppercase mb-2">Respuesta</span>
+            <p className="text-lg font-bold text-slate-100 text-center leading-relaxed">
+              {currentCard?.answer}
+            </p>
+          </div>
+        </div>
+      )}
 
-      {/* Botonera de Feedback Inmediato */}
+      {/* Botonera de Feedback */}
       <div className="h-16">
-        {isFlipped && (
+        {(config.cardStyle === 'study' || isFlipped) && (
           <div className="grid grid-cols-2 gap-4 animate-[fadeIn_0.12s_ease]">
             <button
               onClick={(e) => { e.stopPropagation(); handleAnswer(false); }}
               className="flex items-center justify-center gap-2 bg-red-50 border border-red-200 text-red-600 rounded-2xl font-bold text-sm hover:bg-red-100/80 transition-all active:scale-[0.97]"
             >
-              <XCircle className="w-4 h-4 stroke-[2.5]" /> No la recordé
+              <XCircle className="w-4 h-4 stroke-[2.5]" /> {config.incorrectLabel}
             </button>
             
             <button
               onClick={(e) => { e.stopPropagation(); handleAnswer(true); }}
               className="flex items-center justify-center gap-2 bg-emerald-600 text-white rounded-2xl font-bold text-sm hover:bg-emerald-700 shadow-sm hover:shadow-md hover:shadow-emerald-900/10 transition-all active:scale-[0.97]"
             >
-              <CheckCircle className="w-4 h-4 stroke-[2.5]" /> La dominé
+              <CheckCircle className="w-4 h-4 stroke-[2.5]" /> {config.correctLabel}
             </button>
           </div>
         )}
