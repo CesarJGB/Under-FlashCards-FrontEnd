@@ -2,33 +2,31 @@ import React, { useState, useEffect, useRef } from 'react';
 import { RotateCw, CheckCircle, XCircle, ArrowLeft, Loader2, RefreshCw, BarChart3, X } from 'lucide-react';
 import CardFace, { getCardBackgroundStyle } from './CardFace';
 import FlipCard from './FlipCard';
+import { buildContinuousBatch, buildNormalBatch, applyLocalAnswer } from '../lib/batchBuilder';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
 // =========================================================================
 // CONFIGURACIÓN POR MODO
 // =========================================================================
-// Cada modo define solo lo que cambia entre sí: qué endpoint trae la cola,
-// y los textos de UI. Todo el ciclo de vida (sesión, telemetría, resumen,
-// flush de cascada) es idéntico para ambos y vive en el cuerpo del componente.
 const MODE_CONFIG = {
   continuous: {
-    queueEndpoint: (deckId, userId) => `/api/decks/${deckId}/continuous-session?userId=${userId}`,
-    loadingText: 'Estructurando cola de prioridad matemática...',
+    buildBatch: buildContinuousBatch,
+    loadingText: 'Cargando el mazo...',
     progressLabel: 'Bucle Activo',
     summaryTitle: 'Resumen del Bucle Activo',
     batchLabel: 'Lotes completados',
-    cardStyle: 'flip', // pregunta sola, voltear para ver respuesta, calificar al vuelo
+    cardStyle: 'flip',
     incorrectLabel: 'No la recordé',
     correctLabel: 'La dominé',
   },
   normal: {
-    queueEndpoint: (deckId, userId) => `/api/decks/${deckId}/normal-session?userId=${userId}`,
-    loadingText: 'Preparando el mazo...',
+    buildBatch: buildNormalBatch,
+    loadingText: 'Cargando el mazo...',
     progressLabel: 'Mazo',
     summaryTitle: 'Resumen del Repaso',
     batchLabel: 'Vueltas completas al mazo',
-    cardStyle: 'study', // pregunta y respuesta juntas, sin flip; calificar después de estudiar
+    cardStyle: 'study',
     incorrectLabel: 'Necesito verla de nuevo',
     correctLabel: 'Ya me la sé',
   },
@@ -42,16 +40,17 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
   const [isFlipped, setIsFlipped] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [sessionSummary, setSessionSummary] = useState(null); // resumen a mostrar al salir
-  const [closing, setClosing] = useState(false); // true mientras se espera el flush de la cascada antes de cerrar
-  const [isZoomed, setIsZoomed] = useState(false); // true mientras se muestra la imagen de la tarjeta en pantalla completa
+  const [sessionSummary, setSessionSummary] = useState(null);
+  const [closing, setClosing] = useState(false);
+  const [isZoomed, setIsZoomed] = useState(false);
 
   const startTimeRef = useRef(null);
-  const sessionIdRef = useRef(null); // sessionId vive en ref: evita stale closures en handleAnswer
-  const sessionClosedRef = useRef(false); // evita doble-cierre (botón + cleanup de useEffect)
+  const sessionIdRef = useRef(null);
+  const sessionClosedRef = useRef(false);
+  const allCardsRef = useRef([]); // mazo completo, cargado una sola vez; se actualiza localmente tras cada respuesta
 
   // =========================================================================
-  // CICLO DE VIDA DE LA SESIÓN DE ESTUDIO (idéntico para ambos modos)
+  // CICLO DE VIDA DE LA SESIÓN DE ESTUDIO
   // =========================================================================
   const startSession = async () => {
     try {
@@ -70,17 +69,11 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
     }
   };
 
-  // showSummary: true cuando el cierre es explícito (botón "Salir"), para mostrar
-  // la pantalla de resumen. En el cleanup silencioso (desmontaje) no aplica.
   const closeSession = async (showSummary = false) => {
     if (!sessionIdRef.current || sessionClosedRef.current) return;
     sessionClosedRef.current = true;
 
     try {
-      // Si vamos a mostrarle un resumen al usuario, primero esperamos a que
-      // termine de procesarse cualquier cascada pendiente de este usuario,
-      // para que el mastery que vea después en el deck coincida exactamente
-      // con lo que ya pasó al momento de cerrar esta sesión.
       if (showSummary) {
         setClosing(true);
         await fetch(`${BACKEND_URL}/api/users/${userId}/queue-status`).catch(
@@ -109,24 +102,23 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
     }).catch(err => console.error('Error al actualizar lote de sesión:', err));
   };
 
-  // Único punto que cambia entre modos: la URL de la cola.
-  const fetchQueue = async (isRefresh = false) => {
+  // Carga del mazo completo: se llama UNA SOLA VEZ al montar. Todo lote
+  // posterior se arma en memoria con config.buildBatch, sin red.
+  const loadDeck = async () => {
     try {
-      if (isRefresh) setLoading(true);
+      setLoading(true);
       setError('');
 
-      const response = await fetch(`${BACKEND_URL}${config.queueEndpoint(deckId, userId)}`);
-      if (!response.ok) throw new Error('No se pudo estructurar la cola de tarjetas.');
+      const response = await fetch(`${BACKEND_URL}/api/decks/${deckId}/all-cards?userId=${userId}`);
+      if (!response.ok) throw new Error('No se pudo cargar el mazo.');
 
       const data = await response.json();
       if (!data.cards || data.cards.length === 0) {
         throw new Error('Este mazo no tiene tarjetas para repasar.');
       }
 
-      setCards(data.cards);
-      setCurrentIndex(0);
-      setIsFlipped(false);
-      startTimeRef.current = performance.now();
+      allCardsRef.current = data.cards;
+      startNewBatch();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -134,12 +126,18 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
     }
   };
 
-  useEffect(() => {
-    startSession();
-    fetchQueue(true);
+  // Arma un lote nuevo a partir de allCardsRef (ya en memoria, sin red).
+  const startNewBatch = () => {
+    const batch = config.buildBatch(allCardsRef.current);
+    setCards(batch);
+    setCurrentIndex(0);
+    setIsFlipped(false);
+    startTimeRef.current = performance.now();
+  };
 
-    // Al desmontar el componente (ej. navegación sin tocar "Salir"), cerramos
-    // la sesión de forma silenciosa, sin mostrar el resumen.
+  useEffect(() => {
+    loadDeck();
+
     return () => {
       closeSession(false);
     };
@@ -157,17 +155,18 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
     if (config.cardStyle === 'flip') setIsFlipped(!isFlipped);
   };
 
-  const handleAnswer = async (wasCorrect) => {
+  const handleAnswer = (wasCorrect) => {
     const endTime = performance.now();
     const responseTimeMs = Math.round(endTime - startTimeRef.current);
     const currentCard = cards[currentIndex];
+    const cardId = currentCard.id || currentCard._id;
 
     // 🔥 Disparo Optimista hacia el Ledger y Motor en Cascada (No bloquea la UI)
     fetch(`${BACKEND_URL}/api/decks/${deckId}/reviews`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        cardId: currentCard.id || currentCard._id,
+        cardId,
         userId,
         wasCorrect,
         responseTimeMs,
@@ -175,21 +174,26 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
       })
     }).catch(err => console.error("Error síncrono de telemetría:", err));
 
-    // Flujo del bucle (idéntico en ambos modos: agotada la cola, se recarga)
+    // Actualizamos la copia local de la tarjeta (mismo delta que aplica el
+    // backend) para que el próximo lote ya priorice con datos frescos,
+    // sin esperar ningún round-trip de red.
+    allCardsRef.current = applyLocalAnswer(allCardsRef.current, cardId, wasCorrect);
+
+    // Flujo del bucle: agotado el lote actual, armamos uno nuevo en memoria.
     if (currentIndex < cards.length - 1) {
       setCurrentIndex((prev) => prev + 1);
     } else {
       notifyBatchCompleted();
-      await fetchQueue(false);
+      startNewBatch();
     }
   };
 
   const handleExit = () => {
-    closeSession(true); // muestra el resumen al salir explícitamente
+    closeSession(true);
   };
 
   // =========================================================================
-  // PANTALLA DE CIERRE (mientras se espera el flush de la cascada pendiente)
+  // PANTALLA DE CIERRE
   // =========================================================================
   if (closing) {
     return (
@@ -201,7 +205,7 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
   }
 
   // =========================================================================
-  // PANTALLA DE RESUMEN (se muestra después de cerrar sesión con el botón)
+  // PANTALLA DE RESUMEN
   // =========================================================================
   if (sessionSummary) {
     return (
@@ -275,7 +279,6 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
 
   return (
     <div className="max-w-2xl mx-auto px-2 py-4 animate-[fadeIn_0.15s_ease]">
-      {/* Navbar Minimalista Premium de Sesión */}
       <div className="flex justify-between items-center mb-6">
         <button 
           onClick={handleExit}
@@ -288,7 +291,6 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
         </span>
       </div>
 
-      {/* Contenedor de la tarjeta: flip 3D (continuo) o pregunta+respuesta juntas (estudio) */}
       {config.cardStyle === 'flip' ? (
         <div className="mb-6">
           <FlipCard
@@ -327,8 +329,6 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
           />
         </div>
       ) : (
-        // MODO ESTUDIO: pregunta y respuesta visibles juntas, sin flip.
-        // Ambos bloques llevan el mismo fondo decorativo de la tarjeta (si tiene).
         <div className="h-72 w-full mb-6 border border-slate-200 rounded-3xl shadow-sm flex flex-col overflow-hidden">
           <div style={bgStyle} className="relative flex-1 flex flex-col items-center justify-center px-6 py-4 border-b border-slate-100 overflow-hidden">
             {hasBg && <span className="absolute inset-0 bg-black/55" />}
@@ -350,7 +350,6 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
         </div>
       )}
 
-      {/* Botonera de Feedback */}
       <div className="h-16">
         {(config.cardStyle === 'study' || isFlipped) && (
           <div className="grid grid-cols-2 gap-4 animate-[fadeIn_0.12s_ease]">
