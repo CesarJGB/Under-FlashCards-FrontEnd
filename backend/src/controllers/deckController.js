@@ -101,7 +101,8 @@ exports.updateDeck = async (req, res) => {
 
     const deck = await Deck.findByIdAndUpdate(id, { $set: update }, { new: true });
     if (!deck) return res.status(404).json({ error: 'Deck not found.' });
-    return res.json(deck.serialize());
+    const cardCount = await Flashcard.countDocuments({ deckId: deck._id });
+    return res.json(deck.serialize(cardCount));
   } catch (err) {
     console.error('[decks:put] error:', err.message);
     return res.status(500).json({ error: 'Server error.' });
@@ -119,7 +120,8 @@ exports.updateDefault = async (req, res) => {
 
     const deck = await Deck.findByIdAndUpdate(id, { $set: update }, { new: true });
     if (!deck) return res.status(404).json({ error: 'Deck not found.' });
-    return res.json(deck.serialize());
+    const cardCount = await Flashcard.countDocuments({ deckId: deck._id });
+    return res.json(deck.serialize(cardCount));
   } catch (err) {
     console.error('[decks:put-default] error:', err.message);
     return res.status(500).json({ error: 'Server error.' });
@@ -137,7 +139,8 @@ exports.updatePublicReadOnly = async (req, res) => {
 
     const deck = await Deck.findByIdAndUpdate(id, { $set: update }, { new: true });
     if (!deck) return res.status(404).json({ error: 'Deck not found.' });
-    return res.json(deck.serialize());
+    const cardCount = await Flashcard.countDocuments({ deckId: deck._id });
+    return res.json(deck.serialize(cardCount));
   } catch (err) {
     console.error('[decks:put-readonly] error:', err.message);
     return res.status(500).json({ error: 'Server error.' });
