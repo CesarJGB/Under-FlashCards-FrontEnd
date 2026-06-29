@@ -65,12 +65,24 @@ exports.getTemas = async (req, res) => {
   try {
     const { materiaId } = req.params;
     const { parcialNumber } = req.query; // Opcional: filtrar por parcial directo
-    
+
     const filter = { materiaId };
     if (parcialNumber) filter.parcialNumber = Number(parcialNumber);
 
     const temas = await Tema.find(filter).sort({ name: 1 });
-    return res.json(temas.map(t => t.serialize()));
+    const temaIds = temas.map(t => t._id);
+    const subtemaCountsRaw = await Subtema.aggregate([
+      { $match: { temaId: { $in: temaIds } } },
+      { $group: { _id: '$temaId', count: { $sum: 1 } } }
+    ]);
+    const subtemaCountMap = Object.fromEntries(
+      subtemaCountsRaw.map(r => [r._id.toString(), r.count])
+    );
+
+    return res.json(temas.map(t => ({
+      ...t.serialize(),
+      subtemaCount: subtemaCountMap[t._id.toString()] || 0
+    })));
   } catch (err) {
     console.error('[academic:getTemas] error:', err.message);
     return res.status(500).json({ error: 'Server error al obtener temas.' });
