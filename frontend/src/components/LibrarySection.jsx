@@ -15,10 +15,11 @@ import AcademicFolderModal from './library/AcademicFolderModal';
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 const ADMIN_EMAIL = "cesarjaviervebe@gmail.com"; 
 
-export default function LibrarySection({ 
-  userId, userEmail, decks, materias, loading, 
+export default function LibrarySection({
+  userId, userEmail, decks, materias, loading,
   setDecks, setMaterias, loadDecks, loadMaterias,
-  currentDeck, setCurrentDeck, initialMode, setInitialMode
+  currentDeck, setCurrentDeck, initialMode, setInitialMode,
+  onExitToStudy
 }) {
   
   useEffect(() => {
@@ -186,6 +187,7 @@ export default function LibrarySection({
           if (typeof loadDecks === 'function') loadDecks();
           if (typeof loadMaterias === 'function') loadMaterias();
         }}
+        onExitToStudy={onExitToStudy}
       />
     );
   }

@@ -83,9 +83,15 @@ function DashboardScreen({ user, onLogout }) {
   };
 
   const handleOpenReviewFromStudy = (deck, mode = 'continuous-review') => {
-    setInitialMode(mode); 
+    setInitialMode(mode);
     setCurrentDeck(deck);
     setTab('library');
+  };
+
+  const handleExitToStudy = () => {
+    setCurrentDeck(null);
+    setInitialMode('edit');
+    setTab('study');
   };
 
   const navItem = (id, label, Icon) => (
@@ -190,9 +196,9 @@ function DashboardScreen({ user, onLogout }) {
           )}
 
           {tab === 'library' && (
-            <LibrarySection 
-              userId={user.id} 
-              userEmail={user.email} 
+            <LibrarySection
+              userId={user.id}
+              userEmail={user.email}
               decks={decks}
               materias={materias}
               loading={loading}
@@ -204,6 +210,7 @@ function DashboardScreen({ user, onLogout }) {
               setCurrentDeck={setCurrentDeck}
               initialMode={initialMode}
               setInitialMode={setInitialMode}
+              onExitToStudy={handleExitToStudy}
             />
           )}
 

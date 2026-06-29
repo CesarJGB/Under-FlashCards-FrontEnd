@@ -16,7 +16,7 @@ const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 // suelto si en el futuro se agrega un tercer modo de sesión: solo se agrega aquí.
 const SESSION_MODES = ['continuous-review', 'normal-review'];
 
-export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit', onRefreshData }) {
+export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit', onRefreshData, onExitToStudy }) {
   const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState(initialMode);
@@ -266,9 +266,13 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
   // Handler para limpiar la sesión de estudio (cualquiera de los modos) y
   // forzar el refresco de métricas en paralelo
   const handleExitSession = () => {
-    setMode('review');
     if (typeof onRefreshData === 'function') {
       onRefreshData();
+    }
+    if (typeof onExitToStudy === 'function') {
+      onExitToStudy();
+    } else {
+      setMode('review');
     }
   };
 
