@@ -18,22 +18,24 @@ export function useLibraryState(userId, decks, materias, setDecks, setMaterias, 
   const [sortBy, setSortBy] = useState('recent');
   const [viewMode, setViewMode] = useState('grid');
 
+  const refreshTemas = useCallback(async () => {
+    if (!currentPath.materiaId) return;
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/academic/temas/${currentPath.materiaId}`);
+      if (res.ok) setTemas(await res.json());
+    } catch (e) {
+      console.error("Error cargando temas:", e);
+    }
+  }, [currentPath.materiaId]);
+
   // Carga reactiva de Temas
   useEffect(() => {
     if (!currentPath.materiaId) {
       setTemas([]);
       return;
     }
-    const fetchTemas = async () => {
-      setAcademicLoading(true);
-      try {
-        const res = await fetch(`${BACKEND_URL}/api/academic/temas/${currentPath.materiaId}`);
-        if (res.ok) setTemas(await res.json());
-      } catch (e) {
-        console.error("Error cargando temas:", e);
-      } finally { setAcademicLoading(false); }
-    };
-    fetchTemas();
+    setAcademicLoading(true);
+    refreshTemas().finally(() => setAcademicLoading(false));
   }, [currentPath.materiaId]);
 
   // Carga reactiva de Subtemas
@@ -106,6 +108,7 @@ export function useLibraryState(userId, decks, materias, setDecks, setMaterias, 
     viewMode,
     setViewMode,
     processedDecks,
-    handleResetPath
+    handleResetPath,
+    refreshTemas
   };
 }

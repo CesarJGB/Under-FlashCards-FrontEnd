@@ -30,7 +30,7 @@ export default function LibrarySection({
   const {
     currentPath, setCurrentPath, temas, setTemas, subtemas, setSubtemas,
     academicLoading, searchQuery, setSearchQuery, sortBy, setSortBy,
-    viewMode, setViewMode, processedDecks, handleResetPath
+    viewMode, setViewMode, processedDecks, handleResetPath, refreshTemas
   } = useLibraryState(userId, decks, materias, setDecks, setMaterias, loadDecks);
 
   const [academicModal, setAcademicModal] = useState(null); 
@@ -79,6 +79,7 @@ export default function LibrarySection({
         setTemas((prev) => [...prev, saved].sort((a, b) => a.name.localeCompare(b.name)));
       } else if (academicModal.type === 'subtema') {
         setSubtemas((prev) => [...prev, saved].sort((a, b) => a.name.localeCompare(b.name)));
+        refreshTemas();
       }
       setAcademicInput('');
       setAcademicModal(null);
@@ -98,7 +99,10 @@ export default function LibrarySection({
         localStorage.setItem(`materias_${userId}`, JSON.stringify(nextMaterias));
         if (currentPath.materiaId === id) handleResetPath();
       } else if (type === 'tema') setTemas(prev => prev.filter(t => t._id !== id));
-      else if (type === 'subtema') setSubtemas(prev => prev.filter(s => s._id !== id));
+      else if (type === 'subtema') {
+        setSubtemas(prev => prev.filter(s => s._id !== id));
+        refreshTemas();
+      }
       await loadDecks();
     } catch { alert('Error al eliminar.'); }
   };
