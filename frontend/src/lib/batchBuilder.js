@@ -10,6 +10,10 @@ const BATCH_SIZE = 30;
 const NEW_CARD_RATIO = 0.6; // hasta 60% del lote puede ser tarjetas nunca repasadas
 const ERROR_CAP = 5; // techo para que consecutiveErrors no monopolice infinitamente
 
+export function getCardId(card) {
+  return card.id || card._id;
+}
+
 function shuffleByWeight(list, weightFn) {
   return list
     .map(card => ({ card, key: Math.pow(Math.random(), 1 / weightFn(card)) }))
@@ -31,10 +35,11 @@ function fisherYates(list) {
  * pero con boost fuerte para tarjetas nunca repasadas (60/40), igual que
  * getContinuousSessionCards en el backend.
  */
-export function buildContinuousBatch(allCards) {
+export function buildContinuousBatch(allCards, { excludeCardId } = {}) {
+  const pool = excludeCardId ? allCards.filter(c => getCardId(c) !== excludeCardId) : allCards;
   const newCards = [];
   const reviewedCards = [];
-  allCards.forEach(card => {
+  pool.forEach(card => {
     const isNew = !card.totalReviews || card.totalReviews === 0;
     (isNew ? newCards : reviewedCards).push(card);
   });
@@ -73,8 +78,14 @@ export function buildContinuousBatch(allCards) {
  * Arma un lote con el mazo completo en orden aleatorio simple, sin ponderar
  * por dificultad ni errores. Igual que getNormalSessionCards en el backend.
  */
-export function buildNormalBatch(allCards) {
-  return fisherYates(allCards);
+export function buildNormalBatch(allCards, { excludeCardId } = {}) {
+  const pool = excludeCardId ? allCards.filter(c => getCardId(c) !== excludeCardId) : allCards;
+  const shuffled = fisherYates(pool);
+  if (excludeCardId) {
+    const excluded = allCards.find(c => getCardId(c) === excludeCardId);
+    if (excluded) shuffled.push(excluded);
+  }
+  return shuffled;
 }
 
 /**
@@ -88,8 +99,7 @@ export function applyLocalAnswer(allCards, cardId, wasCorrect) {
   const easeFactorDelta = wasCorrect ? 0.15 : -0.2;
 
   return allCards.map(card => {
-    const id = card.id || card._id;
-    if (id !== cardId) return card;
+    if (getCardId(card) !== cardId) return card;
 
     return {
       ...card,

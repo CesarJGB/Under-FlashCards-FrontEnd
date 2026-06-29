@@ -12,10 +12,10 @@ const ALIGN_CLASS = { left: 'text-left', center: 'text-center', right: 'text-rig
  * Se usa tanto en el modo flip (una cara a la vez) como en el modo study
  * (ambas caras visibles juntas) de SessionPlayer.
  */
-export default function CardFace({ card, side, dark, onExpandImage }) {
+export default function CardFace({ card, side, dark, onExpandImage, parsedStyles }) {
   if (!card) return null;
 
-  const st = parseCardStyles(card.fontSize);
+  const st = parsedStyles || parseCardStyles(card.fontSize);
   const isAnswer = side === 'answer';
 
   const size = isAnswer ? st.aSize : st.qSize;
@@ -78,8 +78,8 @@ export default function CardFace({ card, side, dark, onExpandImage }) {
  * no al texto, y SessionPlayer necesita decidir cuándo usarlo (modo flip lo
  * aplica por cara; modo study podría optar por no usarlo, según se decida).
  */
-export function getCardBackgroundStyle(card) {
-  const st = parseCardStyles(card?.fontSize);
+export function getCardBackgroundStyle(card, parsedStyles) {
+  const st = parsedStyles || parseCardStyles(card?.fontSize);
   const hasBg = !!card?.bgImage;
   return {
     style: {

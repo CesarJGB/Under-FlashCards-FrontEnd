@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { RotateCw, CheckCircle, XCircle, ArrowLeft, Loader2, RefreshCw, BarChart3, X } from 'lucide-react';
 import CardFace, { getCardBackgroundStyle } from './CardFace';
 import FlipCard from './FlipCard';
-import { buildContinuousBatch, buildNormalBatch, applyLocalAnswer } from '../lib/batchBuilder';
+import { parseCardStyles } from '../lib/utils';
+import { buildContinuousBatch, buildNormalBatch, applyLocalAnswer, getCardId } from '../lib/batchBuilder';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
@@ -31,6 +32,46 @@ const MODE_CONFIG = {
     correctLabel: 'Ya me la sé',
   },
 };
+
+const FlipCardSection = React.memo(function FlipCardSection({ currentCard, parsedStyles, bgStyle, hasBg, isFlipped, onFlip, setIsZoomed }) {
+  const front = useMemo(() => (
+    <div
+      style={bgStyle}
+      className="relative w-full h-full border border-slate-200 p-6 flex flex-col justify-between bg-white"
+    >
+      {hasBg && <span className="absolute inset-0 bg-black/55" />}
+      <span className={`relative z-10 text-[10px] font-bold tracking-widest uppercase ${hasBg ? 'text-white/70' : 'text-amber-500'}`}>Pregunta</span>
+      <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-4 overflow-y-auto">
+        <CardFace card={currentCard} side="question" dark={hasBg} parsedStyles={parsedStyles} onExpandImage={() => setIsZoomed(true)} />
+      </div>
+      <div className={`relative z-10 text-[10px] font-semibold text-center flex items-center justify-center gap-1.5 uppercase tracking-wider ${hasBg ? 'text-white/60' : 'text-slate-400'}`}>
+        <RefreshCw className="w-3 h-3 animate-[spin_4s_linear_infinite]" /> Toca la tarjeta para voltear
+      </div>
+    </div>
+  ), [currentCard, parsedStyles, bgStyle, hasBg, setIsZoomed]);
+
+  const back = useMemo(() => (
+    <div
+      style={hasBg ? bgStyle : undefined}
+      className={`relative w-full h-full p-6 flex flex-col justify-between text-white border border-slate-800 ${hasBg ? '' : 'bg-slate-950'}`}
+    >
+      {hasBg && <span className="absolute inset-0 bg-black/55" />}
+      <span className="relative z-10 text-[10px] font-bold text-indigo-400 tracking-widest uppercase">Respuesta Correcta</span>
+      <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-4 overflow-y-auto">
+        <CardFace card={currentCard} side="answer" dark={true} parsedStyles={parsedStyles} onExpandImage={() => setIsZoomed(true)} />
+      </div>
+      <div className="relative z-10 text-[10px] font-medium text-center text-slate-500 uppercase tracking-wider">
+        Califica tu nivel de retención abajo
+      </div>
+    </div>
+  ), [currentCard, parsedStyles, bgStyle, hasBg, setIsZoomed]);
+
+  return (
+    <div className="mb-6">
+      <FlipCard isFlipped={isFlipped} onFlip={onFlip} front={front} back={back} />
+    </div>
+  );
+});
 
 export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuous' }) {
   const config = MODE_CONFIG[mode] || MODE_CONFIG.continuous;
@@ -126,9 +167,10 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
     }
   };
 
-  // Arma un lote nuevo a partir de allCardsRef (ya en memoria, sin red).
+  const lastCardIdRef = useRef(null);
+
   const startNewBatch = () => {
-    const batch = config.buildBatch(allCardsRef.current);
+    const batch = config.buildBatch(allCardsRef.current, { excludeCardId: lastCardIdRef.current });
     setCards(batch);
     setCurrentIndex(0);
     setIsFlipped(false);
@@ -160,7 +202,7 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
     const endTime = performance.now();
     const responseTimeMs = Math.round(endTime - startTimeRef.current);
     const currentCard = cards[currentIndex];
-    const cardId = currentCard.id || currentCard._id;
+    const cardId = getCardId(currentCard);
 
     // 🔥 Disparo Optimista hacia el Ledger y Motor en Cascada (No bloquea la UI)
     fetch(`${BACKEND_URL}/api/decks/${deckId}/reviews`, {
@@ -180,7 +222,8 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
     // sin esperar ningún round-trip de red.
     allCardsRef.current = applyLocalAnswer(allCardsRef.current, cardId, wasCorrect);
 
-    // Flujo del bucle: agotado el lote actual, armamos uno nuevo en memoria.
+    lastCardIdRef.current = cardId;
+
     if (currentIndex < cards.length - 1) {
       setCurrentIndex((prev) => prev + 1);
     } else {
@@ -276,7 +319,8 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
   }
 
   const currentCard = cards[currentIndex];
-  const { style: bgStyle, hasBg } = getCardBackgroundStyle(currentCard);
+  const parsedStyles = useMemo(() => currentCard ? parseCardStyles(currentCard.fontSize) : null, [currentCard]);
+  const { style: bgStyle, hasBg } = useMemo(() => getCardBackgroundStyle(currentCard, parsedStyles), [currentCard, parsedStyles]);
 
   return (
     <div className="max-w-2xl mx-auto px-2 py-4 animate-[fadeIn_0.15s_ease]">
@@ -293,49 +337,22 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
       </div>
 
       {config.cardStyle === 'flip' ? (
-        <div className="mb-6">
-          <FlipCard
-            isFlipped={isFlipped}
-            onFlip={handleFlip}
-            front={
-              <div
-                style={bgStyle}
-                className="relative w-full h-full border border-slate-200 p-6 flex flex-col justify-between bg-white"
-              >
-                {hasBg && <span className="absolute inset-0 bg-black/55" />}
-                <span className={`relative z-10 text-[10px] font-bold tracking-widest uppercase ${hasBg ? 'text-white/70' : 'text-amber-500'}`}>Pregunta</span>
-                <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-4 overflow-y-auto">
-                  <CardFace card={currentCard} side="question" dark={hasBg} onExpandImage={() => setIsZoomed(true)} />
-                </div>
-                <div className={`relative z-10 text-[10px] font-semibold text-center flex items-center justify-center gap-1.5 uppercase tracking-wider ${hasBg ? 'text-white/60' : 'text-slate-400'}`}>
-                  <RefreshCw className="w-3 h-3 animate-[spin_4s_linear_infinite]" /> Toca la tarjeta para voltear
-                </div>
-              </div>
-            }
-            back={
-              <div
-                style={hasBg ? bgStyle : undefined}
-                className={`relative w-full h-full p-6 flex flex-col justify-between text-white border border-slate-800 ${hasBg ? '' : 'bg-slate-950'}`}
-              >
-                {hasBg && <span className="absolute inset-0 bg-black/55" />}
-                <span className="relative z-10 text-[10px] font-bold text-indigo-400 tracking-widest uppercase">Respuesta Correcta</span>
-                <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-4 overflow-y-auto">
-                  <CardFace card={currentCard} side="answer" dark={true} onExpandImage={() => setIsZoomed(true)} />
-                </div>
-                <div className="relative z-10 text-[10px] font-medium text-center text-slate-500 uppercase tracking-wider">
-                  Califica tu nivel de retención abajo
-                </div>
-              </div>
-            }
-          />
-        </div>
+        <FlipCardSection
+          currentCard={currentCard}
+          parsedStyles={parsedStyles}
+          bgStyle={bgStyle}
+          hasBg={hasBg}
+          isFlipped={isFlipped}
+          onFlip={handleFlip}
+          setIsZoomed={setIsZoomed}
+        />
       ) : (
         <div className="h-72 w-full mb-6 border border-slate-200 rounded-3xl shadow-sm flex flex-col overflow-hidden">
           <div style={bgStyle} className="relative flex-1 flex flex-col items-center justify-center px-6 py-4 border-b border-slate-100 overflow-hidden">
             {hasBg && <span className="absolute inset-0 bg-black/55" />}
             <span className={`relative z-10 text-[10px] font-bold tracking-widest uppercase mb-2 ${hasBg ? 'text-white/70' : 'text-amber-500'}`}>Pregunta</span>
             <div className="relative z-10 flex flex-col items-center overflow-y-auto max-h-full">
-              <CardFace card={currentCard} side="question" dark={hasBg} onExpandImage={() => setIsZoomed(true)} />
+              <CardFace card={currentCard} side="question" dark={hasBg} parsedStyles={parsedStyles} onExpandImage={() => setIsZoomed(true)} />
             </div>
           </div>
           <div
@@ -345,7 +362,7 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
             {hasBg && <span className="absolute inset-0 bg-black/55" />}
             <span className="relative z-10 text-[10px] font-bold text-indigo-400 tracking-widest uppercase mb-2">Respuesta</span>
             <div className="relative z-10 flex flex-col items-center overflow-y-auto max-h-full">
-              <CardFace card={currentCard} side="answer" dark={true} onExpandImage={() => setIsZoomed(true)} />
+              <CardFace card={currentCard} side="answer" dark={true} parsedStyles={parsedStyles} onExpandImage={() => setIsZoomed(true)} />
             </div>
           </div>
         </div>
