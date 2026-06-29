@@ -90,6 +90,10 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
   const sessionClosedRef = useRef(false);
   const allCardsRef = useRef([]); // mazo completo, cargado una sola vez; se actualiza localmente tras cada respuesta
 
+  const currentCard = cards[currentIndex];
+  const parsedStyles = useMemo(() => currentCard ? parseCardStyles(currentCard.fontSize) : null, [currentCard]);
+  const { style: bgStyle, hasBg } = useMemo(() => getCardBackgroundStyle(currentCard, parsedStyles), [currentCard, parsedStyles]);
+
   // =========================================================================
   // CICLO DE VIDA DE LA SESIÓN DE ESTUDIO
   // =========================================================================
@@ -317,10 +321,6 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
       </div>
     );
   }
-
-  const currentCard = cards[currentIndex];
-  const parsedStyles = useMemo(() => currentCard ? parseCardStyles(currentCard.fontSize) : null, [currentCard]);
-  const { style: bgStyle, hasBg } = useMemo(() => getCardBackgroundStyle(currentCard, parsedStyles), [currentCard, parsedStyles]);
 
   return (
     <div className="max-w-2xl mx-auto px-2 py-4 animate-[fadeIn_0.15s_ease]">
