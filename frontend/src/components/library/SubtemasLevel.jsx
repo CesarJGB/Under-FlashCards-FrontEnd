@@ -10,8 +10,31 @@ export default function SubtemasLevel({
     <div className="space-y-4 mt-4">
       {currentPath.subtemaId === null && (
         <>
-          {subtemas.length > 0 && (
+          {processedDecks.length > 0 && (
             <div>
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Todos los mazos de este tema</h4>
+              <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 pb-12">
+                {processedDecks.map((d) => (
+                  <DeckCard
+                    key={d.id}
+                    deck={d}
+                    currentUserId={userId}
+                    isAdmin={isAdmin}
+                    isList={viewMode === 'list'}
+                    onOpen={(dk) => { setInitialMode('edit'); setCurrentDeck(dk); }}
+                    onEdit={(dk) => setModal({ editing: dk })}
+                    onDelete={handleDeleteDeck}
+                    onToggleStar={(dk) => handleDeckMutation(dk.id, 'star', { isStarred: !dk.isStarred }, { isStarred: !dk.isStarred })}
+                    onToggleDefault={(dk) => handleDeckMutation(dk.id, 'default', { isDefault: !dk.isDefault }, { isDefault: !dk.isDefault, isPublicReadOnly: false })}
+                    onTogglePublicReadOnly={(dk) => handleDeckMutation(dk.id, 'public-readonly', { isPublicReadOnly: !dk.isPublicReadOnly }, { isPublicReadOnly: !dk.isPublicReadOnly, isDefault: false })}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {subtemas.length > 0 && (
+            <div className={processedDecks.length > 0 ? "pt-4 border-t border-slate-200 mt-2" : ""}>
               <h3 className="text-sm font-black text-slate-800 mb-4">Subtemas</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                 {subtemas.map((sub) => {
@@ -42,29 +65,6 @@ export default function SubtemasLevel({
                     </div>
                   );
                 })}
-              </div>
-            </div>
-          )}
-
-          {processedDecks.length > 0 && (
-            <div className={subtemas.length > 0 ? "pt-4 border-t border-slate-200 mt-6" : ""}>
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Todos los mazos de este tema</h4>
-              <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 pb-12">
-                {processedDecks.map((d) => (
-                  <DeckCard
-                    key={d.id}
-                    deck={d}
-                    currentUserId={userId}
-                    isAdmin={isAdmin}
-                    isList={viewMode === 'list'}
-                    onOpen={(dk) => { setInitialMode('edit'); setCurrentDeck(dk); }}
-                    onEdit={(dk) => setModal({ editing: dk })}
-                    onDelete={handleDeleteDeck}
-                    onToggleStar={(dk) => handleDeckMutation(dk.id, 'star', { isStarred: !dk.isStarred }, { isStarred: !dk.isStarred })}
-                    onToggleDefault={(dk) => handleDeckMutation(dk.id, 'default', { isDefault: !dk.isDefault }, { isDefault: !dk.isDefault, isPublicReadOnly: false })}
-                    onTogglePublicReadOnly={(dk) => handleDeckMutation(dk.id, 'public-readonly', { isPublicReadOnly: !dk.isPublicReadOnly }, { isPublicReadOnly: !dk.isPublicReadOnly, isDefault: false })}
-                  />
-                ))}
               </div>
             </div>
           )}

@@ -18,8 +18,10 @@ export default function LibraryFAB({
   if (currentPath.materiaId !== null) {
     if (currentPath.temaId === null) {
       folderConfig = { text: 'Nuevo tema', type: 'tema' };
-    } else {
+    } else if (currentPath.subtemaId === null) {
       folderConfig = { text: 'Nuevo subtema', type: 'subtema' };
+    } else {
+      folderConfig = null;
     }
   }
 
@@ -37,16 +39,18 @@ export default function LibraryFAB({
 
       {fabOpen && !isParcialesLevel && (
         <div className="flex flex-col items-end gap-2 z-50 mb-1.5 animate-[slideUp_0.15s_ease-out] pointer-events-auto">
-          <button
-            type="button"
-            onClick={() => { setFabOpen(false); setAcademicModal({ type: folderConfig.type }); }}
-            className="w-44 flex items-center justify-between bg-white text-slate-700 border border-slate-200/80 pl-3.5 pr-1.5 py-1.5 rounded-2xl text-xs font-bold shadow-sm hover:bg-slate-50 active:scale-[0.98] transition-all duration-200 cursor-pointer"
-          >
-            <span>{folderConfig.text}</span>
-            <div className="w-7 h-7 bg-indigo-50 rounded-xl flex items-center justify-center border border-indigo-100/50">
-              <FolderPlus className="w-3.5 h-3.5 text-indigo-500" />
-            </div>
-          </button>
+          {folderConfig && (
+            <button
+              type="button"
+              onClick={() => { setFabOpen(false); setAcademicModal({ type: folderConfig.type }); }}
+              className="w-44 flex items-center justify-between bg-white text-slate-700 border border-slate-200/80 pl-3.5 pr-1.5 py-1.5 rounded-2xl text-xs font-bold shadow-sm hover:bg-slate-50 active:scale-[0.98] transition-all duration-200 cursor-pointer"
+            >
+              <span>{folderConfig.text}</span>
+              <div className="w-7 h-7 bg-indigo-50 rounded-xl flex items-center justify-center border border-indigo-100/50">
+                <FolderPlus className="w-3.5 h-3.5 text-indigo-500" />
+              </div>
+            </button>
+          )}
 
           {!isTemasLevel && (
             <button
