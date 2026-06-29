@@ -206,7 +206,7 @@ export default function LibrarySection({
       />
 
       <div className="animate-[fadeIn_0.15s_ease]">
-        {decks.length > 0 && !(currentPath.materiaId !== null && currentPath.parcialNumber === null) && (
+        {decks.length > 0 && !(currentPath.materiaId !== null && currentPath.parcialNumber === null) && !(currentPath.materiaId !== null && currentPath.parcialNumber !== null && currentPath.temaId === null) && (
           <LibraryToolbar 
             searchQuery={searchQuery} 
             setSearchQuery={setSearchQuery} 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowLeft, Plus, Loader2, Trash2 } from 'lucide-react';
+import { Loader2, Trash2 } from 'lucide-react';
 import DeckCard from '../DeckCard';
 
 export default function TemasLevel({
@@ -8,16 +8,8 @@ export default function TemasLevel({
 }) {
   return (
     <div className="space-y-4 mt-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <button onClick={() => setCurrentPath({ ...currentPath, parcialNumber: null })} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500 cursor-pointer">
-            <ArrowLeft className="w-4 h-4" />
-          </button>
-          <h3 className="text-sm font-black text-slate-800">Temarios ➔ Parcial {currentPath.parcialNumber}</h3>
-        </div>
-        <button onClick={() => setAcademicModal({ type: 'tema' })} className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold cursor-pointer">
-          <Plus className="w-3.5 h-3.5" /> Agregar Tema
-        </button>
+      <div className="flex items-center">
+        <h3 className="text-sm font-black text-slate-800">Temarios ➔ Parcial {currentPath.parcialNumber}</h3>
       </div>
       
       {academicLoading ? (
