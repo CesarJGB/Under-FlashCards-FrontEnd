@@ -13,7 +13,7 @@ exports.getMaterias = async (req, res) => {
   try {
     const { userId } = req.params;
     const materias = await Materia.find({ userId }).sort({ name: 1 });
-    return res.json(materias);
+    return res.json(materias.map(m => m.serialize()));
   } catch (err) {
     console.error('[academic:getMaterias] error:', err.message);
     return res.status(500).json({ error: 'Server error al obtener materias.' });
@@ -30,7 +30,7 @@ exports.createMateria = async (req, res) => {
     if (existe) return res.status(400).json({ error: 'Ya tienes una materia registrada con este nombre.' });
 
     const materia = await Materia.create({ userId, name: name.trim() });
-    return res.status(201).json(materia);
+    return res.status(201).json(materia.serialize());
   } catch (err) {
     console.error('[academic:createMateria] error:', err.message);
     return res.status(500).json({ error: 'Server error al crear materia.' });
@@ -70,7 +70,7 @@ exports.getTemas = async (req, res) => {
     if (parcialNumber) filter.parcialNumber = Number(parcialNumber);
 
     const temas = await Tema.find(filter).sort({ name: 1 });
-    return res.json(temas);
+    return res.json(temas.map(t => t.serialize()));
   } catch (err) {
     console.error('[academic:getTemas] error:', err.message);
     return res.status(500).json({ error: 'Server error al obtener temas.' });
@@ -94,7 +94,7 @@ exports.createTema = async (req, res) => {
       materiaId,
       parcialNumber: Number(parcialNumber)
     });
-    return res.status(201).json(tema);
+    return res.status(201).json(tema.serialize());
   } catch (err) {
     console.error('[academic:createTema] error:', err.message);
     return res.status(500).json({ error: 'Server error al crear tema.' });
@@ -128,7 +128,7 @@ exports.getSubtemas = async (req, res) => {
   try {
     const { temaId } = req.params;
     const subtemas = await Subtema.find({ temaId }).sort({ name: 1 });
-    return res.json(subtemas);
+    return res.json(subtemas.map(s => s.serialize()));
   } catch (err) {
     console.error('[academic:getSubtemas] error:', err.message);
     return res.status(500).json({ error: 'Server error al obtener subtemas.' });
@@ -147,7 +147,7 @@ exports.createSubtema = async (req, res) => {
       name: name.trim(),
       temaId
     });
-    return res.status(201).json(subtema);
+    return res.status(201).json(subtema.serialize());
   } catch (err) {
     console.error('[academic:createSubtema] error:', err.message);
     return res.status(500).json({ error: 'Server error al crear subtema.' });
