@@ -242,13 +242,21 @@ export default function LibrarySection({
         )}
 
         {currentPath.materiaId !== null && currentPath.parcialNumber === null && (
-          <ParcialesLevel 
+          <ParcialesLevel
             temas={temas}
             decks={decks}
             currentPath={currentPath}
             setCurrentPath={setCurrentPath}
             handleResetPath={handleResetPath}
             activeMateriaName={activeMateriaName}
+            materia={materias.find(m => (m._id || m.id) === currentPath.materiaId)}
+            onActiveParcialesChange={(materiaId, newActive) => {
+              const updated = materias.map(m =>
+                (m._id || m.id) === materiaId ? { ...m, activeParciales: newActive } : m
+              );
+              setMaterias(updated);
+              localStorage.setItem(`materias_${userId}`, JSON.stringify(updated));
+            }}
           />
         )}
 

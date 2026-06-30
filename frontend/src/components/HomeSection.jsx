@@ -1,15 +1,17 @@
 // FILE: frontend/src/components/HomeSection.jsx
-import React, { useMemo, useEffect } from 'react'; // 🚀 Inyectado: useEffect para sync pasiva
-import { 
-  BookOpen, 
-  Layers, 
-  Folder, 
-  GraduationCap, 
-  TrendingUp, 
+import React, { useMemo, useEffect, useState, useCallback } from 'react';
+import {
+  BookOpen,
+  Layers,
+  Folder,
+  GraduationCap,
+  TrendingUp,
   AlertCircle,
   ChevronRight
 } from 'lucide-react';
 import RadarDebugPanel from './RadarDebugPanel';
+
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
 export default function HomeSection({ 
   user,          
@@ -25,10 +27,35 @@ export default function HomeSection({
   // 🔄 DISPARADOR DE SINCRONIZACIÓN PASIVA EN SEGUNDO PLANO
   // =========================================================================
   useEffect(() => {
-    // Al montar la sección de Inicio, disparamos las funciones de red de forma silenciosa
     if (typeof loadDecks === 'function') loadDecks();
     if (typeof loadMaterias === 'function') loadMaterias();
   }, [loadDecks, loadMaterias]);
+
+  const [domainPreviews, setDomainPreviews] = useState({});
+
+  const fetchDomainPreviews = useCallback(async () => {
+    if (!materias) return;
+    const filtered = materias.filter(m => {
+      const ap = m.activeParciales;
+      return ap && ap.length > 0 && ap.length < 3;
+    });
+    if (filtered.length === 0) return;
+
+    const results = {};
+    await Promise.all(filtered.map(async (m) => {
+      try {
+        const id = m._id || m.id;
+        const res = await fetch(`${BACKEND_URL}/api/academic/materias/${id}/domain-preview?parciales=${m.activeParciales.join(',')}`);
+        if (res.ok) {
+          const data = await res.json();
+          results[id] = data.mastery;
+        }
+      } catch {}
+    }));
+    setDomainPreviews(results);
+  }, [materias]);
+
+  useEffect(() => { fetchDomainPreviews(); }, [fetchDomainPreviews]);
 
   // =========================================================================
   // MOTOR DE PROCESAMIENTO REACTIVO EN MEMORIA (0ms)
@@ -44,6 +71,12 @@ export default function HomeSection({
       const totalCards = materiaDecks.reduce((acc, curr) => acc + (curr.cardCount || 0), 0);
       const uniqueTemasCount = materia.themesCount || new Set(materiaDecks.map(d => d.temaId).filter(Boolean)).size;
 
+      const ap = materia.activeParciales || [1, 2, 3];
+      const isFiltered = ap.length > 0 && ap.length < 3;
+      const masteryPercentage = isFiltered && domainPreviews[currentMateriaId] !== undefined
+        ? domainPreviews[currentMateriaId]
+        : (materia.analytics?.masteryPercentage ?? 0);
+
       return {
         ...materia,
         id: currentMateriaId,
@@ -51,7 +84,8 @@ export default function HomeSection({
         decksCount: materiaDecks.length,
         temasCount: uniqueTemasCount,
         totalCards,
-        masteryPercentage: materia.analytics?.masteryPercentage ?? 0
+        masteryPercentage,
+        activeParciales: ap
       };
     });
 
@@ -70,11 +104,17 @@ export default function HomeSection({
       unclassifiedDecks: unclassified,
       globalStats: { totalCards: totalCardsGlobal, globalMastery }
     };
-  }, [materias, decks, user]);
+  }, [materias, decks, user, domainPreviews]);
 
   /**
    * REFACTORIZACIÓN DE ESTILOS: Control de acentos semánticos de alta legibilidad
    */
+  const getParcialesLabel = (activeParciales) => {
+    if (!activeParciales || activeParciales.length === 0 || activeParciales.length === 3) return null;
+    if (activeParciales.length === 1) return `Parcial ${activeParciales[0]}`;
+    return `Parciales ${activeParciales.join(' y ')}`;
+  };
+
   const getKnowledgeAccent = (percentage) => {
     if (percentage >= 80) return {
       borderLeft: 'border-l-emerald-500',
@@ -154,11 +194,16 @@ export default function HomeSection({
                     </div>
 
                     <div className="w-full bg-zinc-100 dark:bg-zinc-800/80 h-1.5 rounded-full mt-3 overflow-hidden">
-                      <div 
-                        className={`h-full ${accent.bar} rounded-full transition-all duration-500`} 
+                      <div
+                        className={`h-full ${accent.bar} rounded-full transition-all duration-500`}
                         style={{ width: `${materia.masteryPercentage}%` }}
                       />
                     </div>
+                    {getParcialesLabel(materia.activeParciales) && (
+                      <span className="inline-block mt-1.5 text-[9px] font-bold text-indigo-500 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 px-1.5 py-0.5 rounded">
+                        {getParcialesLabel(materia.activeParciales)}
+                      </span>
+                    )}
                   </div>
 
                   <div className="mt-5 pt-3.5 border-t border-zinc-100 dark:border-zinc-800/60 grid grid-cols-3 gap-1 text-center">
@@ -216,12 +261,14 @@ export default function HomeSection({
       )}
 
       {/* ⚡ PANEL DE TELEMETRÍA Y DEBUGGING DEL RADAR DE CONOCIMIENTO */}
-      <RadarDebugPanel 
-        userId={user?.id}
-        decks={decks}
-        loadDecks={loadDecks}
-        loadMaterias={loadMaterias}
-      />
+      {import.meta.env.DEV && (
+        <RadarDebugPanel
+          userId={user?.id}
+          decks={decks}
+          loadDecks={loadDecks}
+          loadMaterias={loadMaterias}
+        />
+      )}
 
     </div>
   );

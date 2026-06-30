@@ -7,6 +7,8 @@ const materiaSchema = new mongoose.Schema(
     name: { type: String, required: true, trim: true },
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     
+    activeParciales: { type: [Number], default: [1, 2, 3] },
+
     // Inyección del Radar de Conocimiento (Nivel Asignatura Global)
     knowledgeMetrics: {
       type: knowledgeMetricsSchema,
@@ -24,6 +26,7 @@ materiaSchema.methods.serialize = function () {
     _id: this._id,
     name: this.name,
     userId: this.userId,
+    activeParciales: this.activeParciales,
     analytics: {
       masteryPercentage: this.knowledgeMetrics?.mastery ?? 0,
       avgResponseTime: this.knowledgeMetrics?.speed ?? 0,

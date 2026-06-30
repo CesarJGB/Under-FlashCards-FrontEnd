@@ -4,6 +4,7 @@ const Materia = require('../models/Materia');
 const Tema = require('../models/Tema');
 const Subtema = require('../models/Subtema');
 const Deck = require('../models/Deck');
+const { calculateRadarMetrics } = require('../utils/radarMetrics');
 
 // =========================================================================
 // 1. MATERIAS (Asignaturas principales)
@@ -179,5 +180,54 @@ exports.deleteSubtema = async (req, res) => {
   } catch (err) {
     console.error('[academic:deleteSubtema] error:', err.message);
     return res.status(500).json({ error: 'Server error al eliminar subtema.' });
+  }
+};
+
+// =========================================================================
+// 4. ACTIVE PARCIALES (Toggle de parciales para cálculo de dominio)
+// =========================================================================
+
+exports.updateActiveParciales = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { activeParciales } = req.body;
+
+    if (!Array.isArray(activeParciales) || !activeParciales.every(n => [1, 2, 3].includes(n))) {
+      return res.status(400).json({ error: 'activeParciales debe ser un array con valores en [1, 2, 3].' });
+    }
+
+    const materia = await Materia.findByIdAndUpdate(
+      id,
+      { activeParciales },
+      { new: true }
+    );
+    if (!materia) return res.status(404).json({ error: 'Materia no encontrada.' });
+
+    return res.json(materia.serialize());
+  } catch (err) {
+    console.error('[academic:updateActiveParciales] error:', err.message);
+    return res.status(500).json({ error: 'Server error al actualizar parciales activos.' });
+  }
+};
+
+exports.getDomainPreview = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const parciales = req.query.parciales
+      ? req.query.parciales.split(',').map(Number).filter(n => [1, 2, 3].includes(n))
+      : [1, 2, 3];
+
+    const filteredTemas = await Tema.find({ materiaId: id, parcialNumber: { $in: parciales } });
+    const metrics = calculateRadarMetrics(filteredTemas, false);
+
+    return res.json({
+      materiaId: id,
+      parciales,
+      mastery: metrics.mastery,
+      metrics
+    });
+  } catch (err) {
+    console.error('[academic:getDomainPreview] error:', err.message);
+    return res.status(500).json({ error: 'Server error al calcular preview de dominio.' });
   }
 };

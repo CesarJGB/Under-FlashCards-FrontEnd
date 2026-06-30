@@ -19,4 +19,8 @@ router.get('/academic/subtemas/:temaId', academicController.getSubtemas);
 router.post('/academic/subtemas', academicController.createSubtema);
 router.delete('/academic/subtemas/:id', academicController.deleteSubtema);
 
+// --- Endpoints de Parciales Activos ---
+router.patch('/academic/materias/:id/active-parciales', academicController.updateActiveParciales);
+router.get('/academic/materias/:id/domain-preview', academicController.getDomainPreview);
+
 module.exports = router;
