@@ -262,7 +262,7 @@ export default function LibrarySection({
 
         {currentPath.materiaId !== null && currentPath.parcialNumber !== null && currentPath.temaId === null && (
           <TemasLevel
-            temas={temas}
+            temas={temas.filter(t => t.parcialNumber === currentPath.parcialNumber)}
             decks={decks}
             processedDecks={processedDecks}
             academicLoading={academicLoading}
