@@ -212,7 +212,7 @@ export default function LibrarySection({
       />
 
       <div className="animate-[fadeIn_0.15s_ease]">
-        {!(currentPath.materiaId !== null && currentPath.parcialNumber === null) && (
+        {currentPath.materiaId === null && (
           <LibraryToolbar
             searchQuery={searchQuery}
             setSearchQuery={setSearchQuery}
