@@ -6,6 +6,8 @@ export default function TemasLevel({
   temas, decks = [], processedDecks, academicLoading, userId, isAdmin, viewMode, currentPath, setCurrentPath,
   setAcademicModal, handleDeleteAcademicFolder, handleDeleteDeck, handleDeckMutation, setInitialMode, setCurrentDeck, setModal
 }) {
+  const isList = viewMode === 'list';
+
   return (
     <div className="space-y-4 mt-4">
       <div className="flex items-center">
@@ -19,6 +21,40 @@ export default function TemasLevel({
       ) : temas.length === 0 ? (
         <div className="text-center border border-dashed border-slate-200 rounded-2xl py-12 text-slate-400 text-xs">
           No hay temas registrados.
+        </div>
+      ) : isList ? (
+        <div className="space-y-1.5">
+          {temas.map((t) => {
+            const deckCount = decks.filter(d => d.temaId === t._id).length;
+            const subtemaCount = t.subtemaCount || 0;
+
+            return (
+              <div
+                key={t._id}
+                onClick={() => setCurrentPath({ ...currentPath, temaId: t._id })}
+                className="bg-white border border-slate-200 px-4 py-3 rounded-xl hover:border-indigo-200 hover:shadow-xs transition-all duration-200 cursor-pointer flex items-center justify-between active:scale-[0.99] group"
+              >
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <h4 className="text-sm font-bold text-slate-950 tracking-tight group-hover:text-indigo-600 transition-colors truncate">
+                    {t.name}
+                  </h4>
+                  <div className="flex items-center gap-2 text-[11px] text-slate-400 font-medium shrink-0">
+                    <span>{deckCount} mazo{deckCount !== 1 ? 's' : ''}</span>
+                    {subtemaCount > 0 && <span>· {subtemaCount} subtema{subtemaCount !== 1 ? 's' : ''}</span>}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    onClick={(e) => handleDeleteAcademicFolder('tema', t._id, e)}
+                    className="p-1.5 text-slate-300 hover:text-red-600 rounded-lg opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                  <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-indigo-500 transition-all" />
+                </div>
+              </div>
+            );
+          })}
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">

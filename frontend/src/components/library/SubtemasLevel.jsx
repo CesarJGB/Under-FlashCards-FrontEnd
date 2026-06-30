@@ -6,6 +6,8 @@ export default function SubtemasLevel({
   subtemas, decks = [], processedDecks, userId, isAdmin, viewMode, currentPath, setCurrentPath,
   setAcademicModal, handleDeleteAcademicFolder, handleDeleteDeck, handleDeckMutation, setInitialMode, setCurrentDeck, setModal
 }) {
+  const isList = viewMode === 'list';
+
   return (
     <div className="space-y-4 mt-4">
       {currentPath.subtemaId === null && (
@@ -20,7 +22,7 @@ export default function SubtemasLevel({
                     deck={d}
                     currentUserId={userId}
                     isAdmin={isAdmin}
-                    isList={viewMode === 'list'}
+                    isList={isList}
                     onOpen={(dk) => { setInitialMode('edit'); setCurrentDeck(dk); }}
                     onEdit={(dk) => setModal({ editing: dk })}
                     onDelete={handleDeleteDeck}
@@ -36,36 +38,70 @@ export default function SubtemasLevel({
           {subtemas.length > 0 && (
             <div className={processedDecks.length > 0 ? "pt-4 border-t border-slate-200 mt-2" : ""}>
               <h3 className="text-sm font-black text-slate-800 mb-4">Subtemas</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                {subtemas.map((sub) => {
-                  const deckCount = decks.filter(d => d.subtemaId === sub._id).length;
+              {isList ? (
+                <div className="space-y-1.5">
+                  {subtemas.map((sub) => {
+                    const deckCount = decks.filter(d => d.subtemaId === sub._id).length;
 
-                  return (
-                    <div
-                      key={sub._id}
-                      onClick={() => setCurrentPath({ ...currentPath, subtemaId: sub._id })}
-                      className="bg-white border border-slate-200 p-5 rounded-2xl hover:border-indigo-200 hover:shadow-xs transition-all duration-200 cursor-pointer flex flex-col justify-between h-32 active:scale-[0.98] group"
-                    >
-                      <div className="flex items-start justify-between">
-                        <h4 className="text-base font-bold text-slate-950 tracking-tight group-hover:text-indigo-600 transition-colors truncate pr-2">
-                          {sub.name}
-                        </h4>
-                        <button
-                          onClick={(e) => handleDeleteAcademicFolder('subtema', sub._id, e)}
-                          className="p-1.5 text-slate-300 hover:text-red-600 rounded-lg opacity-0 group-hover:opacity-100 transition-all cursor-pointer shrink-0"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                    return (
+                      <div
+                        key={sub._id}
+                        onClick={() => setCurrentPath({ ...currentPath, subtemaId: sub._id })}
+                        className="bg-white border border-slate-200 px-4 py-3 rounded-xl hover:border-indigo-200 hover:shadow-xs transition-all duration-200 cursor-pointer flex items-center justify-between active:scale-[0.99] group"
+                      >
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <h4 className="text-sm font-bold text-slate-950 tracking-tight group-hover:text-indigo-600 transition-colors truncate">
+                            {sub.name}
+                          </h4>
+                          <span className="text-[11px] text-slate-400 font-medium shrink-0">
+                            {deckCount} mazo{deckCount !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            onClick={(e) => handleDeleteAcademicFolder('subtema', sub._id, e)}
+                            className="p-1.5 text-slate-300 hover:text-red-600 rounded-lg opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                          <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-indigo-500 transition-all" />
+                        </div>
                       </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                  {subtemas.map((sub) => {
+                    const deckCount = decks.filter(d => d.subtemaId === sub._id).length;
 
-                      <div className="flex items-center justify-between text-xs text-slate-400 font-medium">
-                        <span>{deckCount} mazo{deckCount !== 1 ? 's' : ''}</span>
-                        <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-indigo-500 group-hover:translate-x-0.5 transition-all duration-200" />
+                    return (
+                      <div
+                        key={sub._id}
+                        onClick={() => setCurrentPath({ ...currentPath, subtemaId: sub._id })}
+                        className="bg-white border border-slate-200 p-5 rounded-2xl hover:border-indigo-200 hover:shadow-xs transition-all duration-200 cursor-pointer flex flex-col justify-between h-32 active:scale-[0.98] group"
+                      >
+                        <div className="flex items-start justify-between">
+                          <h4 className="text-base font-bold text-slate-950 tracking-tight group-hover:text-indigo-600 transition-colors truncate pr-2">
+                            {sub.name}
+                          </h4>
+                          <button
+                            onClick={(e) => handleDeleteAcademicFolder('subtema', sub._id, e)}
+                            className="p-1.5 text-slate-300 hover:text-red-600 rounded-lg opacity-0 group-hover:opacity-100 transition-all cursor-pointer shrink-0"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+
+                        <div className="flex items-center justify-between text-xs text-slate-400 font-medium">
+                          <span>{deckCount} mazo{deckCount !== 1 ? 's' : ''}</span>
+                          <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-indigo-500 group-hover:translate-x-0.5 transition-all duration-200" />
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
 

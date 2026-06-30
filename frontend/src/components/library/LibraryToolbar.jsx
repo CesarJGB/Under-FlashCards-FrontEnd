@@ -22,7 +22,7 @@ export default function LibraryToolbar({
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Buscar mazo por título..."
+          placeholder="Buscar materias, temas o mazos..."
           className="w-full h-10 pl-10 pr-4 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 placeholder:text-slate-400 shadow-3xs transition-all"
         />
       </div>

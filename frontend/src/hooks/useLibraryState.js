@@ -3,6 +3,42 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
+function getObjectIdTimestamp(id) {
+  if (!id || typeof id !== 'string' || id.length !== 24) return 0;
+  return parseInt(id.substring(0, 8), 16) * 1000;
+}
+
+function sortFolders(items, sortBy, decks, getDecksForItem) {
+  const sorted = [...items];
+  if (sortBy === 'alpha') {
+    sorted.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  } else if (sortBy === 'recent') {
+    sorted.sort((a, b) => {
+      const ta = a.createdAt ? new Date(a.createdAt).getTime() : getObjectIdTimestamp(a._id);
+      const tb = b.createdAt ? new Date(b.createdAt).getTime() : getObjectIdTimestamp(b._id);
+      return tb - ta;
+    });
+  } else if (sortBy === 'oldest') {
+    sorted.sort((a, b) => {
+      const ta = a.createdAt ? new Date(a.createdAt).getTime() : getObjectIdTimestamp(a._id);
+      const tb = b.createdAt ? new Date(b.createdAt).getTime() : getObjectIdTimestamp(b._id);
+      return ta - tb;
+    });
+  } else if (sortBy === 'cards-desc' || sortBy === 'cards-asc') {
+    const countMap = new Map();
+    sorted.forEach(item => {
+      const itemDecks = getDecksForItem(item);
+      const total = itemDecks.reduce((sum, d) => sum + (d.cardCount ?? d.cards?.length ?? d.cardsCount ?? 0), 0);
+      countMap.set(item._id, total);
+    });
+    sorted.sort((a, b) => sortBy === 'cards-desc'
+      ? (countMap.get(b._id) || 0) - (countMap.get(a._id) || 0)
+      : (countMap.get(a._id) || 0) - (countMap.get(b._id) || 0)
+    );
+  }
+  return sorted;
+}
+
 export function useLibraryState(userId, decks, materias, setDecks, setMaterias, loadDecks) {
   const [currentPath, setCurrentPath] = useState({
     materiaId: null,
@@ -56,7 +92,6 @@ export function useLibraryState(userId, decks, materias, setDecks, setMaterias, 
     fetchSubtemas();
   }, [currentPath.temaId]);
 
-  // Motor de Filtrado Molecular Contextual (0ms)
   const processedDecks = useMemo(() => {
     let result = decks.filter((deck) => {
       const matchesSearch = deck.title?.toLowerCase().includes(searchQuery.toLowerCase());
@@ -89,6 +124,72 @@ export function useLibraryState(userId, decks, materias, setDecks, setMaterias, 
     return result;
   }, [decks, searchQuery, sortBy, currentPath]);
 
+  const sortedMaterias = useMemo(() => {
+    return sortFolders(materias, sortBy, decks, (m) => decks.filter(d => d.materiaId === m._id));
+  }, [materias, sortBy, decks]);
+
+  const sortedTemas = useMemo(() => {
+    const filtered = temas.filter(t => t.parcialNumber === (currentPath.parcialNumber));
+    return sortFolders(filtered, sortBy, decks, (t) => decks.filter(d => d.temaId === t._id));
+  }, [temas, sortBy, decks, currentPath.parcialNumber]);
+
+  const sortedSubtemas = useMemo(() => {
+    return sortFolders(subtemas, sortBy, decks, (s) => decks.filter(d => d.subtemaId === s._id));
+  }, [subtemas, sortBy, decks]);
+
+  const searchResults = useMemo(() => {
+    if (!searchQuery.trim()) return null;
+    const q = searchQuery.toLowerCase();
+    const results = [];
+
+    materias.forEach(m => {
+      if (m.name?.toLowerCase().includes(q)) {
+        results.push({ type: 'materia', item: m, path: m.name });
+      }
+    });
+
+    temas.forEach(t => {
+      if (t.name?.toLowerCase().includes(q)) {
+        const materia = materias.find(m => m._id === t.materiaId);
+        results.push({
+          type: 'tema', item: t,
+          path: `${materia?.name || 'Materia'} > P${t.parcialNumber} > ${t.name}`,
+          nav: { materiaId: t.materiaId, parcialNumber: t.parcialNumber, temaId: t._id, subtemaId: null }
+        });
+      }
+    });
+
+    subtemas.forEach(s => {
+      if (s.name?.toLowerCase().includes(q)) {
+        const tema = temas.find(t => t._id === s.temaId);
+        const materia = tema ? materias.find(m => m._id === tema.materiaId) : null;
+        results.push({
+          type: 'subtema', item: s,
+          path: `${materia?.name || '?'} > P${tema?.parcialNumber || '?'} > ${tema?.name || '?'} > ${s.name}`,
+          nav: { materiaId: tema?.materiaId, parcialNumber: tema?.parcialNumber, temaId: s.temaId, subtemaId: s._id }
+        });
+      }
+    });
+
+    decks.forEach(d => {
+      if (!d.materiaId) return;
+      if (!d.title?.toLowerCase().includes(q)) return;
+      const materia = materias.find(m => m._id === d.materiaId);
+      const tema = d.temaId ? temas.find(t => t._id === d.temaId) : null;
+      const subtema = d.subtemaId ? subtemas.find(s => s._id === d.subtemaId) : null;
+      let path = materia?.name || 'Materia';
+      if (d.parcialNumber) path += ` > P${d.parcialNumber}`;
+      if (tema) path += ` > ${tema.name}`;
+      if (subtema) path += ` > ${subtema.name}`;
+      results.push({
+        type: 'deck', item: d, path,
+        nav: { materiaId: d.materiaId, parcialNumber: d.parcialNumber, temaId: d.temaId, subtemaId: d.subtemaId }
+      });
+    });
+
+    return results;
+  }, [searchQuery, materias, temas, subtemas, decks]);
+
   const handleResetPath = useCallback(() => {
     setCurrentPath({ materiaId: null, parcialNumber: null, temaId: null, subtemaId: null });
   }, []);
@@ -108,6 +209,10 @@ export function useLibraryState(userId, decks, materias, setDecks, setMaterias, 
     viewMode,
     setViewMode,
     processedDecks,
+    sortedMaterias,
+    sortedTemas,
+    sortedSubtemas,
+    searchResults,
     handleResetPath,
     refreshTemas
   };
