@@ -7,8 +7,7 @@ import {
   GraduationCap,
   TrendingUp,
   AlertCircle,
-  ChevronRight,
-  MoreHorizontal
+  Settings
 } from 'lucide-react';
 import RadarDebugPanel from './RadarDebugPanel';
 
@@ -113,13 +112,13 @@ export default function HomeSection({
   const getParcialesLabel = (activeParciales) => {
     if (!activeParciales || activeParciales.length === 0 || activeParciales.length === 3) return null;
     if (activeParciales.length === 1) return `Parcial ${activeParciales[0]}`;
-    return `Parciales ${activeParciales.join(' y ')}`;
+    return `Parcial ${activeParciales.join(' y Parcial ')}`;
   };
 
   const getParcialesBadge = (activeParciales) => {
-    if (!activeParciales || activeParciales.length === 0 || activeParciales.length === 3) return 'General';
-    if (activeParciales.length === 1) return `P${activeParciales[0]}`;
-    return `P${activeParciales.join('-')}`;
+    if (!activeParciales || activeParciales.length === 0 || activeParciales.length === 3) return null;
+    if (activeParciales.length === 1) return `Parcial ${activeParciales[0]}`;
+    return `Parcial ${activeParciales.join(' y Parcial ')}`;
   };
 
   const getKnowledgeAccent = (percentage) => {
@@ -172,10 +171,17 @@ export default function HomeSection({
 
       {/*  NUEVO GRID COMPACTO DE MATERIAS */}
       <div className="space-y-4">
-        <h2 className="text-sm font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-2">
-          <Layers className="w-4 h-4 text-indigo-500" />
-          Vista Rápida de Asignaturas
-        </h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-2">
+            <Layers className="w-4 h-4 text-indigo-500" />
+            Vista Rápida de Asignaturas
+          </h2>
+          
+          {/* Botón de configuración del grid (para futura funcionalidad) */}
+          <button className="p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+            <Settings className="w-4 h-4 text-zinc-400" />
+          </button>
+        </div>
         
         {enrichedMaterias.length === 0 ? (
           <div className="p-10 text-center rounded-2xl border border-dashed border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/40">
@@ -194,13 +200,8 @@ export default function HomeSection({
               return (
                 <div 
                   key={materia.id}
-                  className="group relative bg-white dark:bg-zinc-900 p-3 rounded-xl border border-zinc-200/70 dark:border-zinc-800 flex flex-col items-center text-center hover:shadow-md transition-shadow"
+                  className="group bg-white dark:bg-zinc-900 p-3 rounded-xl border border-zinc-200/70 dark:border-zinc-800 flex flex-col items-center text-center hover:shadow-md transition-shadow"
                 >
-                  {/* Botón de 3 puntos horizontales */}
-                  <button className="absolute top-1.5 right-1.5 p-1 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <MoreHorizontal className="w-4 h-4 text-zinc-400" />
-                  </button>
-
                   {/* Círculo de progreso */}
                   <div className="relative w-16 h-16 mb-2">
                     <svg className="w-full h-full transform -rotate-90">
@@ -238,14 +239,12 @@ export default function HomeSection({
                     {materia.title}
                   </h3>
 
-                  {/* Badge de parciales */}
-                  <span className={`text-[9px] font-bold mt-1 px-1.5 py-0.5 rounded ${
-                    parcialesBadge === 'General' 
-                      ? 'text-zinc-400 dark:text-zinc-500 bg-zinc-100 dark:bg-zinc-800' 
-                      : 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40'
-                  }`}>
-                    {parcialesBadge}
-                  </span>
+                  {/* Badge de parciales (solo si hay filtro) */}
+                  {parcialesBadge && (
+                    <span className="text-[9px] font-bold mt-1 px-1.5 py-0.5 rounded text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40">
+                      {parcialesBadge}
+                    </span>
+                  )}
                 </div>
               );
             })}
