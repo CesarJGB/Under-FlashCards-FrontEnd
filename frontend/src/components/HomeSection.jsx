@@ -8,7 +8,7 @@ import {
   TrendingUp,
   AlertCircle,
   ChevronRight,
-  MoreVertical
+  MoreHorizontal
 } from 'lucide-react';
 import RadarDebugPanel from './RadarDebugPanel';
 
@@ -116,6 +116,12 @@ export default function HomeSection({
     return `Parciales ${activeParciales.join(' y ')}`;
   };
 
+  const getParcialesBadge = (activeParciales) => {
+    if (!activeParciales || activeParciales.length === 0 || activeParciales.length === 3) return 'General';
+    if (activeParciales.length === 1) return `P${activeParciales[0]}`;
+    return `P${activeParciales.join('-')}`;
+  };
+
   const getKnowledgeAccent = (percentage) => {
     if (percentage >= 80) return {
       borderLeft: 'border-l-emerald-500',
@@ -183,15 +189,16 @@ export default function HomeSection({
               const accent = getKnowledgeAccent(materia.masteryPercentage);
               const circumference = 2 * Math.PI * 28;
               const strokeDashoffset = circumference - (materia.masteryPercentage / 100) * circumference;
+              const parcialesBadge = getParcialesBadge(materia.activeParciales);
               
               return (
                 <div 
                   key={materia.id}
                   className="group relative bg-white dark:bg-zinc-900 p-3 rounded-xl border border-zinc-200/70 dark:border-zinc-800 flex flex-col items-center text-center hover:shadow-md transition-shadow"
                 >
-                  {/* Botón de 3 puntos */}
-                  <button className="absolute top-2 right-2 p-1 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <MoreVertical className="w-3.5 h-3.5 text-zinc-400" />
+                  {/* Botón de 3 puntos horizontales */}
+                  <button className="absolute top-1.5 right-1.5 p-1 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <MoreHorizontal className="w-4 h-4 text-zinc-400" />
                   </button>
 
                   {/* Círculo de progreso */}
@@ -230,6 +237,15 @@ export default function HomeSection({
                   <h3 className="text-xs font-bold text-zinc-800 dark:text-zinc-100 truncate w-full px-1">
                     {materia.title}
                   </h3>
+
+                  {/* Badge de parciales */}
+                  <span className={`text-[9px] font-bold mt-1 px-1.5 py-0.5 rounded ${
+                    parcialesBadge === 'General' 
+                      ? 'text-zinc-400 dark:text-zinc-500 bg-zinc-100 dark:bg-zinc-800' 
+                      : 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40'
+                  }`}>
+                    {parcialesBadge}
+                  </span>
                 </div>
               );
             })}
