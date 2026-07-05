@@ -39,17 +39,22 @@ export default function LibraryFAB({
         </button>
       )}
 
-      {/* Backdrop - sin blur */}
+      {/* Backdrop con fade suave */}
       {fabOpen && (
         <div
           onClick={() => setFabOpen(false)}
-          className="fixed inset-0 bg-slate-900/40 z-40 animate-[fadeIn_0.2s_ease]"
+          className="fixed inset-0 bg-slate-900/40 z-40 animate-[fadeIn_0.25s_ease-out]"
         />
       )}
 
-      {/* Bottom Sheet con fondo blanco */}
+      {/* Bottom Sheet */}
       {fabOpen && (
-        <div className="fixed bottom-0 inset-x-0 z-50 animate-[slideUp_0.3s_ease-out]">
+        <div 
+          className="fixed bottom-0 inset-x-0 z-50"
+          style={{
+            animation: 'slideUp 0.4s cubic-bezier(0.32, 0.72, 0, 1) forwards'
+          }}
+        >
           {/* Contenedor blanco completo */}
           <div className="bg-white rounded-t-3xl shadow-2xl">
             
@@ -58,15 +63,18 @@ export default function LibraryFAB({
               <div className="w-10 h-1 bg-slate-300 rounded-full" />
             </div>
 
-            {/* Cards */}
+            {/* Cards con animación escalonada */}
             <div className="px-4 pb-8 flex flex-col gap-3">
               
-              {/* Opción 1: Crear carpeta - Destacada */}
+              {/* Opción 1: Crear carpeta */}
               {folderConfig && (
                 <button
                   type="button"
                   onClick={() => { setFabOpen(false); setAcademicModal({ type: folderConfig.type }); }}
                   className="w-full bg-gradient-to-br from-indigo-100 to-violet-100 border-2 border-indigo-200 rounded-3xl p-5 text-left shadow-lg shadow-indigo-200/50 hover:shadow-xl active:scale-[0.98] transition-all duration-200"
+                  style={{
+                    animation: 'cardIn 0.35s cubic-bezier(0.32, 0.72, 0, 1) 0.08s both'
+                  }}
                 >
                   <div className="flex items-center gap-4">
                     <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm">
@@ -90,6 +98,9 @@ export default function LibraryFAB({
                   type="button"
                   onClick={() => { setFabOpen(false); setModal({}); }}
                   className="w-full bg-slate-50 border border-slate-200 rounded-3xl p-5 text-left hover:shadow-md active:scale-[0.98] transition-all duration-200"
+                  style={{
+                    animation: 'cardIn 0.35s cubic-bezier(0.32, 0.72, 0, 1) 0.14s both'
+                  }}
                 >
                   <div className="flex items-center gap-4">
                     <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm">
@@ -114,6 +125,9 @@ export default function LibraryFAB({
                   onClick={() => { setFabOpen(false); fileInputRef.current?.click(); }}
                   disabled={importing}
                   className="w-full bg-slate-50 border border-slate-200 rounded-3xl p-5 text-left hover:shadow-md active:scale-[0.98] transition-all duration-200 disabled:opacity-50"
+                  style={{
+                    animation: 'cardIn 0.35s cubic-bezier(0.32, 0.72, 0, 1) 0.20s both'
+                  }}
                 >
                   <div className="flex items-center gap-4">
                     <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm">
