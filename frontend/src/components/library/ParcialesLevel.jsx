@@ -10,8 +10,8 @@ export default function ParcialesLevel({
   setCurrentPath,
   materia,
   onActiveParcialesChange,
-  filterActiveOnly = false,
-  onClearFilter // 👈 Recibe el callback del estado persistente del padre
+  filterActiveOnly = false, // 👈 Recibe showOnlyActiveParciales
+  onClearFilter // 👈 Recibe () => setShowOnlyActiveParciales(false)
 }) {
   const partialsConfig = [
     { num: 1, label: 'Primer parcial' },
@@ -61,16 +61,15 @@ export default function ParcialesLevel({
 
   return (
     <div className="mt-6 animate-[fadeIn_0.15s_ease]">
-      {/* Banner contextual con distribución espacial corregida y lectura dinámica */}
+      {/* Banner contextual conectado al callback limpiador del padre */}
       {filterActiveOnly && (
         <div className="mb-4 px-4 py-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/50 flex items-center justify-between">
           <p className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">
             Mostrando solo {visiblePartials.length} parciales activos
           </p>
-          {/* Ejecuta la limpieza de la navegación persistente */}
           {typeof onClearFilter === 'function' && (
             <button 
-              onClick={onClearFilter}
+              onClick={onClearFilter} // 👈 Apaga showOnlyActiveParciales en LibrarySection
               className="text-[11px] text-indigo-500 hover:text-indigo-700 dark:hover:text-indigo-200 font-medium underline underline-offset-2 cursor-pointer"
             >
               Ver todos
@@ -79,7 +78,7 @@ export default function ParcialesLevel({
         </div>
       )}
 
-      {/* Grid adaptativo (cols-2 o cols-3) en base a la cantidad de parciales visibles */}
+      {/* Grid adaptativo */}
       <div className={`grid gap-4 ${
         filterActiveOnly && visiblePartials.length === 2 
           ? 'grid-cols-1 sm:grid-cols-2' 
@@ -101,7 +100,6 @@ export default function ParcialesLevel({
                 <h4 className="text-base font-bold text-slate-950 tracking-tight group-hover:text-indigo-600 transition-colors">
                   {p.label}
                 </h4>
-                {/* Oculta los switches de dominio si se accede mediante la redirección rápida */}
                 {!filterActiveOnly && (
                   <button
                     onClick={(e) => handleToggle(e, p.num)}
