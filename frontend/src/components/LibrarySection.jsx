@@ -22,8 +22,8 @@ export default function LibrarySection({
   setDecks, setMaterias, loadDecks, loadMaterias,
   currentDeck, setCurrentDeck, initialMode, setInitialMode,
   onExitToStudy,
-  pendingNav,       // 👈 Prop nueva para capturar navegación desde el Home
-  clearPendingNav   // 👈 Prop nueva para limpiar el estado de navegación de origen
+  pendingNav,       
+  clearPendingNav   
 }) {
   
   useEffect(() => {
@@ -38,6 +38,9 @@ export default function LibrarySection({
     searchResults, handleResetPath, refreshTemas
   } = useLibraryState(userId, decks, materias, setDecks, setMaterias, loadDecks);
 
+  // 👇 NUEVO: Estado persistente para el filtro de parciales activos
+  const [activeParcialesFilter, setActiveParcialesFilter] = useState(false);
+
   // 👇 Consumir navegación pendiente desde Home de forma reactiva
   useEffect(() => {
     if (!pendingNav) return;
@@ -50,12 +53,22 @@ export default function LibrarySection({
       subtemaId: pendingNav.subtemaId ?? null
     });
     
-    // Limpiar señal después de aplicar para evitar bucles
+    // Persistir el estado del filtro antes de limpiar la señal de navegación
+    if (pendingNav.filterActiveParciales) {
+      setActiveParcialesFilter(true);
+    } else {
+      setActiveParcialesFilter(false);
+    }
+    
     clearPendingNav();
   }, [pendingNav, setCurrentPath, clearPendingNav]);
 
-  // 👇 Derivar si debemos filtrar parciales activos en ParcialesLevel
-  const shouldFilterActiveParciales = pendingNav?.filterActiveParciales === true;
+  // 👇 NUEVO: Limpiar filtro automáticamente si el usuario sale de la materia (vuelve al inicio)
+  useEffect(() => {
+    if (!currentPath.materiaId) {
+      setActiveParcialesFilter(false);
+    }
+  }, [currentPath.materiaId]);
 
   const [academicModal, setAcademicModal] = useState(null); 
   const [academicInput, setAcademicInput] = useState('');
@@ -291,7 +304,8 @@ export default function LibrarySection({
                   setMaterias(updated);
                   localStorage.setItem(`materias_${userId}`, JSON.stringify(updated));
                 }}
-                filterActiveOnly={shouldFilterActiveParciales} // 👈 Inyección del flag para filtrado inteligente
+                filterActiveOnly={activeParcialesFilter} // 👈 Cambiado para usar el estado persistente local
+                onClearFilter={() => setActiveParcialesFilter(false)} // 👈 Callback nuevo para remover el filtro desde el banner interno
               />
             )}
 
