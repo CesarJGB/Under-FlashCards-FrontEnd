@@ -1,11 +1,28 @@
 // ARCHIVO: frontend/src/components/library/AcademicFolderModal.jsx
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 
 export default function AcademicFolderModal({ 
   academicModal, academicInput, setAcademicInput, 
   setAcademicModal, handleCreateAcademicFolder 
 }) {
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.visualViewport) {
+        const viewportHeight = window.visualViewport.height;
+        const windowHeight = window.innerHeight;
+        const diff = windowHeight - viewportHeight;
+        // Si la diferencia es significativa, es el teclado
+        setKeyboardHeight(diff > 100 ? diff : 0);
+      }
+    };
+
+    window.visualViewport?.addEventListener('resize', handleResize);
+    return () => window.visualViewport?.removeEventListener('resize', handleResize);
+  }, []);
+
   const getTypeName = (type) => {
     const names = {
       materia: 'materia',
@@ -23,12 +40,15 @@ export default function AcademicFolderModal({
         onClick={() => { setAcademicModal(null); setAcademicInput(''); }}
       />
 
-      {/* Modal Centrado */}
+      {/* Modal con ajuste dinámico */}
       <div 
         className="fixed inset-0 z-[80] flex items-center justify-center px-4 pointer-events-none"
+        style={{
+          paddingBottom: keyboardHeight > 0 ? `${keyboardHeight + 20}px` : '0'
+        }}
       >
         <div 
-          className="bg-white rounded-3xl shadow-2xl w-full max-w-sm pointer-events-auto animate-[slideUp_0.3s_cubic-bezier(0.32,0.72,0,1)]"
+          className="bg-white rounded-3xl shadow-2xl w-full max-w-sm pointer-events-auto animate-[slideUp_0.3s_cubic-bezier(0.32,0.72,0,1)] max-h-[80vh] overflow-y-auto"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Contenido */}
