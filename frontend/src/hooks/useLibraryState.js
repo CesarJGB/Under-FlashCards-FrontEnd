@@ -40,11 +40,13 @@ function sortFolders(items, sortBy, decks, getDecksForItem) {
 }
 
 export function useLibraryState(userId, decks, materias, setDecks, setMaterias, loadDecks) {
+  // 👇 Inicializado de forma nativa con la propiedad del filtro integrada
   const [currentPath, setCurrentPath] = useState({
     materiaId: null,
     parcialNumber: null,
     temaId: null,
-    subtemaId: null
+    subtemaId: null,
+    filterActiveParciales: false 
   });
 
   const [temas, setTemas] = useState([]);
@@ -190,8 +192,15 @@ export function useLibraryState(userId, decks, materias, setDecks, setMaterias, 
     return results;
   }, [searchQuery, materias, temas, subtemas, decks]);
 
+  // 👇 Resetea explícitamente el flag junto con los niveles de la ruta
   const handleResetPath = useCallback(() => {
-    setCurrentPath({ materiaId: null, parcialNumber: null, temaId: null, subtemaId: null });
+    setCurrentPath({ 
+      materiaId: null, 
+      parcialNumber: null, 
+      temaId: null, 
+      subtemaId: null,
+      filterActiveParciales: false 
+    });
   }, []);
 
   return {
