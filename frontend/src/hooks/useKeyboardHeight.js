@@ -5,17 +5,14 @@ export function useKeyboardHeight() {
 
   const measureKeyboardHeight = useCallback(() => {
     if (typeof window === 'undefined') return 0;
-    
     const windowHeight = window.innerHeight;
     const documentHeight = document.documentElement.clientHeight;
     const diff = windowHeight - documentHeight;
-
     return diff > 80 ? diff : 0;
   }, []);
 
   useEffect(() => {
     let timeoutId;
-    let initialTimeoutId;
 
     const updateHeight = () => {
       clearTimeout(timeoutId);
@@ -24,21 +21,10 @@ export function useKeyboardHeight() {
       }, 100);
     };
 
-    // 👈 Delay inicial más largo para modales con autoFocus
-    // El teclado tarda ~300ms en aparecer completamente en iOS
-    initialTimeoutId = setTimeout(() => {
-      setKeyboardHeight(measureKeyboardHeight());
-    }, 350);
-
     window.addEventListener('resize', updateHeight);
 
-    const handleFocus = () => {
-      setTimeout(updateHeight, 200);
-    };
-
-    const handleBlur = () => {
-      setTimeout(updateHeight, 200);
-    };
+    const handleFocus = () => setTimeout(updateHeight, 200);
+    const handleBlur = () => setTimeout(updateHeight, 200);
 
     const observer = new MutationObserver(() => {
       const inputs = document.querySelectorAll('input, textarea');
@@ -52,15 +38,13 @@ export function useKeyboardHeight() {
     });
 
     observer.observe(document.body, { childList: true, subtree: true });
+    updateHeight();
 
     return () => {
       clearTimeout(timeoutId);
-      clearTimeout(initialTimeoutId);
       window.removeEventListener('resize', updateHeight);
       observer.disconnect();
-      
-      const inputs = document.querySelectorAll('input[data-keyboard-listener]');
-      inputs.forEach(input => {
+      document.querySelectorAll('input[data-keyboard-listener]').forEach(input => {
         input.removeEventListener('focus', handleFocus);
         input.removeEventListener('blur', handleBlur);
       });
