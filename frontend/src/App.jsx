@@ -1,3 +1,4 @@
+// FILE: frontend/src/App.jsx
 import { useState, useEffect, useCallback } from 'react';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
@@ -14,6 +15,7 @@ const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
 function DashboardScreen({ user, onLogout }) {
   const [tab, setTab] = useState('home');
+  const [homeKey, setHomeKey] = useState(0); // 👈 NUEVO: Forzar remount del Home
 
   const [decks, setDecks] = useState(() => {
     const cached = localStorage.getItem(`decks_${user.id}`);
@@ -73,6 +75,12 @@ function DashboardScreen({ user, onLogout }) {
       setCurrentDeck(null);
       setInitialMode('edit');
     }
+    
+    // 👈 NUEVO: Forzar remount del Home cuando se cambia a esa tab
+    if (id === 'home') {
+      setHomeKey(prev => prev + 1);
+    }
+    
     setTab(id);
   };
 
@@ -175,6 +183,7 @@ function DashboardScreen({ user, onLogout }) {
         <div className="max-w-5xl mx-auto px-4 py-4 pb-24 md:pb-8 md:px-6 md:py-8">
           {tab === 'home' && (
             <HomeSection 
+              key={homeKey} // 👈 NUEVO: Forzar remount
               user={user} 
               decks={decks} 
               materias={materias}
@@ -283,3 +292,4 @@ export default function App() {
     </GoogleOAuthProvider>
   );
 }
+
