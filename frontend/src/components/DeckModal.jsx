@@ -1,6 +1,6 @@
 // ARCHIVO: frontend/src/components/DeckModal.jsx
 import { useState, useEffect, useRef } from 'react';
-import { X, ImagePlus, Loader2, Check, Palette, Upload, ChevronDown, ChevronUp, Sparkles } from 'lucide-react';
+import { X, ImagePlus, Loader2, Check, Sparkles, Upload, ChevronDown, ChevronUp } from 'lucide-react';
 
 const COLOR_SWATCHES = [
   '#ffffff', '#fde68a', '#fca5a5', '#a7f3d0',
@@ -25,22 +25,25 @@ export default function DeckModal({ initial, onClose, onSave }) {
   const [showCustomization, setShowCustomization] = useState(false);
   const titleInputRef = useRef(null);
 
-  // Detección de teclado
+  // Detección de teclado - IGUAL QUE AcademicFolderModal
   useEffect(() => {
-    const handleResize = () => {
-      if (window.visualViewport) {
-        const viewportHeight = window.visualViewport.height;
-        const windowHeight = window.innerHeight;
-        const diff = windowHeight - viewportHeight;
-        setKeyboardHeight(diff > 100 ? diff : 0);
-      }
+    const handleVisualViewportResize = () => {
+      if (!window.visualViewport) return;
+      
+      const keyboardHeight = window.visualViewport.height < window.innerHeight 
+        ? window.innerHeight - window.visualViewport.height 
+        : 0;
+      
+      setKeyboardHeight(keyboardHeight > 150 ? keyboardHeight : 0);
     };
 
-    window.visualViewport?.addEventListener('resize', handleResize);
-    return () => window.visualViewport?.removeEventListener('resize', handleResize);
+    // Ejecutar inmediatamente al montar
+    handleVisualViewportResize();
+    
+    window.visualViewport?.addEventListener('resize', handleVisualViewportResize);
+    return () => window.visualViewport?.removeEventListener('resize', handleVisualViewportResize);
   }, []);
 
-  // Cerrar personalización al enfocar el título
   const handleTitleFocus = () => {
     setShowCustomization(false);
   };
@@ -77,15 +80,15 @@ export default function DeckModal({ initial, onClose, onSave }) {
         onClick={onClose}
       />
 
-      {/* Bottom Sheet */}
+      {/* Bottom Sheet - IGUAL QUE AcademicFolderModal */}
       <div 
         className="fixed inset-0 z-[80] flex items-center justify-center px-4 pointer-events-none"
         style={{
-          paddingBottom: keyboardHeight > 0 ? `${keyboardHeight + 20}px` : '0'
+          paddingBottom: keyboardHeight > 0 ? `${keyboardHeight}px` : '0'
         }}
       >
         <div 
-          className="bg-white rounded-3xl shadow-2xl w-full max-w-sm pointer-events-auto animate-[slideUp_0.3s_cubic-bezier(0.32,0.72,0,1)] max-h-[85vh] overflow-y-auto"
+          className="bg-white rounded-3xl shadow-2xl w-full max-w-sm pointer-events-auto animate-[slideUp_0.3s_cubic-bezier(0.32,0.72,0,1)] max-h-[80vh] overflow-y-auto"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Handle */}
