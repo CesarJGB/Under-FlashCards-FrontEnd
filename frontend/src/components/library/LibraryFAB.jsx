@@ -13,12 +13,13 @@ export default function LibraryFAB({
 
   const isParcialesLevel = currentPath.materiaId !== null && currentPath.parcialNumber === null;
 
-  let folderConfig = { text: 'Nueva materia', type: 'materia' };
+  // Determinar texto de carpeta según nivel
+  let folderConfig = { text: 'Nueva materia', subtitle: 'Organiza tus mazos en carpetas', type: 'materia' };
   if (currentPath.materiaId !== null) {
     if (currentPath.temaId === null) {
-      folderConfig = { text: 'Nuevo tema', type: 'tema' };
+      folderConfig = { text: 'Nuevo tema', subtitle: 'Agrupa temas del parcial', type: 'tema' };
     } else if (currentPath.subtemaId === null) {
-      folderConfig = { text: 'Nuevo subtema', type: 'subtema' };
+      folderConfig = { text: 'Nuevo subtema', subtitle: 'Divide el tema en partes', type: 'subtema' };
     } else {
       folderConfig = null;
     }
@@ -66,7 +67,7 @@ export default function LibraryFAB({
             {/* Cards con animación escalonada */}
             <div className="px-4 pb-8 flex flex-col gap-3">
               
-              {/* Opción 1: Crear carpeta */}
+              {/* Opción 1: Crear carpeta (dinámico según nivel) */}
               {folderConfig && (
                 <button
                   type="button"
@@ -82,17 +83,17 @@ export default function LibraryFAB({
                     </div>
                     <div className="flex-1 min-w-0">
                       <h3 className="text-lg font-bold text-slate-900 leading-tight mb-1">
-                        Crear carpeta
+                        {folderConfig.text}
                       </h3>
                       <p className="text-sm text-slate-700 leading-snug">
-                        Organiza tus mazos en carpetas
+                        {folderConfig.subtitle}
                       </p>
                     </div>
                   </div>
                 </button>
               )}
 
-              {/* Opción 2: Crear mazo manual */}
+              {/* Opción 2: Crear mazo */}
               {!isTemasLevel && (
                 <button
                   type="button"
@@ -108,7 +109,7 @@ export default function LibraryFAB({
                     </div>
                     <div className="flex-1 min-w-0">
                       <h3 className="text-lg font-bold text-slate-900 leading-tight mb-1">
-                        Crear mazo manual
+                        Crear mazo
                       </h3>
                       <p className="text-sm text-slate-600 leading-snug">
                         Escribe tus propias tarjetas desde cero
