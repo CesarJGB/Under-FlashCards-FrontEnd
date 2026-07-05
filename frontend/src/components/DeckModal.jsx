@@ -1,7 +1,6 @@
 // ARCHIVO: frontend/src/components/DeckModal.jsx
 import { useState, useEffect, useRef } from 'react';
 import { X, ImagePlus, Loader2, Check, Sparkles, Upload, ChevronDown, ChevronUp } from 'lucide-react';
-import { useKeyboardHeight } from '../hooks/useKeyboardHeight'; // Hook para el manejo del teclado
 
 const COLOR_SWATCHES = [
   '#ffffff', '#fde68a', '#fca5a5', '#a7f3d0',
@@ -23,9 +22,26 @@ export default function DeckModal({ initial, onClose, onSave }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [showCustomization, setShowCustomization] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0); // Regresamos al estado local para control fino
   const titleInputRef = useRef(null);
 
-  const keyboardHeight = useKeyboardHeight(); // Usar el hook customizado
+  // Detección base del teclado
+  useEffect(() => {
+    const handleVisualViewportResize = () => {
+      if (!window.visualViewport) return;
+      
+      const currentHeight = window.visualViewport.height < window.innerHeight 
+        ? window.innerHeight - window.visualViewport.height 
+        : 0;
+      
+      setKeyboardHeight(currentHeight > 150 ? currentHeight : 0);
+    };
+
+    handleVisualViewportResize();
+    
+    window.visualViewport?.addEventListener('resize', handleVisualViewportResize);
+    return () => window.visualViewport?.removeEventListener('resize', handleVisualViewportResize);
+  }, []);
 
   // Enfocar el input automáticamente al abrir el modal
   useEffect(() => {
@@ -35,8 +51,18 @@ export default function DeckModal({ initial, onClose, onSave }) {
     return () => clearTimeout(timer);
   }, []);
 
+  // Foco optimizado con retraso coordinado para evitar brincos visuales
   const handleTitleFocus = () => {
     setShowCustomization(false);
+    
+    // El colapso toma ~300ms por la transición CSS y el teclado ~200ms en aparecer.
+    // Recalculamos justo después de que ambos eventos terminen.
+    setTimeout(() => {
+      const windowHeight = window.innerHeight;
+      const documentHeight = document.documentElement.clientHeight;
+      const diff = windowHeight - documentHeight;
+      setKeyboardHeight(diff > 80 ? diff : 0);
+    }, 350);
   };
 
   const handleFile = async (e) => {
@@ -83,8 +109,9 @@ export default function DeckModal({ initial, onClose, onSave }) {
           paddingBottom: keyboardHeight > 0 ? `${keyboardHeight}px` : '0'
         }}
       >
+        {/* Contenedor del Modal con Transición suave animada */}
         <div 
-          className="bg-white rounded-3xl shadow-2xl w-full max-w-sm pointer-events-auto animate-[slideUp_0.3s_cubic-bezier(0.32,0.72,0,1)] max-h-[80vh] overflow-y-auto"
+          className="bg-white rounded-3xl shadow-2xl w-full max-w-sm pointer-events-auto animate-[slideUp_0.3s_cubic-bezier(0.32,0.72,0,1)] max-h-[80vh] overflow-y-auto transition-all duration-300 ease-out"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Handle estético visual */}
