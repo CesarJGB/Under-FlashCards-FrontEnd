@@ -49,7 +49,7 @@ export default function LibrarySection({
       parcialNumber: pendingNav.parcialNumber ?? null,
       temaId: pendingNav.temaId ?? null,
       subtemaId: pendingNav.subtemaId ?? null,
-      filterActiveParciales: pendingNav.filterActiveParciales === true // 👈 Se persiste directo en el objeto path
+      filterActiveParciales: pendingNav.filterActiveParciales === true
     });
 
     clearPendingNav();
@@ -109,6 +109,45 @@ export default function LibrarySection({
       setAcademicInput('');
       setAcademicModal(null);
     } catch { alert('Error de conexión.'); }
+  };
+
+  const handleUpdateAcademicFolder = async (e) => {
+    e.preventDefault();
+    if (!academicInput.trim() || !academicModal?.editing) return;
+
+    const { type, editing } = academicModal;
+    const url = `${BACKEND_URL}/api/academic/${type}s/${editing._id}`;
+
+    try {
+      const res = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: academicInput.trim() })
+      });
+      if (!res.ok) throw new Error((await res.json()).error || 'Error al actualizar');
+      
+      const updated = await res.json();
+
+      // Actualizar estado local según tipo
+      if (type === 'materia') {
+        const nextMaterias = materias.map(m => m._id === updated._id ? { ...m, ...updated } : m)
+          .sort((a, b) => a.name.localeCompare(b.name));
+        setMaterias(nextMaterias);
+        localStorage.setItem(`materias_${userId}`, JSON.stringify(nextMaterias));
+      } else if (type === 'tema') {
+        setTemas(prev => prev.map(t => t._id === updated._id ? { ...t, ...updated } : t)
+          .sort((a, b) => a.name.localeCompare(b.name)));
+      } else if (type === 'subtema') {
+        setSubtemas(prev => prev.map(s => s._id === updated._id ? { ...s, ...updated } : s)
+          .sort((a, b) => a.name.localeCompare(b.name)));
+        refreshTemas();
+      }
+
+      setAcademicInput('');
+      setAcademicModal(null);
+    } catch (err) {
+      alert(err.message || 'Error de conexión al actualizar.');
+    }
   };
 
   const handleDeleteAcademicFolder = async (type, id, e) => {
@@ -292,8 +331,8 @@ export default function LibrarySection({
                   setMaterias(updated);
                   localStorage.setItem(`materias_${userId}`, JSON.stringify(updated));
                 }}
-                filterActiveOnly={currentPath.filterActiveParciales} // 👈 Extraído directamente del objeto de la ruta
-                onClearFilter={() => setCurrentPath(prev => ({ ...prev, filterActiveParciales: false }))} // 👈 Actualización de estado atómica
+                filterActiveOnly={currentPath.filterActiveParciales}
+                onClearFilter={() => setCurrentPath(prev => ({ ...prev, filterActiveParciales: false }))}
               />
             )}
 
@@ -348,6 +387,7 @@ export default function LibrarySection({
           setAcademicInput={setAcademicInput}
           setAcademicModal={setAcademicModal}
           handleCreateAcademicFolder={handleCreateAcademicFolder}
+          handleUpdateAcademicFolder={handleUpdateAcademicFolder}
         />
       )}
 
@@ -360,14 +400,14 @@ export default function LibrarySection({
       )}
 
       <LibraryFAB 
-  currentPath={currentPath}
-  setModal={setModal} 
-  setAcademicModal={setAcademicModal}
-  fileInputRef={fileInputRef} 
-  importing={importing}
-  academicModal={academicModal}
-  modal={modal}
-/>
+        currentPath={currentPath}
+        setModal={setModal} 
+        setAcademicModal={setAcademicModal}
+        fileInputRef={fileInputRef} 
+        importing={importing}
+        academicModal={academicModal}
+        modal={modal}
+      />
     </div>
   );
 }
