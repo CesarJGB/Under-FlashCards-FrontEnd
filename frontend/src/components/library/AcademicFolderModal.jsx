@@ -7,48 +7,33 @@ export default function AcademicFolderModal({
   setAcademicModal, handleCreateAcademicFolder 
 }) {
   const [keyboardHeight, setKeyboardHeight] = useState(0);
-  const titleInputRef = useRef(null);
+  const inputRef = useRef(null);
 
-  const calculateKeyboardHeight = () => {
-    if (!window.visualViewport) return 0;
-    const diff = window.innerHeight - window.visualViewport.height;
-    // Si la diferencia es significativa, es el teclado
-    return diff > 150 ? diff : 0;
-  };
-
-  // Escuchar cambios de redimensionamiento del viewport (ej. rotación o teclado dinámico)
+  // Detección de teclado
   useEffect(() => {
     const handleResize = () => {
-      setKeyboardHeight(calculateKeyboardHeight());
+      if (!window.visualViewport) return;
+      
+      const keyboardHeight = window.visualViewport.height < window.innerHeight 
+        ? window.innerHeight - window.visualViewport.height 
+        : 0;
+      
+      setKeyboardHeight(keyboardHeight > 150 ? keyboardHeight : 0);
     };
 
+    // Ejecutar inmediatamente
+    handleResize();
+    
     window.visualViewport?.addEventListener('resize', handleResize);
     return () => window.visualViewport?.removeEventListener('resize', handleResize);
   }, []);
 
-  // Calcular al montar para mitigar desfases iniciales
+  // Enfocar el input automáticamente
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setKeyboardHeight(calculateKeyboardHeight());
-    }, 100);
-    return () => clearTimeout(timer);
-  }, []);
-
-  // Ajustar la altura cuando el input recibe el foco
-  const handleInputFocus = () => {
     setTimeout(() => {
-      setKeyboardHeight(calculateKeyboardHeight());
-    }, 300);
-  };
-
-  const getTypeName = (type) => {
-    const names = {
-      materia: 'materia',
-      tema: 'tema',
-      subtema: 'subtema'
-    };
-    return names[type] || 'carpeta';
-  };
+      inputRef.current?.focus();
+    }, 100);
+  }, []);
 
   return (
     <>
@@ -62,7 +47,7 @@ export default function AcademicFolderModal({
       <div 
         className="fixed inset-0 z-[80] flex items-center justify-center px-4 pointer-events-none"
         style={{
-          paddingBottom: keyboardHeight > 0 ? `${keyboardHeight + 20}px` : '0'
+          paddingBottom: keyboardHeight > 0 ? `${keyboardHeight}px` : '0'
         }}
       >
         <div 
@@ -75,7 +60,7 @@ export default function AcademicFolderModal({
             <div className="flex items-start justify-between mb-5">
               <div className="flex-1">
                 <h3 className="text-xl font-bold text-slate-900 mb-1">
-                  Crear nueva {getTypeName(academicModal.type)}
+                  Crear nueva {academicModal.type}
                 </h3>
                 <p className="text-sm text-slate-600">
                   Ingresa el nombre para organizar tu contenido
@@ -97,12 +82,11 @@ export default function AcademicFolderModal({
                   Nombre
                 </label>
                 <input 
-                  ref={titleInputRef}
+                  ref={inputRef}
                   type="text" 
                   autoFocus 
                   required 
-                  onFocus={handleInputFocus}
-                  placeholder={`Ej: Matemáticas ${getTypeName(academicModal.type) === 'materia' ? 'Avanzadas' : '1'}`} 
+                  placeholder={`Ej: Matemáticas ${academicModal.type === 'materia' ? 'Avanzadas' : '1'}`} 
                   value={academicInput} 
                   onChange={(e) => setAcademicInput(e.target.value)} 
                   className="w-full text-base font-medium border-2 border-slate-200 rounded-2xl px-4 py-3.5 bg-slate-50 focus:outline-none focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 transition-all duration-200 placeholder:text-slate-400" 
@@ -121,7 +105,7 @@ export default function AcademicFolderModal({
                   type="submit" 
                   className="flex-1 h-12 bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-semibold rounded-2xl hover:from-indigo-700 hover:to-violet-700 active:scale-[0.98] transition-all duration-200 cursor-pointer shadow-lg shadow-indigo-500/25"
                 >
-                  Crear {getTypeName(academicModal.type)}
+                  Crear {academicModal.type}
                 </button>
               </div>
             </form>
@@ -131,3 +115,4 @@ export default function AcademicFolderModal({
     </>
   );
 }
+
