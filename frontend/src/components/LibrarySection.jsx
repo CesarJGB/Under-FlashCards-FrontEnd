@@ -38,27 +38,28 @@ export default function LibrarySection({
     searchResults, handleResetPath, refreshTemas
   } = useLibraryState(userId, decks, materias, setDecks, setMaterias, loadDecks);
 
-  // 👇 NUEVO: Estado persistente optimizado para el filtro de parciales activos
+  // =========================================================================
+  // 🧭 CONTROL DE NAVEGACIÓN INTELIGENTE Y FILTRADO DE PARCIALES ACTIVOS
+  // =========================================================================
   const [showOnlyActiveParciales, setShowOnlyActiveParciales] = useState(false);
+  
+  // Ref inicializado en null para identificar el montaje y transiciones pendientes
+  const prevMateriaIdRef = useRef(null);
 
-  // 👇 DEBUG TEMPORAL: Verifica qué llega realmente de la navegación
-  useEffect(() => {
-    if (pendingNav) {
-      console.log('🔵 pendingNav recibido:', JSON.stringify(pendingNav));
-      console.log('🔵 filterActiveParciales:', pendingNav.filterActiveParciales);
-    }
-  }, [pendingNav]);
-
-  // Consumir navegación pendiente en un único ciclo de renderizado unificado
+  // Consumir navegación pendiente desde Home
   useEffect(() => {
     if (!pendingNav) return;
 
     const shouldFilter = pendingNav.filterActiveParciales === true;
-    
-    // Setear ambos estados simultáneamente para evitar race conditions
+    const targetMateriaId = pendingNav.materiaId ?? null;
+
+    // CRÍTICO: Sincronizar el ref inmediatamente antes del cambio de estado
+    // para evitar que el efecto colateral detecte un cambio falso
+    prevMateriaIdRef.current = targetMateriaId;
+
     setShowOnlyActiveParciales(shouldFilter);
     setCurrentPath({
-      materiaId: pendingNav.materiaId ?? null,
+      materiaId: targetMateriaId,
       parcialNumber: pendingNav.parcialNumber ?? null,
       temaId: pendingNav.temaId ?? null,
       subtemaId: pendingNav.subtemaId ?? null
@@ -67,15 +68,21 @@ export default function LibrarySection({
     clearPendingNav();
   }, [pendingNav, setCurrentPath, clearPendingNav]);
 
-  // 👇 Control inteligente: Limpiar filtro SOLO cuando cambiamos de materia real, no de parcial
-  const prevMateriaIdRef = useRef(currentPath.materiaId);
+  // Limpiar filtro SOLO cuando cambiamos de materia real después de la navegación inicial
   useEffect(() => {
-    if (prevMateriaIdRef.current !== currentPath.materiaId) {
+    // Si prevMateriaIdRef es null, significa que venimos del montaje o de pendingNav
+    if (
+      prevMateriaIdRef.current !== null &&
+      prevMateriaIdRef.current !== currentPath.materiaId
+    ) {
       setShowOnlyActiveParciales(false);
-      prevMateriaIdRef.current = currentPath.materiaId;
     }
+    prevMateriaIdRef.current = currentPath.materiaId;
   }, [currentPath.materiaId]);
 
+  // =========================================================================
+  // 📂 HANDLERS Y CONTROLADORES DE CARPETAS ACADÉMICAS
+  // =========================================================================
   const [academicModal, setAcademicModal] = useState(null); 
   const [academicInput, setAcademicInput] = useState('');
   const [modal, setModal] = useState(null);
@@ -310,8 +317,8 @@ export default function LibrarySection({
                   setMaterias(updated);
                   localStorage.setItem(`materias_${userId}`, JSON.stringify(updated));
                 }}
-                filterActiveOnly={showOnlyActiveParciales} // 👈 Vinculado al nuevo estado showOnlyActiveParciales
-                onClearFilter={() => setShowOnlyActiveParciales(false)} // 👈 Resetea el estado local del filtro
+                filterActiveOnly={showOnlyActiveParciales} 
+                onClearFilter={() => setShowOnlyActiveParciales(false)} 
               />
             )}
 
