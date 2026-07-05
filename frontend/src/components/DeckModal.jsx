@@ -1,6 +1,7 @@
 // ARCHIVO: frontend/src/components/DeckModal.jsx
 import { useState, useEffect, useRef } from 'react';
 import { X, ImagePlus, Loader2, Check, Sparkles, Upload, ChevronDown, ChevronUp } from 'lucide-react';
+import { useKeyboardHeight } from '../hooks/useKeyboardHeight'; // Hook para el manejo del teclado
 
 const COLOR_SWATCHES = [
   '#ffffff', '#fde68a', '#fca5a5', '#a7f3d0',
@@ -21,34 +22,17 @@ export default function DeckModal({ initial, onClose, onSave }) {
   const [coverImage, setCoverImage] = useState(initial?.coverImage || '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [showCustomization, setShowCustomization] = useState(false);
   const titleInputRef = useRef(null);
 
-  // Detección de teclado
-  useEffect(() => {
-    const handleVisualViewportResize = () => {
-      if (!window.visualViewport) return;
-      
-      const keyboardHeight = window.visualViewport.height < window.innerHeight 
-        ? window.innerHeight - window.visualViewport.height 
-        : 0;
-      
-      setKeyboardHeight(keyboardHeight > 150 ? keyboardHeight : 0);
-    };
+  const keyboardHeight = useKeyboardHeight(); // Usar el hook customizado
 
-    // Ejecutar inmediatamente al montar
-    handleVisualViewportResize();
-    
-    window.visualViewport?.addEventListener('resize', handleVisualViewportResize);
-    return () => window.visualViewport?.removeEventListener('resize', handleVisualViewportResize);
-  }, []);
-
-  // Enfocar el input automáticamente
+  // Enfocar el input automáticamente al abrir el modal
   useEffect(() => {
-    setTimeout(() => {
+    const timer = setTimeout(() => {
       titleInputRef.current?.focus();
     }, 150);
+    return () => clearTimeout(timer);
   }, []);
 
   const handleTitleFocus = () => {
@@ -63,7 +47,12 @@ export default function DeckModal({ initial, onClose, onSave }) {
       return;
     }
     setError('');
-    setCoverImage(await fileToBase64(file));
+    try {
+      const base64 = await fileToBase64(file);
+      setCoverImage(base64);
+    } catch (err) {
+      setError('Error al procesar la imagen.');
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -87,7 +76,7 @@ export default function DeckModal({ initial, onClose, onSave }) {
         onClick={onClose}
       />
 
-      {/* Bottom Sheet */}
+      {/* Bottom Sheet con ajuste dinámico */}
       <div 
         className="fixed inset-0 z-[80] flex items-center justify-center px-4 pointer-events-none"
         style={{
@@ -98,7 +87,7 @@ export default function DeckModal({ initial, onClose, onSave }) {
           className="bg-white rounded-3xl shadow-2xl w-full max-w-sm pointer-events-auto animate-[slideUp_0.3s_cubic-bezier(0.32,0.72,0,1)] max-h-[80vh] overflow-y-auto"
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Handle */}
+          {/* Handle estético visual */}
           <div className="flex justify-center pt-3 pb-2">
             <div className="w-10 h-1 bg-slate-300 rounded-full" />
           </div>
@@ -116,6 +105,7 @@ export default function DeckModal({ initial, onClose, onSave }) {
                 </p>
               </div>
               <button
+                type="button"
                 onClick={onClose}
                 className="w-9 h-9 bg-slate-100 rounded-xl flex items-center justify-center hover:bg-slate-200 active:scale-95 transition-all duration-200 flex-shrink-0 ml-3"
               >
@@ -233,7 +223,7 @@ export default function DeckModal({ initial, onClose, onSave }) {
                 </div>
               )}
 
-              {/* Botones */}
+              {/* Botones de acción */}
               <div className="flex gap-3 pt-2">
                 <button 
                   type="button" 
@@ -261,4 +251,3 @@ export default function DeckModal({ initial, onClose, onSave }) {
     </>
   );
 }
-
