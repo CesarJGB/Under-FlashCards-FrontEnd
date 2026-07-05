@@ -1,3 +1,4 @@
+// FILE: frontend/src/components/LibrarySection.jsx
 import { useRef, useState, useMemo, useEffect } from 'react';
 import { useLibraryState } from '../hooks/useLibraryState';
 import DeckInterior from './DeckInterior';
@@ -20,7 +21,9 @@ export default function LibrarySection({
   userId, userEmail, decks, materias, loading,
   setDecks, setMaterias, loadDecks, loadMaterias,
   currentDeck, setCurrentDeck, initialMode, setInitialMode,
-  onExitToStudy
+  onExitToStudy,
+  pendingNav,       // 👈 Prop nueva para capturar navegación desde el Home
+  clearPendingNav   // 👈 Prop nueva para limpiar el estado de navegación de origen
 }) {
   
   useEffect(() => {
@@ -34,6 +37,25 @@ export default function LibrarySection({
     viewMode, setViewMode, processedDecks, sortedMaterias, sortedTemas, sortedSubtemas,
     searchResults, handleResetPath, refreshTemas
   } = useLibraryState(userId, decks, materias, setDecks, setMaterias, loadDecks);
+
+  // 👇 Consumir navegación pendiente desde Home de forma reactiva
+  useEffect(() => {
+    if (!pendingNav) return;
+    
+    // Setear la ruta destino en el motor de la biblioteca
+    setCurrentPath({
+      materiaId: pendingNav.materiaId ?? null,
+      parcialNumber: pendingNav.parcialNumber ?? null,
+      temaId: pendingNav.temaId ?? null,
+      subtemaId: pendingNav.subtemaId ?? null
+    });
+    
+    // Limpiar señal después de aplicar para evitar bucles
+    clearPendingNav();
+  }, [pendingNav, setCurrentPath, clearPendingNav]);
+
+  // 👇 Derivar si debemos filtrar parciales activos en ParcialesLevel
+  const shouldFilterActiveParciales = pendingNav?.filterActiveParciales === true;
 
   const [academicModal, setAcademicModal] = useState(null); 
   const [academicInput, setAcademicInput] = useState('');
@@ -269,6 +291,7 @@ export default function LibrarySection({
                   setMaterias(updated);
                   localStorage.setItem(`materias_${userId}`, JSON.stringify(updated));
                 }}
+                filterActiveOnly={shouldFilterActiveParciales} // 👈 Inyección del flag para filtrado inteligente
               />
             )}
 
