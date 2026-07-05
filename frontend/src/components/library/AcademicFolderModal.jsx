@@ -80,7 +80,12 @@ export default function AcademicFolderModal({
                   required 
                   placeholder={`Ej: Matemáticas ${getTypeName(academicModal?.type) === 'materia' ? 'Avanzadas' : '1'}`} 
                   value={academicInput} 
-                  onChange={(e) => setAcademicInput(e.target.value)} 
+                  onChange={(e) => setAcademicInput(e.target.value)}
+                  autoComplete="off"
+                  autoCorrect="off"
+                  spellCheck="false"
+                  autoCapitalize="off"
+                  enterKeyHint="done"
                   className="w-full text-base font-medium border-2 border-slate-200 rounded-2xl px-4 py-3.5 bg-slate-50 focus:outline-none focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 transition-all duration-200 placeholder:text-slate-400" 
                 />
               </div>
