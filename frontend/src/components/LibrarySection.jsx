@@ -39,46 +39,21 @@ export default function LibrarySection({
   } = useLibraryState(userId, decks, materias, setDecks, setMaterias, loadDecks);
 
   // =========================================================================
-  // 🧭 CONTROL DE NAVEGACIÓN INTELIGENTE Y FILTRADO DE PARCIALES ACTIVOS
+  // 🧭 MOTOR DE NAVEGACIÓN INTEGRADO ATÓMICAMENTE EN EL PATH
   // =========================================================================
-  const [showOnlyActiveParciales, setShowOnlyActiveParciales] = useState(false);
-  
-  // Ref inicializado en null para identificar el montaje y transiciones pendientes
-  const prevMateriaIdRef = useRef(null);
-
-  // Consumir navegación pendiente desde Home
   useEffect(() => {
     if (!pendingNav) return;
 
-    const shouldFilter = pendingNav.filterActiveParciales === true;
-    const targetMateriaId = pendingNav.materiaId ?? null;
-
-    // CRÍTICO: Sincronizar el ref inmediatamente antes del cambio de estado
-    // para evitar que el efecto colateral detecte un cambio falso
-    prevMateriaIdRef.current = targetMateriaId;
-
-    setShowOnlyActiveParciales(shouldFilter);
     setCurrentPath({
-      materiaId: targetMateriaId,
+      materiaId: pendingNav.materiaId ?? null,
       parcialNumber: pendingNav.parcialNumber ?? null,
       temaId: pendingNav.temaId ?? null,
-      subtemaId: pendingNav.subtemaId ?? null
+      subtemaId: pendingNav.subtemaId ?? null,
+      filterActiveParciales: pendingNav.filterActiveParciales === true // 👈 Se persiste directo en el objeto path
     });
 
     clearPendingNav();
   }, [pendingNav, setCurrentPath, clearPendingNav]);
-
-  // Limpiar filtro SOLO cuando cambiamos de materia real después de la navegación inicial
-  useEffect(() => {
-    // Si prevMateriaIdRef es null, significa que venimos del montaje o de pendingNav
-    if (
-      prevMateriaIdRef.current !== null &&
-      prevMateriaIdRef.current !== currentPath.materiaId
-    ) {
-      setShowOnlyActiveParciales(false);
-    }
-    prevMateriaIdRef.current = currentPath.materiaId;
-  }, [currentPath.materiaId]);
 
   // =========================================================================
   // 📂 HANDLERS Y CONTROLADORES DE CARPETAS ACADÉMICAS
@@ -317,8 +292,8 @@ export default function LibrarySection({
                   setMaterias(updated);
                   localStorage.setItem(`materias_${userId}`, JSON.stringify(updated));
                 }}
-                filterActiveOnly={showOnlyActiveParciales} 
-                onClearFilter={() => setShowOnlyActiveParciales(false)} 
+                filterActiveOnly={currentPath.filterActiveParciales} // 👈 Extraído directamente del objeto de la ruta
+                onClearFilter={() => setCurrentPath(prev => ({ ...prev, filterActiveParciales: false }))} // 👈 Actualización de estado atómica
               />
             )}
 
