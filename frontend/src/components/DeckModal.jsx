@@ -25,27 +25,37 @@ export default function DeckModal({ initial, onClose, onSave }) {
   const [showCustomization, setShowCustomization] = useState(false);
   const titleInputRef = useRef(null);
 
-  // Detección de teclado - IGUAL QUE AcademicFolderModal
+  // Función para calcular altura del teclado
+  const calculateKeyboardHeight = () => {
+    if (!window.visualViewport) return 0;
+    const diff = window.innerHeight - window.visualViewport.height;
+    return diff > 150 ? diff : 0;
+  };
+
+  // Detección de teclado
   useEffect(() => {
     const handleVisualViewportResize = () => {
-      if (!window.visualViewport) return;
-      
-      const keyboardHeight = window.visualViewport.height < window.innerHeight 
-        ? window.innerHeight - window.visualViewport.height 
-        : 0;
-      
-      setKeyboardHeight(keyboardHeight > 150 ? keyboardHeight : 0);
+      setKeyboardHeight(calculateKeyboardHeight());
     };
 
-    // Ejecutar inmediatamente al montar
-    handleVisualViewportResize();
-    
     window.visualViewport?.addEventListener('resize', handleVisualViewportResize);
     return () => window.visualViewport?.removeEventListener('resize', handleVisualViewportResize);
   }, []);
 
+  // Calcular al montar
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setKeyboardHeight(calculateKeyboardHeight());
+    }, 100);
+    return () => clearTimeout(timer);
+  }, []);
+
   const handleTitleFocus = () => {
     setShowCustomization(false);
+    // Recalcular después de que el teclado se muestre
+    setTimeout(() => {
+      setKeyboardHeight(calculateKeyboardHeight());
+    }, 300);
   };
 
   const handleFile = async (e) => {
@@ -80,7 +90,7 @@ export default function DeckModal({ initial, onClose, onSave }) {
         onClick={onClose}
       />
 
-      {/* Bottom Sheet - IGUAL QUE AcademicFolderModal */}
+      {/* Bottom Sheet */}
       <div 
         className="fixed inset-0 z-[80] flex items-center justify-center px-4 pointer-events-none"
         style={{
