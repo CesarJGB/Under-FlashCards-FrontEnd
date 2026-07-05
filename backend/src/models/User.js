@@ -1,3 +1,4 @@
+// FILE: backend/src/models/User.js
 const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema(
@@ -7,6 +8,10 @@ const userSchema = new mongoose.Schema(
     name: String,
     picture: String,
     aiApiKey: { type: String, default: '' },
+    quickViewMaterias: [{ 
+      type: mongoose.Schema.Types.ObjectId, 
+      ref: 'Materia' 
+    }]
   },
   { timestamps: true }
 );
@@ -16,3 +21,4 @@ userSchema.statics.maskKey = (key) =>
   key ? `${'•'.repeat(Math.max(0, key.length - 4))}${key.slice(-4)}` : '';
 
 module.exports = mongoose.model('User', userSchema);
+
