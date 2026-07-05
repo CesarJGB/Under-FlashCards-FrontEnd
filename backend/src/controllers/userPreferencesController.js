@@ -4,11 +4,18 @@ const User = require('../models/User');
 // GET /api/users/:userId/preferences
 exports.getUserPreferences = async (req, res) => {
   try {
-    const user = await User.findById(req.params.userId).select('quickViewMaterias');
+    const user = await User.findById(req.params.userId).select('quickViewMaterias homeSectionVisibility');
     if (!user) {
       return res.status(404).json({ error: 'Usuario no encontrado' });
     }
-    res.json({ quickViewMaterias: user.quickViewMaterias || [] });
+    res.json({ 
+      quickViewMaterias: user.quickViewMaterias || [],
+      homeSectionVisibility: user.homeSectionVisibility || {
+        quickView: true,
+        detailedView: false,
+        unclassifiedDecks: false
+      }
+    });
   } catch (error) {
     console.error('Error al obtener preferencias:', error);
     res.status(500).json({ error: 'Error del servidor' });
@@ -18,17 +25,29 @@ exports.getUserPreferences = async (req, res) => {
 // PUT /api/users/:userId/preferences
 exports.updateUserPreferences = async (req, res) => {
   try {
-    const { quickViewMaterias } = req.body;
+    const { quickViewMaterias, homeSectionVisibility } = req.body;
     
-    if (!Array.isArray(quickViewMaterias)) {
-      return res.status(400).json({ error: 'quickViewMaterias debe ser un array' });
+    const updateData = {};
+    
+    if (quickViewMaterias !== undefined) {
+      if (!Array.isArray(quickViewMaterias)) {
+        return res.status(400).json({ error: 'quickViewMaterias debe ser un array' });
+      }
+      updateData.quickViewMaterias = quickViewMaterias;
+    }
+    
+    if (homeSectionVisibility !== undefined) {
+      if (typeof homeSectionVisibility !== 'object') {
+        return res.status(400).json({ error: 'homeSectionVisibility debe ser un objeto' });
+      }
+      updateData.homeSectionVisibility = homeSectionVisibility;
     }
 
     const user = await User.findByIdAndUpdate(
       req.params.userId,
-      { quickViewMaterias },
+      { $set: updateData },
       { new: true, runValidators: true }
-    ).select('quickViewMaterias');
+    ).select('quickViewMaterias homeSectionVisibility');
 
     if (!user) {
       return res.status(404).json({ error: 'Usuario no encontrado' });
@@ -36,7 +55,12 @@ exports.updateUserPreferences = async (req, res) => {
 
     res.json({ 
       success: true, 
-      quickViewMaterias: user.quickViewMaterias 
+      quickViewMaterias: user.quickViewMaterias || [],
+      homeSectionVisibility: user.homeSectionVisibility || {
+        quickView: true,
+        detailedView: false,
+        unclassifiedDecks: false
+      }
     });
   } catch (error) {
     console.error('Error al actualizar preferencias:', error);
