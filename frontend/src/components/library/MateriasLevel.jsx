@@ -98,7 +98,7 @@ export default function MateriasLevel({
       );
     }
 
-    // MODO GRID - CORREGIDO
+    // MODO GRID
     return (
       <div key={m._id} className="relative group">
         <button
@@ -106,7 +106,7 @@ export default function MateriasLevel({
           onClick={() => setCurrentPath({ ...currentPath, materiaId: m._id })}
           className="w-full text-left h-28 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col justify-end overflow-hidden bg-white dark:bg-zinc-800 relative"
         >
-          {/* Gradiente overlay SOLO modo oscuro - CORREGIDO */}
+          {/* Gradiente overlay SOLO modo oscuro */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent pointer-events-none z-0 dark:block hidden rounded-b-2xl" />
 
           {/* Icono decorativo superior izquierdo */}
@@ -131,7 +131,7 @@ export default function MateriasLevel({
             </button>
           </div>
 
-          {/* Nombre - CORREGIDO */}
+          {/* Nombre */}
           <div className="p-3.5 pt-10 w-full z-10 min-w-0 relative">
             <p className="font-bold text-sm leading-snug line-clamp-2 text-zinc-800 dark:text-white dark:drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">
               {m.name}
@@ -159,15 +159,15 @@ export default function MateriasLevel({
     );
   };
 
-  // Celda overflow "+N" - CORREGIDO
+  // Celda overflow "+N" - CON GRADIENTE Y CONTRASTE MEJORADO
   const renderOverflowCell = () => (
     <button
       type="button"
       onClick={() => setShowAll(true)}
       className="h-28 rounded-2xl border-2 border-dashed border-zinc-300 dark:border-zinc-600 bg-zinc-50 dark:bg-zinc-800/50 flex flex-col items-center justify-center gap-1.5 cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-700/50 hover:border-zinc-400 dark:hover:border-zinc-500 active:scale-[0.98] transition-all duration-200 w-full"
     >
-      <span className="text-2xl font-black text-zinc-700 dark:text-zinc-200">+{overflowCount}</span>
-      <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-400">
+      <span className="text-2xl font-black text-zinc-700 dark:text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">+{overflowCount}</span>
+      <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 dark:text-white/85 drop-shadow-[0_1px_1px_rgba(0,0,0,0.4)]">
         Ver todas
       </span>
     </button>
@@ -186,7 +186,7 @@ export default function MateriasLevel({
 
   return (
     <div className="space-y-6 mt-6">
-      {/* HEADER - CORREGIDO */}
+      {/* HEADER */}
       <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-700/50 pb-2">
         <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
           Tus Materias ({materias.length})
@@ -224,7 +224,7 @@ export default function MateriasLevel({
         </>
       )}
 
-      {/* MAZOS SIN CLASIFICAR - CORREGIDO */}
+      {/* MAZOS SIN CLASIFICAR */}
       <div className="pt-6 border-t border-zinc-200/60 dark:border-zinc-700/50">
         <div className="flex items-center gap-1.5 mb-4">
           <Bookmark className="w-3.5 h-3.5 text-zinc-400 dark:text-zinc-500" />
