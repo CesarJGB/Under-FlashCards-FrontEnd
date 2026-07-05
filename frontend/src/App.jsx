@@ -15,7 +15,10 @@ const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
 function DashboardScreen({ user, onLogout }) {
   const [tab, setTab] = useState('home');
-  const [homeKey, setHomeKey] = useState(0); // 👈 NUEVO: Forzar remount del Home
+  const [homeKey, setHomeKey] = useState(0);
+  
+  // 👇 NUEVO: Estado puente para navegación Home → Library
+  const [pendingLibraryNav, setPendingLibraryNav] = useState(null);
 
   const [decks, setDecks] = useState(() => {
     const cached = localStorage.getItem(`decks_${user.id}`);
@@ -70,13 +73,23 @@ function DashboardScreen({ user, onLogout }) {
     Promise.all([loadDecks(), loadMaterias()]);
   }, [loadDecks, loadMaterias]);
 
+  // 👇 NUEVO: Handler de navegación profunda a librería desde Home
+  const handleNavigateToLibraryPath = useCallback((path) => {
+    setPendingLibraryNav(path);
+    setCurrentDeck(null);
+    setInitialMode('edit');
+    setTab('library');
+  }, []);
+
   const handleTabChange = (id) => {
     if (id === 'library') {
       setCurrentDeck(null);
       setInitialMode('edit');
+      // 👇 Limpiar nav pendiente si el usuario navega manualmente a library
+      setPendingLibraryNav(null);
     }
     
-    // 👈 NUEVO: Forzar remount del Home cuando se cambia a esa tab
+    // Forzar remount del Home cuando se cambia a esa tab
     if (id === 'home') {
       setHomeKey(prev => prev + 1);
     }
@@ -183,11 +196,12 @@ function DashboardScreen({ user, onLogout }) {
         <div className="max-w-5xl mx-auto px-4 py-4 pb-24 md:pb-8 md:px-6 md:py-8">
           {tab === 'home' && (
             <HomeSection 
-              key={homeKey} // 👈 NUEVO: Forzar remount
+              key={homeKey}
               user={user} 
               decks={decks} 
               materias={materias}
               onOpenReview={handleOpenReviewFromHome}
+              onNavigateToLibrary={handleNavigateToLibraryPath} // 👈 NUEVO
               onLogout={onLogout}
               loadDecks={loadDecks}
               loadMaterias={loadMaterias}
@@ -220,6 +234,8 @@ function DashboardScreen({ user, onLogout }) {
               initialMode={initialMode}
               setInitialMode={setInitialMode}
               onExitToStudy={handleExitToStudy}
+              pendingNav={pendingLibraryNav}               // 👈 NUEVO
+              clearPendingNav={() => setPendingLibraryNav(null)} // 👈 NUEVO
             />
           )}
 
