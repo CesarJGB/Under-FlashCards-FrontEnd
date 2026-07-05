@@ -9,7 +9,8 @@ export default function QuickViewGrid({
   enrichedMaterias, 
   getKnowledgeAccent, 
   getParcialesBadge,
-  userId
+  userId,
+  onMateriaClick // 👈 Prop agregada para la navegación interactiva
 }) {
   const [selectedMaterias, setSelectedMaterias] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -70,7 +71,6 @@ export default function QuickViewGrid({
       }
     } catch (error) {
       console.error('Error al sincronizar preferencias:', error);
-      // No revertir localStorage, mantener como caché
     } finally {
       setIsSaving(false);
     }
@@ -82,9 +82,7 @@ export default function QuickViewGrid({
         ? prev.filter(id => id !== materiaId)
         : [...prev, materiaId];
       
-      // Guardar en backend
       savePreferences(newSelection);
-      
       return newSelection;
     });
   };
@@ -100,7 +98,42 @@ export default function QuickViewGrid({
     savePreferences([]);
   };
 
-  // Filtrar materias según selección
+  // Handler de navegación inteligente basado en parciales activos
+  const handleCardClick = (materia) => {
+    if (!onMateriaClick) return;
+    
+    const ap = materia.activeParciales || [];
+    const isFiltered = ap.length > 0 && ap.length < 3;
+    
+    if (!isFiltered) {
+      // Caso A: Dominio general (0 o 3 parciales) → Selector de parciales amplio
+      onMateriaClick({ 
+        materiaId: materia.id, 
+        parcialNumber: null, 
+        temaId: null, 
+        subtemaId: null 
+      });
+    } else if (ap.length === 1) {
+      // Caso B: 1 parcial activo → Va directo a los temas de ese parcial único
+      onMateriaClick({ 
+        materiaId: materia.id, 
+        parcialNumber: ap[0], 
+        temaId: null, 
+        subtemaId: null 
+      });
+    } else {
+      // Caso C: 2 parciales activos → Abre el selector filtrado en ParcialesLevel
+      onMateriaClick({ 
+        materiaId: materia.id, 
+        parcialNumber: null, 
+        temaId: null, 
+        subtemaId: null,
+        filterActiveParciales: true
+      });
+    }
+  };
+
+  // Filtrar materias según selección para renderizado
   const visibleMaterias = selectedMaterias.length > 0
     ? enrichedMaterias.filter(m => selectedMaterias.includes(m.id))
     : [];
@@ -145,7 +178,7 @@ export default function QuickViewGrid({
           </p>
         </div>
       ) : (
-        /* Grid de materias */
+        /* Grid de materias interactivo */
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
           {visibleMaterias.map((materia) => {
             const accent = getKnowledgeAccent(materia.masteryPercentage);
@@ -156,7 +189,8 @@ export default function QuickViewGrid({
             return (
               <div 
                 key={materia.id}
-                className="group bg-white dark:bg-zinc-900 p-3 rounded-xl border border-zinc-200/70 dark:border-zinc-800 flex flex-col items-center text-center hover:shadow-md transition-shadow"
+                onClick={() => handleCardClick(materia)} // 👈 Dispara la redirección inteligente
+                className="group bg-white dark:bg-zinc-900 p-3 rounded-xl border border-zinc-200/70 dark:border-zinc-800 flex flex-col items-center text-center hover:shadow-md hover:border-indigo-200 dark:hover:border-indigo-900 transition-all cursor-pointer active:scale-[0.97]"
               >
                 <div className="relative w-16 h-16 mb-2">
                   <svg className="w-full h-full transform -rotate-90">
@@ -218,4 +252,3 @@ export default function QuickViewGrid({
     </div>
   );
 }
-
