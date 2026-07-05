@@ -38,35 +38,41 @@ export default function LibrarySection({
     searchResults, handleResetPath, refreshTemas
   } = useLibraryState(userId, decks, materias, setDecks, setMaterias, loadDecks);
 
-  // 👇 NUEVO: Estado persistente para el filtro de parciales activos
-  const [activeParcialesFilter, setActiveParcialesFilter] = useState(false);
+  // 👇 NUEVO: Estado persistente optimizado para el filtro de parciales activos
+  const [showOnlyActiveParciales, setShowOnlyActiveParciales] = useState(false);
 
-  // 👇 Consumir navegación pendiente desde Home de forma reactiva
+  // 👇 DEBUG TEMPORAL: Verifica qué llega realmente de la navegación
+  useEffect(() => {
+    if (pendingNav) {
+      console.log('🔵 pendingNav recibido:', JSON.stringify(pendingNav));
+      console.log('🔵 filterActiveParciales:', pendingNav.filterActiveParciales);
+    }
+  }, [pendingNav]);
+
+  // Consumir navegación pendiente en un único ciclo de renderizado unificado
   useEffect(() => {
     if (!pendingNav) return;
+
+    const shouldFilter = pendingNav.filterActiveParciales === true;
     
-    // Setear la ruta destino en el motor de la biblioteca
+    // Setear ambos estados simultáneamente para evitar race conditions
+    setShowOnlyActiveParciales(shouldFilter);
     setCurrentPath({
       materiaId: pendingNav.materiaId ?? null,
       parcialNumber: pendingNav.parcialNumber ?? null,
       temaId: pendingNav.temaId ?? null,
       subtemaId: pendingNav.subtemaId ?? null
     });
-    
-    // Persistir el estado del filtro antes de limpiar la señal de navegación
-    if (pendingNav.filterActiveParciales) {
-      setActiveParcialesFilter(true);
-    } else {
-      setActiveParcialesFilter(false);
-    }
-    
+
     clearPendingNav();
   }, [pendingNav, setCurrentPath, clearPendingNav]);
 
-  // 👇 NUEVO: Limpiar filtro automáticamente si el usuario sale de la materia (vuelve al inicio)
+  // 👇 Control inteligente: Limpiar filtro SOLO cuando cambiamos de materia real, no de parcial
+  const prevMateriaIdRef = useRef(currentPath.materiaId);
   useEffect(() => {
-    if (!currentPath.materiaId) {
-      setActiveParcialesFilter(false);
+    if (prevMateriaIdRef.current !== currentPath.materiaId) {
+      setShowOnlyActiveParciales(false);
+      prevMateriaIdRef.current = currentPath.materiaId;
     }
   }, [currentPath.materiaId]);
 
@@ -304,8 +310,8 @@ export default function LibrarySection({
                   setMaterias(updated);
                   localStorage.setItem(`materias_${userId}`, JSON.stringify(updated));
                 }}
-                filterActiveOnly={activeParcialesFilter} // 👈 Cambiado para usar el estado persistente local
-                onClearFilter={() => setActiveParcialesFilter(false)} // 👈 Callback nuevo para remover el filtro desde el banner interno
+                filterActiveOnly={showOnlyActiveParciales} // 👈 Vinculado al nuevo estado showOnlyActiveParciales
+                onClearFilter={() => setShowOnlyActiveParciales(false)} // 👈 Resetea el estado local del filtro
               />
             )}
 
