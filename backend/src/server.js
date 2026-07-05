@@ -26,7 +26,8 @@ const authRoutes = require('./routes/authRoutes');
 const deckRoutes = require('./routes/deckRoutes');
 const flashcardRoutes = require('./routes/flashcardRoutes');
 const academicRoutes = require('./routes/academicRoutes'); 
-const reviewRoutes = require('./routes/reviewRoutes'); // 👈 NUEVO: Motor del Radar de Conocimiento
+const reviewRoutes = require('./routes/reviewRoutes');
+const userRoutes = require('./routes/userRoutes'); // 👈 NUEVO: Rutas de usuario y preferencias
 
 const app = express();
 const PORT = process.env.PORT || 8001;
@@ -51,7 +52,7 @@ const corsOptions = {
     if (allowedOrigins.includes(origin)) return callback(null, true);
     return callback(new Error(`CORS blocked for origin: ${origin}`));
   },
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'], // 👈 FIX: PATCH agregado para endpoints de StudySession
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
   credentials: true,
 };
 
@@ -74,10 +75,12 @@ app.use('/api', authRoutes);
 app.use('/api', deckRoutes);
 app.use('/api', flashcardRoutes);
 app.use('/api', academicRoutes); 
-app.use('/api', reviewRoutes); // 👈 NUEVO: Registro de la telemetría de repasos en cascada
+app.use('/api', reviewRoutes);
+app.use('/api/users', userRoutes); // 👈 NUEVO: Rutas de usuario (incluye preferencias)
 
 // Encendido del servidor
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Flashcards backend corriendo en el puerto ${PORT}`);
   console.log(`Orígenes CORS admitidos: ${allowedOrigins.join(', ')}`);
 });
+
