@@ -25,37 +25,34 @@ export default function DeckModal({ initial, onClose, onSave }) {
   const [showCustomization, setShowCustomization] = useState(false);
   const titleInputRef = useRef(null);
 
-  // Función para calcular altura del teclado
-  const calculateKeyboardHeight = () => {
-    if (!window.visualViewport) return 0;
-    const diff = window.innerHeight - window.visualViewport.height;
-    return diff > 150 ? diff : 0;
-  };
-
   // Detección de teclado
   useEffect(() => {
     const handleVisualViewportResize = () => {
-      setKeyboardHeight(calculateKeyboardHeight());
+      if (!window.visualViewport) return;
+      
+      const keyboardHeight = window.visualViewport.height < window.innerHeight 
+        ? window.innerHeight - window.visualViewport.height 
+        : 0;
+      
+      setKeyboardHeight(keyboardHeight > 150 ? keyboardHeight : 0);
     };
 
+    // Ejecutar inmediatamente al montar
+    handleVisualViewportResize();
+    
     window.visualViewport?.addEventListener('resize', handleVisualViewportResize);
     return () => window.visualViewport?.removeEventListener('resize', handleVisualViewportResize);
   }, []);
 
-  // Calcular al montar
+  // Enfocar el input automáticamente
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setKeyboardHeight(calculateKeyboardHeight());
-    }, 100);
-    return () => clearTimeout(timer);
+    setTimeout(() => {
+      titleInputRef.current?.focus();
+    }, 150);
   }, []);
 
   const handleTitleFocus = () => {
     setShowCustomization(false);
-    // Recalcular después de que el teclado se muestre
-    setTimeout(() => {
-      setKeyboardHeight(calculateKeyboardHeight());
-    }, 300);
   };
 
   const handleFile = async (e) => {
