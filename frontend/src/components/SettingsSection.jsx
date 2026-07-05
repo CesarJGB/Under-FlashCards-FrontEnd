@@ -1,6 +1,6 @@
-// ARCHIVO: frontend/src/components/SettingsSection.jsx
+// FILE: frontend/src/components/SettingsSection.jsx
 import { useState, useEffect, useCallback } from 'react';
-import { KeyRound, Loader2, Check, Wallet, RefreshCw } from 'lucide-react';
+import { KeyRound, Loader2, Check, Wallet, RefreshCw, Layout, Eye, EyeOff } from 'lucide-react';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
@@ -17,7 +17,15 @@ export default function SettingsSection({ userId }) {
   const [loadingBalance, setLoadingBalance] = useState(false);
   const [balanceError, setBalanceError] = useState('');
 
-  // Encapsulamos la consulta en useCallback para poder re-llamarla con un botón de refresh
+  // 👁️ ESTADOS DE VISIBILIDAD DEL HOME
+  const [homeVisibility, setHomeVisibility] = useState({
+    quickView: true,
+    detailedView: false,
+    unclassifiedDecks: false
+  });
+  const [savingVisibility, setSavingVisibility] = useState(false);
+  const [visibilitySaved, setVisibilitySaved] = useState(false);
+
   const loadBalance = useCallback(async () => {
     setLoadingBalance(true);
     setBalanceError('');
@@ -37,6 +45,21 @@ export default function SettingsSection({ userId }) {
     }
   }, [userId]);
 
+  // Cargar preferencias de visibilidad del home
+  const loadHomeVisibility = useCallback(async () => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/users/${userId}/preferences`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.homeSectionVisibility) {
+          setHomeVisibility(data.homeSectionVisibility);
+        }
+      }
+    } catch (error) {
+      console.error('Error al cargar visibilidad del home:', error);
+    }
+  }, [userId]);
+
   useEffect(() => {
     (async () => {
       try {
@@ -46,7 +69,6 @@ export default function SettingsSection({ userId }) {
           setHasKey(data.hasApiKey);
           setMasked(data.apiKeyMasked || '');
           
-          // Si el usuario ya tiene una clave en el sistema, jalamos el saldo de inmediato
           if (data.hasApiKey) {
             loadBalance();
           }
@@ -55,7 +77,10 @@ export default function SettingsSection({ userId }) {
         /* ignore */
       }
     })();
-  }, [userId, loadBalance]);
+    
+    // Cargar visibilidad del home
+    loadHomeVisibility();
+  }, [userId, loadBalance, loadHomeVisibility]);
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -75,7 +100,6 @@ export default function SettingsSection({ userId }) {
       setApiKey('');
       setSaved(true);
       
-      // Consultar balance justo después de actualizar/guardar una nueva clave exitosamente
       loadBalance();
     } catch (e) {
       setError(e.message);
@@ -84,14 +108,151 @@ export default function SettingsSection({ userId }) {
     }
   };
 
+  const handleToggleVisibility = async (section) => {
+    const newVisibility = {
+      ...homeVisibility,
+      [section]: !homeVisibility[section]
+    };
+    
+    setHomeVisibility(newVisibility);
+    setSavingVisibility(true);
+    setVisibilitySaved(false);
+    
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/users/${userId}/preferences`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ homeSectionVisibility: newVisibility })
+      });
+      
+      if (!res.ok) throw new Error('Error al guardar');
+      
+      setVisibilitySaved(true);
+      setTimeout(() => setVisibilitySaved(false), 2000);
+    } catch (error) {
+      console.error('Error al actualizar visibilidad:', error);
+      // Revertir en caso de error
+      setHomeVisibility(homeVisibility);
+    } finally {
+      setSavingVisibility(false);
+    }
+  };
+
   return (
-    <div data-testid="settings-section" className="animate-[fadeIn_0.15s_ease] max-w-xl">
-      <h2 className="text-2xl font-bold text-slate-900">Ajustes</h2>
-      <p className="text-slate-500 mt-1">Administra tu clave de API de IA y verifica tu consumo.</p>
+    <div data-testid="settings-section" className="animate-[fadeIn_0.15s_ease] max-w-xl space-y-6">
+      <div>
+        <h2 className="text-2xl font-bold text-slate-900">Ajustes</h2>
+        <p className="text-slate-500 mt-1">Administra tu clave de API de IA, visibilidad del Home y verifica tu consumo.</p>
+      </div>
+
+      {/* 👁️ SECCIÓN DE VISIBILIDAD DEL HOME */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 flex items-center justify-center">
+            <Layout className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-slate-900">Secciones del Home</h3>
+            <p className="text-xs text-slate-500 mt-0.5">Controla qué secciones se muestran en tu pantalla de inicio</p>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          {/* Vista Rápida */}
+          <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-indigo-100 dark:bg-indigo-950/60 flex items-center justify-center">
+                <Layout className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-slate-900">Vista Rápida</p>
+                <p className="text-[10px] text-slate-500">Grid compacto con círculos de progreso</p>
+              </div>
+            </div>
+            <button
+              onClick={() => handleToggleVisibility('quickView')}
+              disabled={savingVisibility}
+              className="relative w-11 h-6 rounded-full transition-colors cursor-pointer disabled:opacity-50"
+              style={{
+                backgroundColor: homeVisibility.quickView ? '#4f46e5' : '#cbd5e1'
+              }}
+            >
+              <div
+                className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform"
+                style={{
+                  transform: homeVisibility.quickView ? 'translateX(22px)' : 'translateX(2px)'
+                }}
+              />
+            </button>
+          </div>
+
+          {/* Vista Detallada */}
+          <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-950/60 flex items-center justify-center">
+                <Eye className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-slate-900">Vista Detallada</p>
+                <p className="text-[10px] text-slate-500">Cards con estadísticas completas</p>
+              </div>
+            </div>
+            <button
+              onClick={() => handleToggleVisibility('detailedView')}
+              disabled={savingVisibility}
+              className="relative w-11 h-6 rounded-full transition-colors cursor-pointer disabled:opacity-50"
+              style={{
+                backgroundColor: homeVisibility.detailedView ? '#4f46e5' : '#cbd5e1'
+              }}
+            >
+              <div
+                className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform"
+                style={{
+                  transform: homeVisibility.detailedView ? 'translateX(22px)' : 'translateX(2px)'
+                }}
+              />
+            </button>
+          </div>
+
+          {/* Mazos Sueltos */}
+          <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-amber-100 dark:bg-amber-950/60 flex items-center justify-center">
+                <EyeOff className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-slate-900">Mazos Sueltos</p>
+                <p className="text-[10px] text-slate-500">Mazos fuera de la jerarquía</p>
+              </div>
+            </div>
+            <button
+              onClick={() => handleToggleVisibility('unclassifiedDecks')}
+              disabled={savingVisibility}
+              className="relative w-11 h-6 rounded-full transition-colors cursor-pointer disabled:opacity-50"
+              style={{
+                backgroundColor: homeVisibility.unclassifiedDecks ? '#4f46e5' : '#cbd5e1'
+              }}
+            >
+              <div
+                className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform"
+                style={{
+                  transform: homeVisibility.unclassifiedDecks ? 'translateX(22px)' : 'translateX(2px)'
+                }}
+              />
+            </button>
+          </div>
+        </div>
+
+        {visibilitySaved && (
+          <p className="mt-3 text-xs font-semibold text-green-600 bg-green-50 border border-green-100 px-3 py-1.5 rounded-xl animate-[fadeIn_0.1s_ease]">
+            Configuración guardada
+          </p>
+        )}
+      </div>
 
       {/* 🪙 TARJETA DE PRESUPUESTO DE DEEPSEEK */}
       {hasKey && (
-        <div className="mt-6 bg-slate-900 text-white rounded-2xl p-5 shadow-sm border border-slate-950 flex flex-col gap-3 relative overflow-hidden">
+        <div className="bg-slate-900 text-white rounded-2xl p-5 shadow-sm border border-slate-950 flex flex-col gap-3 relative overflow-hidden">
           <div className="absolute right-0 top-0 translate-x-4 -translate-y-4 w-24 h-24 bg-white/5 rounded-full blur-xl pointer-events-none" />
           
           <div className="flex items-center justify-between z-10">
@@ -149,7 +310,7 @@ export default function SettingsSection({ userId }) {
       {/* FORMULARIO CLÁSICO DE LLAVE */}
       <form
         onSubmit={handleSave}
-        className="mt-4 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm"
+        className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm"
         data-testid="settings-form"
       >
         <label className="block text-sm font-medium text-slate-700 mb-1.5">Clave de API de IA</label>
@@ -184,3 +345,4 @@ export default function SettingsSection({ userId }) {
     </div>
   );
 }
+
