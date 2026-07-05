@@ -1,3 +1,4 @@
+// FILE: frontend/src/components/HomeSection.jsx
 import React, { useMemo, useEffect, useState, useCallback } from 'react';
 import RadarDebugPanel from './RadarDebugPanel';
 import GlobalStatsHeader from './home/GlobalStatsHeader';
@@ -150,6 +151,7 @@ export default function HomeSection({
         enrichedMaterias={enrichedMaterias}
         getKnowledgeAccent={getKnowledgeAccent}
         getParcialesBadge={getParcialesBadge}
+        userId={user?.id}
       />
 
       {/* Grid Detallado de Materias (Original) */}
