@@ -13,6 +13,7 @@ export default function HomeSection({
   decks,         
   materias,      
   onOpenReview,  
+  onNavigateToLibrary, // 👈 Prop agregada para la navegación
   onLogout,
   loadDecks,     
   loadMaterias   
@@ -176,6 +177,7 @@ export default function HomeSection({
           getKnowledgeAccent={getKnowledgeAccent}
           getParcialesBadge={getParcialesBadge}
           userId={user?.id}
+          onMateriaClick={onNavigateToLibrary} // 👈 Inyección de la nueva función
         />
       )}
 
@@ -209,4 +211,3 @@ export default function HomeSection({
     </div>
   );
 }
-
