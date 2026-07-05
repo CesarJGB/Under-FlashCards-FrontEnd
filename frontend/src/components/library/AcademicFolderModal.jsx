@@ -77,7 +77,6 @@ export default function AcademicFolderModal({
                 <input 
                   ref={inputRef}
                   type="text" 
-                  autoFocus 
                   required 
                   placeholder={`Ej: Matemáticas ${getTypeName(academicModal?.type) === 'materia' ? 'Avanzadas' : '1'}`} 
                   value={academicInput} 
