@@ -1,5 +1,5 @@
 // ARCHIVO: frontend/src/components/library/AcademicFolderModal.jsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { X } from 'lucide-react';
 
 export default function AcademicFolderModal({ 
@@ -7,21 +7,39 @@ export default function AcademicFolderModal({
   setAcademicModal, handleCreateAcademicFolder 
 }) {
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const titleInputRef = useRef(null);
 
+  const calculateKeyboardHeight = () => {
+    if (!window.visualViewport) return 0;
+    const diff = window.innerHeight - window.visualViewport.height;
+    // Si la diferencia es significativa, es el teclado
+    return diff > 150 ? diff : 0;
+  };
+
+  // Escuchar cambios de redimensionamiento del viewport (ej. rotación o teclado dinámico)
   useEffect(() => {
     const handleResize = () => {
-      if (window.visualViewport) {
-        const viewportHeight = window.visualViewport.height;
-        const windowHeight = window.innerHeight;
-        const diff = windowHeight - viewportHeight;
-        // Si la diferencia es significativa, es el teclado
-        setKeyboardHeight(diff > 100 ? diff : 0);
-      }
+      setKeyboardHeight(calculateKeyboardHeight());
     };
 
     window.visualViewport?.addEventListener('resize', handleResize);
     return () => window.visualViewport?.removeEventListener('resize', handleResize);
   }, []);
+
+  // Calcular al montar para mitigar desfases iniciales
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setKeyboardHeight(calculateKeyboardHeight());
+    }, 100);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Ajustar la altura cuando el input recibe el foco
+  const handleInputFocus = () => {
+    setTimeout(() => {
+      setKeyboardHeight(calculateKeyboardHeight());
+    }, 300);
+  };
 
   const getTypeName = (type) => {
     const names = {
@@ -79,9 +97,11 @@ export default function AcademicFolderModal({
                   Nombre
                 </label>
                 <input 
+                  ref={titleInputRef}
                   type="text" 
                   autoFocus 
                   required 
+                  onFocus={handleInputFocus}
                   placeholder={`Ej: Matemáticas ${getTypeName(academicModal.type) === 'materia' ? 'Avanzadas' : '1'}`} 
                   value={academicInput} 
                   onChange={(e) => setAcademicInput(e.target.value)} 
@@ -111,4 +131,3 @@ export default function AcademicFolderModal({
     </>
   );
 }
-
