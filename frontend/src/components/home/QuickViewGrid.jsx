@@ -1,6 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { Layers, AlertCircle, Settings, Plus } from 'lucide-react';
+// FILE: frontend/src/components/home/QuickViewGrid.jsx
+import React, { useState, useEffect, useCallback } from 'react';
+import { Layers, Settings, Plus, Loader2 } from 'lucide-react';
 import MateriaSelectorModal from './MateriaSelectorModal';
+
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
 export default function QuickViewGrid({ 
   enrichedMaterias, 
@@ -10,39 +13,91 @@ export default function QuickViewGrid({
 }) {
   const [selectedMaterias, setSelectedMaterias] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
 
-  // Cargar selección guardada
+  // Cargar preferencias desde backend + localStorage
   useEffect(() => {
-    if (userId) {
-      const saved = localStorage.getItem(`quickView_materias_${userId}`);
-      if (saved) {
-        setSelectedMaterias(JSON.parse(saved));
+    if (!userId) return;
+
+    const loadPreferences = async () => {
+      setIsLoading(true);
+      
+      // 1. Cargar desde localStorage inmediatamente (caché)
+      const cached = localStorage.getItem(`quickView_materias_${userId}`);
+      if (cached) {
+        setSelectedMaterias(JSON.parse(cached));
       }
+
+      // 2. Sincronizar con backend
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/users/${userId}/preferences`);
+        if (res.ok) {
+          const data = await res.json();
+          const serverMaterias = data.quickViewMaterias || [];
+          setSelectedMaterias(serverMaterias);
+          // Actualizar caché local
+          localStorage.setItem(`quickView_materias_${userId}`, JSON.stringify(serverMaterias));
+        }
+      } catch (error) {
+        console.error('Error al cargar preferencias:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadPreferences();
+  }, [userId]);
+
+  // Guardar cambios en backend + localStorage
+  const savePreferences = useCallback(async (materiasIds) => {
+    if (!userId) return;
+
+    // Actualizar localStorage inmediatamente
+    localStorage.setItem(`quickView_materias_${userId}`, JSON.stringify(materiasIds));
+
+    // Sincronizar con backend
+    setIsSaving(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/users/${userId}/preferences`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ quickViewMaterias: materiasIds })
+      });
+
+      if (!res.ok) {
+        throw new Error('Error al guardar preferencias');
+      }
+    } catch (error) {
+      console.error('Error al sincronizar preferencias:', error);
+      // No revertir localStorage, mantener como caché
+    } finally {
+      setIsSaving(false);
     }
   }, [userId]);
 
-  // Guardar selección cuando cambie
-  useEffect(() => {
-    if (userId && selectedMaterias.length > 0) {
-      localStorage.setItem(`quickView_materias_${userId}`, JSON.stringify(selectedMaterias));
-    }
-  }, [selectedMaterias, userId]);
-
   const handleToggleMateria = (materiaId) => {
     setSelectedMaterias(prev => {
-      if (prev.includes(materiaId)) {
-        return prev.filter(id => id !== materiaId);
-      }
-      return [...prev, materiaId];
+      const newSelection = prev.includes(materiaId)
+        ? prev.filter(id => id !== materiaId)
+        : [...prev, materiaId];
+      
+      // Guardar en backend
+      savePreferences(newSelection);
+      
+      return newSelection;
     });
   };
 
   const handleSelectAll = () => {
-    setSelectedMaterias(enrichedMaterias.map(m => m.id));
+    const allIds = enrichedMaterias.map(m => m.id);
+    setSelectedMaterias(allIds);
+    savePreferences(allIds);
   };
 
   const handleClearAll = () => {
     setSelectedMaterias([]);
+    savePreferences([]);
   };
 
   // Filtrar materias según selección
@@ -60,14 +115,26 @@ export default function QuickViewGrid({
         
         <button 
           onClick={() => setIsModalOpen(true)}
-          className="p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+          className="p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors relative"
+          disabled={isSaving}
         >
-          <Settings className="w-4 h-4 text-zinc-400" />
+          <Settings className={`w-4 h-4 text-zinc-400 ${isSaving ? 'animate-spin' : ''}`} />
+          {isSaving && (
+            <div className="absolute -top-1 -right-1 w-2 h-2 bg-indigo-500 rounded-full animate-pulse" />
+          )}
         </button>
       </div>
       
-      {/* Estado vacío */}
-      {visibleMaterias.length === 0 ? (
+      {/* Estado de carga inicial */}
+      {isLoading ? (
+        <div className="p-10 text-center rounded-2xl border border-dashed border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/40">
+          <Loader2 className="w-7 h-7 text-zinc-400 mx-auto mb-2 animate-spin" />
+          <p className="text-zinc-700 dark:text-zinc-300 text-xs font-bold">
+            Cargando materias...
+          </p>
+        </div>
+      ) : visibleMaterias.length === 0 ? (
+        /* Estado vacío */
         <div className="p-10 text-center rounded-2xl border border-dashed border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/40">
           <Plus className="w-7 h-7 text-zinc-400 mx-auto mb-2" />
           <p className="text-zinc-700 dark:text-zinc-300 text-xs font-bold">
@@ -78,6 +145,7 @@ export default function QuickViewGrid({
           </p>
         </div>
       ) : (
+        /* Grid de materias */
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
           {visibleMaterias.map((materia) => {
             const accent = getKnowledgeAccent(materia.masteryPercentage);
