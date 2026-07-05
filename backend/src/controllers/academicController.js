@@ -231,3 +231,105 @@ exports.getDomainPreview = async (req, res) => {
     return res.status(500).json({ error: 'Server error al calcular preview de dominio.' });
   }
 };
+
+// =========================================================================
+// 5. EDICIÓN DE NOMBRE (Renombrar carpetas académicas)
+// =========================================================================
+
+exports.updateMateria = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name } = req.body || {};
+
+    if (!name?.trim()) {
+      return res.status(400).json({ error: 'El nombre es requerido.' });
+    }
+
+    const materia = await Materia.findById(id);
+    if (!materia) return res.status(404).json({ error: 'Materia no encontrada.' });
+
+    // Validar duplicados por usuario (excluyendo el documento actual)
+    const duplicado = await Materia.findOne({
+      name: name.trim(),
+      userId: materia.userId,
+      _id: { $ne: id }
+    });
+    if (duplicado) {
+      return res.status(400).json({ error: 'Ya tienes una materia registrada con este nombre.' });
+    }
+
+    materia.name = name.trim();
+    await materia.save();
+
+    return res.json(materia.serialize());
+  } catch (err) {
+    console.error('[academic:updateMateria] error:', err.message);
+    return res.status(500).json({ error: 'Server error al actualizar materia.' });
+  }
+};
+
+exports.updateTema = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name } = req.body || {};
+
+    if (!name?.trim()) {
+      return res.status(400).json({ error: 'El nombre es requerido.' });
+    }
+
+    const tema = await Tema.findById(id);
+    if (!tema) return res.status(404).json({ error: 'Tema no encontrado.' });
+
+    // Validar duplicados dentro de la misma materia y parcial
+    const duplicado = await Tema.findOne({
+      name: name.trim(),
+      materiaId: tema.materiaId,
+      parcialNumber: tema.parcialNumber,
+      _id: { $ne: id }
+    });
+    if (duplicado) {
+      return res.status(400).json({ error: 'Ya existe un tema con este nombre en el mismo parcial.' });
+    }
+
+    tema.name = name.trim();
+    await tema.save();
+
+    return res.json(tema.serialize());
+  } catch (err) {
+    console.error('[academic:updateTema] error:', err.message);
+    return res.status(500).json({ error: 'Server error al actualizar tema.' });
+  }
+};
+
+exports.updateSubtema = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name } = req.body || {};
+
+    if (!name?.trim()) {
+      return res.status(400).json({ error: 'El nombre es requerido.' });
+    }
+
+    const subtema = await Subtema.findById(id);
+    if (!subtema) return res.status(404).json({ error: 'Subtema no encontrado.' });
+
+    // Validar duplicados dentro del mismo tema padre
+    const duplicado = await Subtema.findOne({
+      name: name.trim(),
+      temaId: subtema.temaId,
+      _id: { $ne: id }
+    });
+    if (duplicado) {
+      return res.status(400).json({ error: 'Ya existe un subtema con este nombre en el mismo tema.' });
+    }
+
+    subtema.name = name.trim();
+    await subtema.save();
+
+    return res.json(subtema.serialize());
+  } catch (err) {
+    console.error('[academic:updateSubtema] error:', err.message);
+    return res.status(500).json({ error: 'Server error al actualizar subtema.' });
+  }
+};
+
