@@ -1,8 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Loader2, Folder, Bookmark, ChevronDown, ChevronUp } from 'lucide-react';
 import DeckCard from '../DeckCard';
-
-const MAX_VISIBLE_MATERIAS = 4;
 
 export default function MateriasLevel({
   materias, processedDecks, loading, userId, isAdmin, viewMode, currentPath, setCurrentPath,
@@ -11,16 +9,29 @@ export default function MateriasLevel({
 }) {
   const [showAll, setShowAll] = useState(false);
 
-  // Separar materias visibles vs overflow
+  // Umbral responsive: 5 en móvil/tablet, 7 en laptop+
+  // Usamos matchMedia para sincronizar JS con breakpoints Tailwind
+  const [maxVisible, setMaxVisible] = useState(
+    typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches ? 7 : 5
+  );
+
+  useEffect(() => {
+    const mql = window.matchMedia('(min-width: 768px)');
+    const handler = (e) => setMaxVisible(e.matches ? 7 : 5);
+    mql.addEventListener('change', handler);
+    return () => mql.removeEventListener('change', handler);
+  }, []);
+
+  // Separar materias visibles vs overflow usando el máximo dinámico
   const { visibleMaterias, overflowCount } = useMemo(() => {
-    if (showAll || materias.length <= MAX_VISIBLE_MATERIAS) {
+    if (showAll || materias.length <= maxVisible) {
       return { visibleMaterias: materias, overflowCount: 0 };
     }
     return {
-      visibleMaterias: materias.slice(0, MAX_VISIBLE_MATERIAS),
-      overflowCount: materias.length - MAX_VISIBLE_MATERIAS
+      visibleMaterias: materias.slice(0, maxVisible),
+      overflowCount: materias.length - maxVisible
     };
-  }, [materias, showAll]);
+  }, [materias, showAll, maxVisible]);
 
   const isList = viewMode === 'list';
 
@@ -87,9 +98,9 @@ export default function MateriasLevel({
         <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-400">
           Tus Materias ({materias.length})
         </h3>
-        {!loading && materias.length > MAX_VISIBLE_MATERIAS && !showAll && (
+        {!loading && materias.length > maxVisible && !showAll && (
           <span className="text-[10px] font-medium text-zinc-400">
-            Mostrando {MAX_VISIBLE_MATERIAS}
+            Mostrando {maxVisible}
           </span>
         )}
       </div>
@@ -105,12 +116,12 @@ export default function MateriasLevel({
           No tienes materias configuradas.<br/>Usa el botón inferior para añadir una.
         </div>
       ) : isList ? (
-        /* MODO LISTA (sin cambios drásticos, pero comprimido) */
+        /* MODO LISTA */
         <div className="space-y-1.5">
           {materias.map(renderMateriaCard)}
         </div>
       ) : (
-        /* MODO GRID 2x2 + OVERFLOW */
+        /* MODO GRID RESPONSIVE + OVERFLOW */
         <>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
             {visibleMaterias.map(renderMateriaCard)}
@@ -120,11 +131,11 @@ export default function MateriasLevel({
           </div>
 
           {/* Botón colapsar cuando está expandido */}
-          {showAll && materias.length > MAX_VISIBLE_MATERIAS && <CollapseButton />}
+          {showAll && materias.length > maxVisible && <CollapseButton />}
         </>
       )}
 
-      {/* SECCIÓN MAZOS SUELTOS (Separada visualmente) */}
+      {/* SECCIÓN MAZOS SUELTOS */}
       <div className="pt-6 border-t border-zinc-200/60">
         <div className="flex items-center gap-1.5 mb-4">
           <Bookmark className="w-3.5 h-3.5 text-zinc-400" />
@@ -160,4 +171,3 @@ export default function MateriasLevel({
     </div>
   );
 }
-
