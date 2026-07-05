@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react'; // 👈 Agregar useEffect
+// FILE: frontend/src/components/library/ParcialesLevel.jsx
+import React, { useState, useEffect } from 'react';
 import { ChevronRight } from 'lucide-react';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
@@ -9,7 +10,8 @@ export default function ParcialesLevel({
   setCurrentPath,
   materia,
   onActiveParcialesChange,
-  filterActiveOnly = false // 👈 NUEVO
+  filterActiveOnly = false,
+  onClearFilter // 👈 Recibe el callback del estado persistente del padre
 }) {
   const partialsConfig = [
     { num: 1, label: 'Primer parcial' },
@@ -21,7 +23,7 @@ export default function ParcialesLevel({
     materia?.activeParciales || [1, 2, 3]
   );
 
-  // 👇 NUEVO: Sincronizar estado local cuando cambia la materia
+  // Sincronizar estado local cuando cambia la materia o sus parciales configurados
   useEffect(() => {
     setActiveParciales(materia?.activeParciales || [1, 2, 3]);
   }, [materia?._id, materia?.id, materia?.activeParciales]);
@@ -53,28 +55,31 @@ export default function ParcialesLevel({
     }
   };
 
-  // 👇 NUEVO: Filtrar configuración según modo
   const visiblePartials = filterActiveOnly
     ? partialsConfig.filter(p => activeParciales.includes(p.num))
     : partialsConfig;
 
   return (
     <div className="mt-6 animate-[fadeIn_0.15s_ease]">
-      {/* 👇 Mensaje contextual cuando está filtrado */}
+      {/* Banner contextual con distribución espacial corregida y lectura dinámica */}
       {filterActiveOnly && (
-        <div className="mb-4 px-4 py-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/50">
+        <div className="mb-4 px-4 py-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/50 flex items-center justify-between">
           <p className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">
-            Mostrando solo parciales activos en Vista Rápida
+            Mostrando solo {visiblePartials.length} parciales activos
           </p>
-          <button 
-            onClick={() => setCurrentPath({ ...currentPath })} // Trigger re-render sin filtro
-            className="text-[11px] text-indigo-500 hover:text-indigo-700 dark:hover:text-indigo-200 mt-0.5 font-medium underline underline-offset-2"
-          >
-            Ver todos los parciales
-          </button>
+          {/* Ejecuta la limpieza de la navegación persistente */}
+          {typeof onClearFilter === 'function' && (
+            <button 
+              onClick={onClearFilter}
+              className="text-[11px] text-indigo-500 hover:text-indigo-700 dark:hover:text-indigo-200 font-medium underline underline-offset-2 cursor-pointer"
+            >
+              Ver todos
+            </button>
+          )}
         </div>
       )}
 
+      {/* Grid adaptativo (cols-2 o cols-3) en base a la cantidad de parciales visibles */}
       <div className={`grid gap-4 ${
         filterActiveOnly && visiblePartials.length === 2 
           ? 'grid-cols-1 sm:grid-cols-2' 
@@ -96,7 +101,7 @@ export default function ParcialesLevel({
                 <h4 className="text-base font-bold text-slate-950 tracking-tight group-hover:text-indigo-600 transition-colors">
                   {p.label}
                 </h4>
-                {/* Solo mostrar toggle si NO estamos en modo filtrado */}
+                {/* Oculta los switches de dominio si se accede mediante la redirección rápida */}
                 {!filterActiveOnly && (
                   <button
                     onClick={(e) => handleToggle(e, p.num)}
@@ -123,4 +128,3 @@ export default function ParcialesLevel({
     </div>
   );
 }
-
