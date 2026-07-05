@@ -159,15 +159,15 @@ export default function MateriasLevel({
     );
   };
 
-  // Celda overflow "+N" - CON GRADIENTE Y CONTRASTE MEJORADO
+  // Celda overflow "+N" - NUEVO DISEÑO INVERTIDO DE ALTO CONTRASTE
   const renderOverflowCell = () => (
     <button
       type="button"
       onClick={() => setShowAll(true)}
-      className="h-28 rounded-2xl border-2 border-dashed border-zinc-300 dark:border-zinc-600 bg-zinc-50 dark:bg-zinc-800/50 flex flex-col items-center justify-center gap-1.5 cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-700/50 hover:border-zinc-400 dark:hover:border-zinc-500 active:scale-[0.98] transition-all duration-200 w-full"
+      className="h-28 rounded-2xl border-2 border-dashed border-zinc-900/30 dark:border-zinc-600 bg-zinc-900 dark:bg-zinc-700 flex flex-col items-center justify-center gap-1.5 cursor-pointer hover:bg-zinc-800 dark:hover:bg-zinc-600 active:scale-[0.98] transition-all duration-200 w-full"
     >
-      <span className="text-2xl font-black text-zinc-700 dark:text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">+{overflowCount}</span>
-      <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 dark:text-white/85 drop-shadow-[0_1px_1px_rgba(0,0,0,0.4)]">
+      <span className="text-2xl font-black text-white">+{overflowCount}</span>
+      <span className="text-[10px] font-bold uppercase tracking-wider text-white/85">
         Ver todas
       </span>
     </button>
