@@ -1,6 +1,6 @@
 // ARCHIVO: frontend/src/components/DeckModal.jsx
 import { useState, useEffect, useRef } from 'react';
-import { X, ImagePlus, Loader2, Check, Palette, Upload, ChevronDown, ChevronUp } from 'lucide-react';
+import { X, ImagePlus, Loader2, Check, Palette, Upload, ChevronDown, ChevronUp, Sparkles } from 'lucide-react';
 
 const COLOR_SWATCHES = [
   '#ffffff', '#fde68a', '#fca5a5', '#a7f3d0',
@@ -22,7 +22,7 @@ export default function DeckModal({ initial, onClose, onSave }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [keyboardHeight, setKeyboardHeight] = useState(0);
-  const [expandedSection, setExpandedSection] = useState(null); // 'color' | 'image' | null
+  const [showCustomization, setShowCustomization] = useState(false);
   const titleInputRef = useRef(null);
 
   // Detección de teclado
@@ -40,9 +40,9 @@ export default function DeckModal({ initial, onClose, onSave }) {
     return () => window.visualViewport?.removeEventListener('resize', handleResize);
   }, []);
 
-  // Cerrar secciones al enfocar el título
+  // Cerrar personalización al enfocar el título
   const handleTitleFocus = () => {
-    setExpandedSection(null);
+    setShowCustomization(false);
   };
 
   const handleFile = async (e) => {
@@ -67,10 +67,6 @@ export default function DeckModal({ initial, onClose, onSave }) {
       setError(err.message || 'No se pudo guardar el mazo.');
       setSaving(false);
     }
-  };
-
-  const toggleSection = (section) => {
-    setExpandedSection(expandedSection === section ? null : section);
   };
 
   return (
@@ -133,32 +129,39 @@ export default function DeckModal({ initial, onClose, onSave }) {
                 />
               </div>
 
-              {/* Color de portada - Colapsable */}
-              <div>
-                <button
-                  type="button"
-                  onClick={() => toggleSection('color')}
-                  className="w-full flex items-center justify-between p-3.5 border-2 border-slate-200 rounded-2xl hover:border-indigo-300 hover:bg-indigo-50/30 transition-all duration-200"
-                >
-                  <div className="flex items-center gap-3">
-                    <div 
-                      className="w-9 h-9 rounded-lg border-2 border-white shadow-sm flex-shrink-0"
-                      style={{ backgroundColor: coverColor }}
-                    />
-                    <div className="text-left">
-                      <p className="text-sm font-semibold text-slate-900">Color de portada</p>
-                      <p className="text-xs text-slate-500">{coverColor.toUpperCase()}</p>
-                    </div>
+              {/* Botón de Personalización Avanzada */}
+              <button
+                type="button"
+                onClick={() => setShowCustomization(!showCustomization)}
+                className="w-full flex items-center justify-between p-4 border-2 border-slate-200 rounded-2xl hover:border-indigo-300 hover:bg-indigo-50/30 transition-all duration-200"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 bg-gradient-to-br from-indigo-100 to-violet-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <Sparkles className="w-5 h-5 text-indigo-600" />
                   </div>
-                  {expandedSection === 'color' ? (
-                    <ChevronUp className="w-5 h-5 text-slate-400" />
-                  ) : (
-                    <ChevronDown className="w-5 h-5 text-slate-400" />
-                  )}
-                </button>
+                  <div className="text-left">
+                    <p className="text-sm font-semibold text-slate-900">Personalización avanzada</p>
+                    <p className="text-xs text-slate-500">
+                      {coverColor !== '#ffffff' || coverImage ? 'Color e imagen configurados' : 'Color y portada opcionales'}
+                    </p>
+                  </div>
+                </div>
+                {showCustomization ? (
+                  <ChevronUp className="w-5 h-5 text-slate-400" />
+                ) : (
+                  <ChevronDown className="w-5 h-5 text-slate-400" />
+                )}
+              </button>
 
-                {expandedSection === 'color' && (
-                  <div className="mt-3 p-3 bg-slate-50 rounded-2xl border border-slate-200 animate-[fadeIn_0.2s_ease]">
+              {/* Sección de Personalización */}
+              {showCustomization && (
+                <div className="space-y-3 animate-[fadeIn_0.2s_ease]">
+                  
+                  {/* Color de portada */}
+                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200">
+                    <label className="block text-sm font-semibold text-slate-700 mb-3">
+                      Color de portada
+                    </label>
                     <div className="grid grid-cols-4 gap-2">
                       {COLOR_SWATCHES.map((c) => (
                         <button
@@ -186,40 +189,12 @@ export default function DeckModal({ initial, onClose, onSave }) {
                       </label>
                     </div>
                   </div>
-                )}
-              </div>
 
-              {/* Imagen de portada - Colapsable */}
-              <div>
-                <button
-                  type="button"
-                  onClick={() => toggleSection('image')}
-                  className="w-full flex items-center justify-between p-3.5 border-2 border-slate-200 rounded-2xl hover:border-indigo-300 hover:bg-indigo-50/30 transition-all duration-200"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 bg-slate-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                      {coverImage ? (
-                        <img src={coverImage} alt="portada" className="w-full h-full rounded-lg object-cover" />
-                      ) : (
-                        <ImagePlus className="w-5 h-5 text-slate-400" />
-                      )}
-                    </div>
-                    <div className="text-left">
-                      <p className="text-sm font-semibold text-slate-900">Imagen de portada</p>
-                      <p className="text-xs text-slate-500">
-                        {coverImage ? 'Imagen cargada' : 'Opcional'}
-                      </p>
-                    </div>
-                  </div>
-                  {expandedSection === 'image' ? (
-                    <ChevronUp className="w-5 h-5 text-slate-400" />
-                  ) : (
-                    <ChevronDown className="w-5 h-5 text-slate-400" />
-                  )}
-                </button>
-
-                {expandedSection === 'image' && (
-                  <div className="mt-3 p-3 bg-slate-50 rounded-2xl border border-slate-200 animate-[fadeIn_0.2s_ease]">
+                  {/* Imagen de portada */}
+                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200">
+                    <label className="block text-sm font-semibold text-slate-700 mb-3">
+                      Imagen de portada <span className="text-slate-400 font-normal">(opcional)</span>
+                    </label>
                     <label className="flex items-center justify-center gap-2 cursor-pointer rounded-xl border-2 border-dashed border-slate-300 px-4 py-3 text-sm font-medium text-slate-600 hover:border-indigo-400 hover:bg-indigo-50/30 hover:text-indigo-600 transition-all duration-200">
                       <Upload className="w-5 h-5" />
                       {coverImage ? 'Cambiar imagen' : 'Subir imagen'}
@@ -238,8 +213,8 @@ export default function DeckModal({ initial, onClose, onSave }) {
                       </div>
                     )}
                   </div>
-                )}
-              </div>
+                </div>
+              )}
 
               {/* Error */}
               {error && (
