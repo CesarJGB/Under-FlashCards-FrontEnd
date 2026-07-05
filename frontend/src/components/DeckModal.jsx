@@ -1,6 +1,6 @@
 // ARCHIVO: frontend/src/components/DeckModal.jsx
-import { useState, useEffect } from 'react';
-import { X, ImagePlus, Loader2, Check, Palette, Upload } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { X, ImagePlus, Loader2, Check, Palette, Upload, ChevronDown, ChevronUp } from 'lucide-react';
 
 const COLOR_SWATCHES = [
   '#ffffff', '#fde68a', '#fca5a5', '#a7f3d0',
@@ -22,7 +22,8 @@ export default function DeckModal({ initial, onClose, onSave }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [keyboardHeight, setKeyboardHeight] = useState(0);
-  const [showColorPicker, setShowColorPicker] = useState(false);
+  const [expandedSection, setExpandedSection] = useState(null); // 'color' | 'image' | null
+  const titleInputRef = useRef(null);
 
   // Detección de teclado
   useEffect(() => {
@@ -38,6 +39,11 @@ export default function DeckModal({ initial, onClose, onSave }) {
     window.visualViewport?.addEventListener('resize', handleResize);
     return () => window.visualViewport?.removeEventListener('resize', handleResize);
   }, []);
+
+  // Cerrar secciones al enfocar el título
+  const handleTitleFocus = () => {
+    setExpandedSection(null);
+  };
 
   const handleFile = async (e) => {
     const file = e.target.files?.[0];
@@ -61,6 +67,10 @@ export default function DeckModal({ initial, onClose, onSave }) {
       setError(err.message || 'No se pudo guardar el mazo.');
       setSaving(false);
     }
+  };
+
+  const toggleSection = (section) => {
+    setExpandedSection(expandedSection === section ? null : section);
   };
 
   return (
@@ -107,54 +117,54 @@ export default function DeckModal({ initial, onClose, onSave }) {
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-5">
+            <form onSubmit={handleSubmit} className="space-y-3">
               {/* Título */}
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-2">
                   Título del mazo
                 </label>
                 <input
+                  ref={titleInputRef}
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
+                  onFocus={handleTitleFocus}
                   placeholder="Ej: Biología 101"
                   className="w-full text-base font-medium border-2 border-slate-200 rounded-2xl px-4 py-3.5 bg-slate-50 focus:outline-none focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 transition-all duration-200 placeholder:text-slate-400"
                 />
               </div>
 
-              {/* Color de portada - Compacto */}
+              {/* Color de portada - Colapsable */}
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">
-                  Color de portada
-                </label>
                 <button
                   type="button"
-                  onClick={() => setShowColorPicker(!showColorPicker)}
-                  className="w-full flex items-center gap-3 p-3 border-2 border-slate-200 rounded-2xl hover:border-indigo-300 hover:bg-indigo-50/30 transition-all duration-200"
+                  onClick={() => toggleSection('color')}
+                  className="w-full flex items-center justify-between p-3.5 border-2 border-slate-200 rounded-2xl hover:border-indigo-300 hover:bg-indigo-50/30 transition-all duration-200"
                 >
-                  <div 
-                    className="w-10 h-10 rounded-xl border-2 border-white shadow-sm flex-shrink-0"
-                    style={{ backgroundColor: coverColor }}
-                  />
-                  <div className="flex-1 text-left">
-                    <p className="text-sm font-medium text-slate-900">
-                      {showColorPicker ? 'Selecciona un color' : 'Color actual'}
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      {showColorPicker ? 'Toca para cerrar' : coverColor.toUpperCase()}
-                    </p>
+                  <div className="flex items-center gap-3">
+                    <div 
+                      className="w-9 h-9 rounded-lg border-2 border-white shadow-sm flex-shrink-0"
+                      style={{ backgroundColor: coverColor }}
+                    />
+                    <div className="text-left">
+                      <p className="text-sm font-semibold text-slate-900">Color de portada</p>
+                      <p className="text-xs text-slate-500">{coverColor.toUpperCase()}</p>
+                    </div>
                   </div>
-                  <Palette className="w-5 h-5 text-slate-400" />
+                  {expandedSection === 'color' ? (
+                    <ChevronUp className="w-5 h-5 text-slate-400" />
+                  ) : (
+                    <ChevronDown className="w-5 h-5 text-slate-400" />
+                  )}
                 </button>
 
-                {/* Selector de colores */}
-                {showColorPicker && (
+                {expandedSection === 'color' && (
                   <div className="mt-3 p-3 bg-slate-50 rounded-2xl border border-slate-200 animate-[fadeIn_0.2s_ease]">
                     <div className="grid grid-cols-4 gap-2">
                       {COLOR_SWATCHES.map((c) => (
                         <button
                           key={c}
                           type="button"
-                          onClick={() => { setCoverColor(c); setShowColorPicker(false); }}
+                          onClick={() => setCoverColor(c)}
                           style={{ backgroundColor: c }}
                           className={`w-12 h-12 rounded-xl border-2 transition-all duration-200 ${
                             coverColor === c 
@@ -169,7 +179,7 @@ export default function DeckModal({ initial, onClose, onSave }) {
                         <input
                           type="color"
                           value={coverColor}
-                          onChange={(e) => { setCoverColor(e.target.value); setShowColorPicker(false); }}
+                          onChange={(e) => setCoverColor(e.target.value)}
                           className="w-6 h-6 rounded cursor-pointer border border-slate-300"
                         />
                         Color personalizado
@@ -179,30 +189,56 @@ export default function DeckModal({ initial, onClose, onSave }) {
                 )}
               </div>
 
-              {/* Imagen de portada */}
+              {/* Imagen de portada - Colapsable */}
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">
-                  Imagen de portada <span className="text-slate-400 font-normal">(opcional)</span>
-                </label>
-                <div className="flex items-center gap-3">
-                  <label className="flex-1 flex items-center justify-center gap-2 cursor-pointer rounded-2xl border-2 border-dashed border-slate-300 px-4 py-3 text-sm font-medium text-slate-600 hover:border-indigo-400 hover:bg-indigo-50/30 hover:text-indigo-600 transition-all duration-200">
-                    <Upload className="w-5 h-5" />
-                    {coverImage ? 'Cambiar imagen' : 'Subir imagen'}
-                    <input type="file" accept="image/*" onChange={handleFile} className="hidden" />
-                  </label>
-                  {coverImage && (
-                    <div className="relative">
-                      <img src={coverImage} alt="portada" className="w-16 h-16 rounded-xl object-cover border-2 border-white shadow-sm" />
-                      <button 
-                        type="button" 
-                        onClick={() => setCoverImage('')} 
-                        className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 active:scale-95 transition-all shadow-sm"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
+                <button
+                  type="button"
+                  onClick={() => toggleSection('image')}
+                  className="w-full flex items-center justify-between p-3.5 border-2 border-slate-200 rounded-2xl hover:border-indigo-300 hover:bg-indigo-50/30 transition-all duration-200"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 bg-slate-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                      {coverImage ? (
+                        <img src={coverImage} alt="portada" className="w-full h-full rounded-lg object-cover" />
+                      ) : (
+                        <ImagePlus className="w-5 h-5 text-slate-400" />
+                      )}
                     </div>
+                    <div className="text-left">
+                      <p className="text-sm font-semibold text-slate-900">Imagen de portada</p>
+                      <p className="text-xs text-slate-500">
+                        {coverImage ? 'Imagen cargada' : 'Opcional'}
+                      </p>
+                    </div>
+                  </div>
+                  {expandedSection === 'image' ? (
+                    <ChevronUp className="w-5 h-5 text-slate-400" />
+                  ) : (
+                    <ChevronDown className="w-5 h-5 text-slate-400" />
                   )}
-                </div>
+                </button>
+
+                {expandedSection === 'image' && (
+                  <div className="mt-3 p-3 bg-slate-50 rounded-2xl border border-slate-200 animate-[fadeIn_0.2s_ease]">
+                    <label className="flex items-center justify-center gap-2 cursor-pointer rounded-xl border-2 border-dashed border-slate-300 px-4 py-3 text-sm font-medium text-slate-600 hover:border-indigo-400 hover:bg-indigo-50/30 hover:text-indigo-600 transition-all duration-200">
+                      <Upload className="w-5 h-5" />
+                      {coverImage ? 'Cambiar imagen' : 'Subir imagen'}
+                      <input type="file" accept="image/*" onChange={handleFile} className="hidden" />
+                    </label>
+                    {coverImage && (
+                      <div className="mt-3 flex items-center gap-3">
+                        <img src={coverImage} alt="portada" className="w-14 h-14 rounded-xl object-cover border-2 border-white shadow-sm" />
+                        <button 
+                          type="button" 
+                          onClick={() => setCoverImage('')} 
+                          className="text-sm text-red-600 font-medium hover:underline"
+                        >
+                          Quitar imagen
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Error */}
