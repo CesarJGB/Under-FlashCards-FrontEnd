@@ -1,7 +1,7 @@
 // ARCHIVO: frontend/src/components/library/AcademicFolderModal.jsx
 import React, { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
-import { useKeyboardHeight } from '../hooks/useKeyboardHeight'; // Hook para el manejo del teclado
+import { useKeyboardHeight } from '../../hooks/useKeyboardHeight'; // Hook para el manejo del teclado
 
 export default function AcademicFolderModal({ 
   academicModal, academicInput, setAcademicInput, 
