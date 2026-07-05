@@ -11,7 +11,12 @@ const userSchema = new mongoose.Schema(
     quickViewMaterias: [{ 
       type: mongoose.Schema.Types.ObjectId, 
       ref: 'Materia' 
-    }]
+    }],
+    homeSectionVisibility: {
+      quickView: { type: Boolean, default: true },
+      detailedView: { type: Boolean, default: false },
+      unclassifiedDecks: { type: Boolean, default: false }
+    }
   },
   { timestamps: true }
 );
