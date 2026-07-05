@@ -35,38 +35,66 @@ export default function MateriasLevel({
 
   const isList = viewMode === 'list';
 
-  // Renderizado de card individual (comprimida)
-  const renderMateriaCard = (m) => (
-    <button
-      key={m._id}
-      type="button"
-      onClick={() => setCurrentPath({ ...currentPath, materiaId: m._id })}
-      className="group bg-white border border-zinc-200 p-3 rounded-xl shadow-xs 
-                 hover:border-indigo-200 hover:shadow-sm active:bg-zinc-50 
-                 transition-all duration-200 flex flex-col items-start justify-center 
-                 gap-2 min-h-[72px] cursor-pointer text-left w-full"
-    >
-      <div className="flex items-center gap-2.5 w-full min-w-0">
-        <div className="w-9 h-9 bg-zinc-50 border border-zinc-100 rounded-lg 
-                        flex items-center justify-center shrink-0 text-zinc-500 
-                        group-hover:bg-indigo-50 group-hover:text-indigo-600 
-                        group-hover:border-indigo-100/50 transition-colors duration-200">
-          <Folder className="w-4 h-4 stroke-[2]" />
-        </div>
-        <span className="text-sm font-bold text-zinc-800 truncate tracking-tight leading-tight">
-          {m.name}
-        </span>
-      </div>
-    </button>
-  );
+  // =======================================================================
+  // 🎴 RENDERIZADO TIPO DECKCARD PARA MATERIAS (SIN CONTADOR)
+  // =======================================================================
+  const renderMateriaCard = (m) => {
+    if (isList) {
+      // MODO LISTA: Nombre con máximo espacio horizontal
+      return (
+        <button
+          key={m._id}
+          type="button"
+          onClick={() => setCurrentPath({ ...currentPath, materiaId: m._id })}
+          className="group relative w-full text-left flex items-center p-4 min-h-[64px] rounded-2xl border border-zinc-200 bg-white hover:bg-zinc-50 shadow-xs transition-all cursor-pointer"
+        >
+          <div className="flex items-center gap-3.5 min-w-0 flex-1">
+            <div className="w-10 h-10 rounded-xl shrink-0 bg-zinc-800 flex items-center justify-center shadow-xs">
+              <Folder className="w-4.5 h-4.5 text-white/90 stroke-[2]" />
+            </div>
+            <p className="font-bold text-zinc-800 text-sm truncate leading-snug">
+              {m.name}
+            </p>
+          </div>
+        </button>
+      );
+    }
 
-  // Celda overflow "+N"
+    // MODO GRID: Nombre con soporte para 2 líneas
+    return (
+      <button
+        key={m._id}
+        type="button"
+        onClick={() => setCurrentPath({ ...currentPath, materiaId: m._id })}
+        className="group relative w-full text-left h-28 rounded-2xl border border-zinc-200 shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col justify-end overflow-hidden bg-zinc-800"
+      >
+        {/* Gradiente overlay */}
+        <span className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/70 via-black/30 to-transparent pointer-events-none z-0" />
+
+        {/* Icono decorativo superior izquierdo */}
+        <div className="absolute top-3 left-3 z-10">
+          <div className="w-8 h-8 rounded-lg bg-white/15 backdrop-blur-sm flex items-center justify-center">
+            <Folder className="w-4 h-4 text-white/90 stroke-[2]" />
+          </div>
+        </div>
+
+        {/* Nombre con soporte 2 líneas */}
+        <div className="p-3.5 pt-10 w-full z-10 min-w-0 relative">
+          <p className="font-bold text-white text-sm leading-snug line-clamp-2 drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">
+            {m.name}
+          </p>
+        </div>
+      </button>
+    );
+  };
+
+  // Celda overflow "+N" (mantiene altura/estilo consistente)
   const renderOverflowCell = () => (
     <button
       type="button"
       onClick={() => setShowAll(true)}
-      className="bg-zinc-50 border border-dashed border-zinc-300 rounded-xl 
-                 min-h-[72px] flex flex-col items-center justify-center gap-1 
+      className="bg-zinc-50 border border-dashed border-zinc-300 rounded-2xl 
+                 h-28 flex flex-col items-center justify-center gap-1 
                  cursor-pointer hover:bg-zinc-100 hover:border-zinc-400 
                  active:scale-[0.98] transition-all duration-200 w-full"
     >
@@ -105,7 +133,7 @@ export default function MateriasLevel({
         )}
       </div>
 
-      {/* GRID DE MATERIAS */}
+      {/* GRID/LISTA DE MATERIAS */}
       {loading && materias.length === 0 ? (
         <div className="flex items-center justify-center py-12 gap-2 text-zinc-400 text-xs font-medium">
           <Loader2 className="w-4 h-4 animate-spin text-indigo-500" />
