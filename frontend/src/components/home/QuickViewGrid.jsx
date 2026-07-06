@@ -1,78 +1,126 @@
 // FILE: frontend/src/components/home/QuickViewGrid.jsx
-import React, { useState, useEffect, useCallback } from 'react';
-import { Layers, Settings, Plus, Loader2 } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Layers, Settings, Plus } from 'lucide-react';
 import MateriaSelectorModal from './MateriaSelectorModal';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos
 
 export default function QuickViewGrid({ 
   enrichedMaterias, 
   getKnowledgeAccent, 
   getParcialesBadge,
   userId,
-  onMateriaClick // 👈 Prop agregada para la navegación interactiva
+  onMateriaClick
 }) {
   const [selectedMaterias, setSelectedMaterias] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
+  
+  // Ref para evitar race conditions en desmontaje
+  const isMounted = useRef(true);
+  const abortController = useRef(null);
 
-  // Cargar preferencias desde backend + localStorage
+  // ========================================================================
+  // CARGA INICIAL CON CONFIANZA EN CACHÉ (stale-while-revalidate)
+  // ========================================================================
   useEffect(() => {
     if (!userId) return;
+    isMounted.current = true;
 
     const loadPreferences = async () => {
-      setIsLoading(true);
-      
-      // 1. Cargar desde localStorage inmediatamente (caché)
+      // 1. Cargar desde localStorage INMEDIATAMENTE (sin spinner)
       const cached = localStorage.getItem(`quickView_materias_${userId}`);
+      const cachedTimestamp = localStorage.getItem(`quickView_materias_${userId}_ts`);
+      
       if (cached) {
-        setSelectedMaterias(JSON.parse(cached));
+        try {
+          const parsed = JSON.parse(cached);
+          if (isMounted.current) setSelectedMaterias(parsed);
+        } catch {
+          // Caché corrupto, ignorar
+        }
       }
 
-      // 2. Sincronizar con backend
+      // 2. Decidir si necesitamos sincronizar con backend
+      const cacheAge = cachedTimestamp ? Date.now() - Number(cachedTimestamp) : Infinity;
+      const needsSync = cacheAge > CACHE_TTL_MS;
+
+      if (!needsSync) {
+        // Caché fresco → no hacer fetch, solo marcar como listo
+        if (isMounted.current) setIsInitialLoad(false);
+        return;
+      }
+
+      // 3. Sincronización silenciosa en background
+      if (isMounted.current) setIsSyncing(true);
+      
+      // Cancelar request anterior si existe
+      if (abortController.current) abortController.current.abort();
+      abortController.current = new AbortController();
+
       try {
-        const res = await fetch(`${BACKEND_URL}/api/users/${userId}/preferences`);
+        const res = await fetch(`${BACKEND_URL}/api/users/${userId}/preferences`, {
+          signal: abortController.current.signal
+        });
+        
+        if (!isMounted.current) return;
+        
         if (res.ok) {
           const data = await res.json();
           const serverMaterias = data.quickViewMaterias || [];
-          setSelectedMaterias(serverMaterias);
-          // Actualizar caché local
-          localStorage.setItem(`quickView_materias_${userId}`, JSON.stringify(serverMaterias));
+          
+          // Actualizar estado solo si cambió (evita re-render innecesario)
+          setSelectedMaterias(prev => {
+            if (JSON.stringify(prev) === JSON.stringify(serverMaterias)) return prev;
+            localStorage.setItem(`quickView_materias_${userId}`, JSON.stringify(serverMaterias));
+            localStorage.setItem(`quickView_materias_${userId}_ts`, String(Date.now()));
+            return serverMaterias;
+          });
         }
       } catch (error) {
-        console.error('Error al cargar preferencias:', error);
+        if (error.name !== 'AbortError') {
+          console.error('[QuickViewGrid] Error al sincronizar:', error);
+        }
       } finally {
-        setIsLoading(false);
+        if (isMounted.current) {
+          setIsInitialLoad(false);
+          setIsSyncing(false);
+        }
       }
     };
 
     loadPreferences();
+
+    return () => {
+      isMounted.current = false;
+      if (abortController.current) abortController.current.abort();
+    };
   }, [userId]);
 
-  // Guardar cambios en backend + localStorage
+  // ========================================================================
+  // GUARDAR CON OPTIMISTIC UPDATE
+  // ========================================================================
   const savePreferences = useCallback(async (materiasIds) => {
     if (!userId) return;
 
-    // Actualizar localStorage inmediatamente
+    // Actualizar localStorage INMEDIATAMENTE + timestamp
     localStorage.setItem(`quickView_materias_${userId}`, JSON.stringify(materiasIds));
+    localStorage.setItem(`quickView_materias_${userId}_ts`, String(Date.now()));
 
-    // Sincronizar con backend
-    setIsSaving(true);
+    // Sincronización silenciosa en background (sin UI de "saving")
     try {
       const res = await fetch(`${BACKEND_URL}/api/users/${userId}/preferences`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ quickViewMaterias: materiasIds })
       });
-
-      if (!res.ok) {
-        throw new Error('Error al guardar preferencias');
-      }
+      
+      if (!res.ok) throw new Error('Error al sincronizar');
     } catch (error) {
-      console.error('Error al sincronizar preferencias:', error);
-    } finally {
-      setIsSaving(false);
+      console.error('[QuickViewGrid] Error en sync:', error);
+      // Opcional: retry o notificar al usuario si es crítico
     }
   }, [userId]);
 
@@ -98,7 +146,6 @@ export default function QuickViewGrid({
     savePreferences([]);
   };
 
-  // Handler de navegación inteligente basado en parciales activos
   const handleCardClick = (materia) => {
     if (!onMateriaClick) return;
     
@@ -106,23 +153,10 @@ export default function QuickViewGrid({
     const isFiltered = ap.length > 0 && ap.length < 3;
     
     if (!isFiltered) {
-      // Caso A: Dominio general (0 o 3 parciales) → Selector de parciales amplio
-      onMateriaClick({ 
-        materiaId: materia.id, 
-        parcialNumber: null, 
-        temaId: null, 
-        subtemaId: null 
-      });
+      onMateriaClick({ materiaId: materia.id, parcialNumber: null, temaId: null, subtemaId: null });
     } else if (ap.length === 1) {
-      // Caso B: 1 parcial activo → Va directo a los temas de ese parcial único
-      onMateriaClick({ 
-        materiaId: materia.id, 
-        parcialNumber: ap[0], 
-        temaId: null, 
-        subtemaId: null 
-      });
+      onMateriaClick({ materiaId: materia.id, parcialNumber: ap[0], temaId: null, subtemaId: null });
     } else {
-      // Caso C: 2 parciales activos → Abre el selector filtrado en ParcialesLevel
       onMateriaClick({ 
         materiaId: materia.id, 
         parcialNumber: null, 
@@ -133,10 +167,30 @@ export default function QuickViewGrid({
     }
   };
 
-  // Filtrar materias según selección para renderizado
+  // ========================================================================
+  // RENDERIZADO
+  // ========================================================================
   const visibleMaterias = selectedMaterias.length > 0
     ? enrichedMaterias.filter(m => selectedMaterias.includes(m.id))
     : [];
+
+  // Caso 1: Primera carga sin caché (usuario nuevo o localStorage vacío)
+  if (isInitialLoad && selectedMaterias.length === 0) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-2">
+            <Layers className="w-4 h-4 text-indigo-500" />
+            Vista Rápida de Asignaturas
+          </h2>
+        </div>
+        <div className="p-10 text-center rounded-2xl border border-dashed border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/40">
+          <div className="w-7 h-7 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+          <p className="text-zinc-700 dark:text-zinc-300 text-xs font-bold">Cargando...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -144,30 +198,21 @@ export default function QuickViewGrid({
         <h2 className="text-sm font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-2">
           <Layers className="w-4 h-4 text-indigo-500" />
           Vista Rápida de Asignaturas
+          {/* Indicador sutil de sync en background */}
+          {isSyncing && (
+            <div className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse" />
+          )}
         </h2>
         
         <button 
           onClick={() => setIsModalOpen(true)}
-          className="p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors relative"
-          disabled={isSaving}
+          className="p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
         >
-          <Settings className={`w-4 h-4 text-zinc-400 ${isSaving ? 'animate-spin' : ''}`} />
-          {isSaving && (
-            <div className="absolute -top-1 -right-1 w-2 h-2 bg-indigo-500 rounded-full animate-pulse" />
-          )}
+          <Settings className="w-4 h-4 text-zinc-400" />
         </button>
       </div>
-      
-      {/* Estado de carga inicial */}
-      {isLoading ? (
-        <div className="p-10 text-center rounded-2xl border border-dashed border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/40">
-          <Loader2 className="w-7 h-7 text-zinc-400 mx-auto mb-2 animate-spin" />
-          <p className="text-zinc-700 dark:text-zinc-300 text-xs font-bold">
-            Cargando materias...
-          </p>
-        </div>
-      ) : visibleMaterias.length === 0 ? (
-        /* Estado vacío */
+
+      {visibleMaterias.length === 0 ? (
         <div className="p-10 text-center rounded-2xl border border-dashed border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/40">
           <Plus className="w-7 h-7 text-zinc-400 mx-auto mb-2" />
           <p className="text-zinc-700 dark:text-zinc-300 text-xs font-bold">
@@ -178,7 +223,6 @@ export default function QuickViewGrid({
           </p>
         </div>
       ) : (
-        /* Grid de materias interactivo */
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
           {visibleMaterias.map((materia) => {
             const accent = getKnowledgeAccent(materia.masteryPercentage);
@@ -189,30 +233,15 @@ export default function QuickViewGrid({
             return (
               <div 
                 key={materia.id}
-                onClick={() => handleCardClick(materia)} // 👈 Dispara la redirección inteligente
+                onClick={() => handleCardClick(materia)}
                 className="group bg-white dark:bg-zinc-900 p-3 rounded-xl border border-zinc-200/70 dark:border-zinc-800 flex flex-col items-center text-center hover:shadow-md hover:border-indigo-200 dark:hover:border-indigo-900 transition-all cursor-pointer active:scale-[0.97]"
               >
                 <div className="relative w-16 h-16 mb-2">
                   <svg className="w-full h-full transform -rotate-90">
-                    <circle
-                      cx="32"
-                      cy="32"
-                      r="28"
-                      stroke="currentColor"
-                      strokeWidth="6"
-                      fill="none"
-                      className="text-zinc-100 dark:text-zinc-800"
-                    />
-                    <circle
-                      cx="32"
-                      cy="32"
-                      r="28"
-                      stroke="currentColor"
-                      strokeWidth="6"
-                      fill="none"
-                      strokeLinecap="round"
-                      strokeDasharray={circumference}
-                      strokeDashoffset={strokeDashoffset}
+                    <circle cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="6" fill="none" className="text-zinc-100 dark:text-zinc-800" />
+                    <circle 
+                      cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="6" fill="none" 
+                      strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={strokeDashoffset}
                       className={`${accent.circle} transition-all duration-500`}
                     />
                   </svg>
@@ -238,7 +267,6 @@ export default function QuickViewGrid({
         </div>
       )}
 
-      {/* Modal de selección */}
       {isModalOpen && (
         <MateriaSelectorModal
           materias={enrichedMaterias}
@@ -252,3 +280,4 @@ export default function QuickViewGrid({
     </div>
   );
 }
+
