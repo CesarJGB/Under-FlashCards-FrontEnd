@@ -67,12 +67,27 @@ export default function HomeSection({
     
     try {
       const parsed = JSON.parse(cached);
-      // Validar estructura básica
+      
+      // Validar estructura y extraer solo los valores de mastery
       if (typeof parsed === 'object' && parsed !== null) {
-        return parsed;
+        const masteryMap = {};
+        
+        Object.entries(parsed).forEach(([id, data]) => {
+          // Si es la estructura nueva (objeto con mastery)
+          if (data && typeof data === 'object' && 'mastery' in data) {
+            masteryMap[id] = data.mastery;
+          }
+          // Si es la estructura antigua (número directo)
+          else if (typeof data === 'number') {
+            masteryMap[id] = data;
+          }
+        });
+        
+        return masteryMap;
       }
     } catch {
-      // Caché corrupto, ignorar
+      // Caché corrupto, limpiar y retornar vacío
+      localStorage.removeItem(`domainPreviews_${user.id}`);
     }
     return {};
   });
@@ -88,7 +103,10 @@ export default function HomeSection({
       return ap && ap.length > 0 && ap.length < 3;
     });
 
-    if (filtered.length === 0) return;
+    if (filtered.length === 0) {
+      setDomainPreviews({});
+      return;
+    }
 
     // 1. Leer caché actual
     let cachedPreviews = {};
@@ -115,8 +133,14 @@ export default function HomeSection({
       // Validar que los parciales coinciden
       const currentParciales = m.activeParciales || [];
       const cachedParciales = cached.parciales || [];
-      if (JSON.stringify(currentParciales.sort()) !== JSON.stringify(cachedParciales.sort())) {
-        return true;
+      
+      if (currentParciales.length !== cachedParciales.length) return true;
+      
+      const currentSorted = [...currentParciales].sort();
+      const cachedSorted = [...cachedParciales].sort();
+      
+      for (let i = 0; i < currentSorted.length; i++) {
+        if (currentSorted[i] !== cachedSorted[i]) return true;
       }
       
       return false;
@@ -128,7 +152,7 @@ export default function HomeSection({
         const updated = {};
         filtered.forEach(m => {
           const id = String(m._id || m.id);
-          if (cachedPreviews[id]) {
+          if (cachedPreviews[id] && typeof cachedPreviews[id] === 'object') {
             updated[id] = cachedPreviews[id].mastery;
           }
         });
@@ -184,7 +208,7 @@ export default function HomeSection({
         const updated = {};
         filtered.forEach(m => {
           const id = String(m._id || m.id);
-          if (results[id]) {
+          if (results[id] && typeof results[id] === 'object') {
             updated[id] = results[id].mastery;
           }
         });
@@ -197,7 +221,7 @@ export default function HomeSection({
   }, [materias, user?.id]);
 
   // =========================================================================
-  // 🚀 EJECUTAR FETCH AL MONTAR
+  // 🚀 EJECUTAR FETCH AL MONTAR Y CUANDO CAMBIEN LAS MATERIAS
   // =========================================================================
   useEffect(() => {
     isMounted.current = true;
@@ -227,7 +251,7 @@ export default function HomeSection({
       const isFiltered = ap.length > 0 && ap.length < 3;
       
       // Usar domainPreviews si está disponible, sino fallback a analytics general
-      const masteryPercentage = isFiltered && domainPreviews[currentMateriaId] !== undefined
+      const masteryPercentage = isFiltered && typeof domainPreviews[currentMateriaId] === 'number'
         ? domainPreviews[currentMateriaId]
         : (materia.analytics?.masteryPercentage ?? 0);
 
