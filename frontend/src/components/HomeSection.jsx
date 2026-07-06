@@ -1,5 +1,4 @@
-// FILE: frontend/src/components/HomeSection.jsx
-import React, { useMemo, useEffect, useState, useCallback } from 'react';
+import React, { useMemo, useEffect, useState, useCallback, useRef } from 'react';
 import RadarDebugPanel from './RadarDebugPanel';
 import GlobalStatsHeader from './home/GlobalStatsHeader';
 import QuickViewGrid from './home/QuickViewGrid';
@@ -7,13 +6,14 @@ import DetailedMateriasGrid from './home/DetailedMateriasGrid';
 import UnclassifiedDecksSection from './home/UnclassifiedDecksSection';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+const DOMAIN_PREVIEWS_TTL_MS = 15 * 60 * 1000; // 15 minutos
 
 export default function HomeSection({ 
   user,          
   decks,         
   materias,      
   onOpenReview,  
-  onNavigateToLibrary, // 👈 Prop agregada para la navegación
+  onNavigateToLibrary,
   onLogout,
   loadDecks,     
   loadMaterias   
@@ -23,6 +23,9 @@ export default function HomeSection({
     detailedView: false,
     unclassifiedDecks: false
   });
+
+  const isMounted = useRef(true);
+  const abortController = useRef(null);
 
   // =========================================================================
   // 🔄 DISPARADOR DE SINCRONIZACIÓN PASIVA EN SEGUNDO PLANO
@@ -53,31 +56,158 @@ export default function HomeSection({
     loadVisibility();
   }, [user?.id]);
 
-  const [domainPreviews, setDomainPreviews] = useState({});
+  // =========================================================================
+  // 🎯 INICIALIZACIÓN SINCRÓNICA DESDE CACHÉ (sin fase intermedia)
+  // =========================================================================
+  const [domainPreviews, setDomainPreviews] = useState(() => {
+    if (!user?.id) return {};
+    
+    const cached = localStorage.getItem(`domainPreviews_${user.id}`);
+    if (!cached) return {};
+    
+    try {
+      const parsed = JSON.parse(cached);
+      // Validar estructura básica
+      if (typeof parsed === 'object' && parsed !== null) {
+        return parsed;
+      }
+    } catch {
+      // Caché corrupto, ignorar
+    }
+    return {};
+  });
 
+  // =========================================================================
+  // 🔄 FETCH SILENCIOSO CON VALIDACIÓN DE TTL
+  // =========================================================================
   const fetchDomainPreviews = useCallback(async () => {
-    if (!materias) return;
+    if (!materias || !user?.id) return;
+
     const filtered = materias.filter(m => {
       const ap = m.activeParciales;
       return ap && ap.length > 0 && ap.length < 3;
     });
+
     if (filtered.length === 0) return;
 
-    const results = {};
-    await Promise.all(filtered.map(async (m) => {
+    // 1. Leer caché actual
+    let cachedPreviews = {};
+    const cached = localStorage.getItem(`domainPreviews_${user.id}`);
+    if (cached) {
       try {
-        const id = m._id || m.id;
-        const res = await fetch(`${BACKEND_URL}/api/academic/materias/${id}/domain-preview?parciales=${m.activeParciales.join(',')}`);
+        cachedPreviews = JSON.parse(cached);
+      } catch {
+        cachedPreviews = {};
+      }
+    }
+
+    // 2. Determinar qué materias necesitan fetch
+    const needsFetch = filtered.filter(m => {
+      const id = String(m._id || m.id);
+      const cached = cachedPreviews[id];
+      
+      if (!cached) return true;
+      
+      // Validar TTL
+      const cacheAge = Date.now() - (cached.timestamp || 0);
+      if (cacheAge > DOMAIN_PREVIEWS_TTL_MS) return true;
+      
+      // Validar que los parciales coinciden
+      const currentParciales = m.activeParciales || [];
+      const cachedParciales = cached.parciales || [];
+      if (JSON.stringify(currentParciales.sort()) !== JSON.stringify(cachedParciales.sort())) {
+        return true;
+      }
+      
+      return false;
+    });
+
+    // 3. Si no necesita fetch, inicializar con caché y salir
+    if (needsFetch.length === 0) {
+      setDomainPreviews(prev => {
+        const updated = {};
+        filtered.forEach(m => {
+          const id = String(m._id || m.id);
+          if (cachedPreviews[id]) {
+            updated[id] = cachedPreviews[id].mastery;
+          }
+        });
+        
+        // Solo actualizar si cambió algo
+        if (JSON.stringify(prev) === JSON.stringify(updated)) return prev;
+        return updated;
+      });
+      return;
+    }
+
+    // 4. Fetch silencioso en background
+    if (abortController.current) abortController.current.abort();
+    abortController.current = new AbortController();
+
+    const results = { ...cachedPreviews };
+    let hasChanges = false;
+
+    await Promise.all(needsFetch.map(async (m) => {
+      try {
+        const id = String(m._id || m.id);
+        const res = await fetch(
+          `${BACKEND_URL}/api/academic/materias/${id}/domain-preview?parciales=${m.activeParciales.join(',')}`,
+          { signal: abortController.current.signal }
+        );
+        
         if (res.ok) {
           const data = await res.json();
-          results[id] = data.mastery;
+          results[id] = {
+            mastery: data.mastery,
+            parciales: data.parciales,
+            timestamp: Date.now(),
+            metrics: data.metrics
+          };
+          hasChanges = true;
         }
-      } catch {}
+      } catch (error) {
+        if (error.name !== 'AbortError') {
+          console.error('[HomeSection] Error fetching domain preview:', error);
+        }
+      }
     }));
-    setDomainPreviews(results);
-  }, [materias]);
 
-  useEffect(() => { fetchDomainPreviews(); }, [fetchDomainPreviews]);
+    // 5. Guardar en caché y actualizar state solo si cambió
+    if (hasChanges && isMounted.current) {
+      try {
+        localStorage.setItem(`domainPreviews_${user.id}`, JSON.stringify(results));
+      } catch (error) {
+        console.error('[HomeSection] Error saving to localStorage:', error);
+      }
+
+      setDomainPreviews(prev => {
+        const updated = {};
+        filtered.forEach(m => {
+          const id = String(m._id || m.id);
+          if (results[id]) {
+            updated[id] = results[id].mastery;
+          }
+        });
+        
+        // Solo actualizar si cambió algo
+        if (JSON.stringify(prev) === JSON.stringify(updated)) return prev;
+        return updated;
+      });
+    }
+  }, [materias, user?.id]);
+
+  // =========================================================================
+  // 🚀 EJECUTAR FETCH AL MONTAR
+  // =========================================================================
+  useEffect(() => {
+    isMounted.current = true;
+    fetchDomainPreviews();
+    
+    return () => {
+      isMounted.current = false;
+      if (abortController.current) abortController.current.abort();
+    };
+  }, [fetchDomainPreviews]);
 
   // =========================================================================
   // MOTOR DE PROCESAMIENTO REACTIVO EN MEMORIA (0ms)
@@ -95,6 +225,8 @@ export default function HomeSection({
 
       const ap = materia.activeParciales || [1, 2, 3];
       const isFiltered = ap.length > 0 && ap.length < 3;
+      
+      // Usar domainPreviews si está disponible, sino fallback a analytics general
       const masteryPercentage = isFiltered && domainPreviews[currentMateriaId] !== undefined
         ? domainPreviews[currentMateriaId]
         : (materia.analytics?.masteryPercentage ?? 0);
@@ -126,7 +258,7 @@ export default function HomeSection({
       unclassifiedDecks: unclassified,
       globalStats: { totalCards: totalCardsGlobal, globalMastery }
     };
-  }, [materias, decks, user, domainPreviews]);
+  }, [materias, decks, domainPreviews]);
 
   const getParcialesLabel = (activeParciales) => {
     if (!activeParciales || activeParciales.length === 0 || activeParciales.length === 3) return null;
@@ -177,7 +309,7 @@ export default function HomeSection({
           getKnowledgeAccent={getKnowledgeAccent}
           getParcialesBadge={getParcialesBadge}
           userId={user?.id}
-          onMateriaClick={onNavigateToLibrary} // 👈 Inyección de la nueva función
+          onMateriaClick={onNavigateToLibrary}
         />
       )}
 
@@ -211,3 +343,4 @@ export default function HomeSection({
     </div>
   );
 }
+
