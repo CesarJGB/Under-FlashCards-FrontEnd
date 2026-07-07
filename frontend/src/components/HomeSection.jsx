@@ -291,6 +291,23 @@ export default function HomeSection({
   // =========================================================================
   // MOTOR DE PROCESAMIENTO REACTIVO EN MEMORIA (0ms)
   // =========================================================================
+  // Agrupar los mazos por materia para evitar filtros O(N*M) dentro del map
+  const decksByMateria = useMemo(() => {
+    if (!decks) return {};
+    return decks.reduce((acc, deck) => {
+      const materiaId = String(deck.materiaId || '');
+      if (!acc[materiaId]) acc[materiaId] = [];
+      acc[materiaId].push(deck);
+      return acc;
+    }, {});
+  }, [decks]);
+
+  // Huella simplificada de domainPreviews para evitar recomputos por referencia
+  const domainPreviewsKey = useMemo(
+    () => JSON.stringify(domainPreviews),
+    [domainPreviews]
+  );
+
   const { enrichedMaterias, unclassifiedDecks, globalStats } = useMemo(() => {
     if (!materias || !decks) {
       return { enrichedMaterias: [], unclassifiedDecks: [], globalStats: { totalCards: 0, globalMastery: 0 } };
@@ -298,7 +315,7 @@ export default function HomeSection({
 
     const enriched = materias.map(materia => {
       const currentMateriaId = String(materia._id || materia.id || '');
-      const materiaDecks = decks.filter(d => String(d.materiaId || '') === currentMateriaId);
+      const materiaDecks = decksByMateria[currentMateriaId] || [];
       const totalCards = materiaDecks.reduce((acc, curr) => acc + (curr.cardCount || 0), 0);
       const uniqueTemasCount = materia.themesCount || new Set(materiaDecks.map(d => d.temaId).filter(Boolean)).size;
 
@@ -337,7 +354,7 @@ export default function HomeSection({
       unclassifiedDecks: unclassified,
       globalStats: { totalCards: totalCardsGlobal, globalMastery }
     };
-  }, [materias, decks, domainPreviews]);
+  }, [materias, decks, domainPreviewsKey]);
 
   const getParcialesLabel = (activeParciales) => {
     if (!activeParciales || activeParciales.length === 0 || activeParciales.length === 3) return null;
