@@ -112,6 +112,12 @@ export default function useDebugLogs({ userId } = {}) {
     if (originalSendBeaconRef.current) {
       const origBeacon = originalSendBeaconRef.current;
       const patchedBeacon = (url, data) => {
+        // respect offline simulation flag
+        if (flagsRef.current.offline) {
+          pushLog({ type: 'beacon', level: 'error', msg: `Simulated offline: ${url}` });
+          return false; // sendBeacon returns false when it fails
+        }
+
         let len = 0;
         try {
           if (data instanceof Blob) len = data.size;
@@ -154,6 +160,10 @@ export default function useDebugLogs({ userId } = {}) {
       } catch (e) {}
     };
   }, []);
+
+  const getFlag = (key) => {
+    return flagsRef.current[key];
+  };
 
   // keep pending count in sync with safeLocalStorage
   useEffect(() => {

@@ -188,10 +188,38 @@ export default function DebugPanel({ initialUserId, initialDeckId } = {}) {
                 {activeTab === 'simulator' && (
                   <div>
                     <div className="mb-3 grid grid-cols-2 gap-2">
-                      <label className="flex items-center gap-2"><input type="checkbox" onChange={(e) => dbg.setFlag('slowNetwork', e.target.checked)} /> Red lenta (3s)</label>
-                      <label className="flex items-center gap-2"><input type="checkbox" onChange={(e) => dbg.setFlag('offline', e.target.checked)} /> Offline</label>
-                      <label className="flex items-center gap-2"><input type="checkbox" onChange={(e) => dbg.setFlag('forceDeckEmpty', e.target.checked)} /> Deck vacío</label>
-                      <label className="flex items-center gap-2"><input type="checkbox" onChange={(e) => dbg.setFlag('logVerbose', e.target.checked)} /> Verbose logs</label>
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          defaultChecked={!!dbg.getFlag?.('slowNetwork')}
+                          onChange={(e) => dbg.setFlag('slowNetwork', e.target.checked)}
+                        />
+                        Red lenta (3s)
+                      </label>
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          defaultChecked={!!dbg.getFlag?.('offline')}
+                          onChange={(e) => dbg.setFlag('offline', e.target.checked)}
+                        />
+                        Offline
+                      </label>
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          defaultChecked={!!dbg.getFlag?.('forceDeckEmpty')}
+                          onChange={(e) => dbg.setFlag('forceDeckEmpty', e.target.checked)}
+                        />
+                        Deck vacío
+                      </label>
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          defaultChecked={!!dbg.getFlag?.('logVerbose')}
+                          onChange={(e) => dbg.setFlag('logVerbose', e.target.checked)}
+                        />
+                        Verbose logs
+                      </label>
                     </div>
 
                     <div className="flex gap-2 mb-3">
