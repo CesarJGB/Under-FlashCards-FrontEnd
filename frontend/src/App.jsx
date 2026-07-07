@@ -1,5 +1,6 @@
 // FILE: frontend/src/App.jsx
 import { useState, useEffect, useCallback } from 'react';
+import { getJSON } from './lib/safeLocalStorage';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
 import { LogOut, Sparkles, Library, Settings, Home, BookOpen } from 'lucide-react';
@@ -20,15 +21,9 @@ function DashboardScreen({ user, onLogout }) {
   // 👇 NUEVO: Estado puente para navegación Home → Library
   const [pendingLibraryNav, setPendingLibraryNav] = useState(null);
 
-  const [decks, setDecks] = useState(() => {
-    const cached = localStorage.getItem(`decks_${user.id}`);
-    return cached ? JSON.parse(cached) : [];
-  });
+  const [decks, setDecks] = useState(() => getJSON(`decks_${user.id}`) || []);
 
-  const [materias, setMaterias] = useState(() => {
-    const cached = localStorage.getItem(`materias_${user.id}`);
-    return cached ? JSON.parse(cached) : [];
-  });
+  const [materias, setMaterias] = useState(() => getJSON(`materias_${user.id}`) || []);
 
   const [loading, setLoading] = useState(() => {
     const cachedDecks = localStorage.getItem(`decks_${user.id}`);
@@ -308,4 +303,3 @@ export default function App() {
     </GoogleOAuthProvider>
   );
 }
-

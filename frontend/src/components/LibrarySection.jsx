@@ -13,6 +13,7 @@ import TemasLevel from './library/TemasLevel';
 import SubtemasLevel from './library/SubtemasLevel';
 import AcademicFolderModal from './library/AcademicFolderModal';
 import SearchResults from './library/SearchResults';
+import { setJSON } from '../lib/safeLocalStorage';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 const ADMIN_EMAIL = "cesarjaviervebe@gmail.com"; 
@@ -349,13 +350,12 @@ export default function LibrarySection({
                       const preview = {
                         mastery: data.mastery,
                         parciales: data.parciales,
-                        timestamp: Date.now(),
-                        metrics: data.metrics
+                        timestamp: Date.now()
                       };
 
-                      // Merge y persistir
+                      // Merge y persistir (usar safeLocalStorage)
                       cached[id] = preview;
-                      try { localStorage.setItem(key, JSON.stringify(cached)); } catch (e) { /* ignore */ }
+                      try { setJSON(key, cached); } catch (e) { /* ignore */ }
 
                       // Notificar a listeners (HomeSection) que hay un preview actualizado
                       try {
@@ -365,10 +365,10 @@ export default function LibrarySection({
                       } catch (e) { /* ignore */ }
                     } else {
                       // Si el prefetch falla, invalidar la entrada para forzar refetch cuando corresponda
-                      if (cached && cached[id]) {
-                        delete cached[id];
-                        try { localStorage.setItem(key, JSON.stringify(cached)); } catch (e) { /* ignore */ }
-                      }
+                        if (cached && cached[id]) {
+                          delete cached[id];
+                          try { setJSON(key, cached); } catch (e) { /* ignore */ }
+                        }
                       try {
                         window.dispatchEvent(new CustomEvent('domainPreviews:invalidate', {
                           detail: { userId, materiaId: id }
@@ -383,7 +383,7 @@ export default function LibrarySection({
                       const id = String(materiaId);
                       if (cached[id]) {
                         delete cached[id];
-                        try { localStorage.setItem(key, JSON.stringify(cached)); } catch (e) { /* ignore */ }
+                        try { setJSON(key, cached); } catch (e) { /* ignore */ }
                       }
                     } catch (e) { /* ignore */ }
 

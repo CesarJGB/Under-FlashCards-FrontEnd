@@ -4,6 +4,7 @@ import GlobalStatsHeader from './home/GlobalStatsHeader';
 import QuickViewGrid from './home/QuickViewGrid';
 import DetailedMateriasGrid from './home/DetailedMateriasGrid';
 import UnclassifiedDecksSection from './home/UnclassifiedDecksSection';
+import { setJSON } from '../lib/safeLocalStorage';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 const DOMAIN_PREVIEWS_TTL_MS = 15 * 60 * 1000; // 15 minutos
@@ -246,9 +247,9 @@ export default function HomeSection({
     // 5. Guardar en caché y actualizar state solo si cambió y esta es la última petición
     if (hasChanges && isMounted.current && requestSeq.current === myRequestId) {
       try {
-        localStorage.setItem(`domainPreviews_${user.id}`, JSON.stringify(results));
+        setJSON(`domainPreviews_${user.id}`, results);
       } catch (error) {
-        console.error('[HomeSection] Error saving to localStorage:', error);
+        console.error('[HomeSection] Error saving to localStorage via safeLocalStorage:', error);
       }
 
       setDomainPreviews(prev => {
