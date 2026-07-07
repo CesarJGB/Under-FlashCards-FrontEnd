@@ -128,10 +128,18 @@ export default function DebugPanel({ initialUserId, initialDeckId } = {}) {
 
                     <div className="mb-2 flex gap-2">
                       <button onClick={handleForceFlush} className="px-3 py-1 bg-emerald-600 rounded font-bold">Forzar flush</button>
+                      <button onClick={() => dbg.inspectPendingQueue()} className="px-3 py-1 bg-indigo-600 rounded">Inspeccionar cola</button>
                       <button onClick={() => dbg.clearLogs()} className="px-3 py-1 bg-zinc-700 rounded">Limpiar logs</button>
                     </div>
 
-                    {flushResult && <div className="text-sm text-zinc-300 mb-2">Flush result: {typeof flushResult === 'string' ? flushResult : JSON.stringify(flushResult)}</div>}
+                    {flushResult && (
+                      <div className="text-sm text-zinc-300 mb-2 p-2 bg-zinc-800 rounded">
+                        <div>Flush result: sent={flushResult.sent || 0}, failed={flushResult.failed || 0}</div>
+                        {flushResult.errors && flushResult.errors.length > 0 && (
+                          <div className="text-xs text-red-400 mt-1">First error: {JSON.stringify(flushResult.errors[0], null, 2)}</div>
+                        )}
+                      </div>
+                    )}
 
                     <div className="text-xs text-zinc-400 mb-1">Últimas reviews</div>
                     <div className="bg-zinc-800 rounded p-2 mb-3 max-h-40 overflow-auto">

@@ -212,31 +212,70 @@ export default function useDebugLogs({ userId } = {}) {
     const pending = getJSON(`pending_reviews_${userId}`) || [];
     if (!pending.length) {
       pushLog({ type: 'action', level: 'info', msg: 'no pending reviews' });
-      return { sent: 0, failed: 0 };
+      return { sent: 0, failed: 0, errors: [] };
     }
+
     let sent = 0;
     let failed = 0;
+    const errors = [];
+
     for (const payload of [...pending]) {
       try {
-        const res = await originalFetchRef.current(`${BACKEND_URL}/api/decks/${payload.deckId || ''}/reviews`, {
+        const deckId = payload.deckId;
+        if (!deckId) {
+          pushLog({ type: 'action', level: 'error', msg: `flush: payload missing deckId`, meta: { payload } });
+          errors.push({ payload, error: 'missing deckId' });
+          failed++;
+          continue;
+        }
+
+        const res = await originalFetchRef.current(`${BACKEND_URL}/api/decks/${deckId}/reviews`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
+
         if (res && res.ok) {
           sent++;
           const current = getJSON(`pending_reviews_${userId}`) || [];
           const updated = current.filter(p => JSON.stringify(p) !== JSON.stringify(payload));
           setJSON(`pending_reviews_${userId}`, updated);
+          pushLog({ type: 'action', level: 'info', msg: `flush: sent review ${deckId}`, meta: { status: res.status } });
         } else {
           failed++;
+          const errorText = res ? `${res.status} ${res.statusText}` : 'no response';
+          errors.push({ payload, error: errorText, status: res?.status });
+          pushLog({
+            type: 'action',
+            level: 'error',
+            msg: `flush: failed ${deckId} - ${errorText}`,
+            meta: { status: res?.status, payload }
+          });
         }
       } catch (e) {
         failed++;
+        errors.push({ payload, error: e.message });
+        pushLog({ type: 'action', level: 'error', msg: `flush: exception ${e.message}`, meta: { payload } });
       }
     }
+
     pushLog({ type: 'action', level: 'info', msg: `flushPendingReviews finished sent:${sent} failed:${failed}` });
-    return { sent, failed };
+    return { sent, failed, errors };
+  };
+
+  const inspectPendingQueue = () => {
+    const pending = getJSON(`pending_reviews_${userId}`) || [];
+    pushLog({
+      type: 'action',
+      level: 'info',
+      msg: `inspect queue: ${pending.length} items`,
+      meta: {
+        count: pending.length,
+        firstItem: pending[0] || null,
+        lastItem: pending[pending.length - 1] || null
+      }
+    });
+    return pending;
   };
 
   const createOrphanSession = async ({ deckId, uid }) => {
