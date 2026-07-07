@@ -28,6 +28,48 @@ export default function HomeSection({
   const abortController = useRef(null);
   const requestSeq = useRef(0);
 
+  // Escuchar actualizaciones/invalidation disparadas por otras secciones (Library) para evitar parpadeos
+  useEffect(() => {
+    const handleUpdate = (e) => {
+      try {
+        const detail = e?.detail || {};
+        if (!detail || String(detail.userId) !== String(user?.id)) return;
+        const materiaId = String(detail.materiaId);
+        const preview = detail.preview;
+        if (!preview) return;
+        setDomainPreviews(prev => {
+          if (prev && typeof prev[materiaId] === 'number' && prev[materiaId] === preview.mastery) return prev;
+          return { ...(prev || {}), [materiaId]: preview.mastery };
+        });
+      } catch (err) {
+        console.error('[HomeSection] Error handling domainPreviews:update event', err);
+      }
+    };
+
+    const handleInvalidate = (e) => {
+      try {
+        const detail = e?.detail || {};
+        if (!detail || String(detail.userId) !== String(user?.id)) return;
+        const materiaId = String(detail.materiaId);
+        setDomainPreviews(prev => {
+          if (!prev || !(materiaId in prev)) return prev;
+          const next = { ...prev };
+          delete next[materiaId];
+          return next;
+        });
+      } catch (err) {
+        console.error('[HomeSection] Error handling domainPreviews:invalidate event', err);
+      }
+    };
+
+    window.addEventListener('domainPreviews:update', handleUpdate);
+    window.addEventListener('domainPreviews:invalidate', handleInvalidate);
+    return () => {
+      window.removeEventListener('domainPreviews:update', handleUpdate);
+      window.removeEventListener('domainPreviews:invalidate', handleInvalidate);
+    };
+  }, [user?.id]);
+
   // =========================================================================
   // 🔄 DISPARADOR DE SINCRONIZACIÓN PASIVA EN SEGUNDO PLANO
   // =========================================================================

@@ -324,24 +324,76 @@ export default function LibrarySection({
                 handleResetPath={handleResetPath}
                 activeMateriaName={activeMateriaName}
                 materia={materias.find(m => (m._id || m.id) === currentPath.materiaId)}
-                onActiveParcialesChange={(materiaId, newActive) => {
+                onActiveParcialesChange={async (materiaId, newActive) => {
+                  // 1) Actualizar estado local y cache de materias inmediatamente
                   const updated = materias.map(m =>
                     (m._id || m.id) === materiaId ? { ...m, activeParciales: newActive } : m
                   );
                   setMaterias(updated);
                   localStorage.setItem(`materias_${userId}`, JSON.stringify(updated));
 
-                  // Invalidar solo la entrada correspondiente en domainPreviews para forzar refetch inmediato
+                  // 2) Prefetch del nuevo domain-preview para evitar parpadeo
+                  // Intentamos obtener el nuevo preview y escribirlo en la caché local; si falla, invalidamos la entrada
                   try {
                     const key = `domainPreviews_${userId}`;
-                    const cached = JSON.parse(localStorage.getItem(key) || '{}');
+                    const cachedRaw = localStorage.getItem(key);
+                    const cached = cachedRaw ? JSON.parse(cachedRaw) : {};
                     const id = String(materiaId);
-                    if (cached[id]) {
-                      delete cached[id];
-                      localStorage.setItem(key, JSON.stringify(cached));
+
+                    const res = await fetch(
+                      `${BACKEND_URL}/api/academic/materias/${id}/domain-preview?parciales=${(newActive || []).join(',')}`
+                    );
+
+                    if (res.ok) {
+                      const data = await res.json();
+                      const preview = {
+                        mastery: data.mastery,
+                        parciales: data.parciales,
+                        timestamp: Date.now(),
+                        metrics: data.metrics
+                      };
+
+                      // Merge y persistir
+                      cached[id] = preview;
+                      try { localStorage.setItem(key, JSON.stringify(cached)); } catch (e) { /* ignore */ }
+
+                      // Notificar a listeners (HomeSection) que hay un preview actualizado
+                      try {
+                        window.dispatchEvent(new CustomEvent('domainPreviews:update', {
+                          detail: { userId, materiaId: id, preview }
+                        }));
+                      } catch (e) { /* ignore */ }
+                    } else {
+                      // Si el prefetch falla, invalidar la entrada para forzar refetch cuando corresponda
+                      if (cached && cached[id]) {
+                        delete cached[id];
+                        try { localStorage.setItem(key, JSON.stringify(cached)); } catch (e) { /* ignore */ }
+                      }
+                      try {
+                        window.dispatchEvent(new CustomEvent('domainPreviews:invalidate', {
+                          detail: { userId, materiaId: id }
+                        }));
+                      } catch (e) { /* ignore */ }
                     }
                   } catch (err) {
-                    console.error('[LibrarySection] Error invalidando domainPreviews cache', err);
+                    // Falla de red o parsing: invalidar la entrada y notificar
+                    try {
+                      const key = `domainPreviews_${userId}`;
+                      const cached = JSON.parse(localStorage.getItem(key) || '{}');
+                      const id = String(materiaId);
+                      if (cached[id]) {
+                        delete cached[id];
+                        try { localStorage.setItem(key, JSON.stringify(cached)); } catch (e) { /* ignore */ }
+                      }
+                    } catch (e) { /* ignore */ }
+
+                    try {
+                      window.dispatchEvent(new CustomEvent('domainPreviews:invalidate', {
+                        detail: { userId, materiaId: String(materiaId) }
+                      }));
+                    } catch (e) { /* ignore */ }
+
+                    console.error('[LibrarySection] Error prefetching domain preview', err);
                   }
                 }}
                 filterActiveOnly={currentPath.filterActiveParciales}
