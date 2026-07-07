@@ -244,8 +244,8 @@ function DashboardScreen({ user, onLogout }) {
           {tab === 'settings' && <SettingsSection userId={user.id} />}
         </div>
 
-        {/* 👇 NUEVO MENÚ DE NAVEGACIÓN MÓVIL MINIMALISTA 👇 */}
-        <div className="md:hidden fixed bottom-5 inset-x-6 max-w-xs mx-auto bg-white/85 backdrop-blur-xl border border-slate-200/60 h-14 rounded-full px-2 flex justify-between items-center z-40 shadow-[0_8px_30px_rgba(0,0,0,0.08)] animate-[slideUp_0.2s_ease-out]">
+        {/* 👇 NUEVO MENÚ DE NAVEGACIÓN MÓVIL ULTRACOMPACTO 👇 */}
+        <div className="md:hidden fixed bottom-5 left-1/2 -translate-x-1/2 bg-slate-100/90 backdrop-blur-xl border border-slate-200/60 h-12 rounded-full px-1.5 flex items-center gap-1 z-40 shadow-[0_4px_20px_rgba(0,0,0,0.06)] animate-[slideUp_0.2s_ease-out]">
           {[
             { id: 'home', title: 'Inicio', Icon: Home },
             { id: 'study', title: 'Estudio', Icon: BookOpen },
@@ -259,15 +259,15 @@ function DashboardScreen({ user, onLogout }) {
               <button
                 key={item.id}
                 onClick={() => handleTabChange(item.id)}
-                className={`w-12 h-12 flex items-center justify-center transition-all duration-200 rounded-full cursor-pointer active:scale-95 ${
+                className={`h-9 px-3.5 flex items-center justify-center transition-all duration-200 rounded-full cursor-pointer active:scale-95 ${
                   isActive 
                     ? 'bg-slate-900 text-white shadow-md' 
-                    : 'text-slate-400 hover:text-slate-600'
+                    : 'text-slate-500 hover:text-slate-700'
                 }`}
                 title={item.title}
               >
                 <IconComponent className={`w-5 h-5 transition-all duration-200 ${
-                  isActive ? 'scale-110 stroke-[2.5]' : 'stroke-[1.8]'
+                  isActive ? 'stroke-[2.5]' : 'stroke-[1.8]'
                 }`} />
               </button>
             );
