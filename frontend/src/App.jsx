@@ -37,10 +37,10 @@ function DashboardScreen({ user, onLogout }) {
   const [currentDeck, setCurrentDeck] = useState(null);
   const [initialMode, setInitialMode] = useState('edit');
 
-  const loadDecks = useCallback(async (showSpinner = false) => {
+  const loadDecks = useCallback(async (showSpinner = false, signal) => {
     if (showSpinner) setLoading(true);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/decks/${user.id}?t=${Date.now()}`);
+      const res = await fetch(`${BACKEND_URL}/api/decks/${user.id}?t=${Date.now()}`, { signal });
       if (!res.ok) throw new Error();
       const data = await res.json();
       setDecks(data);
@@ -52,10 +52,10 @@ function DashboardScreen({ user, onLogout }) {
     }
   }, [user.id]);
 
-  const loadMaterias = useCallback(async (showSpinner = false) => {
+  const loadMaterias = useCallback(async (showSpinner = false, signal) => {
     if (showSpinner) setLoading(true);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/academic/materias/${user.id}?t=${Date.now()}`);
+      const res = await fetch(`${BACKEND_URL}/api/academic/materias/${user.id}?t=${Date.now()}`, { signal });
       if (!res.ok) throw new Error();
       const data = await res.json();
       setMaterias(data);
@@ -68,7 +68,14 @@ function DashboardScreen({ user, onLogout }) {
   }, [user.id]);
 
   useEffect(() => {
-    Promise.all([loadDecks(), loadMaterias()]);
+    const controller = new AbortController();
+    const signal = controller.signal;
+
+    // call with signal so fetches can be aborted on cleanup
+    loadDecks(false, signal);
+    loadMaterias(false, signal);
+
+    return () => controller.abort();
   }, [loadDecks, loadMaterias]);
 
   // 👇 NUEVO: Handler de navegación profunda a librería desde Home
@@ -269,9 +276,11 @@ function DashboardScreen({ user, onLogout }) {
       </main>
 
       {/* DebugPanel (lazy-loaded) - rendered only when ?debug=true or in DEV */}
-      <Suspense fallback={null}>
-        <DebugPanel initialUserId={user?.id} initialDeckId={currentDeck?.id} />
-      </Suspense>
+      {typeof window !== 'undefined' && (new URLSearchParams(window.location.search).get('debug') === 'true' || import.meta.env.DEV) && (
+        <Suspense fallback={null}>
+          <DebugPanel initialUserId={user?.id} initialDeckId={currentDeck?.id} />
+        </Suspense>
+      )}
 
     </div>
   );

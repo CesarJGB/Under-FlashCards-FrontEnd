@@ -1,6 +1,6 @@
 // FILE: frontend/src/components/CardFace.jsx
 import { Maximize2 } from 'lucide-react';
-import { parseCardStyles } from '../lib/utils';
+import { parseCardStyles, isSafeImageUrl, isSafeCssValue } from '../lib/utils';
 
 const ALIGN_CLASS = { left: 'text-left', center: 'text-center', right: 'text-right' };
 
@@ -25,8 +25,9 @@ export default function CardFace({ card, side, dark, onExpandImage, parsedStyles
   const alignClass = ALIGN_CLASS[card.textAlign] || 'text-center';
   const text = isAnswer ? card.answer : card.question;
 
-  const hasImage = !!card.contentImage && card.imageSide === side;
-  const hasBg = !!card.bgImage;
+  const safeContentImage = isSafeImageUrl(card.contentImage) && card.imageSide === side;
+  const safeBgImage = isSafeImageUrl(card.bgImage);
+  const hasBg = !!safeBgImage;
 
   // Color explícito definido por el usuario tiene prioridad; si no hay,
   // usamos blanco sobre fondo oscuro (dark del modo flip) o sobre bgImage
@@ -34,19 +35,24 @@ export default function CardFace({ card, side, dark, onExpandImage, parsedStyles
   // cualquier otro caso.
   const textColorClass = color ? '' : ((dark || hasBg) ? 'text-white' : 'text-slate-900');
 
+  // Validate dynamic CSS values
+  const fontSizeStr = `${size}px`;
+  const safeFontSize = isSafeCssValue(fontSizeStr, 'fontSize') ? fontSizeStr : '16px';
+  const safeColor = color && isSafeCssValue(color, 'color') ? color : null;
+
   return (
     <>
       <p
         style={{
-          fontSize: `${size}px`,
-          ...(color ? { color } : {}),
+          fontSize: safeFontSize,
+          ...(safeColor ? { color: safeColor } : {}),
         }}
         className={`whitespace-pre-wrap ${alignClass} ${bold ? 'font-bold' : 'font-normal'} ${italic ? 'italic' : ''} ${textColorClass}`}
       >
         {text}
       </p>
 
-      {hasImage && (
+      {safeContentImage && (
         <div className="mt-4 flex justify-center w-full animate-[slideUp_0.18s_ease-out]">
           <div className="relative max-w-max group">
             <img
@@ -80,12 +86,13 @@ export default function CardFace({ card, side, dark, onExpandImage, parsedStyles
  */
 export function getCardBackgroundStyle(card, parsedStyles) {
   const st = parsedStyles || parseCardStyles(card?.fontSize);
-  const hasBg = !!card?.bgImage;
+  const safeBg = isSafeImageUrl(card?.bgImage) ? card.bgImage : null;
+  const bgColor = isSafeCssValue(st.bgColor, 'color') ? st.bgColor : '#ffffff';
   return {
     style: {
-      backgroundColor: st.bgColor || '#ffffff',
-      ...(hasBg ? { backgroundImage: `url(${card.bgImage})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}),
+      backgroundColor: bgColor,
+      ...(safeBg ? { backgroundImage: `url("${safeBg}")`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}),
     },
-    hasBg,
+    hasBg: !!safeBg,
   };
 }

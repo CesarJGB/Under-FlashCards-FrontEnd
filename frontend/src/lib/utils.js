@@ -60,3 +60,43 @@ export function parseCardStyles(fontSizeField) {
     bgColor: '',
   };
 }
+
+/**
+ * Valida si una URL es segura para renderizar en <img> o background-image.
+ * Rechaza javascript:, data: (excepto data:image/*), y otros esquemas peligrosos.
+ */
+export function isSafeImageUrl(url) {
+  if (!url || typeof url !== 'string') return false;
+  const trimmed = url.trim();
+
+  // permitir data:image/* inline
+  if (trimmed.toLowerCase().startsWith('data:image/')) return true;
+
+  const lower = trimmed.toLowerCase();
+  if (lower.startsWith('javascript:') || lower.startsWith('vbscript:')) return false;
+  if (lower.startsWith('data:')) return false; // bloqueamos data: que no sean image/*
+
+  try {
+    const parsed = new URL(trimmed, window.location.origin);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch (e) {
+    return false;
+  }
+}
+
+/**
+ * Valida valores CSS dinámicos (color, fontSize) contra inyección CSS.
+ */
+export function isSafeCssValue(value, type = 'color') {
+  if (!value || typeof value !== 'string') return false;
+  const v = value.trim();
+  if (type === 'color') {
+    const colorRegex = /^(#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})|rgb\((?:[^)]+)\)|rgba\((?:[^)]+)\)|hsl\((?:[^)]+)\)|hsla\((?:[^)]+)\)|[a-z]+)$/i;
+    return colorRegex.test(v);
+  }
+  if (type === 'fontSize') {
+    const sizeRegex = /^\d+(?:\.\d+)?(?:px|rem|em|%)?$/i;
+    return sizeRegex.test(v);
+  }
+  return false;
+}
