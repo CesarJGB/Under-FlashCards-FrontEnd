@@ -4,6 +4,7 @@ import CardFace, { getCardBackgroundStyle } from './CardFace';
 import FlipCard from './FlipCard';
 import { parseCardStyles } from '../lib/utils';
 import { buildContinuousBatch, buildNormalBatch, applyLocalAnswer, getCardId } from '../lib/batchBuilder';
+import { getJSON, setJSON } from '../lib/safeLocalStorage';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
@@ -88,6 +89,10 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
   const startTimeRef = useRef(null);
   const sessionIdRef = useRef(null);
   const sessionClosedRef = useRef(false);
+  const controllersRef = useRef([]);
+  const sessionStartPromiseRef = useRef(null);
+  const pendingReviewsRef = useRef([]);
+  const pendingBatchNotificationsRef = useRef([]);
   const allCardsRef = useRef([]); // mazo completo, cargado una sola vez; se actualiza localmente tras cada respuesta
 
   const currentCard = cards[currentIndex];
@@ -97,18 +102,108 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
   // =========================================================================
   // CICLO DE VIDA DE LA SESIÓN DE ESTUDIO
   // =========================================================================
+  // Helper para centralizar fetches con AbortController
+  const makeFetch = (url, opts = {}) => {
+    const controller = new AbortController();
+    controllersRef.current.push(controller);
+    const signal = controller.signal;
+    const optsWithSignal = { ...opts, signal };
+    return fetch(url, optsWithSignal)
+      .finally(() => {
+        controllersRef.current = controllersRef.current.filter(c => c !== controller);
+      });
+  };
+
+  // Telemetría: sendBeacon fallback + cola local persistida vía safeLocalStorage
+  const sendReview = (payload) => {
+    const body = JSON.stringify(payload);
+    // Preferir sendBeacon cuando esté disponible (mejor para unload/navigation)
+    try {
+      if (navigator && typeof navigator.sendBeacon === 'function') {
+        const blob = new Blob([body], { type: 'application/json' });
+        const ok = navigator.sendBeacon(`${BACKEND_URL}/api/decks/${deckId}/reviews`, blob);
+        if (ok) return Promise.resolve(true);
+      }
+    } catch (e) {
+      console.warn('[SessionPlayer] sendBeacon failed, falling back to fetch', e);
+    }
+
+    // Fallback: persistir en memoria y en safeLocalStorage y emitir con fetch async
+    try {
+      pendingReviewsRef.current.push(payload);
+      setJSON(`pending_reviews_${userId}`, pendingReviewsRef.current);
+    } catch (e) {
+      console.warn('[SessionPlayer] Could not persist pending review', e);
+    }
+
+    return makeFetch(`${BACKEND_URL}/api/decks/${deckId}/reviews`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body
+    }).then(res => {
+      if (!res || !res.ok) throw new Error('Failed to send review');
+      // remover la primera ocurrencia del payload en la cola
+      try {
+        const idx = pendingReviewsRef.current.findIndex(p => JSON.stringify(p) === body);
+        if (idx !== -1) {
+          pendingReviewsRef.current.splice(idx, 1);
+          setJSON(`pending_reviews_${userId}`, pendingReviewsRef.current);
+        }
+      } catch (e) { /* ignore */ }
+      return true;
+    }).catch(err => {
+      console.error('[SessionPlayer] Error sending review via fetch:', err);
+      return false;
+    });
+  };
+
+  const flushPendingReviews = async () => {
+    // cargar cola persistida
+    const persisted = getJSON(`pending_reviews_${userId}`) || [];
+    pendingReviewsRef.current = pendingReviewsRef.current.length ? pendingReviewsRef.current : persisted;
+
+    const toSend = [...pendingReviewsRef.current];
+    for (const payload of toSend) {
+      try {
+        const res = await makeFetch(`${BACKEND_URL}/api/decks/${deckId}/reviews`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (res && res.ok) {
+          // eliminar todas las ocurrencias que coincidan con el payload serializado
+          pendingReviewsRef.current = pendingReviewsRef.current.filter(p => JSON.stringify(p) !== JSON.stringify(payload));
+          setJSON(`pending_reviews_${userId}`, pendingReviewsRef.current);
+        }
+      } catch (e) {
+        if (e.name === 'AbortError') break;
+        console.error('[SessionPlayer] flushPendingReviews error:', e);
+      }
+    }
+  };
   const startSession = async () => {
     try {
-      const response = await fetch(`${BACKEND_URL}/api/decks/${deckId}/sessions`, {
+      // Guardamos la promesa para potencial coordinación desde cleanup
+      sessionStartPromiseRef.current = makeFetch(`${BACKEND_URL}/api/decks/${deckId}/sessions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId })
       });
-      if (!response.ok) throw new Error('No se pudo iniciar la sesión.');
 
+      const response = await sessionStartPromiseRef.current;
+      if (!response || !response.ok) throw new Error('No se pudo iniciar la sesión.');
       const data = await response.json();
       sessionIdRef.current = data.session?.id || null;
+
+      // Si había notificaciones pendientes de lote, flusharlas ahora
+      if (pendingBatchNotificationsRef.current.length > 0 && sessionIdRef.current) {
+        try {
+          await makeFetch(`${BACKEND_URL}/api/sessions/${sessionIdRef.current}/batch-completed`, { method: 'PATCH' });
+          pendingBatchNotificationsRef.current = [];
+        } catch (e) { /* ignore */ }
+      }
     } catch (err) {
+      if (err.name === 'AbortError') return; // request was cancelled during unmount
       console.error('Error al iniciar sesión de estudio:', err);
       sessionIdRef.current = null;
     }
@@ -121,15 +216,15 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
     try {
       if (showSummary) {
         setClosing(true);
-        await fetch(`${BACKEND_URL}/api/users/${userId}/queue-status`).catch(
+        await makeFetch(`${BACKEND_URL}/api/users/${userId}/queue-status`).catch(
           err => console.error('Error al esperar la cola de cascada:', err)
         );
       }
 
-      const response = await fetch(`${BACKEND_URL}/api/sessions/${sessionIdRef.current}/close`, {
+      const response = await makeFetch(`${BACKEND_URL}/api/sessions/${sessionIdRef.current}/close`, {
         method: 'PATCH'
       });
-      if (response.ok) {
+      if (response && response.ok) {
         const data = await response.json();
         if (showSummary) setSessionSummary(data.session);
       }
@@ -141,8 +236,13 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
   };
 
   const notifyBatchCompleted = () => {
-    if (!sessionIdRef.current) return;
-    fetch(`${BACKEND_URL}/api/sessions/${sessionIdRef.current}/batch-completed`, {
+    if (!sessionIdRef.current) {
+      // encolar la notificación para reintentar cuando tengamos sessionId
+      pendingBatchNotificationsRef.current.push(true);
+      return;
+    }
+
+    makeFetch(`${BACKEND_URL}/api/sessions/${sessionIdRef.current}/batch-completed`, {
       method: 'PATCH'
     }).catch(err => console.error('Error al actualizar lote de sesión:', err));
   };
@@ -153,9 +253,8 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
     try {
       setLoading(true);
       setError('');
-
-      const response = await fetch(`${BACKEND_URL}/api/decks/${deckId}/all-cards?userId=${userId}`);
-      if (!response.ok) throw new Error('No se pudo cargar el mazo.');
+      const response = await makeFetch(`${BACKEND_URL}/api/decks/${deckId}/all-cards?userId=${userId}`);
+      if (!response || !response.ok) throw new Error('No se pudo cargar el mazo.');
 
       const data = await response.json();
       if (!data.cards || data.cards.length === 0) {
@@ -174,7 +273,19 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
   const lastCardIdRef = useRef(null);
 
   const startNewBatch = () => {
-    const batch = config.buildBatch(allCardsRef.current, { excludeCardId: lastCardIdRef.current });
+    let batch = config.buildBatch(allCardsRef.current, { excludeCardId: lastCardIdRef.current });
+    if (!batch || batch.length === 0) {
+      // fallback: usar todo el mazo si existe
+      batch = allCardsRef.current && allCardsRef.current.length ? [...allCardsRef.current] : [];
+    }
+    if (!batch || batch.length === 0) {
+      // no hay tarjetas -> mostrar error y cerrar sesión seguro
+      setError('No hay tarjetas disponibles para repasar.');
+      // Intentar cerrar la sesión de forma segura
+      closeSession(true);
+      return;
+    }
+
     setCards(batch);
     setCurrentIndex(0);
     setIsFlipped(false);
@@ -182,11 +293,30 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
   };
 
   useEffect(() => {
+    // cargar cola persistente de reviews
+    try {
+      pendingReviewsRef.current = getJSON(`pending_reviews_${userId}`) || [];
+    } catch (e) { pendingReviewsRef.current = []; }
+
     startSession();
     loadDeck();
 
     return () => {
-      closeSession(false);
+      // Abortar requests en curso para evitar setState post-unmount
+      controllersRef.current.forEach(c => c.abort());
+      controllersRef.current = [];
+
+      // Intentar flush de telemetría en background con timeout de 2s
+      (async () => {
+        try {
+          await Promise.race([flushPendingReviews(), new Promise(r => setTimeout(r, 2000))]);
+        } catch (e) {
+          console.error('[SessionPlayer] Error flushing pending reviews on unmount', e);
+        }
+
+        // Intentar cerrar la sesión de forma limpia
+        try { await closeSession(false); } catch (e) { /* ignore */ }
+      })();
     };
   }, [deckId, userId, mode]);
 
@@ -204,22 +334,19 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
 
   const handleAnswer = (wasCorrect) => {
     const endTime = performance.now();
-    const responseTimeMs = Math.round(endTime - startTimeRef.current);
+    const responseTimeMs = startTimeRef.current ? Math.round(endTime - startTimeRef.current) : 0;
     const currentCard = cards[currentIndex];
     const cardId = getCardId(currentCard);
 
     // 🔥 Disparo Optimista hacia el Ledger y Motor en Cascada (No bloquea la UI)
-    fetch(`${BACKEND_URL}/api/decks/${deckId}/reviews`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        cardId,
-        userId,
-        wasCorrect,
-        responseTimeMs,
-        sessionId: sessionIdRef.current
-      })
-    }).catch(err => console.error("Error síncrono de telemetría:", err));
+    // Telemetría optimista: usar sendBeacon si es posible + persistir en cola si falla
+    sendReview({
+      cardId,
+      userId,
+      wasCorrect,
+      responseTimeMs,
+      sessionId: sessionIdRef.current
+    }).catch(() => { /* handled inside sendReview */ });
 
     // Actualizamos la copia local de la tarjeta (mismo delta que aplica el
     // backend) para que el próximo lote ya priorice con datos frescos,

@@ -39,7 +39,8 @@ export default function StudySection({ decks, materias, userId, userEmail, onOpe
   ];
 
   const currentMethodObj = methods.find(m => m.id === selectedMethod);
-  const isAdmin = userEmail === "cesarjaviervebe@gmail.com";
+  const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL;
+  const isAdmin = userEmail === ADMIN_EMAIL;
 
   // VISTA 1: Catálogo de Estrategias de Estudio (Optimizado para no duplicar Header)
   if (!selectedMethod) {
