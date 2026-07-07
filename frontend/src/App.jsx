@@ -6,6 +6,7 @@ import { jwtDecode } from 'jwt-decode';
 import { LogOut, Sparkles, Library, Settings, Home, BookOpen } from 'lucide-react';
 
 import LoginScreen from './components/LoginScreen';
+import usePendingReviewsFlush from './hooks/usePendingReviewsFlush';
 import HomeSection from './components/HomeSection';
 import StudySection from './components/StudySection';
 import LibrarySection from './components/LibrarySection';
