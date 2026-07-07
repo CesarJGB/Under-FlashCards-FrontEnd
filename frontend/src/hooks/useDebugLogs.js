@@ -21,7 +21,15 @@ export default function useDebugLogs({ userId } = {}) {
   const [pendingCount, setPendingCount] = useState(0);
   const [sendBeaconAvailable] = useState(typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function');
 
-  const flagsRef = useRef({ slowNetwork: false, slowDelay: 3000, offline: false, forceDeckEmpty: false });
+  // Initialize flags from persisted storage so toggles survive DebugPanel unmount
+  let persistedFlags = null;
+  try {
+    persistedFlags = getJSON('debug_flags') || null;
+  } catch (e) {
+    persistedFlags = null;
+  }
+  const initialFlags = { slowNetwork: false, slowDelay: 3000, offline: false, forceDeckEmpty: false, logVerbose: false, ...(persistedFlags || {}) };
+  const flagsRef = useRef(initialFlags);
 
   const originalFetchRef = useRef(typeof window !== 'undefined' ? window.fetch.bind(window) : null);
   const originalSendBeaconRef = useRef(typeof navigator !== 'undefined' && navigator.sendBeacon ? navigator.sendBeacon.bind(navigator) : null);
@@ -195,6 +203,7 @@ export default function useDebugLogs({ userId } = {}) {
 
   const setFlag = (key, value) => {
     flagsRef.current[key] = value;
+    try { setJSON('debug_flags', flagsRef.current); } catch (e) { /* ignore */ }
     pushLog({ type: 'action', level: 'info', msg: `flag ${key} -> ${String(value)}` });
   };
 
@@ -320,6 +329,7 @@ export default function useDebugLogs({ userId } = {}) {
     pendingCount,
     sendBeaconAvailable,
     flagsRef,
+    getFlag,
     setFlag,
     flushPendingReviews,
     createOrphanSession,
