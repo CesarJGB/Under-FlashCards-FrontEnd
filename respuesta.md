@@ -1,54 +1,71 @@
-Resumen breve
-- Sí: mantener TTL en 15 minutos está bien como política general — es un buen balance entre frescura y carga.
-- No es estrictamente necesario invalidar todo el caché inmediatamente porque el código ya detecta cambios en activeParciales y fuerza un refetch para la materia afectada.
-- Si quieres que la UI refleje el cambio de forma instantánea (sin esperar al refetch), puedes invalidar sólo la entrada de la materia o prefetchear el preview inmediatamente.
+Revisión: useEffect / useCallback en HomeSection.jsx — abortController e isMounted
 
-Qué hace el código ahora (rápido)
-- HomeSection.jsx define DOMAIN_PREVIEWS_TTL_MS = 15 * 60 * 1000 (15 min).
-- fetchDomainPreviews lee localStorage domainPreviews_{userId} y decide hacer fetch si:
-  - no hay caché,
-  - el timestamp excede el TTL,
-  - O los parciales almacenados en la caché no coinciden con materia.activeParciales (la comparación ordenada) — ver la lógica en fetchDomainPreviews (HomeSection.jsx, ~líneas 123–146).
-- Cuando el usuario cambia activeParciales:
-  - ParcialesLevel hace PATCH al backend y LibrarySection actualiza materias en estado local y en localStorage (no elimina explícitamente domainPreviews).
-  - El cambio de materias hace que HomeSection vuelva a ejecutar fetchDomainPreviews; como la caché para esa materia contiene parciales distintos, la función detecta el desajuste y refetch inmediatamente esa materia.
+Resumen corto
+- No hay un memory leak obvio en el código actual: el patrón usado (AbortController + isMounted ref + cleanup en el useEffect) evita actualizaciones de estado después del unmount y aborta fetches en curso.
+- Riesgo real: condición de carrera entre fetches concurrentes que puede provocar sobrescritura de resultados (stale writes) y inconsistencias en localStorage/estado. Esto no es exactamente una fuga de memoria, pero sí un problema de coherencia observable cuando el usuario navega rápido entre pestañas en móvil.
 
-Consecuencias prácticas
-- Correcto desde consistencia: el sistema ya fuerza refresco cuando los parciales cambian, por lo que no hay “staleness” prolongado más allá del tiempo que tome el fetch.
-- UX: puede verse la métrica antigua durante unas decenas/centenas de ms mientras el nuevo preview se obtiene y setDomainPreviews actualiza el estado. Si te molesta ese parpadeo, puedes mejorar la UX con invalidación selectiva o prefetch.
+Por qué NO hay memory leak
+- isMounted (useRef) se marca true al montar y false en el cleanup; antes de aplicar setState se comprueba isMounted.current, impidiendo setState tras el unmount.
+- abortController.current se aborta en el cleanup del efecto y se aborta explícitamente antes de iniciar un nuevo fetch, evitando fetches huérfanos con callbacks activos indefinidamente.
+- No hay listeners globales o timers sin limpiar; las referencias a AbortController/promises se sobrescriben y pueden ser recogidas por GC.
 
-Opciones recomendadas (ordenadas por mínimo cambio → más completo)
+Riesgo práctico restante (condición de carrera)
+- Escenario: se lanza fetch A, luego el usuario provoca un fetch B; el código aborta A pero A pudo haber completado justo antes de la abortación. Si la respuesta de A llega después de B, A puede escribir resultados antiguos en localStorage o llamar setDomainPreviews, sobrescribiendo datos más recientes.
+- Efecto: inconsistent state / stale UI. Es coherencia, no una fuga de memoria, pero sí un bug a corregir para UX robusta.
 
-1) (Recomendado, cambio mínimo) Invalidar sólo la entrada de la materia en localStorage cuando el usuario actualiza activeParciales.
-- Efecto: HomeSection al ejecutar su lógica verá que falta la entrada y hará fetch inmediato para esa materia. Es barato (no borras todo el caché) y elimina la posibilidad de mostrar una metric vieja mientras llega el refetch.
-- Implementación (sugerencia, poner junto al setMaterias/localStorage en LibrarySection.onActiveParcialesChange):
+Mejoras recomendadas (bajo impacto)
 
-```js
-// después de setMaterias(updated) y localStorage.setItem(`materias_${userId}`, ...)
-try {
-  const key = `domainPreviews_${userId}`;
-  const cached = JSON.parse(localStorage.getItem(key) || '{}');
-  const id = String(materiaId);
-  if (cached[id]) {
-    delete cached[id];
-    localStorage.setItem(key, JSON.stringify(cached));
-  }
-} catch (err) {
-  console.error('[LibrarySection] Error invalidando domainPreviews cache', err);
+1) Añadir un requestSeq (request id) para descartar resultados antiguos
+- Mantén un ref incremental (por ejemplo requestSeq) y asigna un id local en cada ejecución de fetchDomainPreviews. Antes de aplicar resultados comprueba que requestSeq.current === myRequestId.
+
+2) Limpiar la referencia del AbortController tras abortar
+- Después de abortar, haz abortController.current = null cuando corresponda (en cleanup y tras completar la petición) para ayudar al GC y al estado lógico.
+
+3) Usar controller local por ejecución
+- Crea const controller = new AbortController() dentro de cada ejecución, así usas controller.signal en los fetches. Al terminar, solo limpiar abortController.current si sigue apuntando al mismo controller.
+
+Snippet sugerido (cambios mínimos a aplicar en HomeSection.jsx)
+
+// definiciones a nivel de componente
+const isMounted = useRef(true);
+const abortController = useRef(null);
+const requestSeq = useRef(0);
+
+// dentro de fetchDomainPreviews
+const myRequestId = ++requestSeq.current;
+
+// reemplazar la lógica de controller actual por un controller local
+if (abortController.current) abortController.current.abort();
+const controller = new AbortController();
+abortController.current = controller;
+
+// usar controller.signal en los fetches
+const res = await fetch(url, { signal: controller.signal });
+
+// después de Promise.all y antes de aplicar resultados
+if (hasChanges && isMounted.current && requestSeq.current === myRequestId) {
+  try {
+    localStorage.setItem(`domainPreviews_${user.id}`, JSON.stringify(results));
+  } catch (e) { /* handle */ }
+
+  setDomainPreviews(prev => { /* ... */ });
 }
-```
 
-2) (Mejora UX) Prefetch y actualizar caché inmediatamente tras el PATCH:
-- Tras la actualización exitosa, llamar al endpoint `/api/academic/materias/:id/domain-preview?parciales=...`, guardar la respuesta en localStorage y opcionalmente notificar al HomeSection para que actualice su estado en memoria.
-- Pros: la UI muestra el valor correcto instantáneamente; Contras: más llamadas al servidor (pero sólo la materia afectada).
+// limpiar controller si sigue siendo el actual
+if (abortController.current === controller) abortController.current = null;
 
-3) Ajustar TTL global (no recomendado por defecto)
-- Reducir TTL (ej. 1–5 min) hace la caché más fresca, pero aumenta carga en el backend. Dado que ya se detectan cambios por parciales, no hace falta bajar el TTL para resolver el problema de coherencia cuando el usuario cambia parciales.
+// cleanup del useEffect que lanza fetchDomainPreviews
+return () => {
+  isMounted.current = false;
+  if (abortController.current) {
+    abortController.current.abort();
+    abortController.current = null;
+  }
+};
 
-Consideraciones operativas
-- Invalidar sólo la entrada por materia es la opción menos disruptiva.
-- Si los usuarios hacen toggles muy rápidos en los parciales, añade un debounce (cliente) o dedup en el servidor para evitar ráfagas de requests.
-- Si quieres que el HomeSection actualice su estado en memoria inmediatamente tras la invalidación (sin esperar al efecto por cambio de materias), puedes emitir un CustomEvent y hacer que HomeSection escuche para forzar fetchDomainPreviews; o pasar una función de invalidación/recarga desde el componente padre.
+Por qué esto es suficiente
+- requestSeq asegura que solo el resultado de la última ejecución modifica el estado/localStorage, eliminando sobrescrituras por respuestas tardías.
+- controller local + limpieza evita referencias residuales y facilita el GC.
+- isMounted sigue siendo la última línea de defensa para prevenir setState después del unmount.
 
-¿Quieres que lo implemente?
-- Puedo aplicar la invalidación mínima (opción 1) ahora en LibrarySection.jsx y/o añadir el prefetch (opción 2). ¿Cuál prefieres?
+¿Quieres que aplique estos cambios en HomeSection.jsx ahora? Puedo implementarlo, probar que no rompa la lógica actual y hacer commit/push con un mensaje claro.
