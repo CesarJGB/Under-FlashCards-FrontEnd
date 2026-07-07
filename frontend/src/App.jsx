@@ -136,18 +136,34 @@ function DashboardScreen({ user, onLogout }) {
     <div className="min-h-screen w-full bg-slate-50 flex" data-testid="dashboard-screen">
       <aside className="hidden md:flex w-72 shrink-0 flex-col bg-white border-r border-slate-200 p-5">
         <div className="flex items-center gap-2 px-1 mb-8 h-9 min-w-0">
-          {currentDeck && tab === 'library' ? (
-            <span className="font-black text-slate-900 text-base border-l-4 border-slate-900 pl-2.5 truncate" title={currentDeck.title}>
-              {currentDeck.title}
-            </span>
-          ) : (
-            <>
-              <div className="w-9 h-9 rounded-xl bg-slate-900 flex items-center justify-center shrink-0">
-                <Sparkles className="w-5 h-5 text-white" />
-              </div>
-              <span className="font-extrabold text-slate-900 text-lg">Under-Flash</span>
-            </>
-          )}
+          <div className="min-w-0 flex items-center gap-2">
+            {currentDeck && tab === 'library' ? (
+              <span className="font-black text-slate-900 text-base border-l-4 border-slate-900 pl-2.5 truncate" title={currentDeck.title}>
+                {currentDeck.title}
+              </span>
+            ) : (
+              <>
+                <div className="w-9 h-9 rounded-xl bg-slate-900 flex items-center justify-center shrink-0">
+                  <Sparkles className="w-5 h-5 text-white" />
+                </div>
+                <span className="font-extrabold text-slate-900 text-lg">Under-Flash</span>
+              </>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => handleTabChange('usuario')}
+            className="ml-auto p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg transition-colors shrink-0 cursor-pointer"
+            title="Perfil de usuario"
+          >
+          {user?.picture ? (
+              <img src={user.picture} alt={user.name || user.email} referrerPolicy="no-referrer" className="w-7 h-7 rounded-full object-cover" />
+            ) : (
+              <User className="w-5 h-5" />
+            )}
+          </button>
+
         </div>
 
         <nav className="space-y-1.5">
@@ -156,19 +172,6 @@ function DashboardScreen({ user, onLogout }) {
           {navItem('library', 'Biblioteca', Library)}
           {navItem('chat', 'Chat', MessageSquare)}
         </nav>
-
-        <div className="mt-auto pt-5 border-t border-slate-100">
-          <div className="flex items-center gap-3 px-1">
-            <img src={user.picture} alt={user.name} referrerPolicy="no-referrer" className="w-9 h-9 rounded-full object-cover bg-slate-200" />
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-slate-900 truncate">{user.name}</p>
-              <p className="text-xs text-slate-400 truncate">{user.email}</p>
-            </div>
-          </div>
-          <button type="button" onClick={onLogout} className="mt-3 w-full inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium py-2.5 transition-colors cursor-pointer">
-            <LogOut className="w-4 h-4" /> Cerrar sesión
-          </button>
-        </div>
       </aside>
 
       <main className="flex-1 min-w-0 relative">
