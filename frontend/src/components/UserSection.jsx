@@ -21,8 +21,8 @@ export default function UserSection({ user, onLogout }) {
         </div>
       )}
 
-      <h2 className="text-xl font-bold text-slate-900 mb-1">{name || 'Perfil de Usuario'}</h2>
-      <p className="text-sm text-slate-600 mb-6">{email}</p>
+      <h2 className="text-xl font-bold text-slate-900 mb-1 text-center">{name || 'Perfil de Usuario'}</h2>
+      <p className="text-sm text-slate-600 mb-6 text-center">{email}</p>
 
       <button
         onClick={onLogout}
