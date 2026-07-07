@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { getJSON, setJSON } from './lib/safeLocalStorage';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
-import { LogOut, Sparkles, Library, Settings, Home, BookOpen, User } from 'lucide-react';
+import { LogOut, Sparkles, Library, Settings, Home, BookOpen, User, MessageSquare } from 'lucide-react';
 
 import LoginScreen from './components/LoginScreen';
 import usePendingReviewsFlush from './hooks/usePendingReviewsFlush';
@@ -12,6 +12,7 @@ import StudySection from './components/StudySection';
 import LibrarySection from './components/LibrarySection';
 import SettingsSection from './components/SettingsSection';
 import UserSection from './components/UserSection';
+import ChatSection from './components/ChatSection';
 
 const DebugPanel = lazy(() => import('./components/DebugPanel'));
 
@@ -153,7 +154,7 @@ function DashboardScreen({ user, onLogout }) {
           {navItem('home', 'Inicio', Home)}
           {navItem('study', 'Modo Estudio', BookOpen)}
           {navItem('library', 'Biblioteca', Library)}
-          {navItem('settings', 'Ajustes', Settings)}
+          {navItem('chat', 'Chat', MessageSquare)}
         </nav>
 
         <div className="mt-auto pt-5 border-t border-slate-100">
@@ -179,7 +180,7 @@ function DashboardScreen({ user, onLogout }) {
               </span>
               ) : (
               <span className="font-black text-slate-900 tracking-tight text-base block animate-[fadeIn_0.1s_ease]">
-                {tab === 'library' ? 'Biblioteca' : tab === 'home' ? '' : tab === 'study' ? 'Modo de Estudio' : tab === 'usuario' ? 'Perfil' : 'Ajustes'}
+                {tab === 'library' ? 'Biblioteca' : tab === 'home' ? '' : tab === 'study' ? 'Modo de Estudio' : tab === 'usuario' ? 'Perfil' : tab === 'chat' ? 'Chat' : 'Ajustes'}
               </span>
             )}
           </span>
@@ -255,6 +256,8 @@ function DashboardScreen({ user, onLogout }) {
 
           {tab === 'settings' && <SettingsSection userId={user.id} />}
 
+          {tab === 'chat' && <ChatSection userId={user.id} />}
+
           {tab === 'usuario' && (
             <UserSection 
               user={user} 
@@ -269,7 +272,7 @@ function DashboardScreen({ user, onLogout }) {
             { id: 'home', title: 'Inicio', Icon: Home },
             { id: 'study', title: 'Estudio', Icon: BookOpen },
             { id: 'library', title: 'Biblioteca', Icon: Library },
-            { id: 'settings', title: 'Ajustes', Icon: Settings }
+            { id: 'chat', title: 'Chat', Icon: MessageSquare }
           ].map((item) => {
             const isActive = tab === item.id;
             const IconComponent = item.Icon;
