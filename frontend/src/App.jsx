@@ -1,5 +1,5 @@
 // FILE: frontend/src/App.jsx
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { getJSON, setJSON } from './lib/safeLocalStorage';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
@@ -10,6 +10,8 @@ import HomeSection from './components/HomeSection';
 import StudySection from './components/StudySection';
 import LibrarySection from './components/LibrarySection';
 import SettingsSection from './components/SettingsSection';
+
+const DebugPanel = lazy(() => import('./components/DebugPanel'));
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
@@ -264,6 +266,12 @@ function DashboardScreen({ user, onLogout }) {
           })}
         </div>
       </main>
+
+      {/* DebugPanel (lazy-loaded) - rendered only when ?debug=true or in DEV */}
+      <Suspense fallback={null}>
+        <DebugPanel initialUserId={user?.id} initialDeckId={currentDeck?.id} />
+      </Suspense>
+
     </div>
   );
 }
