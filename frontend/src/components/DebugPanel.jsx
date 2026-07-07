@@ -17,6 +17,8 @@ export default function DebugPanel({ initialUserId, initialDeckId } = {}) {
   const [deckId, setDeckId] = useState(initialDeckId || '');
   const [checkResults, setCheckResults] = useState([]);
   const [flushResult, setFlushResult] = useState(null);
+  const [createOrphanResult, setCreateOrphanResult] = useState(null);
+  const [verifyOrphansResult, setVerifyOrphansResult] = useState(null);
 
   const dbg = useDebugLogs({ userId });
 
@@ -52,12 +54,21 @@ export default function DebugPanel({ initialUserId, initialDeckId } = {}) {
       dbg.pushLog({ type: 'action', level: 'error', msg: 'deckId and userId required' });
       return;
     }
-    await dbg.createOrphanSession({ deckId, uid: userId });
+    const res = await dbg.createOrphanSession({ deckId, uid: userId });
+    setCreateOrphanResult(res);
+    if (res && res.ok) {
+      dbg.pushLog({ type: 'action', level: 'info', msg: `createOrphanSession succeeded: ${res.status}` });
+    } else {
+      dbg.pushLog({ type: 'action', level: 'error', msg: `createOrphanSession failed`, meta: res });
+    }
   };
 
   const handleVerifyOrphans = async () => {
     if (!userId) { dbg.pushLog({ type: 'action', level: 'error', msg: 'userId required' }); return; }
-    await dbg.verifyOrphans({ uid: userId });
+    const res = await dbg.verifyOrphans({ uid: userId });
+    setVerifyOrphansResult(res);
+    if (res && res.ok) dbg.pushLog({ type: 'action', level: 'info', msg: `verifyOrphans succeeded`, meta: { count: res.data?.length } });
+    else dbg.pushLog({ type: 'action', level: 'error', msg: `verifyOrphans failed`, meta: res });
   };
 
   const handleSimulateRace = async () => {
@@ -188,6 +199,20 @@ export default function DebugPanel({ initialUserId, initialDeckId } = {}) {
                       <button onClick={() => window.location.reload()} className="px-3 py-1 bg-red-600 rounded">Cerrar abruptamente (reload)</button>
                       <button onClick={handleVerifyOrphans} className="px-3 py-1 bg-zinc-700 rounded">Verificar orphans</button>
                     </div>
+
+                    {createOrphanResult && (
+                      <div className="mb-2 p-2 bg-zinc-800 rounded text-sm text-zinc-200">
+                        <div className="font-bold">Create orphan result</div>
+                        <pre className="whitespace-pre-wrap text-xs mt-1">{JSON.stringify(createOrphanResult, null, 2)}</pre>
+                      </div>
+                    )}
+
+                    {verifyOrphansResult && (
+                      <div className="mb-2 p-2 bg-zinc-800 rounded text-sm text-zinc-200">
+                        <div className="font-bold">Verify orphans result</div>
+                        <pre className="whitespace-pre-wrap text-xs mt-1">{JSON.stringify(verifyOrphansResult, null, 2)}</pre>
+                      </div>
+                    )}
 
                     <div className="text-xs text-zinc-400 mb-2">AbortControllers: <span className={`ml-1 font-bold ${abortBadge ? 'text-emerald-400' : 'text-red-400'}`}>{abortBadge ? 'activo' : 'no detectado'}</span></div>
                   </div>

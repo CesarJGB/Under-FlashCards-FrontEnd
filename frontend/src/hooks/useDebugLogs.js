@@ -279,31 +279,51 @@ export default function useDebugLogs({ userId } = {}) {
   };
 
   const createOrphanSession = async ({ deckId, uid }) => {
+    const fetchFn = originalFetchRef.current || (typeof window !== 'undefined' && window.fetch.bind(window));
+    if (!fetchFn) {
+      pushLog({ type: 'session', level: 'error', msg: 'createOrphanSession: no fetch available' });
+      return { ok: false, error: 'no fetch' };
+    }
     try {
-      const res = await originalFetchRef.current(`${BACKEND_URL}/api/decks/${deckId}/sessions`, {
+      const res = await fetchFn(`${BACKEND_URL}/api/decks/${deckId}/sessions`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: uid })
       });
+      let body = null;
+      try { body = await res.clone().text(); } catch (e) { body = null; }
+      const truncated = truncate(body || '');
       if (res && res.ok) {
-        pushLog({ type: 'session', level: 'info', msg: 'orphan session created', meta: { deckId, userId: uid } });
-      } else pushLog({ type: 'session', level: 'error', msg: `create orphan failed ${res && res.status}` });
+        pushLog({ type: 'session', level: 'info', msg: `orphan session created ${res.status}`, meta: { deckId, userId: uid, body: truncated } });
+        return { ok: true, status: res.status, body };
+      }
+      pushLog({ type: 'session', level: 'error', msg: `create orphan failed ${res && res.status}`, meta: { status: res?.status, body: truncated } });
+      return { ok: false, status: res?.status, body };
     } catch (e) {
       pushLog({ type: 'session', level: 'error', msg: `create orphan error ${e.message}` });
+      return { ok: false, error: e.message };
     }
   };
 
   const verifyOrphans = async ({ uid, minAgeSec = 3600 }) => {
+    const fetchFn = originalFetchRef.current || (typeof window !== 'undefined' && window.fetch.bind(window));
+    if (!fetchFn) {
+      pushLog({ type: 'session', level: 'error', msg: 'verifyOrphans: no fetch available' });
+      return { ok: false, error: 'no fetch' };
+    }
     try {
-      const res = await originalFetchRef.current(`${BACKEND_URL}/api/sessions/orphans?userId=${uid}&minAge=${minAgeSec}`);
+      const res = await fetchFn(`${BACKEND_URL}/api/sessions/orphans?userId=${uid}&minAge=${minAgeSec}`);
+      let text = null;
+      try { text = await res.clone().text(); } catch (e) { text = null; }
+      const truncated = truncate(text || '');
       if (res && res.ok) {
         const data = await res.json();
-        pushLog({ type: 'session', level: 'info', msg: `orphans fetched: ${data.length}`, meta: { count: data.length } });
-        return data;
+        pushLog({ type: 'session', level: 'info', msg: `orphans fetched: ${data.length}`, meta: { count: data.length, body: truncated } });
+        return { ok: true, data };
       }
-      pushLog({ type: 'session', level: 'error', msg: `orphans fetch failed ${res && res.status}` });
-      return null;
+      pushLog({ type: 'session', level: 'error', msg: `orphans fetch failed ${res && res.status}`, meta: { status: res?.status, body: truncated } });
+      return { ok: false, status: res?.status, body: text };
     } catch (e) {
       pushLog({ type: 'session', level: 'error', msg: `orphans verify error ${e.message}` });
-      return null;
+      return { ok: false, error: e.message };
     }
   };
 
