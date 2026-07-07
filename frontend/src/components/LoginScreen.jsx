@@ -4,10 +4,8 @@ import { Sparkles, ChevronUp } from 'lucide-react';
 
 export default function LoginScreen({ onSuccess, onError, error }) {
   const [isExpanded, setIsExpanded] = useState(false);
-  // We use the GoogleLogin component (ID token credential) for compatibility
-  // with the existing backend verification which expects an idToken in
-  // `credential`. The previous useGoogleLogin flow returned access_token/code
-  // and required additional server-side exchange.
+  // Usamos el componente GoogleLogin (credencial ID token) para compatibilidad
+  // con la verificación del backend existente.
 
   const handleGetStarted = () => {
     setIsExpanded(true);
@@ -58,16 +56,12 @@ export default function LoginScreen({ onSuccess, onError, error }) {
       >
         {/* Handle Bar */}
         <div className="flex justify-center pt-4 pb-2">
-          <div className={`
-            w-12 h-1.5 bg-slate-300 rounded-full 
-            transition-transform duration-300
-            ${isExpanded ? 'rotate-0' : ''}
-          `} />
+          <div className="w-12 h-1.5 bg-slate-300 rounded-full" />
         </div>
 
         {/* Render only one state at a time to avoid overlapping text */}
         {!isExpanded ? (
-          <div className={`px-8 pb-8 transition-all duration-300`}>
+          <div className="px-8 pb-8 transition-all duration-300">
             <div className="text-center mb-8">
               <h2 className="text-2xl font-bold text-slate-900 mb-2">
                 ¡Bienvenido!
@@ -88,15 +82,14 @@ export default function LoginScreen({ onSuccess, onError, error }) {
             </p>
           </div>
         ) : (
-          <div className={`px-8 pb-8 transition-all duration-300`}> 
+          <div className="px-8 pb-8 transition-all duration-300"> 
             {/* Header */}
             <div className="text-center mb-8">
               <h2 className="text-3xl font-bold text-slate-900 mb-2">Iniciar Sesión</h2>
               <p className="text-slate-500">Accede con tu cuenta de Google</p>
             </div>
 
-            {/* Google Login Button (uses the official GoogleLogin component to
-                receive an id_token in `credential` which the backend verifies) */}
+            {/* Google Login Button */}
             <div className="w-full flex justify-center" data-testid="google-login-button">
               <GoogleLogin
                 onSuccess={onSuccess}
@@ -128,50 +121,6 @@ export default function LoginScreen({ onSuccess, onError, error }) {
             </div>
           </div>
         )}
-          {/* Header */}
-          <div className="text-center mb-8">
-            <h2 className="text-3xl font-bold text-slate-900 mb-2">
-              Iniciar Sesión
-            </h2>
-            <p className="text-slate-500">
-              Accede con tu cuenta de Google
-            </p>
-          </div>
-
-          {/* Google Login Button (uses the official GoogleLogin component to
-              receive an id_token in `credential` which the backend verifies) */}
-          <div className="w-full flex justify-center" data-testid="google-login-button">
-            <GoogleLogin
-              onSuccess={onSuccess}
-              onError={onError}
-              theme="outline"
-              size="large"
-              shape="pill"
-              text="continue_with"
-              locale="es"
-            />
-          </div>
-
-          {/* Error Message */}
-          {error && (
-            <div className="mt-6 flex items-start gap-3 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl p-4 animate-pulse">
-              <div className="w-5 h-5 rounded-full bg-red-100 flex items-center justify-center shrink-0 mt-0.5">
-                <span className="text-red-600 font-bold text-xs">!</span>
-              </div>
-              <span className="font-medium">{error}</span>
-            </div>
-          )}
-
-          {/* Footer Info */}
-          <div className="mt-8 text-center">
-            <p className="text-xs text-slate-400">
-              ¿Problemas para iniciar sesión?{' '}
-              <button className="text-cyan-600 hover:text-cyan-700 font-semibold underline">
-                Contáctanos
-              </button>
-            </p>
-          </div>
-        </div>
       </div>
     </div>
   );
