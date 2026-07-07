@@ -21,7 +21,7 @@ function DashboardScreen({ user, onLogout }) {
   const [tab, setTab] = useState('home');
   const [homeKey, setHomeKey] = useState(0);
   
-  // 👇 NUEVO: Estado puente para navegación Home → Library
+  // Estado puente para navegación Home → Library
   const [pendingLibraryNav, setPendingLibraryNav] = useState(null);
 
   const [decks, setDecks] = useState(() => getJSON(`decks_${user.id}`) || []);
@@ -71,14 +71,13 @@ function DashboardScreen({ user, onLogout }) {
     const controller = new AbortController();
     const signal = controller.signal;
 
-    // call with signal so fetches can be aborted on cleanup
     loadDecks(false, signal);
     loadMaterias(false, signal);
 
     return () => controller.abort();
   }, [loadDecks, loadMaterias]);
 
-  // 👇 NUEVO: Handler de navegación profunda a librería desde Home
+  // Handler de navegación profunda a librería desde Home
   const handleNavigateToLibraryPath = useCallback((path) => {
     setPendingLibraryNav(path);
     setCurrentDeck(null);
@@ -90,11 +89,9 @@ function DashboardScreen({ user, onLogout }) {
     if (id === 'library') {
       setCurrentDeck(null);
       setInitialMode('edit');
-      // 👇 Limpiar nav pendiente si el usuario navega manualmente a library
       setPendingLibraryNav(null);
     }
     
-    // Forzar remount del Home cuando se cambia a esa tab
     if (id === 'home') {
       setHomeKey(prev => prev + 1);
     }
@@ -206,7 +203,7 @@ function DashboardScreen({ user, onLogout }) {
               decks={decks} 
               materias={materias}
               onOpenReview={handleOpenReviewFromHome}
-              onNavigateToLibrary={handleNavigateToLibraryPath} // 👈 NUEVO
+              onNavigateToLibrary={handleNavigateToLibraryPath}
               onLogout={onLogout}
               loadDecks={loadDecks}
               loadMaterias={loadMaterias}
@@ -239,15 +236,16 @@ function DashboardScreen({ user, onLogout }) {
               initialMode={initialMode}
               setInitialMode={setInitialMode}
               onExitToStudy={handleExitToStudy}
-              pendingNav={pendingLibraryNav}               // 👈 NUEVO
-              clearPendingNav={() => setPendingLibraryNav(null)} // 👈 NUEVO
+              pendingNav={pendingLibraryNav}
+              clearPendingNav={() => setPendingLibraryNav(null)}
             />
           )}
 
           {tab === 'settings' && <SettingsSection userId={user.id} />}
         </div>
 
-        <div className="md:hidden fixed bottom-5 inset-x-4 max-w-xs mx-auto bg-white/85 backdrop-blur-xl border border-slate-200/60 h-14 rounded-full px-1.5 flex justify-between items-center z-40 shadow-[0_8px_30px_rgb(0,0,0,0.08)] animate-[slideUp_0.2s_ease-out]">
+        {/* 👇 NUEVO MENÚ DE NAVEGACIÓN MÓVIL INTEGRADO 👇 */}
+        <div className="md:hidden fixed bottom-6 inset-x-4 max-w-sm mx-auto bg-white/90 backdrop-blur-2xl border border-slate-200/50 h-16 rounded-3xl px-2 flex justify-between items-center z-40 shadow-[0_10px_40px_rgba(0,0,0,0.12)] animate-[slideUp_0.25s_ease-out]">
           {[
             { id: 'home', title: 'Inicio', Icon: Home },
             { id: 'study', title: 'Estudio', Icon: BookOpen },
@@ -261,14 +259,21 @@ function DashboardScreen({ user, onLogout }) {
               <button
                 key={item.id}
                 onClick={() => handleTabChange(item.id)}
-                className={`h-10 flex items-center justify-center transition-all duration-200 rounded-full relative flex-1 cursor-pointer active:scale-[0.96] ${
+                className={`h-12 flex flex-col items-center justify-center gap-0.5 transition-all duration-300 rounded-2xl relative flex-1 cursor-pointer active:scale-95 ${
                   isActive 
-                    ? 'bg-slate-900 text-white font-bold px-4 shadow-2xs' 
-                    : 'text-slate-400 hover:text-slate-600 px-2'
+                    ? 'bg-gradient-to-br from-slate-800 to-slate-900 text-white shadow-lg shadow-slate-900/20' 
+                    : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50/50'
                 }`}
                 title={item.title}
               >
-                <IconComponent className={`w-4 h-4 transition-transform duration-200 ${isActive ? 'scale-105 stroke-[2.3]' : 'stroke-[1.8]'}`} />
+                <IconComponent className={`w-5 h-5 transition-all duration-300 ${
+                  isActive ? 'scale-110 stroke-[2.5]' : 'stroke-[1.8]'
+                }`} />
+                <span className={`text-[10px] font-semibold transition-all duration-300 ${
+                  isActive ? 'opacity-100' : 'opacity-0 text-[9px]'
+                }`}>
+                  {item.title}
+                </span>
               </button>
             );
           })}
@@ -290,11 +295,6 @@ function FlashcardsApp() {
   const [user, setUser] = useState(null);
   const [error, setError] = useState('');
 
-  // Flush pending reviews on app load / when network recovers
-  // This will attempt to send any queued reviews stored in safeLocalStorage
-  // without requiring the SessionPlayer to be mounted.
-  // Import lazy to avoid bundle bloat; hook is lightweight.
-  // Note: we don't pass a pushLog here (optional), the hook logs to console.
   usePendingReviewsFlush(user?.id);
 
   const handleSuccess = async (credentialResponse) => {
