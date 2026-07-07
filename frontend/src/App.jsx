@@ -280,6 +280,13 @@ function FlashcardsApp() {
   const [user, setUser] = useState(null);
   const [error, setError] = useState('');
 
+  // Flush pending reviews on app load / when network recovers
+  // This will attempt to send any queued reviews stored in safeLocalStorage
+  // without requiring the SessionPlayer to be mounted.
+  // Import lazy to avoid bundle bloat; hook is lightweight.
+  // Note: we don't pass a pushLog here (optional), the hook logs to console.
+  usePendingReviewsFlush(user?.id);
+
   const handleSuccess = async (credentialResponse) => {
     setError('');
     const credential = credentialResponse?.credential;
