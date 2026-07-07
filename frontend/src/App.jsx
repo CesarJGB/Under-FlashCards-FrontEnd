@@ -194,6 +194,17 @@ function DashboardScreen({ user, onLogout }) {
               <User className="w-4 h-4" />
             </button>
           )}
+
+          {tab === 'usuario' && (
+            <button
+              type="button"
+              onClick={() => handleTabChange('settings')}
+              className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg transition-colors shrink-0 animate-[fadeIn_0.12s_ease] cursor-pointer"
+              title="Ajustes"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
+          )}
         </div>
 
         <div className="max-w-5xl mx-auto px-4 py-4 pb-24 md:pb-8 md:px-6 md:py-8">
