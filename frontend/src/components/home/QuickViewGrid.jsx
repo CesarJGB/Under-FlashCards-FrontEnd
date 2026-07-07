@@ -17,7 +17,6 @@ export default function QuickViewGrid({
   const [selectedMaterias, setSelectedMaterias] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
-  const [isSyncing, setIsSyncing] = useState(false);
   
   // Ref para evitar race conditions en desmontaje
   const isMounted = useRef(true);
@@ -50,7 +49,6 @@ export default function QuickViewGrid({
       }
 
       // 3. Sincronización silenciosa en background
-      if (isMounted.current) setIsSyncing(true);
       
       // Cancelar request anterior si existe
       if (abortController.current) abortController.current.abort();
@@ -82,7 +80,6 @@ export default function QuickViewGrid({
       } finally {
         if (isMounted.current) {
           setIsInitialLoad(false);
-          setIsSyncing(false);
         }
       }
     };
@@ -194,10 +191,7 @@ export default function QuickViewGrid({
         <h2 className="text-sm font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-2">
           <Layers className="w-4 h-4 text-indigo-500" />
           Vista Rápida de Asignaturas
-          {/* Indicador sutil de sync en background */}
-          {isSyncing && (
-            <div className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse" />
-          )}
+          {/* Indicador sutil de sync eliminado (sin UI). Sincronización en background sigue funcionando. */}
         </h2>
         
         <button 
