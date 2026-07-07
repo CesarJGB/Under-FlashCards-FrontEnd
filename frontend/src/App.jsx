@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { getJSON, setJSON } from './lib/safeLocalStorage';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
-import { LogOut, Sparkles, Library, Settings, Home, BookOpen } from 'lucide-react';
+import { LogOut, Sparkles, Library, Settings, Home, BookOpen, User } from 'lucide-react';
 
 import LoginScreen from './components/LoginScreen';
 import usePendingReviewsFlush from './hooks/usePendingReviewsFlush';
@@ -11,6 +11,7 @@ import HomeSection from './components/HomeSection';
 import StudySection from './components/StudySection';
 import LibrarySection from './components/LibrarySection';
 import SettingsSection from './components/SettingsSection';
+import UserSection from './components/UserSection';
 
 const DebugPanel = lazy(() => import('./components/DebugPanel'));
 
@@ -176,21 +177,21 @@ function DashboardScreen({ user, onLogout }) {
               <span className="font-black text-slate-900 text-base border-l-4 border-slate-900 pl-2.5 block truncate">
                 {currentDeck.title}
               </span>
-            ) : (
+              ) : (
               <span className="font-black text-slate-900 tracking-tight text-base block animate-[fadeIn_0.1s_ease]">
-                {tab === 'library' ? 'Biblioteca' : tab === 'home' ? 'Inicio' : tab === 'study' ? 'Modo de Estudio' : 'Ajustes'}
+                {tab === 'library' ? 'Biblioteca' : tab === 'home' ? '' : tab === 'study' ? 'Modo de Estudio' : tab === 'usuario' ? 'Perfil' : 'Ajustes'}
               </span>
             )}
           </span>
 
           {tab === 'home' && (
-            <button 
+            <button
               type="button"
-              onClick={onLogout} 
-              className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50/50 rounded-lg transition-colors shrink-0 animate-[fadeIn_0.12s_ease] cursor-pointer"
-              title="Cerrar sesión"
+              onClick={() => handleTabChange('usuario')}
+              className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg transition-colors shrink-0 animate-[fadeIn_0.12s_ease] cursor-pointer"
+              title="Perfil de usuario"
             >
-              <LogOut className="w-4 h-4" />
+              <User className="w-4 h-4" />
             </button>
           )}
         </div>
@@ -242,6 +243,13 @@ function DashboardScreen({ user, onLogout }) {
           )}
 
           {tab === 'settings' && <SettingsSection userId={user.id} />}
+
+          {tab === 'usuario' && (
+            <UserSection 
+              user={user} 
+              onLogout={onLogout} 
+            />
+          )}
         </div>
 
         {/* 👇 NUEVO MENÚ DE NAVEGACIÓN MÓVIL OPTIMIZADO 👇 */}
