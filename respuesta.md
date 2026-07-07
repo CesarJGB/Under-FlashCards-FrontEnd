@@ -1,88 +1,59 @@
-Resumen: cambios aplicados y explicación técnica
+Revisión: useMemo y domainPreviews en HomeSection.jsx
 
-Objetivo
-- Eliminar el parpadeo mínimo (flicker) al cambiar activeParciales y volver al Home, y evitar condiciones de carrera entre fetches concurrentes sin introducir memory leaks.
+Resumen corto
+- Sí: usar `domainPreviews` directamente como dependencia del `useMemo` que calcula `enrichedMaterias` puede provocar recomputaciones innecesarias si el objeto cambia de referencia aunque sus valores relevantes sean iguales.
+- En el código actual ya hay protecciones (evitas muchos `setDomainPreviews` redundantes), pero endurecer la dependencia evita re-renders/recomputations cuando la referencia cambia sin cambios de valor.
 
-Cambios principales implementados
+Por qué ocurre
+- React compara dependencias por referencia (shallow equality). Si `domainPreviews` es un objeto nuevo (nueva referencia), el `useMemo` se volverá a ejecutar aunque su contenido no haya cambiado.
 
-1) frontend/src/components/LibrarySection.jsx — invalidación selectiva + prefetch
-- Al cambiar activeParciales ahora:
-  - Actualizamos inmediatamente el estado `materias` y su copia en localStorage.
-  - Hacemos un prefetch del nuevo `/api/academic/materias/:id/domain-preview?parciales=...`.
-    - Si el prefetch responde OK, escribimos el `preview` en la caché local `domainPreviews_{userId}` (merge) y disparamos un evento global `domainPreviews:update` con detail { userId, materiaId, preview }.
-    - Si el prefetch falla, eliminamos la entrada correspondiente en `domainPreviews_{userId}` (si existía) y disparamos `domainPreviews:invalidate` con detail { userId, materiaId }.
+Recomendación práctica (mínimo cambio, alto beneficio)
+- Calcular una "huella" (string) que represente únicamente los valores de mastery que consumirá `enrichedMaterias`. Usar esa huella como dependencia del `useMemo` en lugar del objeto completo.
 
-Código relevante (resumen):
-
-```js
-// después de setMaterias(updated)
-const res = await fetch(`${BACKEND_URL}/api/academic/materias/${id}/domain-preview?parciales=${newActive.join(',')}`);
-if (res.ok) {
-  const data = await res.json();
-  cached[id] = { mastery: data.mastery, parciales: data.parciales, timestamp: Date.now(), metrics: data.metrics };
-  localStorage.setItem(key, JSON.stringify(cached));
-  window.dispatchEvent(new CustomEvent('domainPreviews:update', { detail: { userId, materiaId: id, preview: cached[id] }}));
-} else {
-  delete cached[id];
-  localStorage.setItem(key, JSON.stringify(cached));
-  window.dispatchEvent(new CustomEvent('domainPreviews:invalidate', { detail: { userId, materiaId: id }}));
-}
-```
-
-2) frontend/src/components/HomeSection.jsx — requestSeq + controller por petición + listeners
-- Añadí `const requestSeq = useRef(0)` y, en cada ejecución de `fetchDomainPreviews`, incremento y capturo `myRequestId`.
-- Creo un AbortController por ejecución (`const controller = new AbortController()`), lo asigno a `abortController.current`, y uso `controller.signal` en los fetches.
-- Tras completar `Promise.all`, guardo en localStorage y actualizo `domainPreviews` solo si `requestSeq.current === myRequestId` y `isMounted.current` es true. Esto evita sobrescrituras por respuestas tardías.
-- Limpio `abortController.current = null` si sigue apuntando al controller local y en el cleanup del `useEffect` abortamos y seteamos `abortController.current = null`.
-- Añadí listeners para `domainPreviews:update` y `domainPreviews:invalidate` que actualizan el estado en memoria de `domainPreviews` inmediatamente (o eliminan la entrada). Los listeners se agregan y remueven en useEffect, evitando leaks.
-
-Código relevante (resumen):
+Implementación sugerida
+1) Añadir antes del `useMemo` que genera `enrichedMaterias`:
 
 ```js
-const myRequestId = ++requestSeq.current;
-if (abortController.current) abortController.current.abort();
-const controller = new AbortController();
-abortController.current = controller;
-
-// usar controller.signal en los fetches
-
-// después de Promise.all:
-if (hasChanges && isMounted.current && requestSeq.current === myRequestId) {
-  localStorage.setItem(`domainPreviews_${user.id}`, JSON.stringify(results));
-  setDomainPreviews(/* ... */);
-}
-
-if (abortController.current === controller) abortController.current = null;
-
-// cleanup useEffect:
-if (abortController.current) { abortController.current.abort(); abortController.current = null; }
+const domainPreviewsKey = useMemo(() => {
+  if (!materias) return '';
+  return materias.map(m => {
+    const id = String(m._id || m.id || '');
+    const ap = m.activeParciales || [1,2,3];
+    const isFiltered = ap.length > 0 && ap.length < 3;
+    const mastery = isFiltered && typeof domainPreviews[id] === 'number'
+      ? domainPreviews[id]
+      : (m.analytics?.masteryPercentage ?? 0);
+    return `${id}:${mastery}`;
+  }).join('|');
+}, [materias, domainPreviews]);
 ```
 
-Por qué el parpadeo persistía antes
-- La invalidación selectiva sola elimina la entrada en localStorage, pero HomeSection sigue mostrando la información en memoria hasta que el fetch de refresco termina y actualiza `domainPreviews`. Ese pequeño lapso provoca el parpadeo.
+2) Cambiar la dependencia del `useMemo` de
 
-Por qué la solución nueva reduce/elimina el parpadeo
-- Prefetch: la sección que realiza el cambio obtiene el nuevo preview antes de volver al Home y lo escribe en la caché; así al volver, Home lee/cache en memoria el valor nuevo (o recibe el evento para actualizar en memoria inmediatamente).
-- Event dispatch: Home escucha el evento y actualiza su estado en memoria inmediatamente, sin esperar a que el fetch global vuelva a correr.
-- requestSeq + controller por petición: evita que respuestas antiguas sobrescriban valores más nuevos.
+```js
+}, [materias, decks, domainPreviews]);
+```
 
-Riesgo de memory leaks y condición de carrera — estado actual
-- Memory leak: no hay evidencia de fuga. Los listeners se registran/remueven, AbortControllers se limpian y `isMounted` evita setState tras unmount.
-- Condición de carrera: mitigada por `requestSeq` y el uso de controller local; ahora una respuesta tardía no podrá sobrescribir datos más recientes.
+a
 
-Costes y trade-offs
-- Prefetch añade una llamada extra al backend por cada cambio de parciales; si los usuarios hacen toggles rápidos conviene debouncear la acción (100–300ms) o agregar dedup en servidor.
-- Event-based sync es una solución simple y eficaz entre secciones del cliente, pero introduce dependencia de eventos globales; está encapsulado y removido correctamente en los cleanup.
+```js
+}, [materias, decks, domainPreviewsKey]);
+```
 
-Recomendaciones siguientes
-1. Debounce en LibrarySection para evitar ráfagas cuando el usuario pulsa varias veces rápido.
-2. Añadir tests (unit + integration) que simulen respuestas fuera de orden y verifiquen que no hay sobrescrituras.
-3. Considerar cálculo optimista en cliente (si se pueden derivar métricas localmente) para eliminar llamadas al servidor.
+Por qué esto funciona
+- `domainPreviewsKey` reproducirá la misma string cuando los mastery por materia no cambien, incluso si `domainPreviews` cambia de referencia. Así `useMemo` no se recomputa salvo cambios reales en los valores usados.
 
-Estado actual (commits + build)
-- Implementación hecha y commiteada. Build de `frontend` pasó correctamente con Vite (advertencia sobre chunks grandes, no bloqueante).
+Coste
+- Construir la huella implica iterar `materias` una vez; normalmente es más barato que volver a computar todo `enrichedMaterias` (que hace filtros y reducciones). Si tienes muchas materias/decks, se puede optimizar (ver abajo).
 
-¿Quieres que implemente un debounce corto (100–250ms) en el prefetch para reducir la carga en el backend en caso de toggles rápidos? 
+Mejoras adicionales recomendadas
+- Agrupar `decks` por `materiaId` en un `useMemo` (de modo que cada materia no haga `decks.filter(...)` repetidamente). Esto cambia la complejidad de O(M*N) a O(M+N).
+- Si el número de materias es muy grande, limitar la huella a materias "activas" o filtradas para reducir trabajo.
+- Alternativa: usar una comparación deep-equals custom entre el `prev` y el `next` de `domainPreviews` antes de permitir que cambie la referencia, aunque esto tiende a ser más costoso que generar la huella.
+
+¿Quieres que aplique estos cambios ahora?
+- Puedo implementar solo la huella (`domainPreviewsKey`) y actualizar las dependencias del `useMemo` (cambio pequeño). 
+- O puedo además implementar `decksByMateria` memoizado para mejorar rendimiento si hay muchos decks.
 
 // definiciones a nivel de componente
 const isMounted = useRef(true);
