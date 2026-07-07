@@ -157,11 +157,7 @@ function DashboardScreen({ user, onLogout }) {
             className="ml-auto p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg transition-colors shrink-0 cursor-pointer"
             title="Perfil de usuario"
           >
-          {user?.picture ? (
-              <img src={user.picture} alt={user.name || user.email} referrerPolicy="no-referrer" className="w-7 h-7 rounded-full object-cover" />
-            ) : (
-              <User className="w-5 h-5" />
-            )}
+            <User className="w-5 h-5" />
           </button>
 
         </div>
@@ -265,6 +261,7 @@ function DashboardScreen({ user, onLogout }) {
             <UserSection 
               user={user} 
               onLogout={onLogout} 
+              onOpenSettings={() => handleTabChange('settings')}
             />
           )}
         </div>

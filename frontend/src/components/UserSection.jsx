@@ -1,13 +1,28 @@
 import React from 'react';
-import { LogOut } from 'lucide-react';
+import { LogOut, Settings } from 'lucide-react';
 
-export default function UserSection({ user, onLogout }) {
+export default function UserSection({ user, onLogout, onOpenSettings }) {
   const name = user?.name || user?.given_name || '';
   const email = user?.email || '';
   const picture = user?.picture || '';
 
   return (
-    <div className="flex flex-col items-center justify-center h-full p-6">
+    <div className="relative w-full">
+      {/* Settings button visible on desktop inside the User page */}
+      {onOpenSettings && (
+        <div className="hidden md:block absolute top-4 right-4">
+          <button
+            type="button"
+            onClick={onOpenSettings}
+            title="Ajustes"
+            className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg transition-colors"
+          >
+            <Settings className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      <div className="flex flex-col items-center justify-center h-full p-6">
       {picture ? (
         <img
           src={picture}
@@ -30,6 +45,7 @@ export default function UserSection({ user, onLogout }) {
       >
         <LogOut className="w-4 h-4" /> Cerrar sesión
       </button>
+      </div>
     </div>
   );
 }
