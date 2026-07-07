@@ -10,9 +10,9 @@ Detalles por archivo
   - Al cambiar `activeParciales` ahora:
     - Actualizamos inmediatamente el estado `materias` y su copia en `localStorage`.
     - Hacemos un prefetch a `/api/academic/materias/:id/domain-preview?parciales=...`.
-      - Si responde OK: escribimos el `preview` (mastery, parciales, timestamp, metrics) en `localStorage` bajo `domainPreviews_{userId}` (merge) y disparamos un evento global `domainPreviews:update` con `{ userId, materiaId, preview }`.
-      - Si falla: eliminamos la entrada correspondiente en `domainPreviews_{userId}` (si existía) y disparamos `domainPreviews:invalidate` con `{ userId, materiaId }`.
-    - Si por cualquier motivo el prefetch falla, la caché se invalida para forzar refetch en background desde Home.
+      - Si responde OK: escribimos el `preview` reducido (mastery, parciales, timestamp) en `localStorage` bajo `domainPreviews_{userId}` (merge) usando `safeLocalStorage.setJSON`, y disparamos un evento global `domainPreviews:update` con `{ userId, materiaId, preview }`.
+      - Si falla: eliminamos la entrada correspondiente en `domainPreviews_{userId}` (si existía) usando `safeLocalStorage.setJSON` y disparamos `domainPreviews:invalidate` con `{ userId, materiaId }`.
+    - Si por cualquier motivo el prefetch falla, la caché se invalida para forzar refetch en background desde Home; además se mantiene un fallback en memoria (safeLocalStorage).
 
 - frontend/src/components/HomeSection.jsx
   - Evitar sobrescrituras por respuestas fuera de orden:
@@ -31,6 +31,17 @@ Detalles por archivo
   - `decksByMateria` (useMemo): agrupa los mazos por `materiaId` para evitar hacer `decks.filter(...)` repetidamente dentro del map de materias (mejora la complejidad de O(M*N) a O(M+N)).
   - `domainPreviewsKey` (useMemo): `JSON.stringify(domainPreviews)` como huella estable para detectar cambios reales en los valores usados por `enrichedMaterias`.
   - El `useMemo` que construye `enrichedMaterias` ahora depende de `domainPreviewsKey` y usa `decksByMateria[currentMateriaId]`.
+
+SafeLocalStorage
+- Se agregó `frontend/src/lib/safeLocalStorage.js` con `getJSON`, `setJSON` y `remove`, que:
+  - Maneja JSON.parse corrupto (elimina la clave corrupta y devuelve fallback en memoria).
+  - Captura `QuotaExceededError` y cae a un fallback en memoria (Map).
+  - Mantiene una copia en memoria sincronizada para permitir continuidad cuando `localStorage` no está disponible.
+
+Aplicaciones del helper
+- App.jsx: ahora usa `getJSON` para inicializar `decks` y `materias` (evita crash en render por JSON corrupto).
+- HomeSection.jsx: ahora persiste `domainPreviews` con `setJSON`.
+- LibrarySection.jsx: usa `setJSON` para persistir previews (payload reducido) y para invalidaciones.
 
 Otros cambios
 - Se actualizaron y añadieron handlers para invalidación selectiva y prefetch en LibrarySection.
