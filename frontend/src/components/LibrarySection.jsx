@@ -13,7 +13,7 @@ import TemasLevel from './library/TemasLevel';
 import SubtemasLevel from './library/SubtemasLevel';
 import AcademicFolderModal from './library/AcademicFolderModal';
 import SearchResults from './library/SearchResults';
-import { setJSON } from '../lib/safeLocalStorage';
+import { getJSON, setJSON, remove } from '../lib/safeLocalStorage';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 const ADMIN_EMAIL = "cesarjaviervebe@gmail.com"; 
@@ -97,10 +97,10 @@ export default function LibrarySection({
       if (!res.ok) return alert((await res.json()).error || 'Ocurrió un error.');
       const saved = await res.json();
 
-      if (academicModal.type === 'materia') {
+        if (academicModal.type === 'materia') {
         const nextMaterias = [...materias, saved].sort((a, b) => a.name.localeCompare(b.name));
         setMaterias(nextMaterias);
-        localStorage.setItem(`materias_${userId}`, JSON.stringify(nextMaterias));
+        setJSON(`materias_${userId}`, nextMaterias);
       } else if (academicModal.type === 'tema') {
         setTemas((prev) => [...prev, saved].sort((a, b) => a.name.localeCompare(b.name)));
       } else if (academicModal.type === 'subtema') {
@@ -130,11 +130,11 @@ export default function LibrarySection({
       const updated = await res.json();
 
       // Actualizar estado local según tipo
-      if (type === 'materia') {
+        if (type === 'materia') {
         const nextMaterias = materias.map(m => m._id === updated._id ? { ...m, ...updated } : m)
           .sort((a, b) => a.name.localeCompare(b.name));
         setMaterias(nextMaterias);
-        localStorage.setItem(`materias_${userId}`, JSON.stringify(nextMaterias));
+        setJSON(`materias_${userId}`, nextMaterias);
       } else if (type === 'tema') {
         setTemas(prev => prev.map(t => t._id === updated._id ? { ...t, ...updated } : t)
           .sort((a, b) => a.name.localeCompare(b.name)));
@@ -158,10 +158,10 @@ export default function LibrarySection({
       const res = await fetch(`${BACKEND_URL}/api/academic/${type}s/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error();
       
-      if (type === 'materia') {
+        if (type === 'materia') {
         const nextMaterias = materias.filter(m => m._id !== id);
         setMaterias(nextMaterias);
-        localStorage.setItem(`materias_${userId}`, JSON.stringify(nextMaterias));
+        setJSON(`materias_${userId}`, nextMaterias);
         if (currentPath.materiaId === id) handleResetPath();
       } else if (type === 'tema') setTemas(prev => prev.filter(t => t._id !== id));
       else if (type === 'subtema') {
@@ -175,7 +175,7 @@ export default function LibrarySection({
   const handleDeckMutation = async (deckId, endpoint, bodyPayload, updateFields) => {
     const updatedDecks = decks.map((d) => d.id === deckId ? { ...d, ...updateFields } : d);
     setDecks(updatedDecks);
-    localStorage.setItem(`decks_${userId}`, JSON.stringify(updatedDecks));
+    setJSON(`decks_${userId}`, updatedDecks);
     try {
       await fetch(`${BACKEND_URL}/api/decks/${deckId}/${endpoint}`, {
         method: 'PUT',
@@ -207,7 +207,7 @@ export default function LibrarySection({
     
     const nextDecks = editing ? decks.map((d) => d.id === saved.id ? { ...d, ...saved } : d) : [saved, ...decks];
     setDecks(nextDecks);
-    localStorage.setItem(`decks_${userId}`, JSON.stringify(nextDecks));
+    setJSON(`decks_${userId}`, nextDecks);
     setModal(null);
   };
 
@@ -217,7 +217,7 @@ export default function LibrarySection({
       await fetch(`${BACKEND_URL}/api/decks/${deck.id}`, { method: 'DELETE' });
       const nextDecks = decks.filter((d) => d.id !== deck.id);
       setDecks(nextDecks);
-      localStorage.setItem(`decks_${userId}`, JSON.stringify(nextDecks));
+      setJSON(`decks_${userId}`, nextDecks);
     } catch {}
   };
 
@@ -331,14 +331,13 @@ export default function LibrarySection({
                     (m._id || m.id) === materiaId ? { ...m, activeParciales: newActive } : m
                   );
                   setMaterias(updated);
-                  localStorage.setItem(`materias_${userId}`, JSON.stringify(updated));
+                  setJSON(`materias_${userId}`, updated);
 
                   // 2) Prefetch del nuevo domain-preview para evitar parpadeo
                   // Intentamos obtener el nuevo preview y escribirlo en la caché local; si falla, invalidamos la entrada
                   try {
                     const key = `domainPreviews_${userId}`;
-                    const cachedRaw = localStorage.getItem(key);
-                    const cached = cachedRaw ? JSON.parse(cachedRaw) : {};
+                    const cached = getJSON(key) || {};
                     const id = String(materiaId);
 
                     const res = await fetch(
@@ -379,7 +378,7 @@ export default function LibrarySection({
                     // Falla de red o parsing: invalidar la entrada y notificar
                     try {
                       const key = `domainPreviews_${userId}`;
-                      const cached = JSON.parse(localStorage.getItem(key) || '{}');
+                      const cached = getJSON(key) || {};
                       const id = String(materiaId);
                       if (cached[id]) {
                         delete cached[id];

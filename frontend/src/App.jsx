@@ -1,6 +1,6 @@
 // FILE: frontend/src/App.jsx
 import { useState, useEffect, useCallback } from 'react';
-import { getJSON } from './lib/safeLocalStorage';
+import { getJSON, setJSON } from './lib/safeLocalStorage';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
 import { LogOut, Sparkles, Library, Settings, Home, BookOpen } from 'lucide-react';
@@ -26,8 +26,8 @@ function DashboardScreen({ user, onLogout }) {
   const [materias, setMaterias] = useState(() => getJSON(`materias_${user.id}`) || []);
 
   const [loading, setLoading] = useState(() => {
-    const cachedDecks = localStorage.getItem(`decks_${user.id}`);
-    const cachedMaterias = localStorage.getItem(`materias_${user.id}`);
+    const cachedDecks = getJSON(`decks_${user.id}`);
+    const cachedMaterias = getJSON(`materias_${user.id}`);
     return !cachedDecks || !cachedMaterias;
   });
 
@@ -41,7 +41,7 @@ function DashboardScreen({ user, onLogout }) {
       if (!res.ok) throw new Error();
       const data = await res.json();
       setDecks(data);
-      localStorage.setItem(`decks_${user.id}`, JSON.stringify(data));
+      setJSON(`decks_${user.id}`, data);
     } catch {
       /* fallback silencioso a caché local */
     } finally {
@@ -56,7 +56,7 @@ function DashboardScreen({ user, onLogout }) {
       if (!res.ok) throw new Error();
       const data = await res.json();
       setMaterias(data);
-      localStorage.setItem(`materias_${user.id}`, JSON.stringify(data));
+      setJSON(`materias_${user.id}`, data);
     } catch {
       /* fallback silencioso a caché local */
     } finally {

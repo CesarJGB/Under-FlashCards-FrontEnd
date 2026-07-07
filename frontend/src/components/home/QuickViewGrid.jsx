@@ -5,6 +5,7 @@ import MateriaSelectorModal from './MateriaSelectorModal';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos
+import { getJSON, setJSON } from '../../lib/safeLocalStorage';
 
 export default function QuickViewGrid({ 
   enrichedMaterias, 
@@ -31,20 +32,15 @@ export default function QuickViewGrid({
 
     const loadPreferences = async () => {
       // 1. Cargar desde localStorage INMEDIATAMENTE (sin spinner)
-      const cached = localStorage.getItem(`quickView_materias_${userId}`);
-      const cachedTimestamp = localStorage.getItem(`quickView_materias_${userId}_ts`);
-      
-      if (cached) {
-        try {
-          const parsed = JSON.parse(cached);
-          if (isMounted.current) setSelectedMaterias(parsed);
-        } catch {
-          // Caché corrupto, ignorar
-        }
-      }
+    const cached = getJSON(`quickView_materias_${userId}`);
+    const cachedTimestamp = getJSON(`quickView_materias_${userId}_ts`);
 
-      // 2. Decidir si necesitamos sincronizar con backend
-      const cacheAge = cachedTimestamp ? Date.now() - Number(cachedTimestamp) : Infinity;
+    if (cached) {
+      if (isMounted.current) setSelectedMaterias(cached);
+    }
+
+    // 2. Decidir si necesitamos sincronizar con backend
+    const cacheAge = cachedTimestamp ? Date.now() - Number(cachedTimestamp) : Infinity;
       const needsSync = cacheAge > CACHE_TTL_MS;
 
       if (!needsSync) {
@@ -74,8 +70,8 @@ export default function QuickViewGrid({
           // Actualizar estado solo si cambió (evita re-render innecesario)
           setSelectedMaterias(prev => {
             if (JSON.stringify(prev) === JSON.stringify(serverMaterias)) return prev;
-            localStorage.setItem(`quickView_materias_${userId}`, JSON.stringify(serverMaterias));
-            localStorage.setItem(`quickView_materias_${userId}_ts`, String(Date.now()));
+            setJSON(`quickView_materias_${userId}`, serverMaterias);
+            setJSON(`quickView_materias_${userId}_ts`, Date.now());
             return serverMaterias;
           });
         }
@@ -106,8 +102,8 @@ export default function QuickViewGrid({
     if (!userId) return;
 
     // Actualizar localStorage INMEDIATAMENTE + timestamp
-    localStorage.setItem(`quickView_materias_${userId}`, JSON.stringify(materiasIds));
-    localStorage.setItem(`quickView_materias_${userId}_ts`, String(Date.now()));
+    setJSON(`quickView_materias_${userId}`, materiasIds);
+    setJSON(`quickView_materias_${userId}_ts`, Date.now());
 
     // Sincronización silenciosa en background (sin UI de "saving")
     try {
@@ -280,4 +276,3 @@ export default function QuickViewGrid({
     </div>
   );
 }
-

@@ -4,7 +4,7 @@ import GlobalStatsHeader from './home/GlobalStatsHeader';
 import QuickViewGrid from './home/QuickViewGrid';
 import DetailedMateriasGrid from './home/DetailedMateriasGrid';
 import UnclassifiedDecksSection from './home/UnclassifiedDecksSection';
-import { setJSON } from '../lib/safeLocalStorage';
+import { getJSON, setJSON, remove } from '../lib/safeLocalStorage';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 const DOMAIN_PREVIEWS_TTL_MS = 15 * 60 * 1000; // 15 minutos
@@ -106,11 +106,10 @@ export default function HomeSection({
   const [domainPreviews, setDomainPreviews] = useState(() => {
     if (!user?.id) return {};
     
-    const cached = localStorage.getItem(`domainPreviews_${user.id}`);
-    if (!cached) return {};
+    const parsed = getJSON(`domainPreviews_${user.id}`);
+    if (!parsed) return {};
     
     try {
-      const parsed = JSON.parse(cached);
       
       // Validar estructura y extraer solo los valores de mastery
       if (typeof parsed === 'object' && parsed !== null) {
@@ -131,7 +130,7 @@ export default function HomeSection({
       }
     } catch {
       // Caché corrupto, limpiar y retornar vacío
-      localStorage.removeItem(`domainPreviews_${user.id}`);
+      remove(`domainPreviews_${user.id}`);
     }
     return {};
   });
@@ -156,15 +155,7 @@ export default function HomeSection({
     }
 
     // 1. Leer caché actual
-    let cachedPreviews = {};
-    const cached = localStorage.getItem(`domainPreviews_${user.id}`);
-    if (cached) {
-      try {
-        cachedPreviews = JSON.parse(cached);
-      } catch {
-        cachedPreviews = {};
-      }
-    }
+    let cachedPreviews = getJSON(`domainPreviews_${user.id}`) || {};
 
     // 2. Determinar qué materias necesitan fetch
     const needsFetch = filtered.filter(m => {
