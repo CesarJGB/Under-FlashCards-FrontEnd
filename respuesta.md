@@ -1,100 +1,115 @@
-Revisión: useMemo y domainPreviews en HomeSection.jsx
+Riesgos de localStorage en móvil y cómo mitigarlos
 
 Resumen corto
-- Sí: usar `domainPreviews` directamente como dependencia del `useMemo` que calcula `enrichedMaterias` puede provocar recomputaciones innecesarias si el objeto cambia de referencia aunque sus valores relevantes sean iguales.
-- En el código actual ya hay protecciones (evitas muchos `setDomainPreviews` redundantes), pero endurecer la dependencia evita re-renders/recomputations cuando la referencia cambia sin cambios de valor.
+- Sí: hay escenarios en móviles donde localStorage puede fallar o comportarse de manera inesperada (modo incógnito, cuota llena, políticas del navegador, etc.).
+- Estado actual: el código ya maneja algunos errores con try/catch en lugares (por ejemplo HomeSection y QuickViewGrid), pero hay puntos críticos sin protección (por ejemplo inicializadores en App.jsx usan JSON.parse sin try/catch).
+- Recomendación inmediata: centralizar el acceso a localStorage en un helper `safeLocalStorage` (getJSON/setJSON/remove) que capture errores, haga fallback en memoria y limpie claves corruptas.
 
-Por qué ocurre
-- React compara dependencias por referencia (shallow equality). Si `domainPreviews` es un objeto nuevo (nueva referencia), el `useMemo` se volverá a ejecutar aunque su contenido no haya cambiado.
+Escenarios problemáticos en móvil
+1) Modo incógnito / políticas del navegador
+- Algunos navegadores bloquean o limitan localStorage en modo privacidad; setItem puede lanzar (QuotaExceededError / SecurityError).
 
-Recomendación práctica (mínimo cambio, alto beneficio)
-- Calcular una "huella" (string) que represente únicamente los valores de mastery que consumirá `enrichedMaterias`. Usar esa huella como dependencia del `useMemo` en lugar del objeto completo.
+2) Cuota de almacenamiento llena
+- setItem puede fallar cuando el navegador alcanza la cuota; esto es más probable si guardas objetos grandes (p. ej. `metrics`).
 
-Implementación sugerida
-1) Añadir antes del `useMemo` que genera `enrichedMaterias`:
+3) Caché corrupto (JSON inválido)
+- JSON.parse sobre una cadena truncada o corrupta lanzará y, si ocurre en el render (useState initializer), puede romper la app.
 
+4) localStorage deshabilitado
+- Usuarios o políticas corporativas pueden deshabilitar storage; getItem o setItem pueden lanzar o devolverse nulos.
+
+5) Evicción / limpieza automática
+- El navegador puede evictar data en condiciones de espacio; hay que tolerar claves faltantes.
+
+Qué hace el código ahora y puntos débiles
+- Protected: HomeSection.jsx y QuickViewGrid.jsx usan try/catch al parsear o al escribir en localStorage en varias ocasiones (buenas prácticas ya presentes).
+- Débil: App.jsx inicializa `decks` y `materias` con `JSON.parse(localStorage.getItem(...))` sin try/catch; un JSON corrupto aquí puede provocar una excepción en render.
+
+Qué sucede si el caché está corrupto (ejemplo concreto)
+- Si `JSON.parse` falla en un initializer sin try/catch, el componente lanzará durante render y la app puede quedar rota o mostrar una pantalla en blanco.
+- En código que ya usa try/catch, la caché se elimina o se ignora y la app sigue funcionando con datos frescos del servidor (fallback silencioso).
+
+Recomendaciones prácticas (priorizadas)
+
+1) Implementar un helper safeLocalStorage (alta prioridad, bajo coste)
+- Ruta sugerida: `frontend/src/lib/safeLocalStorage.js`.
+- Comportamiento:
+  - getJSON(key): intenta parsear; si falla, elimina la clave y devuelve null; si localStorage no disponible, devuelve fallback en memoria.
+  - setJSON(key, value): intenta setItem; si falla por cuota o bloqueo, guarda en memoria como fallback y devuelve false.
+  - remove(key): elimina de localStorage e inMemory.
+
+Ejemplo:
 ```js
-const domainPreviewsKey = useMemo(() => {
-  if (!materias) return '';
-  return materias.map(m => {
-    const id = String(m._id || m.id || '');
-    const ap = m.activeParciales || [1,2,3];
-    const isFiltered = ap.length > 0 && ap.length < 3;
-    const mastery = isFiltered && typeof domainPreviews[id] === 'number'
-      ? domainPreviews[id]
-      : (m.analytics?.masteryPercentage ?? 0);
-    return `${id}:${mastery}`;
-  }).join('|');
-}, [materias, domainPreviews]);
-```
+// frontend/src/lib/safeLocalStorage.js
+const inMemory = {};
 
-2) Cambiar la dependencia del `useMemo` de
-
-```js
-}, [materias, decks, domainPreviews]);
-```
-
-a
-
-```js
-}, [materias, decks, domainPreviewsKey]);
-```
-
-Por qué esto funciona
-- `domainPreviewsKey` reproducirá la misma string cuando los mastery por materia no cambien, incluso si `domainPreviews` cambia de referencia. Así `useMemo` no se recomputa salvo cambios reales en los valores usados.
-
-Coste
-- Construir la huella implica iterar `materias` una vez; normalmente es más barato que volver a computar todo `enrichedMaterias` (que hace filtros y reducciones). Si tienes muchas materias/decks, se puede optimizar (ver abajo).
-
-Mejoras adicionales recomendadas
-- Agrupar `decks` por `materiaId` en un `useMemo` (de modo que cada materia no haga `decks.filter(...)` repetidamente). Esto cambia la complejidad de O(M*N) a O(M+N).
-- Si el número de materias es muy grande, limitar la huella a materias "activas" o filtradas para reducir trabajo.
-- Alternativa: usar una comparación deep-equals custom entre el `prev` y el `next` de `domainPreviews` antes de permitir que cambie la referencia, aunque esto tiende a ser más costoso que generar la huella.
-
-¿Quieres que aplique estos cambios ahora?
-- Puedo implementar solo la huella (`domainPreviewsKey`) y actualizar las dependencias del `useMemo` (cambio pequeño). 
-- O puedo además implementar `decksByMateria` memoizado para mejorar rendimiento si hay muchos decks.
-
-// definiciones a nivel de componente
-const isMounted = useRef(true);
-const abortController = useRef(null);
-const requestSeq = useRef(0);
-
-// dentro de fetchDomainPreviews
-const myRequestId = ++requestSeq.current;
-
-// reemplazar la lógica de controller actual por un controller local
-if (abortController.current) abortController.current.abort();
-const controller = new AbortController();
-abortController.current = controller;
-
-// usar controller.signal en los fetches
-const res = await fetch(url, { signal: controller.signal });
-
-// después de Promise.all y antes de aplicar resultados
-if (hasChanges && isMounted.current && requestSeq.current === myRequestId) {
-  try {
-    localStorage.setItem(`domainPreviews_${user.id}`, JSON.stringify(results));
-  } catch (e) { /* handle */ }
-
-  setDomainPreviews(prev => { /* ... */ });
+function isQuotaExceeded(e) {
+  return e && (e.code === 22 || e.code === 1014 ||
+    e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED');
 }
 
-// limpiar controller si sigue siendo el actual
-if (abortController.current === controller) abortController.current = null;
-
-// cleanup del useEffect que lanza fetchDomainPreviews
-return () => {
-  isMounted.current = false;
-  if (abortController.current) {
-    abortController.current.abort();
-    abortController.current = null;
+export function getJSON(key) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch (err) {
+    try { localStorage.removeItem(key); } catch (e) {}
+    return Object.prototype.hasOwnProperty.call(inMemory, key) ? inMemory[key] : null;
   }
-};
+}
 
-Por qué esto es suficiente
-- requestSeq asegura que solo el resultado de la última ejecución modifica el estado/localStorage, eliminando sobrescrituras por respuestas tardías.
-- controller local + limpieza evita referencias residuales y facilita el GC.
-- isMounted sigue siendo la última línea de defensa para prevenir setState después del unmount.
+export function setJSON(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+    return true;
+  } catch (err) {
+    if (isQuotaExceeded(err) || err instanceof DOMException) {
+      try { inMemory[key] = value; } catch (e) {}
+      return false;
+    }
+    return false;
+  }
+}
 
-¿Quieres que aplique estos cambios en HomeSection.jsx ahora? Puedo implementarlo, probar que no rompa la lógica actual y hacer commit/push con un mensaje claro.
+export function remove(key) {
+  try { localStorage.removeItem(key); } catch (err) { /* ignore */ }
+  try { delete inMemory[key]; } catch (err) { /* ignore */ }
+}
+```
+
+2) Aplicar safeLocalStorage en inicializadores críticos
+- Reemplazar en App.jsx las lecturas iniciales:
+```js
+import { getJSON } from './lib/safeLocalStorage';
+const [decks, setDecks] = useState(() => getJSON(`decks_${user.id}`) || []);
+const [materias, setMaterias] = useState(() => getJSON(`materias_${user.id}`) || []);
+```
+- Evita crashes por JSON corrupto en render.
+
+3) Reducir lo que persistes (especialmente en domainPreviews)
+- Guarda solo lo necesario: `{ mastery, parciales, timestamp }` y evita persistir `metrics` completos si no son necesarios para el render inmediato.
+- Menor payload = menor probabilidad de QuotaExceeded y parse errors.
+
+4) Estrategias de fallback en setJSON falla por cuota
+- Políticas posibles:
+  - Evictar entradas antiguas (p. ej. domainPreviews más viejos) antes de reintentar.
+  - Guardar en memoria y notificar silenciosamente al usuario (opcional).
+  - Registrar telemetría para entender incidencia en usuarios.
+
+5) Considerar IndexedDB para datos grandes o persistencia robusta
+- IndexedDB (o librerías como localForage) es asincrónico, más adecuado para objetos grandes y menos propenso a excepciones síncronas por cuota.
+
+6) Tests y monitoreo
+- Añadir tests que simulen:
+  - JSON.parse throwing
+  - QuotaExceededError en setItem
+  - localStorage deshabilitado
+- Añadir logs/telemetría cuando setJSON falla para detectar distribuciones de error en móviles.
+
+Plan de acción inmediato sugerido
+1. Implemento `frontend/src/lib/safeLocalStorage.js` y lo uso en App.jsx (protección crítica contra crash en render).
+2. Re-escribir persistencia de `domainPreviews` para guardar únicamente `{ mastery, parciales, timestamp }`.
+3. Opcional: reemplazar otras lecturas/escrituras dispersas por wrappers `getJSON/setJSON`.
+
+¿Quieres que implemente el helper `safeLocalStorage.js` y lo aplique a App.jsx y a los puntos críticos ahora? Puedo hacerlo y subir commits con tests básicos.
