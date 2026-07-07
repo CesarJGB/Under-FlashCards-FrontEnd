@@ -116,12 +116,15 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
 
   // Telemetría: sendBeacon fallback + cola local persistida vía safeLocalStorage
   const sendReview = (payload) => {
-    const body = JSON.stringify(payload);
+    // Enrich payload with deckId to ensure queued items are flushable
+    const enrichedPayload = { ...payload, deckId };
+    const body = JSON.stringify(enrichedPayload);
     // Preferir sendBeacon cuando esté disponible (mejor para unload/navigation)
     try {
       if (navigator && typeof navigator.sendBeacon === 'function') {
         const blob = new Blob([body], { type: 'application/json' });
-        const ok = navigator.sendBeacon(`${BACKEND_URL}/api/decks/${deckId}/reviews`, blob);
+        const targetDeck = enrichedPayload.deckId || deckId;
+        const ok = navigator.sendBeacon(`${BACKEND_URL}/api/decks/${targetDeck}/reviews`, blob);
         if (ok) return Promise.resolve(true);
       }
     } catch (e) {
@@ -130,13 +133,14 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
 
     // Fallback: persistir en memoria y en safeLocalStorage y emitir con fetch async
     try {
-      pendingReviewsRef.current.push(payload);
+      pendingReviewsRef.current.push(enrichedPayload);
       setJSON(`pending_reviews_${userId}`, pendingReviewsRef.current);
     } catch (e) {
       console.warn('[SessionPlayer] Could not persist pending review', e);
     }
 
-    return makeFetch(`${BACKEND_URL}/api/decks/${deckId}/reviews`, {
+    const targetDeck = enrichedPayload.deckId || deckId;
+    return makeFetch(`${BACKEND_URL}/api/decks/${targetDeck}/reviews`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body
@@ -165,7 +169,8 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
     const toSend = [...pendingReviewsRef.current];
     for (const payload of toSend) {
       try {
-        const res = await makeFetch(`${BACKEND_URL}/api/decks/${deckId}/reviews`, {
+        const targetDeck = payload.deckId || deckId;
+        const res = await makeFetch(`${BACKEND_URL}/api/decks/${targetDeck}/reviews`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
