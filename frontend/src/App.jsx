@@ -244,8 +244,8 @@ function DashboardScreen({ user, onLogout }) {
           {tab === 'settings' && <SettingsSection userId={user.id} />}
         </div>
 
-        {/* 👇 NUEVO MENÚ DE NAVEGACIÓN MÓVIL INTEGRADO 👇 */}
-        <div className="md:hidden fixed bottom-6 inset-x-4 max-w-sm mx-auto bg-white/90 backdrop-blur-2xl border border-slate-200/50 h-16 rounded-3xl px-2 flex justify-between items-center z-40 shadow-[0_10px_40px_rgba(0,0,0,0.12)] animate-[slideUp_0.25s_ease-out]">
+        {/* 👇 NUEVO MENÚ DE NAVEGACIÓN MÓVIL MINIMALISTA 👇 */}
+        <div className="md:hidden fixed bottom-5 inset-x-6 max-w-xs mx-auto bg-white/85 backdrop-blur-xl border border-slate-200/60 h-14 rounded-full px-2 flex justify-between items-center z-40 shadow-[0_8px_30px_rgba(0,0,0,0.08)] animate-[slideUp_0.2s_ease-out]">
           {[
             { id: 'home', title: 'Inicio', Icon: Home },
             { id: 'study', title: 'Estudio', Icon: BookOpen },
@@ -259,21 +259,16 @@ function DashboardScreen({ user, onLogout }) {
               <button
                 key={item.id}
                 onClick={() => handleTabChange(item.id)}
-                className={`h-12 flex flex-col items-center justify-center gap-0.5 transition-all duration-300 rounded-2xl relative flex-1 cursor-pointer active:scale-95 ${
+                className={`w-12 h-12 flex items-center justify-center transition-all duration-200 rounded-full cursor-pointer active:scale-95 ${
                   isActive 
-                    ? 'bg-gradient-to-br from-slate-800 to-slate-900 text-white shadow-lg shadow-slate-900/20' 
-                    : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50/50'
+                    ? 'bg-slate-900 text-white shadow-md' 
+                    : 'text-slate-400 hover:text-slate-600'
                 }`}
                 title={item.title}
               >
-                <IconComponent className={`w-5 h-5 transition-all duration-300 ${
+                <IconComponent className={`w-5 h-5 transition-all duration-200 ${
                   isActive ? 'scale-110 stroke-[2.5]' : 'stroke-[1.8]'
                 }`} />
-                <span className={`text-[10px] font-semibold transition-all duration-300 ${
-                  isActive ? 'opacity-100' : 'opacity-0 text-[9px]'
-                }`}>
-                  {item.title}
-                </span>
               </button>
             );
           })}
