@@ -370,6 +370,7 @@ export default function useDebugLogs({ userId } = {}) {
     flagsRef,
     getFlag,
     setFlag,
+    inspectPendingQueue,
     flushPendingReviews,
     createOrphanSession,
     verifyOrphans,
