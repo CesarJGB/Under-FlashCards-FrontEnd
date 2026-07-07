@@ -26,6 +26,7 @@ export default function HomeSection({
 
   const isMounted = useRef(true);
   const abortController = useRef(null);
+  const requestSeq = useRef(0);
 
   // =========================================================================
   // 🔄 DISPARADOR DE SINCRONIZACIÓN PASIVA EN SEGUNDO PLANO
@@ -96,6 +97,9 @@ export default function HomeSection({
   // 🔄 FETCH SILENCIOSO CON VALIDACIÓN DE TTL
   // =========================================================================
   const fetchDomainPreviews = useCallback(async () => {
+    // Incremental request id to prevent out-of-order responses from overwriting newer data
+    const myRequestId = ++requestSeq.current;
+
     if (!materias || !user?.id) return;
 
     const filtered = materias.filter(m => {
@@ -166,7 +170,8 @@ export default function HomeSection({
 
     // 4. Fetch silencioso en background
     if (abortController.current) abortController.current.abort();
-    abortController.current = new AbortController();
+    const controller = new AbortController();
+    abortController.current = controller;
 
     const results = { ...cachedPreviews };
     let hasChanges = false;
@@ -176,7 +181,7 @@ export default function HomeSection({
         const id = String(m._id || m.id);
         const res = await fetch(
           `${BACKEND_URL}/api/academic/materias/${id}/domain-preview?parciales=${m.activeParciales.join(',')}`,
-          { signal: abortController.current.signal }
+          { signal: controller.signal }
         );
         
         if (res.ok) {
@@ -196,8 +201,8 @@ export default function HomeSection({
       }
     }));
 
-    // 5. Guardar en caché y actualizar state solo si cambió
-    if (hasChanges && isMounted.current) {
+    // 5. Guardar en caché y actualizar state solo si cambió y esta es la última petición
+    if (hasChanges && isMounted.current && requestSeq.current === myRequestId) {
       try {
         localStorage.setItem(`domainPreviews_${user.id}`, JSON.stringify(results));
       } catch (error) {
@@ -218,6 +223,11 @@ export default function HomeSection({
         return updated;
       });
     }
+
+    // Limpiar controller si sigue siendo el actual
+    if (abortController.current === controller) {
+      abortController.current = null;
+    }
   }, [materias, user?.id]);
 
   // =========================================================================
@@ -229,7 +239,10 @@ export default function HomeSection({
     
     return () => {
       isMounted.current = false;
-      if (abortController.current) abortController.current.abort();
+      if (abortController.current) {
+        abortController.current.abort();
+        abortController.current = null;
+      }
     };
   }, [fetchDomainPreviews]);
 
@@ -367,4 +380,3 @@ export default function HomeSection({
     </div>
   );
 }
-

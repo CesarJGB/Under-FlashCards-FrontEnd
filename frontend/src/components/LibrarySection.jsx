@@ -334,10 +334,9 @@ export default function LibrarySection({
                   // Invalidar solo la entrada correspondiente en domainPreviews para forzar refetch inmediato
                   try {
                     const key = `domainPreviews_${userId}`;
-                    const cachedRaw = localStorage.getItem(key);
-                    const cached = cachedRaw ? JSON.parse(cachedRaw) : {};
+                    const cached = JSON.parse(localStorage.getItem(key) || '{}');
                     const id = String(materiaId);
-                    if (cached && Object.prototype.hasOwnProperty.call(cached, id)) {
+                    if (cached[id]) {
                       delete cached[id];
                       localStorage.setItem(key, JSON.stringify(cached));
                     }
