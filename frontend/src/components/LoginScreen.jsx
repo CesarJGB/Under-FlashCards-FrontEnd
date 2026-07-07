@@ -15,15 +15,15 @@ export default function LoginScreen({ onSuccess, onError, error }) {
 
   return (
     <div className="min-h-screen w-full relative overflow-hidden bg-gradient-to-br from-cyan-400 via-teal-500 to-blue-600">
-      {/* Background Pattern */}
-      <div className="absolute inset-0 opacity-10">
+      {/* Background Pattern (non-interactive) */}
+      <div className="absolute inset-0 opacity-10 pointer-events-none">
         <div className="absolute top-20 left-10 w-32 h-32 rounded-full bg-white blur-3xl" />
         <div className="absolute bottom-20 right-10 w-40 h-40 rounded-full bg-white blur-3xl" />
         <div className="absolute top-1/2 left-1/2 w-48 h-48 rounded-full bg-white blur-3xl" />
       </div>
 
-      {/* Decorative Elements */}
-      <div className="absolute top-16 left-8 right-8 flex justify-between items-center opacity-20">
+      {/* Decorative Elements (non-interactive) */}
+      <div className="absolute top-16 left-8 right-8 flex justify-between items-center opacity-20 pointer-events-none">
         <div className="w-16 h-16 rounded-2xl bg-white transform rotate-12" />
         <div className="w-12 h-12 rounded-xl bg-white transform -rotate-6" />
       </div>
@@ -51,7 +51,7 @@ export default function LoginScreen({ onSuccess, onError, error }) {
       <div 
         className={`
           absolute bottom-0 left-0 right-0 
-          bg-white rounded-t-[32px] shadow-2xl
+          bg-white rounded-t-[32px] shadow-2xl z-30
           transition-all duration-500 ease-out
           ${isExpanded ? 'h-[85vh]' : 'h-auto'}
         `}
@@ -65,38 +65,69 @@ export default function LoginScreen({ onSuccess, onError, error }) {
           `} />
         </div>
 
-        {/* Collapsed State - Get Started */}
-        <div className={`
-          px-8 pb-8 transition-all duration-500
-          ${isExpanded ? 'opacity-0 h-0 overflow-hidden py-0' : 'opacity-100'}
-        `}>
-          <div className="text-center mb-8">
-            <h2 className="text-2xl font-bold text-slate-900 mb-2">
-              ¡Bienvenido!
-            </h2>
-            <p className="text-slate-500">
-              Inicia sesión para comenzar a estudiar
+        {/* Render only one state at a time to avoid overlapping text */}
+        {!isExpanded ? (
+          <div className={`px-8 pb-8 transition-all duration-300`}>
+            <div className="text-center mb-8">
+              <h2 className="text-2xl font-bold text-slate-900 mb-2">
+                ¡Bienvenido!
+              </h2>
+              <p className="text-slate-500">Inicia sesión para comenzar a estudiar</p>
+            </div>
+
+            <button
+              onClick={handleGetStarted}
+              className="w-full bg-gradient-to-r from-cyan-500 to-teal-500 text-white font-semibold py-4 px-8 rounded-2xl shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 flex items-center justify-center gap-2 group"
+            >
+              Comenzar
+              <ChevronUp className="w-5 h-5 group-hover:-translate-y-1 transition-transform" />
+            </button>
+
+            <p className="text-center text-xs text-slate-400 mt-6">
+              Al continuar aceptas nuestros términos y condiciones
             </p>
           </div>
+        ) : (
+          <div className={`px-8 pb-8 transition-all duration-300`}> 
+            {/* Header */}
+            <div className="text-center mb-8">
+              <h2 className="text-3xl font-bold text-slate-900 mb-2">Iniciar Sesión</h2>
+              <p className="text-slate-500">Accede con tu cuenta de Google</p>
+            </div>
 
-          <button
-            onClick={handleGetStarted}
-            className="w-full bg-gradient-to-r from-cyan-500 to-teal-500 text-white font-semibold py-4 px-8 rounded-2xl shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 flex items-center justify-center gap-2 group"
-          >
-            Comenzar
-            <ChevronUp className="w-5 h-5 group-hover:-translate-y-1 transition-transform" />
-          </button>
+            {/* Google Login Button (uses the official GoogleLogin component to
+                receive an id_token in `credential` which the backend verifies) */}
+            <div className="w-full flex justify-center" data-testid="google-login-button">
+              <GoogleLogin
+                onSuccess={onSuccess}
+                onError={onError}
+                theme="outline"
+                size="large"
+                shape="pill"
+                text="continue_with"
+                locale="es"
+              />
+            </div>
 
-          <p className="text-center text-xs text-slate-400 mt-6">
-            Al continuar aceptas nuestros términos y condiciones
-          </p>
-        </div>
+            {/* Error Message */}
+            {error && (
+              <div className="mt-6 flex items-start gap-3 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl p-4 animate-pulse">
+                <div className="w-5 h-5 rounded-full bg-red-100 flex items-center justify-center shrink-0 mt-0.5">
+                  <span className="text-red-600 font-bold text-xs">!</span>
+                </div>
+                <span className="font-medium">{error}</span>
+              </div>
+            )}
 
-        {/* Expanded State - Login Form */}
-        <div className={`
-          px-8 pb-8 transition-all duration-500 delay-100
-          ${isExpanded ? 'opacity-100' : 'opacity-0 h-0 overflow-hidden py-0'}
-        `}>
+            {/* Footer Info */}
+            <div className="mt-8 text-center">
+              <p className="text-xs text-slate-400">
+                ¿Problemas para iniciar sesión?{' '}
+                <button className="text-cyan-600 hover:text-cyan-700 font-semibold underline">Contáctanos</button>
+              </p>
+            </div>
+          </div>
+        )}
           {/* Header */}
           <div className="text-center mb-8">
             <h2 className="text-3xl font-bold text-slate-900 mb-2">
