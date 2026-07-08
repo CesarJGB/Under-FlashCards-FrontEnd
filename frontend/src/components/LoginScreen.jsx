@@ -1,10 +1,27 @@
-import { useState } from 'react';
+Aquí tienes tu archivo LoginScreen.jsx completamente modificado. He importado useEffect e inyectado el ciclo de vida inteligente para que pinte el fondo de negro (#111827) únicamente mientras estás en esta pantalla, restaurando automáticamente el fondo claro cuando el usuario pasa al Dashboard.
+```jsx
+import { useState, useEffect } from 'react'; // <-- Importación de useEffect agregada
 import { GoogleLogin } from '@react-oauth/google';
 import { Sparkles, ChevronUp } from 'lucide-react';
 import BottomSheet from './BottomSheet';
 
 export default function LoginScreen({ onSuccess, onError, error }) {
   const [isExpanded, setIsExpanded] = useState(false);
+
+  // --- CONTROL DINÁMICO DEL FONDO (Anti-Leak) ---
+  useEffect(() => {
+    // Guardamos el color de fondo original de la aplicación
+    const originalBg = document.body.style.backgroundColor;
+    
+    // Forzamos el fondo oscuro de Flashcards solo para el Login
+    document.body.style.backgroundColor = '#111827';
+    
+    // Al salir de esta pantalla, devolvemos el fondo a su color original o al claro por defecto
+    return () => {
+      document.body.style.backgroundColor = originalBg || '#f8fafc';
+    };
+  }, []);
+  // ----------------------------------------------
 
   const handleGetStarted = () => setIsExpanded(true);
   const handleClose = () => setIsExpanded(false);
@@ -72,12 +89,9 @@ export default function LoginScreen({ onSuccess, onError, error }) {
   );
 
   return (
-    /* CAMBIO: h-[100dvh] asegura adaptación perfecta a Chrome y Safari */
     <div className="h-[100dvh] w-full relative bg-gradient-to-b from-gray-900 via-gray-800 to-white overflow-hidden flex flex-col justify-start">
       
-      {/* CAMBIO OPTIMIZADO: El área del logo ahora es flex-1 y tiene un padding inferior 
-          equivalente al alto del panel cerrado (280px). Esto distribuye y centra el logo 
-          automáticamente en la zona útil de la pantalla sin importar el navegador. */}
+      {/* Área del logo autoadaptable */}
       <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-6 pb-[280px]">
         <div className="mb-6">
           <div className="w-20 h-20 md:w-24 md:h-24 rounded-3xl bg-white shadow-2xl flex items-center justify-center transform hover:scale-105 transition-transform duration-300">
@@ -101,8 +115,10 @@ export default function LoginScreen({ onSuccess, onError, error }) {
         collapsedContent={collapsedContent}
         expandedContent={expandedContent}
         collapsedHeight={280}
-        expandedHeight={62} /* Un toque más alto para albergar cómodamente el botón de google */
+        expandedHeight={62}
       />
     </div>
   );
 }
+
+```
