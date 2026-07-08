@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { lockBodyScroll, unlockBodyScroll } from '../lib/scrollLock';
 
 /**
- * BottomSheet con física fluida interactiva 1:1 y scroll interno totalmente deshabilitado.
+ * BottomSheet con física interactiva fluida y renderizado libre de artefactos.
  */
 export default function BottomSheet({
   isOpen,
@@ -31,9 +31,6 @@ export default function BottomSheet({
       setWindowHeight(window.innerHeight);
     };
 
-    // On iOS the WebView can re-flow after focus; add a small delay to avoid
-    // measuring a prematurely-stretched viewport which would cause the sheet
-    // to compute an incorrect translateY and remain floating.
     const handleFocus = () => {
       if (focusTimeoutRef.current) clearTimeout(focusTimeoutRef.current);
       focusTimeoutRef.current = setTimeout(() => {
@@ -63,9 +60,7 @@ export default function BottomSheet({
     return { maxTravelDistance };
   };
 
-  // Manage body scroll using the shared lock utility. Each BottomSheet instance
-  // receives a unique owner id so multiple components can request the lock
-  // without stomping on each other.
+  // Mantuvimos el sistema de bloqueo avanzado del agente
   const ownerRef = useRef(`bottomsheet_${Math.random().toString(36).slice(2,9)}`);
 
   useEffect(() => {
@@ -78,7 +73,6 @@ export default function BottomSheet({
     }
 
     return () => {
-      // ensure we release our owner lock on unmount
       if (lockScroll) unlockBodyScroll(ownerRef.current);
     };
   }, [isOpen, lockScroll]);
@@ -137,26 +131,17 @@ export default function BottomSheet({
     ? 1 - (currentTranslateY / maxTravelDistance) 
     : 0;
 
-  // During dragging we only animate opacity to avoid cross-render artifacts
-  // (ghosting) caused by both layers translating against each other. When
-  // not dragging we allow subtle translateY micro-movements for polish.
+  // CORRECCIÓN RADICAL: 
+  // Si el dedo no está en la pantalla (!isDragging), vaciamos los estilos en línea por completo ({}).
+  // Esto elimina el error de la pantalla blanca porque Tailwind retoma el control absoluto sin conflictos.
+  // También eliminamos los transforms internos para evitar la colisión de los puntos y las letras.
   const collapsedStyle = isDragging
-    ? {
-        opacity: Math.max(0, 1 - currentProgress * 2),
-      }
-    : {
-        opacity: Math.max(0, 1 - currentProgress * 2),
-        transform: `translateY(${-currentProgress * 15}px)`,
-      };
+    ? { opacity: Math.max(0, 1 - currentProgress * 2) }
+    : {};
 
   const expandedStyle = isDragging
-    ? {
-        opacity: Math.max(0, (currentProgress - 0.3) * 1.42),
-      }
-    : {
-        opacity: Math.max(0, (currentProgress - 0.3) * 1.42),
-        transform: `translateY(${(1 - currentProgress) * 15}px)`,
-      };
+    ? { opacity: Math.max(0, (currentProgress - 0.3) * 1.42) }
+    : {};
 
   return (
     <div 
@@ -171,7 +156,6 @@ export default function BottomSheet({
       }}
       className="fixed bottom-0 left-0 right-0 bg-white rounded-t-[32px] shadow-2xl z-30 select-none will-change-transform"
     >
-      {/* Barra superior de arrastre */}
       <div className="flex justify-center pt-4 pb-4 cursor-grab active:cursor-grabbing">
         <div 
           onClick={() => isOpen ? onClose?.() : onOpen?.()}
@@ -180,20 +164,17 @@ export default function BottomSheet({
         />
       </div>
 
-      {/* CAMBIO RADICAL: Eliminamos cualquier lógica auto y lo bloqueamos en overflow-hidden permanente */}
       <div className="px-8 pb-8 h-full relative overflow-hidden">
         
         {/* Estado Colapsado (¡Bienvenido!) */}
         <div
           style={collapsedStyle}
-          className={`w-full absolute left-0 right-0 px-8 overflow-hidden ${
+          className={`w-full absolute left-0 right-0 px-8 transition-opacity duration-300 ease-out ${
             isDragging
-              ? ''
-              : `transition-all duration-300 ease-out ${isOpen ? 'opacity-0 -translate-y-2 pointer-events-none' : 'opacity-100 translate-y-0 pointer-events-auto'}`
-          } ${
-            // hide the collapsed layer immediately when we begin opening or
-            // when the sheet is already open to prevent vector ghosting.
-            (isOpen || (isDragging && !isOpen && dragOffset < 0)) ? 'invisible' : ''
+              ? '' // Sin clases de Tailwind mientras arrastras
+              : isOpen 
+                ? 'opacity-0 pointer-events-none' // Se apaga limpiamente con CSS nativo
+                : 'opacity-100 pointer-events-auto'
           }`}
         >
           {collapsedContent}
@@ -202,10 +183,12 @@ export default function BottomSheet({
         {/* Estado Expandido (Google Login) */}
         <div
           style={expandedStyle}
-          className={`w-full absolute left-0 right-0 px-8 overflow-hidden ${
+          className={`w-full absolute left-0 right-0 px-8 transition-opacity duration-300 ease-out ${
             isDragging
-              ? ''
-              : `transition-all duration-300 ease-out ${isOpen ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-2 pointer-events-none'}`
+              ? '' // Sin clases de Tailwind mientras arrastras
+              : isOpen 
+                ? 'opacity-100 pointer-events-auto'
+                : 'opacity-0 pointer-events-none'
           }`}
         >
           {expandedContent}
