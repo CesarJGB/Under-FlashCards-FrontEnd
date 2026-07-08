@@ -8,7 +8,8 @@ html,
 body,
 #root {
   height: 100%;
-  background-color: #111827; /* gray-900 - fondo negro para todo */
+  /* CAMBIO: Ponemos el fondo claro por defecto de tu app (blanco o gris muy claro) */
+  background-color: #f8fafc; 
 }
 
 body {
