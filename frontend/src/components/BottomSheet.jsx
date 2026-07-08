@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 
 /**
- * BottomSheet con tope magnético, límites físicos absolutos y transición de contenido optimizada.
+ * BottomSheet adaptado a Viewports Dinámicos (dvh) con animación fluida integrada.
  */
 export default function BottomSheet({
   isOpen,
@@ -10,7 +10,7 @@ export default function BottomSheet({
   collapsedContent,
   expandedContent,
   collapsedHeight = 280,
-  expandedHeight = 85,
+  expandedHeight = 62,
   openThreshold = 60,
   closeThreshold = 80,
   lockScroll = true,
@@ -100,8 +100,9 @@ export default function BottomSheet({
       onTouchEnd={onTouchEnd}
       style={{
         transform: `translateY(${currentTranslateY}px)`,
-        transition: isDragging ? 'none' : 'transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.1)',
-        height: `${expandedHeight}vh`,
+        transition: isDragging ? 'none' : 'transform 0.45s cubic-bezier(0.16, 1, 0.3, 1)',
+        /* CAMBIO: dH en vez de vH para respetar las barras de Chrome */
+        height: `${expandedHeight}dvh`,
       }}
       className="fixed bottom-0 left-0 right-0 bg-white rounded-t-[32px] shadow-2xl z-30 select-none will-change-transform"
     >
@@ -114,26 +115,26 @@ export default function BottomSheet({
         />
       </div>
 
-      {/* Área del Contenido Fijo - Eliminamos el salto horizontal */}
+      {/* Área del Contenido con Animación Mejorada */}
       <div className="px-8 pb-8 h-full overflow-y-auto relative">
         
-        {/* Estado Colapsado (¡Bienvenido!) */}
+        {/* Estado Colapsado (¡Bienvenido!) - Desliza sutilmente hacia arriba al ocultarse */}
         <div 
-          className={`w-full absolute left-0 right-0 px-8 transition-opacity duration-300 ${
+          className={`w-full absolute left-0 right-0 px-8 transition-all duration-500 ease-out ${
             isOpen 
-              ? 'opacity-0 pointer-events-none' 
-              : 'opacity-100 pointer-events-auto'
+              ? 'opacity-0 -translate-y-4 pointer-events-none' 
+              : 'opacity-100 translate-y-0 pointer-events-auto'
           }`}
         >
           {collapsedContent}
         </div>
 
-        {/* Estado Expandido (Google Login) */}
+        {/* Estado Expandido (Google Login) - Emerge con suavidad desde abajo */}
         <div 
-          className={`w-full absolute left-0 right-0 px-8 transition-opacity duration-300 ${
+          className={`w-full absolute left-0 right-0 px-8 transition-all duration-500 ease-out ${
             isOpen 
-              ? 'opacity-100 pointer-events-auto' 
-              : 'opacity-0 pointer-events-none'
+              ? 'opacity-100 translate-y-0 pointer-events-auto' 
+              : 'opacity-0 translate-y-4 pointer-events-none'
           }`}
         >
           {expandedContent}
