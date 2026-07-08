@@ -19,6 +19,7 @@ export default function BottomSheet({
   const [windowHeight, setWindowHeight] = useState(
     typeof window !== 'undefined' ? window.innerHeight : 800
   );
+  const focusTimeoutRef = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState(0);
   
@@ -30,14 +31,29 @@ export default function BottomSheet({
       setWindowHeight(window.innerHeight);
     };
 
+    // On iOS the WebView can re-flow after focus; add a small delay to avoid
+    // measuring a prematurely-stretched viewport which would cause the sheet
+    // to compute an incorrect translateY and remain floating.
+    const handleFocus = () => {
+      if (focusTimeoutRef.current) clearTimeout(focusTimeoutRef.current);
+      focusTimeoutRef.current = setTimeout(() => {
+        setWindowHeight(window.innerHeight);
+        focusTimeoutRef.current = null;
+      }, 120);
+    };
+
     window.addEventListener('resize', handleRecalculate);
     window.addEventListener('orientationchange', handleRecalculate);
-    window.addEventListener('focus', handleRecalculate);
+    window.addEventListener('focus', handleFocus);
 
     return () => {
       window.removeEventListener('resize', handleRecalculate);
       window.removeEventListener('orientationchange', handleRecalculate);
-      window.removeEventListener('focus', handleRecalculate);
+      window.removeEventListener('focus', handleFocus);
+      if (focusTimeoutRef.current) {
+        clearTimeout(focusTimeoutRef.current);
+        focusTimeoutRef.current = null;
+      }
     };
   }, []);
 
@@ -121,19 +137,26 @@ export default function BottomSheet({
     ? 1 - (currentTranslateY / maxTravelDistance) 
     : 0;
 
+  // During dragging we only animate opacity to avoid cross-render artifacts
+  // (ghosting) caused by both layers translating against each other. When
+  // not dragging we allow subtle translateY micro-movements for polish.
   const collapsedStyle = isDragging
     ? {
         opacity: Math.max(0, 1 - currentProgress * 2),
-        transform: `translateY(${-currentProgress * 15}px)`,
       }
-    : {};
+    : {
+        opacity: Math.max(0, 1 - currentProgress * 2),
+        transform: `translateY(${-currentProgress * 15}px)`,
+      };
 
   const expandedStyle = isDragging
     ? {
         opacity: Math.max(0, (currentProgress - 0.3) * 1.42),
-        transform: `translateY(${(1 - currentProgress) * 15}px)`,
       }
-    : {};
+    : {
+        opacity: Math.max(0, (currentProgress - 0.3) * 1.42),
+        transform: `translateY(${(1 - currentProgress) * 15}px)`,
+      };
 
   return (
     <div 
@@ -161,23 +184,27 @@ export default function BottomSheet({
       <div className="px-8 pb-8 h-full relative overflow-hidden">
         
         {/* Estado Colapsado (¡Bienvenido!) */}
-        <div 
+        <div
           style={collapsedStyle}
-          className={`w-full absolute left-0 right-0 px-8 ${
-            isDragging 
-              ? '' 
+          className={`w-full absolute left-0 right-0 px-8 overflow-hidden ${
+            isDragging
+              ? ''
               : `transition-all duration-300 ease-out ${isOpen ? 'opacity-0 -translate-y-2 pointer-events-none' : 'opacity-100 translate-y-0 pointer-events-auto'}`
+          } ${
+            // hide the collapsed layer immediately when we begin opening or
+            // when the sheet is already open to prevent vector ghosting.
+            (isOpen || (isDragging && !isOpen && dragOffset < 0)) ? 'invisible' : ''
           }`}
         >
           {collapsedContent}
         </div>
 
         {/* Estado Expandido (Google Login) */}
-        <div 
+        <div
           style={expandedStyle}
-          className={`w-full absolute left-0 right-0 px-8 ${
-            isDragging 
-              ? '' 
+          className={`w-full absolute left-0 right-0 px-8 overflow-hidden ${
+            isDragging
+              ? ''
               : `transition-all duration-300 ease-out ${isOpen ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-2 pointer-events-none'}`
           }`}
         >
