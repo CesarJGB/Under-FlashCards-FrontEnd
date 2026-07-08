@@ -37,11 +37,10 @@ export default function LoginScreen({ onSuccess, onError, error }) {
           absolute bottom-0 left-0 right-0 
           bg-white rounded-t-[32px] shadow-2xl z-30
           transition-all duration-500 ease-out
-          transform
-          ${isExpanded ? 'h-[85vh] translate-y-0' : 'h-auto translate-y-0'}
+          ${isExpanded ? 'h-[85vh]' : 'h-auto'}
         `}
       >
-        {/* Handle Bar - Clickable to close */}
+        {/* Handle Bar */}
         <div className="flex justify-center pt-4 pb-2">
           <button
             onClick={handleClose}
@@ -59,78 +58,94 @@ export default function LoginScreen({ onSuccess, onError, error }) {
           </button>
         </div>
 
-        {/* Collapsed State */}
-        <div className={`
-          px-8 pb-8
-          transition-all duration-500 ease-out
-          ${isExpanded ? 'opacity-0 h-0 overflow-hidden py-0' : 'opacity-100'}
-        `}>
-          <div className="text-center mb-8">
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">
-              ¡Bienvenido!
-            </h2>
-            <p className="text-gray-500">Inicia sesión para comenzar a estudiar</p>
-          </div>
-
-          <button
-            onClick={handleGetStarted}
-            className="w-full bg-gradient-to-r from-gray-800 via-gray-700 to-gray-600 text-white font-semibold py-4 px-8 rounded-2xl shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 flex items-center justify-center gap-2 group"
+        {/* Render only one state at a time */}
+        {!isExpanded ? (
+          <div 
+            key="collapsed"
+            className="px-8 pb-8 animate-slideUp"
           >
-            Comenzar
-            <ChevronUp className="w-5 h-5 group-hover:-translate-y-1 transition-transform duration-300" />
-          </button>
-
-          <p className="text-center text-xs text-gray-400 mt-6">
-            Al continuar aceptas nuestros términos y condiciones
-          </p>
-        </div>
-
-        {/* Expanded State */}
-        <div className={`
-          px-8 pb-8
-          transition-all duration-500 ease-out delay-100
-          ${isExpanded ? 'opacity-100' : 'opacity-0 h-0 overflow-hidden py-0'}
-        `}> 
-          {/* Header */}
-          <div className="text-center mb-8">
-            <h2 className="text-3xl font-bold text-gray-900 mb-2">Iniciar Sesión</h2>
-            <p className="text-gray-500">Accede con tu cuenta de Google</p>
-          </div>
-
-          {/* Google Login Button */}
-          <div className="w-full flex justify-center" data-testid="google-login-button">
-            <GoogleLogin
-              onSuccess={onSuccess}
-              onError={onError}
-              theme="outline"
-              size="large"
-              shape="pill"
-              text="continue_with"
-              locale="es"
-            />
-          </div>
-
-          {/* Error Message */}
-          {error && (
-            <div className="mt-6 flex items-start gap-3 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl p-4">
-              <div className="w-5 h-5 rounded-full bg-red-100 flex items-center justify-center shrink-0 mt-0.5">
-                <span className="text-red-600 font-bold text-xs">!</span>
-              </div>
-              <span className="font-medium">{error}</span>
+            <div className="text-center mb-8">
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                ¡Bienvenido!
+              </h2>
+              <p className="text-gray-500">Inicia sesión para comenzar a estudiar</p>
             </div>
-          )}
 
-          {/* Footer Info */}
-          <div className="mt-8 text-center">
-            <p className="text-xs text-gray-400">
-              ¿Problemas para iniciar sesión?{' '}
-              <button className="text-cyan-600 hover:text-cyan-700 font-semibold underline">
-                Contáctanos
-              </button>
+            <button
+              onClick={handleGetStarted}
+              className="w-full bg-gradient-to-r from-gray-800 via-gray-700 to-gray-600 text-white font-semibold py-4 px-8 rounded-2xl shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 flex items-center justify-center gap-2 group"
+            >
+              Comenzar
+              <ChevronUp className="w-5 h-5 group-hover:-translate-y-1 transition-transform duration-300" />
+            </button>
+
+            <p className="text-center text-xs text-gray-400 mt-6">
+              Al continuar aceptas nuestros términos y condiciones
             </p>
           </div>
-        </div>
+        ) : (
+          <div 
+            key="expanded"
+            className="px-8 pb-8 animate-slideUp"
+          > 
+            {/* Header */}
+            <div className="text-center mb-8">
+              <h2 className="text-3xl font-bold text-gray-900 mb-2">Iniciar Sesión</h2>
+              <p className="text-gray-500">Accede con tu cuenta de Google</p>
+            </div>
+
+            {/* Google Login Button */}
+            <div className="w-full flex justify-center" data-testid="google-login-button">
+              <GoogleLogin
+                onSuccess={onSuccess}
+                onError={onError}
+                theme="outline"
+                size="large"
+                shape="pill"
+                text="continue_with"
+                locale="es"
+              />
+            </div>
+
+            {/* Error Message */}
+            {error && (
+              <div className="mt-6 flex items-start gap-3 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl p-4">
+                <div className="w-5 h-5 rounded-full bg-red-100 flex items-center justify-center shrink-0 mt-0.5">
+                  <span className="text-red-600 font-bold text-xs">!</span>
+                </div>
+                <span className="font-medium">{error}</span>
+              </div>
+            )}
+
+            {/* Footer Info */}
+            <div className="mt-8 text-center">
+              <p className="text-xs text-gray-400">
+                ¿Problemas para iniciar sesión?{' '}
+                <button className="text-cyan-600 hover:text-cyan-700 font-semibold underline">
+                  Contáctanos
+                </button>
+              </p>
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* Custom CSS for animations */}
+      <style>{`
+        @keyframes slideUp {
+          from {
+            opacity: 0;
+            transform: translateY(20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        .animate-slideUp {
+          animation: slideUp 0.4s ease-out;
+        }
+      `}</style>
     </div>
   );
 }
