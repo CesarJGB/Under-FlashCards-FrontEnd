@@ -1,6 +1,4 @@
-Aquí tienes tu archivo LoginScreen.jsx completamente modificado. He importado useEffect e inyectado el ciclo de vida inteligente para que pinte el fondo de negro (#111827) únicamente mientras estás en esta pantalla, restaurando automáticamente el fondo claro cuando el usuario pasa al Dashboard.
-```jsx
-import { useState, useEffect } from 'react'; // <-- Importación de useEffect agregada
+import { useState, useEffect } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
 import { Sparkles, ChevronUp } from 'lucide-react';
 import BottomSheet from './BottomSheet';
@@ -10,13 +8,9 @@ export default function LoginScreen({ onSuccess, onError, error }) {
 
   // --- CONTROL DINÁMICO DEL FONDO (Anti-Leak) ---
   useEffect(() => {
-    // Guardamos el color de fondo original de la aplicación
     const originalBg = document.body.style.backgroundColor;
-    
-    // Forzamos el fondo oscuro de Flashcards solo para el Login
     document.body.style.backgroundColor = '#111827';
     
-    // Al salir de esta pantalla, devolvemos el fondo a su color original o al claro por defecto
     return () => {
       document.body.style.backgroundColor = originalBg || '#f8fafc';
     };
@@ -120,5 +114,3 @@ export default function LoginScreen({ onSuccess, onError, error }) {
     </div>
   );
 }
-
-```
