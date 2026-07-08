@@ -1,6 +1,6 @@
 // FILE: frontend/src/components/library/ParcialesLevel.jsx
 import React, { useState, useEffect } from 'react';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, Info } from 'lucide-react'; // 👈 Añadido Info
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
@@ -10,10 +10,10 @@ export default function ParcialesLevel({
   setCurrentPath,
   materia,
   onActiveParcialesChange,
-  filterActiveOnly = false, // 👈 Prop clave
-  onClearFilter             // 👈 Callback para salir del filtro
+  filterActiveOnly = false,
+  onClearFilter
 }) {
-  // 👇 DEBUG: Verificar qué props llegan realmente
+  // DEBUG: Verificar qué props llegan realmente
   useEffect(() => {
     console.log('🟢 ParcialesLevel renderizado:');
     console.log('   filterActiveOnly:', filterActiveOnly);
@@ -62,15 +62,23 @@ export default function ParcialesLevel({
     }
   };
 
-  // 👇 LÓGICA DE FILTRADO: Solo mostrar parciales activos cuando filterActiveOnly es true
+  // LÓGICA DE FILTRADO: Solo mostrar parciales activos cuando filterActiveOnly es true
   const visiblePartials = filterActiveOnly
     ? partialsConfig.filter(p => activeParciales.includes(p.num))
     : partialsConfig;
 
-  // 👇 DEBUG: Ver resultado del filtrado
+  // DEBUG: Ver resultado del filtrado
   useEffect(() => {
     console.log('🟢 visiblePartials:', visiblePartials.map(p => p.num));
   }, [visiblePartials]);
+
+  // Calculamos dinámicamente las columnas del grid sumando la tarjeta de información (+1)
+  const totalCards = visiblePartials.length + 1;
+  const gridColsClass = totalCards === 4 
+    ? 'grid-cols-1 sm:grid-cols-2 md:grid-cols-4' 
+    : totalCards === 3 
+      ? 'grid-cols-1 sm:grid-cols-3' 
+      : 'grid-cols-1 sm:grid-cols-2';
 
   return (
     <div className="mt-6 animate-[fadeIn_0.15s_ease]">
@@ -91,11 +99,7 @@ export default function ParcialesLevel({
         </div>
       )}
 
-      <div className={`grid gap-4 ${
-        filterActiveOnly && visiblePartials.length === 2 
-          ? 'grid-cols-1 sm:grid-cols-2' 
-          : 'grid-cols-1 sm:grid-cols-3'
-      }`}>
+      <div className={`grid gap-4 ${gridColsClass}`}>
         {visiblePartials.map((p) => {
           const count = temas.filter(
             t => String(t.materiaId || '') === String(currentPath.materiaId) && t.parcialNumber === p.num
@@ -106,18 +110,17 @@ export default function ParcialesLevel({
             <div
               key={p.num}
               onClick={() => setCurrentPath({ ...currentPath, parcialNumber: p.num })}
-              className="bg-white border border-slate-200 p-5 rounded-2xl hover:border-indigo-200 hover:shadow-xs transition-all duration-200 cursor-pointer flex flex-col justify-between h-32 active:scale-[0.98] group"
+              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-2xl hover:border-indigo-200 dark:hover:border-indigo-900 hover:shadow-xs transition-all duration-200 cursor-pointer flex flex-col justify-between h-32 active:scale-[0.98] group"
             >
               <div className="flex items-center justify-between">
-                <h4 className="text-base font-bold text-slate-950 tracking-tight group-hover:text-indigo-600 transition-colors">
+                <h4 className="text-base font-bold text-slate-950 dark:text-slate-50 tracking-tight group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
                   {p.label}
                 </h4>
-                {/* Solo mostrar toggle si NO estamos en modo filtrado */}
                 {!filterActiveOnly && (
                   <button
                     onClick={(e) => handleToggle(e, p.num)}
                     className={`relative w-9 h-5 rounded-full transition-colors duration-200 ${
-                      isActive ? 'bg-indigo-500' : 'bg-slate-300'
+                      isActive ? 'bg-indigo-500' : 'bg-slate-300 dark:bg-slate-700'
                     }`}
                     title={isActive ? 'Incluido en dominio' : 'Excluido del dominio'}
                   >
@@ -128,15 +131,34 @@ export default function ParcialesLevel({
                 )}
               </div>
 
-              <div className="flex items-center justify-between text-xs text-slate-400 font-medium">
+              <div className="flex items-center justify-between text-xs text-slate-400 dark:text-slate-500 font-medium">
                 <span>{count} tema(s)</span>
-                <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-indigo-500 group-hover:translate-x-0.5 transition-all duration-200" />
+                <ChevronRight className="w-4 h-4 text-slate-300 dark:text-slate-700 group-hover:text-indigo-500 group-hover:translate-x-0.5 transition-all duration-200" />
               </div>
             </div>
           );
         })}
+
+        {/* 💡 NUEVA TARJETA: Información sobre la materia */}
+        <div
+          onClick={() => setCurrentPath({ ...currentPath, parcialNumber: 'info' })}
+          className="bg-slate-50/60 dark:bg-slate-900/40 border border-dashed border-slate-300 dark:border-slate-800 p-5 rounded-2xl hover:border-indigo-400 dark:hover:border-indigo-500 hover:bg-white dark:hover:bg-slate-900 transition-all duration-200 cursor-pointer flex flex-col justify-between h-32 active:scale-[0.98] group"
+        >
+          <div className="flex items-center justify-between">
+            <h4 className="text-base font-bold text-slate-700 dark:text-slate-300 tracking-tight group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+              Información de la materia
+            </h4>
+            <div className="p-1.5 rounded-xl bg-slate-200/50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 group-hover:bg-indigo-50 dark:group-hover:bg-indigo-950/40 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-all">
+              <Info className="w-4.5 h-4.5" />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between text-xs text-slate-400 dark:text-slate-500 font-medium">
+            <span>Calificaciones y calculadora</span>
+            <ChevronRight className="w-4 h-4 text-slate-300 dark:text-slate-700 group-hover:text-indigo-500 group-hover:translate-x-0.5 transition-all duration-200" />
+          </div>
+        </div>
       </div>
     </div>
   );
 }
-
