@@ -1,37 +1,11 @@
 // FILE: frontend/src/components/library/InfoLevel.jsx
 import React from 'react';
-import { ArrowLeft, Calculator, FileText, BarChart3 } from 'lucide-react';
+import { Calculator, FileText, BarChart3 } from 'lucide-react'; // 👈 Se eliminó ArrowLeft
 
 export default function InfoLevel({ materia, currentPath, setCurrentPath }) {
-  // Función para regresar al nivel de parciales de esta materia
-  const handleBack = () => {
-    setCurrentPath({
-      ...currentPath,
-      parcialNumber: null // Al limpiar el parcial, regresa a la vista de la cuadrícula de parciales
-    });
-  };
-
   return (
-    <div className="mt-6 animate-[fadeIn_0.15s_ease] space-y-6">
-      {/* Botón de regreso rápido */}
-      <button
-        onClick={handleBack}
-        className="flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-400 transition-colors cursor-pointer group"
-      >
-        <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
-        Volver a parciales
-      </button>
-
-      {/* Cabecera del nivel */}
-      <div className="border-b border-slate-100 dark:border-slate-800 pb-4">
-        <h3 className="text-xl font-bold text-slate-950 dark:text-slate-50 tracking-tight">
-          Información de la Materia: <span className="text-indigo-600 dark:text-indigo-400">{materia?.name}</span>
-        </h3>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-          Gestiona tus criterios de evaluación, calcula tus notas y revisa estadísticas de estudio.
-        </p>
-      </div>
-
+    <div className="mt-4 animate-[fadeIn_0.15s_ease] space-y-6">
+      
       {/* Grid de Secciones Interiores (Cascarones para la calculadora, notas, etc.) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         
