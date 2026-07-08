@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
-import { Sparkles, ChevronUp, ChevronDown } from 'lucide-react';
+import { Sparkles, ChevronUp } from 'lucide-react';
 import BottomSheet from './BottomSheet';
 
 export default function LoginScreen({ onSuccess, onError, error }) {
@@ -9,8 +9,9 @@ export default function LoginScreen({ onSuccess, onError, error }) {
   const handleGetStarted = () => setIsExpanded(true);
   const handleClose = () => setIsExpanded(false);
 
+  // Eliminamos clases de animación que rompen el iframe de Google
   const collapsedContent = (
-    <div key="collapsed" className="animate-slideUp">
+    <div>
       <div className="text-center mb-8">
         <h2 className="text-2xl font-bold text-gray-900 mb-2">
           ¡Bienvenido!
@@ -33,13 +34,14 @@ export default function LoginScreen({ onSuccess, onError, error }) {
   );
 
   const expandedContent = (
-    <div key="expanded" className="animate-slideUp">
+    <div>
       <div className="text-center mb-8">
         <h2 className="text-3xl font-bold text-gray-900 mb-2">Iniciar Sesión</h2>
         <p className="text-gray-500">Accede con tu cuenta de Google</p>
       </div>
 
-      <div className="w-full flex justify-center" data-testid="google-login-button">
+      {/* Contenedor estable con ancho y alto mínimo predefinido */}
+      <div className="w-full flex justify-center min-h-[44px]" data-testid="google-login-button">
         <GoogleLogin
           onSuccess={onSuccess}
           onError={onError}
@@ -73,7 +75,6 @@ export default function LoginScreen({ onSuccess, onError, error }) {
 
   return (
     <div className="min-h-screen w-full relative bg-gradient-to-b from-gray-900 via-gray-800 to-white overflow-hidden">
-      {/* Barra superior que cubre el status bar */}
       <div className="fixed top-0 left-0 right-0 h-12 bg-gray-900 z-40" />
 
       {/* Logo Area */}
@@ -92,7 +93,6 @@ export default function LoginScreen({ onSuccess, onError, error }) {
         </p>
       </div>
 
-      {/* Bottom Sheet reutilizable */}
       <BottomSheet
         isOpen={isExpanded}
         onOpen={handleGetStarted}
@@ -101,26 +101,7 @@ export default function LoginScreen({ onSuccess, onError, error }) {
         expandedContent={expandedContent}
         collapsedHeight={280}
         expandedHeight={60}
-        maxHeight={90}
-        openThreshold={50}
-        closeThreshold={100}
       />
-
-      <style>{`
-        @keyframes slideUp {
-          from {
-            opacity: 0;
-            transform: translateY(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        .animate-slideUp {
-          animation: slideUp 0.4s ease-out;
-        }
-      `}</style>
     </div>
   );
 }
