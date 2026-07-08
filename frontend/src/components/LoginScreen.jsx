@@ -4,7 +4,12 @@ import { Sparkles, ChevronUp, ChevronDown } from 'lucide-react';
 
 export default function LoginScreen({ onSuccess, onError, error }) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragOffset, setDragOffset] = useState(0);
+  
   const touchStartY = useRef(null);
+  const sheetRef = useRef(null);
+  const sheetHeight = useRef(null);
 
   // Bloqueo de scroll total y prevención de pull-to-refresh
   useEffect(() => {
@@ -27,26 +32,82 @@ export default function LoginScreen({ onSuccess, onError, error }) {
 
   const handleClose = () => {
     setIsExpanded(false);
+    setDragOffset(0);
   };
 
-  // Touch handlers para swipe
+  // Touch handlers para arrastre progresivo
   const onTouchStart = (e) => {
     touchStartY.current = e.changedTouches[0].clientY;
+    setIsDragging(true);
+    
+    // Obtener altura del sheet
+    if (sheetRef.current) {
+      sheetHeight.current = sheetRef.current.offsetHeight;
+    }
+  };
+
+  const onTouchMove = (e) => {
+    if (touchStartY.current === null) return;
+    
+    const touchY = e.changedTouches[0].clientY;
+    const deltaY = touchY - touchStartY.current;
+    
+    // Solo permitir arrastre hacia abajo si está expandido
+    // o hacia arriba si está colapsado
+    if ((isExpanded && deltaY > 0) || (!isExpanded && deltaY < 0)) {
+      e.preventDefault();
+      setDragOffset(deltaY);
+    }
   };
 
   const onTouchEnd = (e) => {
-    if (touchStartY.current == null) return;
+    if (touchStartY.current === null) return;
     
-    const dy = e.changedTouches[0].clientY - touchStartY.current;
-    const threshold = 50;
+    const touchY = e.changedTouches[0].clientY;
+    const deltaY = touchY - touchStartY.current;
+    const threshold = -50; // negativo porque arrastramos hacia arriba
     
-    if (isExpanded && dy > threshold) {
-      handleClose();
-    } else if (!isExpanded && dy < -threshold) {
-      handleGetStarted();
+    // Decidir si abrir o cerrar basado en la posición
+    if (isExpanded) {
+      // Si arrastró hacia abajo más de 100px, cerrar
+      if (deltaY > 100) {
+        setIsExpanded(false);
+      } else {
+        // Snap back a expandido
+        setDragOffset(0);
+      }
+    } else {
+      // Si arrastró hacia arriba más de 50px, abrir
+      if (deltaY < threshold) {
+        setIsExpanded(true);
+      } else {
+        // Snap back a colapsado
+        setDragOffset(0);
+      }
     }
     
+    setIsDragging(false);
     touchStartY.current = null;
+  };
+
+  // Calcular altura dinámica basada en el estado y el arrastre
+  const getSheetHeight = () => {
+    if (isDragging) {
+      // Durante el arrastre, usar offset dinámico
+      const baseHeight = isExpanded ? window.innerHeight * 0.6 : 280;
+      return baseHeight - dragOffset;
+    }
+    
+    if (isExpanded) {
+      return '60vh';
+    }
+    return 'auto';
+  };
+
+  // Calcular transform para smooth snap
+  const getTransform = () => {
+    if (!isDragging) return 'translateY(0)';
+    return `translateY(${dragOffset}px)`;
   };
 
   return (
@@ -72,14 +133,19 @@ export default function LoginScreen({ onSuccess, onError, error }) {
 
       {/* Bottom Sheet - FIXED al fondo de la pantalla */}
       <div 
+        ref={sheetRef}
         onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
+        style={{
+          transform: getTransform(),
+          transition: isDragging ? 'none' : 'transform 0.3s ease-out, height 0.3s ease-out',
+          height: getSheetHeight(),
+        }}
         className={`
           fixed bottom-0 left-0 right-0 
           bg-white rounded-t-[32px] shadow-2xl z-30
-          transition-all duration-500 ease-out
           touch-pan-y select-none
-          ${isExpanded ? 'h-[60vh]' : 'h-auto'}
         `}
       >
         {/* Handle Bar */}
