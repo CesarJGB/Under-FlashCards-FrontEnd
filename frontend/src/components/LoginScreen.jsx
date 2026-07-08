@@ -9,7 +9,6 @@ export default function LoginScreen({ onSuccess, onError, error }) {
   
   const touchStartY = useRef(null);
   const sheetRef = useRef(null);
-  const sheetHeight = useRef(null);
 
   // Bloqueo de scroll total y prevención de pull-to-refresh
   useEffect(() => {
@@ -39,11 +38,6 @@ export default function LoginScreen({ onSuccess, onError, error }) {
   const onTouchStart = (e) => {
     touchStartY.current = e.changedTouches[0].clientY;
     setIsDragging(true);
-    
-    // Obtener altura del sheet
-    if (sheetRef.current) {
-      sheetHeight.current = sheetRef.current.offsetHeight;
-    }
   };
 
   const onTouchMove = (e) => {
@@ -52,11 +46,22 @@ export default function LoginScreen({ onSuccess, onError, error }) {
     const touchY = e.changedTouches[0].clientY;
     const deltaY = touchY - touchStartY.current;
     
-    // Solo permitir arrastre hacia abajo si está expandido
-    // o hacia arriba si está colapsado
+    // Solo permitir arrastre en la dirección correcta
     if ((isExpanded && deltaY > 0) || (!isExpanded && deltaY < 0)) {
       e.preventDefault();
-      setDragOffset(deltaY);
+      
+      // Limitar el offset según el estado
+      if (isExpanded) {
+        // Si está expandido, solo puede bajar (deltaY positivo)
+        // Límite máximo: no puede bajar más allá de su altura actual
+        const maxDrag = window.innerHeight * 0.6;
+        setDragOffset(Math.min(deltaY, maxDrag));
+      } else {
+        // Si está colapsado, solo puede subir (deltaY negativo)
+        // Límite: no puede subir más allá del 90% de la pantalla
+        const maxUp = -(window.innerHeight * 0.9);
+        setDragOffset(Math.max(deltaY, maxUp));
+      }
     }
   };
 
@@ -65,25 +70,20 @@ export default function LoginScreen({ onSuccess, onError, error }) {
     
     const touchY = e.changedTouches[0].clientY;
     const deltaY = touchY - touchStartY.current;
-    const threshold = -50; // negativo porque arrastramos hacia arriba
     
     // Decidir si abrir o cerrar basado en la posición
     if (isExpanded) {
       // Si arrastró hacia abajo más de 100px, cerrar
       if (deltaY > 100) {
         setIsExpanded(false);
-      } else {
-        // Snap back a expandido
-        setDragOffset(0);
       }
+      setDragOffset(0);
     } else {
       // Si arrastró hacia arriba más de 50px, abrir
-      if (deltaY < threshold) {
+      if (deltaY < -50) {
         setIsExpanded(true);
-      } else {
-        // Snap back a colapsado
-        setDragOffset(0);
       }
+      setDragOffset(0);
     }
     
     setIsDragging(false);
@@ -93,9 +93,15 @@ export default function LoginScreen({ onSuccess, onError, error }) {
   // Calcular altura dinámica basada en el estado y el arrastre
   const getSheetHeight = () => {
     if (isDragging) {
-      // Durante el arrastre, usar offset dinámico
-      const baseHeight = isExpanded ? window.innerHeight * 0.6 : 280;
-      return baseHeight - dragOffset;
+      if (isExpanded) {
+        // Expandido: altura base menos el arrastre hacia abajo
+        const baseHeight = window.innerHeight * 0.6;
+        return Math.max(baseHeight - dragOffset, 280); // mínimo 280px
+      } else {
+        // Colapsado: altura base más el arrastre hacia arriba (deltaY negativo)
+        const baseHeight = 280;
+        return Math.min(baseHeight - dragOffset, window.innerHeight * 0.9); // máximo 90vh
+      }
     }
     
     if (isExpanded) {
