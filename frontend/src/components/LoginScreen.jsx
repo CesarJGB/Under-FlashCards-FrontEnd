@@ -9,7 +9,6 @@ export default function LoginScreen({ onSuccess, onError, error }) {
   const handleGetStarted = () => setIsExpanded(true);
   const handleClose = () => setIsExpanded(false);
 
-  // Eliminamos clases de animación que rompen el iframe de Google
   const collapsedContent = (
     <div>
       <div className="text-center mb-8">
@@ -40,7 +39,6 @@ export default function LoginScreen({ onSuccess, onError, error }) {
         <p className="text-gray-500">Accede con tu cuenta de Google</p>
       </div>
 
-      {/* Contenedor estable con ancho y alto mínimo predefinido */}
       <div className="w-full flex justify-center min-h-[44px]" data-testid="google-login-button">
         <GoogleLogin
           onSuccess={onSuccess}
@@ -74,25 +72,28 @@ export default function LoginScreen({ onSuccess, onError, error }) {
   );
 
   return (
-    <div className="min-h-screen w-full relative bg-gradient-to-b from-gray-900 via-gray-800 to-white overflow-hidden">
-      <div className="fixed top-0 left-0 right-0 h-12 bg-gray-900 z-40" />
-
-      {/* Logo Area */}
-      <div className="relative z-10 flex flex-col items-center justify-center pt-32 pb-8 px-6">
+    /* CAMBIO: h-[100dvh] asegura adaptación perfecta a Chrome y Safari */
+    <div className="h-[100dvh] w-full relative bg-gradient-to-b from-gray-900 via-gray-800 to-white overflow-hidden flex flex-col justify-start">
+      
+      {/* CAMBIO OPTIMIZADO: El área del logo ahora es flex-1 y tiene un padding inferior 
+          equivalente al alto del panel cerrado (280px). Esto distribuye y centra el logo 
+          automáticamente en la zona útil de la pantalla sin importar el navegador. */}
+      <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-6 pb-[280px]">
         <div className="mb-6">
-          <div className="w-24 h-24 rounded-3xl bg-white shadow-2xl flex items-center justify-center transform hover:scale-105 transition-transform duration-300">
-            <Sparkles className="w-12 h-12 text-gray-900" />
+          <div className="w-20 h-20 md:w-24 md:h-24 rounded-3xl bg-white shadow-2xl flex items-center justify-center transform hover:scale-105 transition-transform duration-300">
+            <Sparkles className="w-10 h-10 md:w-12 md:h-12 text-gray-900" />
           </div>
         </div>
         
-        <h1 className="text-5xl font-bold text-white mb-3 tracking-tight drop-shadow-lg">
+        <h1 className="text-4xl md:text-5xl font-bold text-white mb-2 tracking-tight drop-shadow-lg">
           Flashcards
         </h1>
-        <p className="text-gray-300 text-lg text-center max-w-xs leading-relaxed">
+        <p className="text-gray-300 text-base md:text-lg text-center max-w-xs leading-relaxed">
           Estudia de forma inteligente y alcanza tus metas
         </p>
       </div>
 
+      {/* Bottom Sheet */}
       <BottomSheet
         isOpen={isExpanded}
         onOpen={handleGetStarted}
@@ -100,7 +101,7 @@ export default function LoginScreen({ onSuccess, onError, error }) {
         collapsedContent={collapsedContent}
         expandedContent={expandedContent}
         collapsedHeight={280}
-        expandedHeight={60}
+        expandedHeight={62} /* Un toque más alto para albergar cómodamente el botón de google */
       />
     </div>
   );
