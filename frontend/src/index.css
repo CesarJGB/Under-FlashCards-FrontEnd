@@ -8,12 +8,30 @@ html,
 body,
 #root {
   height: 100%;
+  background-color: #111827; /* gray-900 - fondo negro para todo */
 }
 
 body {
   margin: 0;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* Prevenir pull-to-refresh y overscroll */
+  overscroll-behavior: none;
+  overflow: hidden;
+  /* Soporte para safe area (notch, home indicator) */
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Asegurar que el fondo negro se extienda al status bar */
+@supports (-webkit-touch-callout: none) {
+  body {
+    /* iOS specific */
+    min-height: -webkit-fill-available;
+  }
+  html {
+    height: -webkit-fill-available;
+  }
 }
 
 @keyframes fadeIn {
@@ -60,4 +78,3 @@ body {
     opacity: 1;
   }
 }
-
