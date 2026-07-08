@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 
 /**
- * BottomSheet con tope magnético, límites físicos absolutos y auto-corrección de segundo plano (iOS Fix).
+ * BottomSheet con física fluida interactiva 1:1 y scroll interno totalmente deshabilitado.
  */
 export default function BottomSheet({
   isOpen,
@@ -15,7 +15,6 @@ export default function BottomSheet({
   closeThreshold = 80,
   lockScroll = true,
 }) {
-  // SOLUCIÓN: Almacenamos la altura de la ventana en un estado reactivo
   const [windowHeight, setWindowHeight] = useState(
     typeof window !== 'undefined' ? window.innerHeight : 800
   );
@@ -25,16 +24,14 @@ export default function BottomSheet({
   const touchStartY = useRef(null);
   const sheetRef = useRef(null);
 
-  // Escuchar eventos de cambio de tamaño y retorno de segundo plano
   useEffect(() => {
     const handleRecalculate = () => {
-      // Forzamos la actualización con la altura real actual del viewport
       setWindowHeight(window.innerHeight);
     };
 
     window.addEventListener('resize', handleRecalculate);
     window.addEventListener('orientationchange', handleRecalculate);
-    window.addEventListener('focus', handleRecalculate); // Se dispara al regresar del App Switcher
+    window.addEventListener('focus', handleRecalculate);
 
     return () => {
       window.removeEventListener('resize', handleRecalculate);
@@ -153,8 +150,8 @@ export default function BottomSheet({
         />
       </div>
 
-      {/* Área del Contenido Fijo */}
-      <div className="px-8 pb-8 h-full overflow-y-auto relative">
+      {/* CAMBIO RADICAL: Eliminamos cualquier lógica auto y lo bloqueamos en overflow-hidden permanente */}
+      <div className="px-8 pb-8 h-full relative overflow-hidden">
         
         {/* Estado Colapsado (¡Bienvenido!) */}
         <div 
