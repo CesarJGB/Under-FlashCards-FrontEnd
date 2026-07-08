@@ -1,9 +1,23 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
 import { Sparkles, ChevronUp, ChevronDown } from 'lucide-react';
 
 export default function LoginScreen({ onSuccess, onError, error }) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const touchStartY = useRef(null);
+  const touchStartHeight = useRef(null);
+
+  // Prevenir scroll cuando está expandido
+  useEffect(() => {
+    if (isExpanded) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isExpanded]);
 
   const handleGetStarted = () => {
     setIsExpanded(true);
@@ -11,6 +25,31 @@ export default function LoginScreen({ onSuccess, onError, error }) {
 
   const handleClose = () => {
     setIsExpanded(false);
+  };
+
+  // Touch handlers para swipe
+  const onTouchStart = (e) => {
+    touchStartY.current = e.changedTouches[0].clientY;
+    touchStartHeight.current = isExpanded ? 85 : 0; // vh
+  };
+
+  const onTouchEnd = (e) => {
+    if (touchStartY.current == null) return;
+    
+    const dy = e.changedTouches[0].clientY - touchStartY.current;
+    const threshold = 50; // px mínimos para considerar swipe
+    
+    // Si está expandido y hace swipe hacia abajo → cerrar
+    if (isExpanded && dy > threshold) {
+      handleClose();
+    }
+    // Si NO está expandido y hace swipe hacia arriba → abrir
+    else if (!isExpanded && dy < -threshold) {
+      handleGetStarted();
+    }
+    
+    touchStartY.current = null;
+    touchStartHeight.current = null;
   };
 
   return (
@@ -33,10 +72,13 @@ export default function LoginScreen({ onSuccess, onError, error }) {
 
       {/* Bottom Sheet */}
       <div 
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
         className={`
           absolute bottom-0 left-0 right-0 
           bg-white rounded-t-[32px] shadow-2xl z-30
           transition-all duration-500 ease-out
+          touch-pan-y select-none
           ${isExpanded ? 'h-[85vh]' : 'h-auto'}
         `}
       >
