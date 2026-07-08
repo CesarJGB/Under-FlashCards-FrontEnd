@@ -1,127 +1,82 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
 import { Sparkles, ChevronUp, ChevronDown } from 'lucide-react';
+import BottomSheet from './BottomSheet';
 
 export default function LoginScreen({ onSuccess, onError, error }) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragOffset, setDragOffset] = useState(0);
-  
-  const touchStartY = useRef(null);
-  const sheetRef = useRef(null);
 
-  // Bloqueo de scroll total y prevención de pull-to-refresh
-  useEffect(() => {
-    document.body.style.overflow = 'hidden';
-    document.body.style.overscrollBehavior = 'none';
-    document.documentElement.style.overflow = 'hidden';
-    document.documentElement.style.overscrollBehavior = 'none';
-    
-    return () => {
-      document.body.style.overflow = '';
-      document.body.style.overscrollBehavior = '';
-      document.documentElement.style.overflow = '';
-      document.documentElement.style.overscrollBehavior = '';
-    };
-  }, []);
+  const handleGetStarted = () => setIsExpanded(true);
+  const handleClose = () => setIsExpanded(false);
 
-  const handleGetStarted = () => {
-    setIsExpanded(true);
-  };
+  const collapsedContent = (
+    <div key="collapsed" className="animate-slideUp">
+      <div className="text-center mb-8">
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">
+          ¡Bienvenido!
+        </h2>
+        <p className="text-gray-500">Inicia sesión para comenzar a estudiar</p>
+      </div>
 
-  const handleClose = () => {
-    setIsExpanded(false);
-    setDragOffset(0);
-  };
+      <button
+        onClick={handleGetStarted}
+        className="w-full bg-gradient-to-r from-gray-800 via-gray-700 to-gray-600 text-white font-semibold py-4 px-8 rounded-2xl shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 flex items-center justify-center gap-2 group"
+      >
+        Comenzar
+        <ChevronUp className="w-5 h-5 group-hover:-translate-y-1 transition-transform duration-300" />
+      </button>
 
-  // Touch handlers para arrastre progresivo
-  const onTouchStart = (e) => {
-    touchStartY.current = e.changedTouches[0].clientY;
-    setIsDragging(true);
-  };
+      <p className="text-center text-xs text-gray-400 mt-6">
+        Al continuar aceptas nuestros términos y condiciones
+      </p>
+    </div>
+  );
 
-  const onTouchMove = (e) => {
-    if (touchStartY.current === null) return;
-    
-    const touchY = e.changedTouches[0].clientY;
-    const deltaY = touchY - touchStartY.current;
-    
-    // Solo permitir arrastre en la dirección correcta
-    if ((isExpanded && deltaY > 0) || (!isExpanded && deltaY < 0)) {
-      e.preventDefault();
-      
-      // Limitar el offset según el estado
-      if (isExpanded) {
-        // Si está expandido, solo puede bajar (deltaY positivo)
-        // Límite máximo: no puede bajar más allá de su altura actual
-        const maxDrag = window.innerHeight * 0.6;
-        setDragOffset(Math.min(deltaY, maxDrag));
-      } else {
-        // Si está colapsado, solo puede subir (deltaY negativo)
-        // Límite: no puede subir más allá del 90% de la pantalla
-        const maxUp = -(window.innerHeight * 0.9);
-        setDragOffset(Math.max(deltaY, maxUp));
-      }
-    }
-  };
+  const expandedContent = (
+    <div key="expanded" className="animate-slideUp">
+      <div className="text-center mb-8">
+        <h2 className="text-3xl font-bold text-gray-900 mb-2">Iniciar Sesión</h2>
+        <p className="text-gray-500">Accede con tu cuenta de Google</p>
+      </div>
 
-  const onTouchEnd = (e) => {
-    if (touchStartY.current === null) return;
-    
-    const touchY = e.changedTouches[0].clientY;
-    const deltaY = touchY - touchStartY.current;
-    
-    // Decidir si abrir o cerrar basado en la posición
-    if (isExpanded) {
-      // Si arrastró hacia abajo más de 100px, cerrar
-      if (deltaY > 100) {
-        setIsExpanded(false);
-      }
-      setDragOffset(0);
-    } else {
-      // Si arrastró hacia arriba más de 50px, abrir
-      if (deltaY < -50) {
-        setIsExpanded(true);
-      }
-      setDragOffset(0);
-    }
-    
-    setIsDragging(false);
-    touchStartY.current = null;
-  };
+      <div className="w-full flex justify-center" data-testid="google-login-button">
+        <GoogleLogin
+          onSuccess={onSuccess}
+          onError={onError}
+          theme="outline"
+          size="large"
+          shape="pill"
+          text="continue_with"
+          locale="es"
+        />
+      </div>
 
-  // Calcular altura dinámica basada en el estado y el arrastre
-  const getSheetHeight = () => {
-    if (isDragging) {
-      if (isExpanded) {
-        // Expandido: altura base menos el arrastre hacia abajo
-        const baseHeight = window.innerHeight * 0.6;
-        return Math.max(baseHeight - dragOffset, 280); // mínimo 280px
-      } else {
-        // Colapsado: altura base más el arrastre hacia arriba (deltaY negativo)
-        const baseHeight = 280;
-        return Math.min(baseHeight - dragOffset, window.innerHeight * 0.9); // máximo 90vh
-      }
-    }
-    
-    if (isExpanded) {
-      return '60vh';
-    }
-    return 'auto';
-  };
+      {error && (
+        <div className="mt-6 flex items-start gap-3 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl p-4">
+          <div className="w-5 h-5 rounded-full bg-red-100 flex items-center justify-center shrink-0 mt-0.5">
+            <span className="text-red-600 font-bold text-xs">!</span>
+          </div>
+          <span className="font-medium">{error}</span>
+        </div>
+      )}
 
-  // Calcular transform para smooth snap
-  const getTransform = () => {
-    if (!isDragging) return 'translateY(0)';
-    return `translateY(${dragOffset}px)`;
-  };
+      <div className="mt-8 text-center">
+        <p className="text-xs text-gray-400">
+          ¿Problemas para iniciar sesión?{' '}
+          <button className="text-cyan-600 hover:text-cyan-700 font-semibold underline">
+            Contáctanos
+          </button>
+        </p>
+      </div>
+    </div>
+  );
 
   return (
     <div className="min-h-screen w-full relative bg-gradient-to-b from-gray-900 via-gray-800 to-white overflow-hidden">
-      {/* Barra superior que cubre el status bar del navegador */}
+      {/* Barra superior que cubre el status bar */}
       <div className="fixed top-0 left-0 right-0 h-12 bg-gray-900 z-40" />
 
-      {/* Main Content - Logo Area */}
+      {/* Logo Area */}
       <div className="relative z-10 flex flex-col items-center justify-center pt-32 pb-8 px-6">
         <div className="mb-6">
           <div className="w-24 h-24 rounded-3xl bg-white shadow-2xl flex items-center justify-center transform hover:scale-105 transition-transform duration-300">
@@ -137,114 +92,20 @@ export default function LoginScreen({ onSuccess, onError, error }) {
         </p>
       </div>
 
-      {/* Bottom Sheet - FIXED al fondo de la pantalla */}
-      <div 
-        ref={sheetRef}
-        onTouchStart={onTouchStart}
-        onTouchMove={onTouchMove}
-        onTouchEnd={onTouchEnd}
-        style={{
-          transform: getTransform(),
-          transition: isDragging ? 'none' : 'transform 0.3s ease-out, height 0.3s ease-out',
-          height: getSheetHeight(),
-        }}
-        className={`
-          fixed bottom-0 left-0 right-0 
-          bg-white rounded-t-[32px] shadow-2xl z-30
-          touch-pan-y select-none
-        `}
-      >
-        {/* Handle Bar */}
-        <div className="flex justify-center pt-4 pb-2">
-          <button
-            onClick={handleClose}
-            className="flex flex-col items-center gap-1 group"
-            aria-label={isExpanded ? "Cerrar" : "Abrir"}
-          >
-            <div className={`
-              w-12 h-1.5 bg-gray-300 rounded-full 
-              transition-all duration-300
-              ${isExpanded ? 'group-hover:bg-gray-400' : ''}
-            `} />
-            {isExpanded && (
-              <ChevronDown className="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-colors" />
-            )}
-          </button>
-        </div>
+      {/* Bottom Sheet reutilizable */}
+      <BottomSheet
+        isOpen={isExpanded}
+        onOpen={handleGetStarted}
+        onClose={handleClose}
+        collapsedContent={collapsedContent}
+        expandedContent={expandedContent}
+        collapsedHeight={280}
+        expandedHeight={60}
+        maxHeight={90}
+        openThreshold={50}
+        closeThreshold={100}
+      />
 
-        {/* Render only one state at a time */}
-        {!isExpanded ? (
-          <div 
-            key="collapsed"
-            className="px-8 pb-8 animate-slideUp"
-          >
-            <div className="text-center mb-8">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                ¡Bienvenido!
-              </h2>
-              <p className="text-gray-500">Inicia sesión para comenzar a estudiar</p>
-            </div>
-
-            <button
-              onClick={handleGetStarted}
-              className="w-full bg-gradient-to-r from-gray-800 via-gray-700 to-gray-600 text-white font-semibold py-4 px-8 rounded-2xl shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 flex items-center justify-center gap-2 group"
-            >
-              Comenzar
-              <ChevronUp className="w-5 h-5 group-hover:-translate-y-1 transition-transform duration-300" />
-            </button>
-
-            <p className="text-center text-xs text-gray-400 mt-6">
-              Al continuar aceptas nuestros términos y condiciones
-            </p>
-          </div>
-        ) : (
-          <div 
-            key="expanded"
-            className="px-8 pb-8 animate-slideUp"
-          > 
-            {/* Header */}
-            <div className="text-center mb-8">
-              <h2 className="text-3xl font-bold text-gray-900 mb-2">Iniciar Sesión</h2>
-              <p className="text-gray-500">Accede con tu cuenta de Google</p>
-            </div>
-
-            {/* Google Login Button */}
-            <div className="w-full flex justify-center" data-testid="google-login-button">
-              <GoogleLogin
-                onSuccess={onSuccess}
-                onError={onError}
-                theme="outline"
-                size="large"
-                shape="pill"
-                text="continue_with"
-                locale="es"
-              />
-            </div>
-
-            {/* Error Message */}
-            {error && (
-              <div className="mt-6 flex items-start gap-3 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl p-4">
-                <div className="w-5 h-5 rounded-full bg-red-100 flex items-center justify-center shrink-0 mt-0.5">
-                  <span className="text-red-600 font-bold text-xs">!</span>
-                </div>
-                <span className="font-medium">{error}</span>
-              </div>
-            )}
-
-            {/* Footer Info */}
-            <div className="mt-8 text-center">
-              <p className="text-xs text-gray-400">
-                ¿Problemas para iniciar sesión?{' '}
-                <button className="text-cyan-600 hover:text-cyan-700 font-semibold underline">
-                  Contáctanos
-                </button>
-              </p>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Custom CSS for animations */}
       <style>{`
         @keyframes slideUp {
           from {
