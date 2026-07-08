@@ -5,17 +5,22 @@ import { Sparkles, ChevronUp, ChevronDown } from 'lucide-react';
 export default function LoginScreen({ onSuccess, onError, error }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const touchStartY = useRef(null);
-  const touchStartHeight = useRef(null);
 
-  // Prevenir scroll cuando está expandido
+  // Prevenir scroll completamente cuando está expandido
   useEffect(() => {
     if (isExpanded) {
+      document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
+      document.body.style.overscrollBehaviorY = 'none';
     } else {
+      document.documentElement.style.overflow = '';
       document.body.style.overflow = '';
+      document.body.style.overscrollBehaviorY = '';
     }
     return () => {
+      document.documentElement.style.overflow = '';
       document.body.style.overflow = '';
+      document.body.style.overscrollBehaviorY = '';
     };
   }, [isExpanded]);
 
@@ -30,32 +35,27 @@ export default function LoginScreen({ onSuccess, onError, error }) {
   // Touch handlers para swipe
   const onTouchStart = (e) => {
     touchStartY.current = e.changedTouches[0].clientY;
-    touchStartHeight.current = isExpanded ? 85 : 0; // vh
   };
 
   const onTouchEnd = (e) => {
     if (touchStartY.current == null) return;
     
     const dy = e.changedTouches[0].clientY - touchStartY.current;
-    const threshold = 50; // px mínimos para considerar swipe
+    const threshold = 50;
     
-    // Si está expandido y hace swipe hacia abajo → cerrar
     if (isExpanded && dy > threshold) {
       handleClose();
-    }
-    // Si NO está expandido y hace swipe hacia arriba → abrir
-    else if (!isExpanded && dy < -threshold) {
+    } else if (!isExpanded && dy < -threshold) {
       handleGetStarted();
     }
     
     touchStartY.current = null;
-    touchStartHeight.current = null;
   };
 
   return (
-    <div className="min-h-screen w-full relative overflow-hidden bg-gradient-to-b from-gray-900 via-gray-800 to-white">
+    <div className="min-h-screen w-full relative flex flex-col justify-end bg-gradient-to-b from-gray-900 via-gray-800 to-white">
       {/* Main Content - Logo Area */}
-      <div className="relative z-10 flex flex-col items-center justify-center pt-32 pb-8 px-6">
+      <div className="absolute top-0 left-0 right-0 z-10 flex flex-col items-center justify-center pt-20 pb-8 px-6">
         <div className="mb-6">
           <div className="w-24 h-24 rounded-3xl bg-white shadow-2xl flex items-center justify-center transform hover:scale-105 transition-transform duration-300">
             <Sparkles className="w-12 h-12 text-gray-900" />
@@ -75,10 +75,10 @@ export default function LoginScreen({ onSuccess, onError, error }) {
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
         className={`
-          absolute bottom-0 left-0 right-0 
+          relative w-full 
           bg-white rounded-t-[32px] shadow-2xl z-30
           transition-all duration-500 ease-out
-          touch-pan-y select-none
+          touch-pan-y select-none overscroll-none
           ${isExpanded ? 'h-[85vh]' : 'h-auto'}
         `}
       >
