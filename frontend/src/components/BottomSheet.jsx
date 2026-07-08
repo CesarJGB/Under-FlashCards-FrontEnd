@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 
 /**
- * BottomSheet con tope magnético y límites físicos absolutos.
- * Optimizado para mantener el DOM montado y evitar parpadeos en iframes (Google Login).
+ * BottomSheet con tope magnético, límites físicos absolutos y transición de contenido optimizada.
  */
 export default function BottomSheet({
   isOpen,
@@ -22,7 +21,6 @@ export default function BottomSheet({
   const touchStartY = useRef(null);
   const sheetRef = useRef(null);
 
-  // Auxiliar para calcular las distancias en píxeles en tiempo real
   const getDimensions = () => {
     const windowHeight = typeof window !== 'undefined' ? window.innerHeight : 800;
     const expandedHeightPx = windowHeight * (expandedHeight / 100);
@@ -30,7 +28,6 @@ export default function BottomSheet({
     return { maxTravelDistance };
   };
 
-  // Bloqueo de scroll del fondo
   useEffect(() => {
     if (lockScroll && isOpen) {
       document.body.style.overflow = 'hidden';
@@ -117,15 +114,15 @@ export default function BottomSheet({
         />
       </div>
 
-      {/* Área del Contenido Optimizado (Mantiene ambos estados vivos en el DOM) */}
+      {/* Área del Contenido Fijo - Eliminamos el salto horizontal */}
       <div className="px-8 pb-8 h-full overflow-y-auto relative">
         
         {/* Estado Colapsado (¡Bienvenido!) */}
         <div 
-          className={`w-full transition-all duration-300 ${
+          className={`w-full absolute left-0 right-0 px-8 transition-opacity duration-300 ${
             isOpen 
-              ? 'opacity-0 pointer-events-none absolute invisible' 
-              : 'opacity-100'
+              ? 'opacity-0 pointer-events-none' 
+              : 'opacity-100 pointer-events-auto'
           }`}
         >
           {collapsedContent}
@@ -133,10 +130,10 @@ export default function BottomSheet({
 
         {/* Estado Expandido (Google Login) */}
         <div 
-          className={`w-full transition-all duration-300 ${
+          className={`w-full absolute left-0 right-0 px-8 transition-opacity duration-300 ${
             isOpen 
-              ? 'opacity-100' 
-              : 'opacity-0 pointer-events-none absolute invisible'
+              ? 'opacity-100 pointer-events-auto' 
+              : 'opacity-0 pointer-events-none'
           }`}
         >
           {expandedContent}
