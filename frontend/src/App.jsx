@@ -101,6 +101,13 @@ function DashboardScreen({ user, onLogout }) {
     setTab(id);
   };
 
+  // Ensure viewport resets to top when switching main tabs (SPA behavior)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    // schedule on next frame to allow DOM updates
+    requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: 'auto' }));
+  }, [tab]);
+
   const handleOpenReviewFromHome = (deck) => {
     setInitialMode('review');
     setCurrentDeck(deck);

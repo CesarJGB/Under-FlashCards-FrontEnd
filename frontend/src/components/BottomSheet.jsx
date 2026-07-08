@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { lockBodyScroll, unlockBodyScroll } from '../lib/scrollLock';
 
 /**
  * BottomSheet con física fluida interactiva 1:1 y scroll interno totalmente deshabilitado.
@@ -46,17 +47,23 @@ export default function BottomSheet({
     return { maxTravelDistance };
   };
 
+  // Manage body scroll using the shared lock utility. Each BottomSheet instance
+  // receives a unique owner id so multiple components can request the lock
+  // without stomping on each other.
+  const ownerRef = useRef(`bottomsheet_${Math.random().toString(36).slice(2,9)}`);
+
   useEffect(() => {
-    if (lockScroll && isOpen) {
-      document.body.style.overflow = 'hidden';
-      document.body.style.overscrollBehavior = 'none';
+    if (!lockScroll) return;
+
+    if (isOpen) {
+      lockBodyScroll(ownerRef.current);
     } else {
-      document.body.style.overflow = '';
-      document.body.style.overscrollBehavior = '';
+      unlockBodyScroll(ownerRef.current);
     }
+
     return () => {
-      document.body.style.overflow = '';
-      document.body.style.overscrollBehavior = '';
+      // ensure we release our owner lock on unmount
+      if (lockScroll) unlockBodyScroll(ownerRef.current);
     };
   }, [isOpen, lockScroll]);
 

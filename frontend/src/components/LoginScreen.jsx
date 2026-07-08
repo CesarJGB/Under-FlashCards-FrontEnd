@@ -2,24 +2,24 @@ import { useState, useEffect } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
 import { Sparkles, ChevronUp } from 'lucide-react';
 import BottomSheet from './BottomSheet';
+import { lockBodyScroll, unlockBodyScroll } from '../lib/scrollLock';
 
 export default function LoginScreen({ onSuccess, onError, error }) {
   const [isExpanded, setIsExpanded] = useState(false);
 
   // --- CONTROL DINÁMICO DEL FONDO Y SCROLL (Anti-Leak) ---
   useEffect(() => {
-    // Guardamos los estados originales del navegador
+    // Guardamos el color de fondo actual y lo reemplazamos solo para Login
     const originalBg = document.body.style.backgroundColor;
-    const originalOverflow = document.body.style.overflow;
-    
-    // Bloqueamos el scroll base y pintamos de negro SOLO en esta pantalla
     document.body.style.backgroundColor = '#111827';
-    document.body.style.overflow = 'hidden';
-    
-    // Al salir del Login (desmontar), restauramos los valores originales de la app
+
+    // Pedimos el bloqueo de scroll con propietario único
+    lockBodyScroll('LoginScreen');
+
+    // Al salir del Login (desmontar), restauramos el background y liberamos el bloqueo
     return () => {
       document.body.style.backgroundColor = originalBg || '#f8fafc';
-      document.body.style.overflow = originalOverflow || '';
+      unlockBodyScroll('LoginScreen');
     };
   }, []);
   // ----------------------------------------------
