@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 
 /**
  * BottomSheet con tope magnético y límites físicos absolutos.
+ * Optimizado para mantener el DOM montado y evitar parpadeos en iframes (Google Login).
  */
 export default function BottomSheet({
   isOpen,
@@ -10,7 +11,7 @@ export default function BottomSheet({
   collapsedContent,
   expandedContent,
   collapsedHeight = 280,
-  expandedHeight = 85, // Ajustado a 85vh por defecto para cubrir bien la pantalla de login
+  expandedHeight = 85,
   openThreshold = 60,
   closeThreshold = 80,
   lockScroll = true,
@@ -25,7 +26,6 @@ export default function BottomSheet({
   const getDimensions = () => {
     const windowHeight = typeof window !== 'undefined' ? window.innerHeight : 800;
     const expandedHeightPx = windowHeight * (expandedHeight / 100);
-    // La distancia máxima que el panel se puede mover entre abierto y cerrado
     const maxTravelDistance = expandedHeightPx - collapsedHeight;
     return { maxTravelDistance };
   };
@@ -55,7 +55,6 @@ export default function BottomSheet({
     const touchY = e.touches[0].clientY;
     const deltaY = touchY - touchStartY.current;
     
-    // Filtro de tolerancia para proteger los clicks en el botón de Google
     if (!isDragging && Math.abs(deltaY) > 10) {
       setIsDragging(true);
     }
@@ -67,12 +66,8 @@ export default function BottomSheet({
       let clampedDelta = deltaY;
       
       if (isOpen) {
-        // ESTADO ABIERTO: Solo permitimos deslizar hacia abajo (valores positivos)
-        // El límite máximo de bajada es la distancia de viaje (maxTravelDistance)
         clampedDelta = Math.max(0, Math.min(maxTravelDistance, deltaY));
       } else {
-        // ESTADO CERRADO: Solo permitimos deslizar hacia arriba (valores negativos)
-        // SOLUCIÓN AL INFINITO: Ponemos un freno absoluto para que no suba más allá del tope máximo
         clampedDelta = Math.min(0, Math.max(-maxTravelDistance, deltaY));
       }
       
@@ -96,13 +91,8 @@ export default function BottomSheet({
     touchStartY.current = null;
   };
 
-  // --- CÁLCULO DE POSICIONES ABSOLUTAS ---
   const { maxTravelDistance } = getDimensions();
-  
-  // Posición base inicial en pixeles dependiendo de si está abierto (0) o cerrado (abajo)
   const baseTranslateY = isOpen ? 0 : maxTravelDistance;
-  
-  // Posición final combinando el estado estático + el arrastre del dedo
   const currentTranslateY = isDragging ? baseTranslateY + dragOffset : baseTranslateY;
 
   return (
@@ -113,7 +103,7 @@ export default function BottomSheet({
       onTouchEnd={onTouchEnd}
       style={{
         transform: `translateY(${currentTranslateY}px)`,
-        transition: isDragging ? 'none' : 'transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.1)', // Efecto magnético sutil
+        transition: isDragging ? 'none' : 'transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.1)',
         height: `${expandedHeight}vh`,
       }}
       className="fixed bottom-0 left-0 right-0 bg-white rounded-t-[32px] shadow-2xl z-30 select-none will-change-transform"
@@ -127,9 +117,31 @@ export default function BottomSheet({
         />
       </div>
 
-      {/* Área del Contenido */}
-      <div className="px-8 pb-8 h-full overflow-y-auto">
-        {isOpen ? expandedContent : collapsedContent}
+      {/* Área del Contenido Optimizado (Mantiene ambos estados vivos en el DOM) */}
+      <div className="px-8 pb-8 h-full overflow-y-auto relative">
+        
+        {/* Estado Colapsado (¡Bienvenido!) */}
+        <div 
+          className={`w-full transition-all duration-300 ${
+            isOpen 
+              ? 'opacity-0 pointer-events-none absolute invisible' 
+              : 'opacity-100'
+          }`}
+        >
+          {collapsedContent}
+        </div>
+
+        {/* Estado Expandido (Google Login) */}
+        <div 
+          className={`w-full transition-all duration-300 ${
+            isOpen 
+              ? 'opacity-100' 
+              : 'opacity-0 pointer-events-none absolute invisible'
+          }`}
+        >
+          {expandedContent}
+        </div>
+
       </div>
     </div>
   );
