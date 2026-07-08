@@ -1,228 +1,223 @@
-// FILE: frontend/src/hooks/useLibraryState.js
-import { useState, useEffect, useMemo, useCallback } from 'react';
+// FILE: frontend/src/components/library/InfoLevel.jsx
+import React, { useState } from 'react';
+import { ArrowLeft, Calculator, Plus, Trash2, RefreshCw, CheckCircle2, AlertTriangle } from 'lucide-react';
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+export default function InfoLevel({ materia, currentPath, setCurrentPath }) {
+  // --- ESTADOS PARA LA CALCULADORA DE CALIFICACIONES ---
+  const [criterios, setCriterios] = useState([
+    { id: 1, nombre: 'Exámenes Parciales', porcentaje: 50, nota: 80 },
+    { id: 2, nombre: 'Tareas y Trabajos', porcentaje: 20, nota: 90 },
+    { id: 3, nombre: 'Proyecto Final', porcentaje: 30, nota: 0 },
+  ]);
+  
+  const [notaAprobatoria, setNotaAprobatoria] = useState(70);
 
-function getObjectIdTimestamp(id) {
-  if (!id || typeof id !== 'string' || id.length !== 24) return 0;
-  return parseInt(id.substring(0, 8), 16) * 1000;
-}
-
-function sortFolders(items, sortBy, decks, getDecksForItem) {
-  const sorted = [...items];
-  if (sortBy === 'alpha') {
-    sorted.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-  } else if (sortBy === 'recent') {
-    sorted.sort((a, b) => {
-      const ta = a.createdAt ? new Date(a.createdAt).getTime() : getObjectIdTimestamp(a._id);
-      const tb = b.createdAt ? new Date(b.createdAt).getTime() : getObjectIdTimestamp(b._id);
-      return tb - ta;
-    });
-  } else if (sortBy === 'oldest') {
-    sorted.sort((a, b) => {
-      const ta = a.createdAt ? new Date(a.createdAt).getTime() : getObjectIdTimestamp(a._id);
-      const tb = b.createdAt ? new Date(b.createdAt).getTime() : getObjectIdTimestamp(b._id);
-      return ta - tb;
-    });
-  } else if (sortBy === 'cards-desc' || sortBy === 'cards-asc') {
-    const countMap = new Map();
-    sorted.forEach(item => {
-      const itemDecks = getDecksForItem(item);
-      const total = itemDecks.reduce((sum, d) => sum + (d.cardCount ?? d.cards?.length ?? d.cardsCount ?? 0), 0);
-      countMap.set(item._id, total);
-    });
-    sorted.sort((a, b) => sortBy === 'cards-desc'
-      ? (countMap.get(b._id) || 0) - (countMap.get(a._id) || 0)
-      : (countMap.get(a._id) || 0) - (countMap.get(b._id) || 0)
-    );
-  }
-  return sorted;
-}
-
-export function useLibraryState(userId, decks, materias, setDecks, setMaterias, loadDecks) {
-  // 👇 Inicializado de forma nativa con la propiedad del filtro integrada
-  const [currentPath, setCurrentPath] = useState({
-    materiaId: null,
-    parcialNumber: null,
-    temaId: null,
-    subtemaId: null,
-    filterActiveParciales: false 
-  });
-
-  const [temas, setTemas] = useState([]);
-  const [subtemas, setSubtemas] = useState([]);
-  const [academicLoading, setAcademicLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState('recent');
-  const [viewMode, setViewMode] = useState('grid');
-
-  const refreshTemas = useCallback(async () => {
-    if (!currentPath.materiaId) return;
-    try {
-      const res = await fetch(`${BACKEND_URL}/api/academic/temas/${currentPath.materiaId}`);
-      if (res.ok) setTemas(await res.json());
-    } catch (e) {
-      console.error("Error cargando temas:", e);
-    }
-  }, [currentPath.materiaId]);
-
-  // Carga reactiva de Temas
-  useEffect(() => {
-    if (!currentPath.materiaId) {
-      setTemas([]);
-      return;
-    }
-    setAcademicLoading(true);
-    refreshTemas().finally(() => setAcademicLoading(false));
-  }, [currentPath.materiaId]);
-
-  // Carga reactiva de Subtemas
-  useEffect(() => {
-    if (!currentPath.temaId) {
-      setSubtemas([]);
-      return;
-    }
-    const fetchSubtemas = async () => {
-      setAcademicLoading(true);
-      try {
-        const res = await fetch(`${BACKEND_URL}/api/academic/subtemas/${currentPath.temaId}`);
-        if (res.ok) setSubtemas(await res.json());
-      } catch (e) {
-        console.error("Error cargando subtemas:", e);
-      } finally { setAcademicLoading(false); }
-    };
-    fetchSubtemas();
-  }, [currentPath.temaId]);
-
-  const processedDecks = useMemo(() => {
-    let result = decks.filter((deck) => {
-      const matchesSearch = deck.title?.toLowerCase().includes(searchQuery.toLowerCase());
-      if (!matchesSearch) return false;
-
-      if (currentPath.materiaId === null) return deck.materiaId === null;
-      if (currentPath.parcialNumber === null) return false;
-      if (currentPath.temaId === null) {
-        return deck.materiaId === currentPath.materiaId && deck.parcialNumber === currentPath.parcialNumber && deck.temaId === null;
-      }
-      if (currentPath.subtemaId === null) {
-        return deck.temaId === currentPath.temaId && deck.subtemaId === null;
-      }
-      return deck.subtemaId === currentPath.subtemaId;
-    });
-
-    const getCount = (d) => d.cardCount ?? d.cards?.length ?? d.cardsCount ?? 0;
-
-    if (sortBy === 'recent') {
-      result.sort((a, b) => new Date(b.createdAt || b.id) - new Date(a.createdAt || a.id));
-    } else if (sortBy === 'oldest') {
-      result.sort((a, b) => new Date(a.createdAt || a.id) - new Date(b.createdAt || b.id));
-    } else if (sortBy === 'alpha') {
-      result.sort((a, b) => a.title.localeCompare(b.title));
-    } else if (sortBy === 'cards-desc') {
-      result.sort((a, b) => getCount(b) - getCount(a));
-    } else if (sortBy === 'cards-asc') {
-      result.sort((a, b) => getCount(a) - getCount(b));
-    }
-    return result;
-  }, [decks, searchQuery, sortBy, currentPath]);
-
-  const sortedMaterias = useMemo(() => {
-    return sortFolders(materias, sortBy, decks, (m) => decks.filter(d => d.materiaId === m._id));
-  }, [materias, sortBy, decks]);
-
-  const sortedTemas = useMemo(() => {
-    const filtered = temas.filter(t => t.parcialNumber === (currentPath.parcialNumber));
-    return sortFolders(filtered, sortBy, decks, (t) => decks.filter(d => d.temaId === t._id));
-  }, [temas, sortBy, decks, currentPath.parcialNumber]);
-
-  const sortedSubtemas = useMemo(() => {
-    return sortFolders(subtemas, sortBy, decks, (s) => decks.filter(d => d.subtemaId === s._id));
-  }, [subtemas, sortBy, decks]);
-
-  const searchResults = useMemo(() => {
-    if (!searchQuery.trim()) return null;
-    const q = searchQuery.toLowerCase();
-    const results = [];
-
-    materias.forEach(m => {
-      if (m.name?.toLowerCase().includes(q)) {
-        results.push({ type: 'materia', item: m, path: m.name });
-      }
-    });
-
-    temas.forEach(t => {
-      if (t.name?.toLowerCase().includes(q)) {
-        const materia = materias.find(m => m._id === t.materiaId);
-        results.push({
-          type: 'tema', item: t,
-          path: `${materia?.name || 'Materia'} > P${t.parcialNumber} > ${t.name}`,
-          nav: { materiaId: t.materiaId, parcialNumber: t.parcialNumber, temaId: t._id, subtemaId: null }
-        });
-      }
-    });
-
-    subtemas.forEach(s => {
-      if (s.name?.toLowerCase().includes(q)) {
-        const tema = temas.find(t => t._id === s.temaId);
-        const materia = tema ? materias.find(m => m._id === tema.materiaId) : null;
-        results.push({
-          type: 'subtema', item: s,
-          path: `${materia?.name || '?'} > P${tema?.parcialNumber || '?'} > ${tema?.name || '?'} > ${s.name}`,
-          nav: { materiaId: tema?.materiaId, parcialNumber: tema?.parcialNumber, temaId: s.temaId, subtemaId: s._id }
-        });
-      }
-    });
-
-    decks.forEach(d => {
-      if (!d.materiaId) return;
-      if (!d.title?.toLowerCase().includes(q)) return;
-      const materia = materias.find(m => m._id === d.materiaId);
-      const tema = d.temaId ? temas.find(t => t._id === d.temaId) : null;
-      const subtema = d.subtemaId ? subtemas.find(s => s._id === d.subtemaId) : null;
-      let path = materia?.name || 'Materia';
-      if (d.parcialNumber) path += ` > P${d.parcialNumber}`;
-      if (tema) path += ` > ${tema.name}`;
-      if (subtema) path += ` > ${subtema.name}`;
-      results.push({
-        type: 'deck', item: d, path,
-        nav: { materiaId: d.materiaId, parcialNumber: d.parcialNumber, temaId: d.temaId, subtemaId: d.subtemaId }
-      });
-    });
-
-    return results;
-  }, [searchQuery, materias, temas, subtemas, decks]);
-
-  // 👇 Resetea explícitamente el flag junto con los niveles de la ruta
-  const handleResetPath = useCallback(() => {
-    setCurrentPath({ 
-      materiaId: null, 
-      parcialNumber: null, 
-      temaId: null, 
-      subtemaId: null,
-      filterActiveParciales: false 
-    });
-  }, []);
-
-  return {
-    currentPath,
-    setCurrentPath,
-    temas,
-    setTemas,
-    subtemas,
-    setSubtemas,
-    academicLoading,
-    searchQuery,
-    setSearchQuery,
-    sortBy,
-    setSortBy,
-    viewMode,
-    setViewMode,
-    processedDecks,
-    sortedMaterias,
-    sortedTemas,
-    sortedSubtemas,
-    searchResults,
-    handleResetPath,
-    refreshTemas
+  const handleBack = () => {
+    setCurrentPath({ ...currentPath, parcialNumber: null });
   };
+
+  // --- LÓGICA DE LA CALCULADORA ---
+  const handleAgregarCriterio = () => {
+    const nuevoId = criterios.length > 0 ? Math.max(...criterios.map(c => c.id)) + 1 : 1;
+    setCriterios([...criterios, { id: nuevoId, nombre: 'Nuevo Criterio', porcentaje: 0, nota: 0 }]);
+  };
+
+  const handleEliminarCriterio = (id) => {
+    setCriterios(criterios.filter(c => c.id !== id));
+  };
+
+  const handleEditarCriterio = (id, campo, valor) => {
+    setCriterios(criterios.map(c => {
+      if (c.id === id) {
+        let v = valor;
+        if (campo === 'porcentaje' || campo === 'nota') {
+          v = valor === '' ? '' : Math.max(0, Math.min(100, Number(valor)));
+        }
+        return { ...c, [campo]: v };
+      }
+      return c;
+    }));
+  };
+
+  // Cálculos dinámicos
+  const totalPorcentaje = criterios.reduce((sum, c) => sum + (Number(c.porcentaje) || 0), 0);
+  
+  const notaActualAcumulada = criterios.reduce((sum, c) => {
+    return sum + (((Number(c.nota) || 0) * (Number(c.porcentaje) || 0)) / 100);
+  }, 0);
+
+  // Determinar si hay un criterio en "0" o por evaluar para calcular el "Requerido"
+  const criteriosPorEvaluar = criterios.filter(c => (Number(c.nota) || 0) === 0 && (Number(c.porcentaje) || 0) > 0);
+  const porcentajePendiente = criteriosPorEvaluar.reduce((sum, c) => sum + Number(c.porcentaje), 0);
+  
+  let notaNecesariaParaAprobar = 0;
+  if (porcentajePendiente > 0) {
+    const notaYaGanada = criterios
+      .filter(c => (Number(c.nota) || 0) > 0)
+      .reduce((sum, c) => sum + ((Number(c.nota) * Number(c.porcentaje)) / 100), 0);
+    
+    notaNecesariaParaAprobar = ((notaAprobatoria - notaYaGanada) / porcentajePendiente) * 100;
+  }
+
+  return (
+    <div className="mt-6 animate-[fadeIn_0.15s_ease] space-y-6">
+      {/* Botón de regreso rápido */}
+      <button
+        onClick={handleBack}
+        className="flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-400 transition-colors cursor-pointer group"
+      >
+        <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
+        Volver a parciales
+      </button>
+
+      {/* Cabecera del nivel */}
+      <div className="border-b border-slate-100 dark:border-slate-800 pb-4">
+        <h3 className="text-xl font-bold text-slate-950 dark:text-slate-50 tracking-tight">
+          Panel de Información: <span className="text-indigo-600 dark:text-indigo-400">{materia?.name}</span>
+        </h3>
+      </div>
+
+      {/* SECCIÓN PRINCIPAL: CALCULADORA INTERACTIVA */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        {/* Formulario y tabla de criterios */}
+        <div className="lg:col-span-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xs space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5 text-indigo-600 dark:text-indigo-400">
+              <Calculator className="w-5 h-5" />
+              <h4 className="font-bold text-slate-950 dark:text-slate-50">Criterios de Evaluación</h4>
+            </div>
+            
+            <button
+              onClick={handleAgregarCriterio}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 rounded-xl transition-colors cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" /> Añadir renglón
+            </button>
+          </div>
+
+          <div className="space-y-3">
+            {/* Encabezados de tabla simples */}
+            <div className="grid grid-cols-12 gap-2 px-2 text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+              <span className="col-span-6">Concepto / Actividad</span>
+              <span className="col-span-3 text-center">Peso (%)</span>
+              <span className="col-span-2 text-center">Tu Nota</span>
+              <span className="col-span-1"></span>
+            </div>
+
+            {/* Renderizado de filas */}
+            {criterios.map((crit) => (
+              <div key={crit.id} className="grid grid-cols-12 gap-2 items-center bg-slate-50/50 dark:bg-slate-950/20 p-2 rounded-xl border border-slate-100 dark:border-slate-800/60 group">
+                <input
+                  type="text"
+                  value={crit.nombre}
+                  onChange={(e) => handleEditarCriterio(crit.id, 'nombre', e.target.value)}
+                  className="col-span-6 px-3 py-1.5 text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-hidden focus:border-indigo-500 text-slate-800 dark:text-slate-200"
+                  placeholder="Ej. Tareas"
+                />
+                <input
+                  type="number"
+                  value={crit.porcentaje}
+                  onChange={(e) => handleEditarCriterio(crit.id, 'porcentaje', e.target.value)}
+                  className="col-span-3 px-2 py-1.5 text-sm text-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-hidden focus:border-indigo-500 text-slate-800 dark:text-slate-200"
+                  placeholder="0"
+                />
+                <input
+                  type="number"
+                  value={crit.nota}
+                  onChange={(e) => handleEditarCriterio(crit.id, 'nota', e.target.value)}
+                  className="col-span-2 px-2 py-1.5 text-sm text-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-hidden focus:border-indigo-500 text-slate-800 dark:text-slate-200"
+                  placeholder="0"
+                />
+                <div className="col-span-1 flex justify-center">
+                  <button
+                    onClick={() => handleEliminarCriterio(crit.id)}
+                    className="p-1.5 text-slate-400 hover:text-rose-500 rounded-md hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer opacity-0 group-hover:opacity-100 focus:opacity-100"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Barra de validación de porcentaje total */}
+          <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs font-medium">
+            <span className="text-slate-500 dark:text-slate-400">Configuración de la nota mínima para pasar:</span>
+            <div className="flex items-center gap-2">
+              <input 
+                type="number" 
+                value={notaAprobatoria} 
+                onChange={(e) => setNotaAprobatoria(Number(e.target.value))}
+                className="w-12 px-1 py-0.5 text-center font-bold bg-slate-100 dark:bg-slate-800 border-none rounded-md focus:outline-hidden focus:ring-1 focus:ring-indigo-500 text-slate-800 dark:text-slate-100"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Panel de resultados analíticos */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xs flex flex-col justify-between space-y-6">
+          <div className="space-y-4">
+            <h5 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+              Diagnóstico de Calificación
+            </h5>
+            
+            {/* Indicador 1: Suma de porcentajes */}
+            <div className="space-y-1.5">
+              <div className="flex justify-between text-xs font-semibold">
+                <span className="text-slate-600 dark:text-slate-400">Distribución del Temario:</span>
+                <span className={totalPorcentaje === 100 ? "text-emerald-600 font-bold" : "text-amber-600"}>
+                  {totalPorcentaje}% de 100%
+                </span>
+              </div>
+              <div className="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                <div 
+                  className={`h-full transition-all duration-300 ${totalPorcentaje === 100 ? 'bg-emerald-500' : 'bg-amber-500'}`}
+                  style={{ width: `${Math.min(100, totalPorcentaje)}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Indicador 2: Calificación Acumulada actual */}
+            <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/40 border border-slate-100 dark:border-slate-800 flex items-center justify-between">
+              <div>
+                <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase">Nota Acumulada Actual</p>
+                <p className="text-2xl font-black text-slate-950 dark:text-slate-50 tracking-tight mt-0.5">
+                  {notaActualAcumulada.toFixed(1)}
+                </p>
+              </div>
+              <div className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400">
+                <RefreshCw className="w-5 h-5" />
+              </div>
+            </div>
+
+            {/* Mensaje predictivo dinámico */}
+            {totalPorcentaje !== 100 ? (
+              <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/30 text-amber-800 dark:text-amber-400 text-xs flex gap-2.5 items-start">
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                <p>Asegúrate de que tus criterios sumen exactamente 100% para obtener predicciones precisas.</p>
+              </div>
+            ) : porcentajePendiente > 0 ? (
+              <div className="p-3.5 rounded-xl bg-indigo-50/60 dark:bg-indigo-950/20 border border-indigo-100/70 dark:border-indigo-900/30 text-slate-700 dark:text-slate-300 text-xs space-y-1">
+                <p className="font-semibold text-indigo-700 dark:text-indigo-400">Meta de aprobación:</p>
+                <p>
+                  Necesitas promediar un <span className="font-bold text-slate-950 dark:text-white text-sm">{Math.max(0, notaNecesariaParaAprobar).toFixed(1)}</span> en tus criterios restantes ({porcentajePendiente}% pendiente) para salvar la materia con {notaAprobatoria}.
+                </p>
+              </div>
+            ) : (
+              <div className={`p-3.5 rounded-xl text-xs flex gap-2.5 items-start ${notaActualAcumulada >= notaAprobatoria ? 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-800 dark:text-emerald-400 border border-emerald-100' : 'bg-rose-50 dark:bg-rose-950/20 text-rose-800 dark:text-rose-400 border border-rose-100'}`}>
+                <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+                <p>{notaActualAcumulada >= notaAprobatoria ? '¡Felicidades! Con las notas registradas ya has acreditado la materia de forma satisfactoria.' : 'El puntaje acumulado total no alcanza la nota aprobatoria requerida.'}</p>
+              </div>
+            )}
+          </div>
+
+          <div className="text-[10px] text-slate-400 dark:text-slate-500 text-center leading-relaxed">
+            Las calificaciones no se guardan en el servidor; puedes usarlas de forma libre para simular escenarios.
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
 }
