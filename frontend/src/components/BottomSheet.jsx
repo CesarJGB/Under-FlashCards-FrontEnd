@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 
 /**
- * BottomSheet con tope magnético, límites físicos absolutos y transición desfasada anti-ghosting.
+ * BottomSheet con física fluida interactiva 1:1 vinculada al dedo.
  */
 export default function BottomSheet({
   isOpen,
@@ -92,6 +92,28 @@ export default function BottomSheet({
   const baseTranslateY = isOpen ? 0 : maxTravelDistance;
   const currentTranslateY = isDragging ? baseTranslateY + dragOffset : baseTranslateY;
 
+  // --- CÁLCULO DE PROGRESO INTERACTIVO EN TIEMPO REAL ---
+  // progress = 0 significa totalmente cerrado, progress = 1 significa totalmente abierto
+  const currentProgress = maxTravelDistance > 0 
+    ? 1 - (currentTranslateY / maxTravelDistance) 
+    : 0;
+
+  // Estilos dinámicos para el estado colapsado (¡Bienvenido!)
+  const collapsedStyle = isDragging
+    ? {
+        opacity: Math.max(0, 1 - currentProgress * 2), // Se desvanece rápido en la primera mitad del viaje
+        transform: `translateY(${-currentProgress * 15}px)`, // Sube sutilmente con el dedo
+      }
+    : {};
+
+  // Estilos dinámicos para el estado expandido (Google Login)
+  const expandedStyle = isDragging
+    ? {
+        opacity: Math.max(0, (currentProgress - 0.3) * 1.42), // Empieza a aparecer tras pasar el 30% del viaje
+        transform: `translateY(${(1 - currentProgress) * 15}px)`, // Emerge desde abajo con el dedo
+      }
+    : {};
+
   return (
     <div 
       ref={sheetRef}
@@ -100,7 +122,8 @@ export default function BottomSheet({
       onTouchEnd={onTouchEnd}
       style={{
         transform: `translateY(${currentTranslateY}px)`,
-        transition: isDragging ? 'none' : 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+        // Un bezier ligeramente más elástico para cuando se suelta el dedo
+        transition: isDragging ? 'none' : 'transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.12)',
         height: `${expandedHeight}dvh`,
       }}
       className="fixed bottom-0 left-0 right-0 bg-white rounded-t-[32px] shadow-2xl z-30 select-none will-change-transform"
@@ -114,15 +137,16 @@ export default function BottomSheet({
         />
       </div>
 
-      {/* Área del Contenido Fijo con transiciones asíncronas */}
+      {/* Área del Contenido Fijo */}
       <div className="px-8 pb-8 h-full overflow-y-auto relative">
         
         {/* Estado Colapsado (¡Bienvenido!) */}
         <div 
-          className={`w-full absolute left-0 right-0 px-8 transition-all ease-in-out ${
-            isOpen 
-              ? 'opacity-0 -translate-y-2 pointer-events-none duration-150' 
-              : 'opacity-100 translate-y-0 pointer-events-auto duration-200 delay-100'
+          style={collapsedStyle}
+          className={`w-full absolute left-0 right-0 px-8 ${
+            isDragging 
+              ? '' 
+              : `transition-all duration-300 ease-out ${isOpen ? 'opacity-0 -translate-y-2 pointer-events-none' : 'opacity-100 translate-y-0 pointer-events-auto'}`
           }`}
         >
           {collapsedContent}
@@ -130,10 +154,11 @@ export default function BottomSheet({
 
         {/* Estado Expandido (Google Login) */}
         <div 
-          className={`w-full absolute left-0 right-0 px-8 transition-all ease-in-out ${
-            isOpen 
-              ? 'opacity-100 translate-y-0 pointer-events-auto duration-200 delay-100' 
-              : 'opacity-0 translate-y-2 pointer-events-none duration-150'
+          style={expandedStyle}
+          className={`w-full absolute left-0 right-0 px-8 ${
+            isDragging 
+              ? '' 
+              : `transition-all duration-300 ease-out ${isOpen ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-2 pointer-events-none'}`
           }`}
         >
           {expandedContent}
