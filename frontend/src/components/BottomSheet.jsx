@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 
 /**
- * BottomSheet adaptado a Viewports Dinámicos (dvh) con animación fluida integrada.
+ * BottomSheet con tope magnético, límites físicos absolutos y transición desfasada anti-ghosting.
  */
 export default function BottomSheet({
   isOpen,
@@ -100,8 +100,7 @@ export default function BottomSheet({
       onTouchEnd={onTouchEnd}
       style={{
         transform: `translateY(${currentTranslateY}px)`,
-        transition: isDragging ? 'none' : 'transform 0.45s cubic-bezier(0.16, 1, 0.3, 1)',
-        /* CAMBIO: dH en vez de vH para respetar las barras de Chrome */
+        transition: isDragging ? 'none' : 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
         height: `${expandedHeight}dvh`,
       }}
       className="fixed bottom-0 left-0 right-0 bg-white rounded-t-[32px] shadow-2xl z-30 select-none will-change-transform"
@@ -115,26 +114,26 @@ export default function BottomSheet({
         />
       </div>
 
-      {/* Área del Contenido con Animación Mejorada */}
+      {/* Área del Contenido Fijo con transiciones asíncronas */}
       <div className="px-8 pb-8 h-full overflow-y-auto relative">
         
-        {/* Estado Colapsado (¡Bienvenido!) - Desliza sutilmente hacia arriba al ocultarse */}
+        {/* Estado Colapsado (¡Bienvenido!) */}
         <div 
-          className={`w-full absolute left-0 right-0 px-8 transition-all duration-500 ease-out ${
+          className={`w-full absolute left-0 right-0 px-8 transition-all ease-in-out ${
             isOpen 
-              ? 'opacity-0 -translate-y-4 pointer-events-none' 
-              : 'opacity-100 translate-y-0 pointer-events-auto'
+              ? 'opacity-0 -translate-y-2 pointer-events-none duration-150' 
+              : 'opacity-100 translate-y-0 pointer-events-auto duration-200 delay-100'
           }`}
         >
           {collapsedContent}
         </div>
 
-        {/* Estado Expandido (Google Login) - Emerge con suavidad desde abajo */}
+        {/* Estado Expandido (Google Login) */}
         <div 
-          className={`w-full absolute left-0 right-0 px-8 transition-all duration-500 ease-out ${
+          className={`w-full absolute left-0 right-0 px-8 transition-all ease-in-out ${
             isOpen 
-              ? 'opacity-100 translate-y-0 pointer-events-auto' 
-              : 'opacity-0 translate-y-4 pointer-events-none'
+              ? 'opacity-100 translate-y-0 pointer-events-auto duration-200 delay-100' 
+              : 'opacity-0 translate-y-2 pointer-events-none duration-150'
           }`}
         >
           {expandedContent}
