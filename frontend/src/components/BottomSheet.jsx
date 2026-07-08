@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 
 /**
- * BottomSheet con física fluida interactiva 1:1 vinculada al dedo.
+ * BottomSheet con tope magnético, límites físicos absolutos y auto-corrección de segundo plano (iOS Fix).
  */
 export default function BottomSheet({
   isOpen,
@@ -15,14 +15,35 @@ export default function BottomSheet({
   closeThreshold = 80,
   lockScroll = true,
 }) {
+  // SOLUCIÓN: Almacenamos la altura de la ventana en un estado reactivo
+  const [windowHeight, setWindowHeight] = useState(
+    typeof window !== 'undefined' ? window.innerHeight : 800
+  );
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState(0);
   
   const touchStartY = useRef(null);
   const sheetRef = useRef(null);
 
+  // Escuchar eventos de cambio de tamaño y retorno de segundo plano
+  useEffect(() => {
+    const handleRecalculate = () => {
+      // Forzamos la actualización con la altura real actual del viewport
+      setWindowHeight(window.innerHeight);
+    };
+
+    window.addEventListener('resize', handleRecalculate);
+    window.addEventListener('orientationchange', handleRecalculate);
+    window.addEventListener('focus', handleRecalculate); // Se dispara al regresar del App Switcher
+
+    return () => {
+      window.removeEventListener('resize', handleRecalculate);
+      window.removeEventListener('orientationchange', handleRecalculate);
+      window.removeEventListener('focus', handleRecalculate);
+    };
+  }, []);
+
   const getDimensions = () => {
-    const windowHeight = typeof window !== 'undefined' ? window.innerHeight : 800;
     const expandedHeightPx = windowHeight * (expandedHeight / 100);
     const maxTravelDistance = expandedHeightPx - collapsedHeight;
     return { maxTravelDistance };
@@ -92,25 +113,21 @@ export default function BottomSheet({
   const baseTranslateY = isOpen ? 0 : maxTravelDistance;
   const currentTranslateY = isDragging ? baseTranslateY + dragOffset : baseTranslateY;
 
-  // --- CÁLCULO DE PROGRESO INTERACTIVO EN TIEMPO REAL ---
-  // progress = 0 significa totalmente cerrado, progress = 1 significa totalmente abierto
   const currentProgress = maxTravelDistance > 0 
     ? 1 - (currentTranslateY / maxTravelDistance) 
     : 0;
 
-  // Estilos dinámicos para el estado colapsado (¡Bienvenido!)
   const collapsedStyle = isDragging
     ? {
-        opacity: Math.max(0, 1 - currentProgress * 2), // Se desvanece rápido en la primera mitad del viaje
-        transform: `translateY(${-currentProgress * 15}px)`, // Sube sutilmente con el dedo
+        opacity: Math.max(0, 1 - currentProgress * 2),
+        transform: `translateY(${-currentProgress * 15}px)`,
       }
     : {};
 
-  // Estilos dinámicos para el estado expandido (Google Login)
   const expandedStyle = isDragging
     ? {
-        opacity: Math.max(0, (currentProgress - 0.3) * 1.42), // Empieza a aparecer tras pasar el 30% del viaje
-        transform: `translateY(${(1 - currentProgress) * 15}px)`, // Emerge desde abajo con el dedo
+        opacity: Math.max(0, (currentProgress - 0.3) * 1.42),
+        transform: `translateY(${(1 - currentProgress) * 15}px)`,
       }
     : {};
 
@@ -122,8 +139,7 @@ export default function BottomSheet({
       onTouchEnd={onTouchEnd}
       style={{
         transform: `translateY(${currentTranslateY}px)`,
-        // Un bezier ligeramente más elástico para cuando se suelta el dedo
-        transition: isDragging ? 'none' : 'transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.12)',
+        transition: isDragging ? 'none' : 'transform 0.45s cubic-bezier(0.16, 1, 0.3, 1)',
         height: `${expandedHeight}dvh`,
       }}
       className="fixed bottom-0 left-0 right-0 bg-white rounded-t-[32px] shadow-2xl z-30 select-none will-change-transform"
