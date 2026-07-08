@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght=400;500;600;700;800&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -15,9 +15,10 @@ body {
   margin: 0;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  /* Prevenir pull-to-refresh y overscroll */
-  overscroll-behavior: none;
-  overflow: hidden;
+  /* CAMBIO: Permitimos sobre-desplazamiento normal para que otras pantallas hagan scroll */
+  overscroll-behavior: auto; 
+  /* CAMBIO: Eliminamos overflow: hidden para liberar el scroll de toda la app */
+  
   /* Soporte para safe area (notch, home indicator) */
   padding-top: env(safe-area-inset-top);
   padding-bottom: env(safe-area-inset-bottom);
