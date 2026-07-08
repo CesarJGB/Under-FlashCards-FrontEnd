@@ -472,15 +472,17 @@ export default function LibrarySection({
         />
       )}
 
-      <LibraryFAB 
-        currentPath={currentPath}
-        setModal={setModal} 
-        setAcademicModal={setAcademicModal}
-        fileInputRef={fileInputRef} 
-        importing={importing}
-        academicModal={academicModal}
-        modal={modal}
-      />
+      {currentPath.parcialNumber !== 'info' && (
+        <LibraryFAB 
+          currentPath={currentPath}
+          setModal={setModal} 
+          setAcademicModal={setAcademicModal}
+          fileInputRef={fileInputRef} 
+          importing={importing}
+          academicModal={academicModal}
+          modal={modal}
+        />
+      )}
     </div>
   );
 }
