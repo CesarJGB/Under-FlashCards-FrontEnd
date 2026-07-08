@@ -6,13 +6,20 @@ import BottomSheet from './BottomSheet';
 export default function LoginScreen({ onSuccess, onError, error }) {
   const [isExpanded, setIsExpanded] = useState(false);
 
-  // --- CONTROL DINÁMICO DEL FONDO (Anti-Leak) ---
+  // --- CONTROL DINÁMICO DEL FONDO Y SCROLL (Anti-Leak) ---
   useEffect(() => {
+    // Guardamos los estados originales del navegador
     const originalBg = document.body.style.backgroundColor;
-    document.body.style.backgroundColor = '#111827';
+    const originalOverflow = document.body.style.overflow;
     
+    // Bloqueamos el scroll base y pintamos de negro SOLO en esta pantalla
+    document.body.style.backgroundColor = '#111827';
+    document.body.style.overflow = 'hidden';
+    
+    // Al salir del Login (desmontar), restauramos los valores originales de la app
     return () => {
       document.body.style.backgroundColor = originalBg || '#f8fafc';
+      document.body.style.overflow = originalOverflow || '';
     };
   }, []);
   // ----------------------------------------------
