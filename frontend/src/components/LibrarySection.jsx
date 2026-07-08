@@ -9,6 +9,7 @@ import LibraryFAB from './library/LibraryFAB';
 import Breadcrumbs from './library/Breadcrumbs';
 import MateriasLevel from './library/MateriasLevel';
 import ParcialesLevel from './library/ParcialesLevel';
+import InfoLevel from './library/InfoLevel'; // 💡 Importación del nuevo nivel añadida
 import TemasLevel from './library/TemasLevel';
 import SubtemasLevel from './library/SubtemasLevel';
 import AcademicFolderModal from './library/AcademicFolderModal';
@@ -296,6 +297,7 @@ export default function LibrarySection({
           />
         ) : (
           <>
+            {/* 1. NIVEL MATERIAS */}
             {currentPath.materiaId === null && (
               <MateriasLevel
                 materias={sortedMaterias}
@@ -316,6 +318,7 @@ export default function LibrarySection({
               />
             )}
 
+            {/* 2. NIVEL PARCIALES */}
             {currentPath.materiaId !== null && currentPath.parcialNumber === null && (
               <ParcialesLevel
                 temas={temas}
@@ -334,7 +337,6 @@ export default function LibrarySection({
                   setJSON(`materias_${userId}`, updated);
 
                   // 2) Prefetch del nuevo domain-preview para evitar parpadeo
-                  // Intentamos obtener el nuevo preview y escribirlo en la caché local; si falla, invalidamos la entrada
                   try {
                     const key = `domainPreviews_${userId}`;
                     const cached = getJSON(key) || {};
@@ -352,30 +354,22 @@ export default function LibrarySection({
                         timestamp: Date.now()
                       };
 
-                      // Merge y persistir (usar safeLocalStorage)
                       cached[id] = preview;
                       try { setJSON(key, cached); } catch (e) { /* ignore */ }
 
-                      // Notificar a listeners (HomeSection) que hay un preview actualizado
-                      try {
-                        window.dispatchEvent(new CustomEvent('domainPreviews:update', {
-                          detail: { userId, materiaId: id, preview }
-                        }));
-                      } catch (e) { /* ignore */ }
+                      window.dispatchEvent(new CustomEvent('domainPreviews:update', {
+                        detail: { userId, materiaId: id, preview }
+                      }));
                     } else {
-                      // Si el prefetch falla, invalidar la entrada para forzar refetch cuando corresponda
                         if (cached && cached[id]) {
                           delete cached[id];
                           try { setJSON(key, cached); } catch (e) { /* ignore */ }
                         }
-                      try {
-                        window.dispatchEvent(new CustomEvent('domainPreviews:invalidate', {
-                          detail: { userId, materiaId: id }
-                        }));
-                      } catch (e) { /* ignore */ }
+                      window.dispatchEvent(new CustomEvent('domainPreviews:invalidate', {
+                        detail: { userId, materiaId: id }
+                      }));
                     }
                   } catch (err) {
-                    // Falla de red o parsing: invalidar la entrada y notificar
                     try {
                       const key = `domainPreviews_${userId}`;
                       const cached = getJSON(key) || {};
@@ -386,11 +380,9 @@ export default function LibrarySection({
                       }
                     } catch (e) { /* ignore */ }
 
-                    try {
-                      window.dispatchEvent(new CustomEvent('domainPreviews:invalidate', {
-                        detail: { userId, materiaId: String(materiaId) }
-                      }));
-                    } catch (e) { /* ignore */ }
+                    window.dispatchEvent(new CustomEvent('domainPreviews:invalidate', {
+                      detail: { userId, materiaId: String(materiaId) }
+                    }));
 
                     console.error('[LibrarySection] Error prefetching domain preview', err);
                   }
@@ -400,7 +392,20 @@ export default function LibrarySection({
               />
             )}
 
-            {currentPath.materiaId !== null && currentPath.parcialNumber !== null && currentPath.temaId === null && (
+            {/* 💡 2.5. NUEVO NIVEL: INFORMACIÓN DE LA MATERIA */}
+            {currentPath.materiaId !== null && currentPath.parcialNumber === 'info' && (
+              <InfoLevel
+                materia={materias.find(m => (m._id || m.id) === currentPath.materiaId)}
+                currentPath={currentPath}
+                setCurrentPath={setCurrentPath}
+              />
+            )}
+
+            {/* 3. NIVEL TEMAS (Exclusión de 'info' añadida) */}
+            {currentPath.materiaId !== null && 
+             currentPath.parcialNumber !== null && 
+             currentPath.parcialNumber !== 'info' && 
+             currentPath.temaId === null && (
               <TemasLevel
                 temas={sortedTemas}
                 decks={decks}
@@ -421,7 +426,11 @@ export default function LibrarySection({
               />
             )}
 
-            {currentPath.materiaId !== null && currentPath.parcialNumber !== null && currentPath.temaId !== null && (
+            {/* 4. NIVEL SUBTEMAS (Exclusión de 'info' añadida) */}
+            {currentPath.materiaId !== null && 
+             currentPath.parcialNumber !== null && 
+             currentPath.parcialNumber !== 'info' && 
+             currentPath.temaId !== null && (
               <SubtemasLevel
                 subtemas={sortedSubtemas}
                 decks={decks}
