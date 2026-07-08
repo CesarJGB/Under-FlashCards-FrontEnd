@@ -51,7 +51,10 @@ export default function LoginScreen({ onSuccess, onError, error }) {
 
   return (
     <div className="min-h-screen w-full relative bg-gradient-to-b from-gray-900 via-gray-800 to-white overflow-hidden">
-      {/* Main Content - Logo Area (centrado en la parte superior) */}
+      {/* Barra superior que cubre el status bar del navegador */}
+      <div className="fixed top-0 left-0 right-0 h-12 bg-gray-900 z-40" />
+
+      {/* Main Content - Logo Area */}
       <div className="relative z-10 flex flex-col items-center justify-center pt-32 pb-8 px-6">
         <div className="mb-6">
           <div className="w-24 h-24 rounded-3xl bg-white shadow-2xl flex items-center justify-center transform hover:scale-105 transition-transform duration-300">
@@ -76,7 +79,7 @@ export default function LoginScreen({ onSuccess, onError, error }) {
           bg-white rounded-t-[32px] shadow-2xl z-30
           transition-all duration-500 ease-out
           touch-pan-y select-none
-          ${isExpanded ? 'h-[85vh]' : 'h-auto'}
+          ${isExpanded ? 'h-[60vh]' : 'h-auto'}
         `}
       >
         {/* Handle Bar */}
