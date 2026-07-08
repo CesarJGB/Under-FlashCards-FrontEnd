@@ -1,6 +1,6 @@
 // FILE: frontend/src/components/library/ParcialesLevel.jsx
 import React, { useState, useEffect } from 'react';
-import { ChevronRight, Info } from 'lucide-react'; // 👈 Añadido Info
+import { ChevronRight, Info } from 'lucide-react';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
@@ -139,22 +139,22 @@ export default function ParcialesLevel({
           );
         })}
 
-        {/* 💡 NUEVA TARJETA: Información sobre la materia */}
+        {/* 💡 TARJETA CORREGIDA: Estructura idéntica y compatible con Modo Oscuro */}
         <div
           onClick={() => setCurrentPath({ ...currentPath, parcialNumber: 'info' })}
-          className="bg-slate-50/60 dark:bg-slate-900/40 border border-dashed border-slate-300 dark:border-slate-800 p-5 rounded-2xl hover:border-indigo-400 dark:hover:border-indigo-500 hover:bg-white dark:hover:bg-slate-900 transition-all duration-200 cursor-pointer flex flex-col justify-between h-32 active:scale-[0.98] group"
+          className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-2xl hover:border-indigo-200 dark:hover:border-indigo-900 hover:shadow-xs transition-all duration-200 cursor-pointer flex flex-col justify-between h-32 active:scale-[0.98] group"
         >
           <div className="flex items-center justify-between">
-            <h4 className="text-base font-bold text-slate-700 dark:text-slate-300 tracking-tight group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+            <h4 className="text-base font-bold text-slate-950 dark:text-slate-50 tracking-tight group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
               Información de la materia
             </h4>
-            <div className="p-1.5 rounded-xl bg-slate-200/50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 group-hover:bg-indigo-50 dark:group-hover:bg-indigo-950/40 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-all">
+            <div className="text-slate-400 dark:text-slate-500 group-hover:text-indigo-500 dark:group-hover:text-indigo-400 transition-colors">
               <Info className="w-4.5 h-4.5" />
             </div>
           </div>
 
           <div className="flex items-center justify-between text-xs text-slate-400 dark:text-slate-500 font-medium">
-            <span>Calificaciones y calculadora</span>
+            <span></span> {/* Espaciador para mantener alineación del Chevron */}
             <ChevronRight className="w-4 h-4 text-slate-300 dark:text-slate-700 group-hover:text-indigo-500 group-hover:translate-x-0.5 transition-all duration-200" />
           </div>
         </div>
