@@ -5,22 +5,19 @@ import { Sparkles, ChevronUp, ChevronDown } from 'lucide-react';
 export default function LoginScreen({ onSuccess, onError, error }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const touchStartY = useRef(null);
-  const bottomSheetRef = useRef(null);
 
   // Bloqueo de scroll total y prevención de pull-to-refresh
   useEffect(() => {
-    // Bloquear scroll en body
     document.body.style.overflow = 'hidden';
     document.body.style.overscrollBehavior = 'none';
-    
-    // Asegurar que el bottom sheet esté visible desde el inicio
-    if (bottomSheetRef.current) {
-      bottomSheetRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
-    }
+    document.documentElement.style.overflow = 'hidden';
+    document.documentElement.style.overscrollBehavior = 'none';
     
     return () => {
       document.body.style.overflow = '';
       document.body.style.overscrollBehavior = '';
+      document.documentElement.style.overflow = '';
+      document.documentElement.style.overscrollBehavior = '';
     };
   }, []);
 
@@ -53,9 +50,9 @@ export default function LoginScreen({ onSuccess, onError, error }) {
   };
 
   return (
-    <div className="min-h-screen w-full relative flex flex-col bg-gradient-to-b from-gray-900 via-gray-800 to-white">
-      {/* Main Content - Logo Area (fija en la parte superior) */}
-      <div className="absolute top-0 left-0 right-0 z-10 flex flex-col items-center justify-center pt-20 pb-8 px-6">
+    <div className="min-h-screen w-full relative bg-gradient-to-b from-gray-900 via-gray-800 to-white overflow-hidden">
+      {/* Main Content - Logo Area (centrado en la parte superior) */}
+      <div className="relative z-10 flex flex-col items-center justify-center pt-32 pb-8 px-6">
         <div className="mb-6">
           <div className="w-24 h-24 rounded-3xl bg-white shadow-2xl flex items-center justify-center transform hover:scale-105 transition-transform duration-300">
             <Sparkles className="w-12 h-12 text-gray-900" />
@@ -70,18 +67,16 @@ export default function LoginScreen({ onSuccess, onError, error }) {
         </p>
       </div>
 
-      {/* Bottom Sheet (anclado al fondo) */}
+      {/* Bottom Sheet - FIXED al fondo de la pantalla */}
       <div 
-        ref={bottomSheetRef}
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
         className={`
-          relative w-full 
+          fixed bottom-0 left-0 right-0 
           bg-white rounded-t-[32px] shadow-2xl z-30
           transition-all duration-500 ease-out
           touch-pan-y select-none
-          ${isExpanded ? 'h-[85vh]' : 'h-[300px]'}
-          mb-0
+          ${isExpanded ? 'h-[85vh]' : 'h-auto'}
         `}
       >
         {/* Handle Bar */}
@@ -106,7 +101,7 @@ export default function LoginScreen({ onSuccess, onError, error }) {
         {!isExpanded ? (
           <div 
             key="collapsed"
-            className="px-8 pb-8 h-full flex flex-col justify-between"
+            className="px-8 pb-8 animate-slideUp"
           >
             <div className="text-center mb-8">
               <h2 className="text-2xl font-bold text-gray-900 mb-2">
@@ -130,7 +125,7 @@ export default function LoginScreen({ onSuccess, onError, error }) {
         ) : (
           <div 
             key="expanded"
-            className="px-8 pb-8 h-full flex flex-col justify-between"
+            className="px-8 pb-8 animate-slideUp"
           > 
             {/* Header */}
             <div className="text-center mb-8">
@@ -173,6 +168,23 @@ export default function LoginScreen({ onSuccess, onError, error }) {
           </div>
         )}
       </div>
+
+      {/* Custom CSS for animations */}
+      <style>{`
+        @keyframes slideUp {
+          from {
+            opacity: 0;
+            transform: translateY(20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        .animate-slideUp {
+          animation: slideUp 0.4s ease-out;
+        }
+      `}</style>
     </div>
   );
 }
