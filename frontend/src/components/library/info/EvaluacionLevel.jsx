@@ -1,4 +1,4 @@
-// ARCHIVO: frontend/src/components/library/info/EvaluacionLevel.jsx
+// FILE: frontend/src/components/library/info/EvaluacionLevel.jsx
 import React, { useState, useMemo } from 'react';
 import { ArrowLeft, FileText, Plus } from 'lucide-react';
 import EvaluationFolderView from './EvaluationFolderView';
@@ -55,8 +55,10 @@ export default function EvaluacionLevel({ onBack, materia, materias, setMaterias
     try {
       const res = await fetch(`${BACKEND_URL}/api/academic/materias/${materia._id || materia.id}/evaluation`, {
         method: 'PUT',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-User-Id': userId // 🔑 Reparado: Pasamos la identidad real del usuario al middleware protect
+        },
         body: JSON.stringify({ evaluationCriteria: treeClone })
       });
 
@@ -105,7 +107,7 @@ export default function EvaluacionLevel({ onBack, materia, materias, setMaterias
           }
           if (n) {
             n.children = n.children || [];
-            n.children.push(node); // Corrección: Bloque limpio estructurado
+            n.children.push(node);
           }
         }
       } else {
@@ -204,7 +206,6 @@ export default function EvaluacionLevel({ onBack, materia, materias, setMaterias
 
         <div className="mt-6">
           <div className="flex items-center justify-between mb-4">
-            {/* 💡 Ajustada terminología dinámica */}
             <div className="text-sm font-semibold text-slate-700 dark:text-slate-300">
               {navStack.length ? 'Subcriterios actuales' : 'Criterios base'}
             </div>
