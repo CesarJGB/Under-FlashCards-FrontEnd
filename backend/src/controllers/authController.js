@@ -132,3 +132,41 @@ exports.getAiBalance = async (req, res) => {
     return res.status(500).json({ error: 'Server error al consultar fondos.' });
   }
 };
+
+// Middleware de protección (protect)
+// Verifica un token de Google ID (Bearer <idToken>) o acepta X-User-Id en entornos de desarrollo.
+exports.protect = async (req, res, next) => {
+  try {
+    // Intentar extraer token desde Authorization Bearer, x-access-token o body.token
+    const authHeader = req.headers.authorization || req.headers['x-access-token'];
+    let token = null;
+    if (authHeader) token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader;
+    if (!token && req.body?.token) token = req.body.token;
+
+    // Dev fallback: permitir pasar X-User-Id para facilitar pruebas locales (no recomendado en prod)
+    const devUserId = req.headers['x-user-id'] || req.body?.userId;
+    if (!token && devUserId) {
+      const user = await User.findById(devUserId);
+      if (!user) return res.status(401).json({ error: 'Usuario no encontrado (x-user-id).' });
+      req.user = user;
+      return next();
+    }
+
+    if (!token) return res.status(401).json({ error: 'Token de autenticación ausente.' });
+
+    const ticket = await oauthClient.verifyIdToken({ idToken: token, audience: GOOGLE_CLIENT_ID });
+    const payload = ticket.getPayload();
+    if (!payload) return res.status(401).json({ error: 'Token inválido.' });
+
+    // Buscar usuario por googleId; si no existe, crear uno mínimo
+    let user = await User.findOne({ googleId: payload.sub });
+    if (!user) {
+      user = await User.create({ googleId: payload.sub, email: payload.email, name: payload.name, picture: payload.picture });
+    }
+    req.user = user;
+    return next();
+  } catch (err) {
+    console.error('[auth:protect] error:', err.message);
+    return res.status(401).json({ error: 'No autorizado.' });
+  }
+};

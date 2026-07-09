@@ -3,12 +3,15 @@
 const express = require('express');
 const router = express.Router();
 const academicController = require('../controllers/academicController');
+const { protect } = require('../controllers/authController');
 
 // --- Endpoints de Materias ---
 router.get('/academic/materias/:userId', academicController.getMaterias);
 router.post('/academic/materias', academicController.createMateria);
 router.put('/academic/materias/:id', academicController.updateMateria);
 router.delete('/academic/materias/:id', academicController.deleteMateria);
+// Actualizar criterios de evaluación (optimista/estructurado)
+router.put('/academic/materias/:id/evaluation', protect, academicController.updateEvaluationCriteria);
 
 // --- Endpoints de Temas ---
 router.get('/academic/temas/:materiaId', academicController.getTemas);
@@ -27,4 +30,3 @@ router.patch('/academic/materias/:id/active-parciales', academicController.updat
 router.get('/academic/materias/:id/domain-preview', academicController.getDomainPreview);
 
 module.exports = router;
-

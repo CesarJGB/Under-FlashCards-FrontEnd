@@ -333,3 +333,104 @@ exports.updateSubtema = async (req, res) => {
   }
 };
 
+// =========================================================================
+// 6. ACTUALIZAR CRITERIOS DE EVALUACIÓN (Árbol recursivo con validación server-side)
+// =========================================================================
+const { randomUUID } = require('crypto');
+
+// Valida y normaliza recursivamente el árbol de criterios.
+// Reglas importantes aplicadas:
+// - Cada nodo tiene id (genera con crypto.randomUUID() si falta)
+// - type: 'folder' | 'item'
+// - weight: number 0..100
+// - Para folders: sum(children.weight) <= folder.weight (bloqueante)
+// - Profundidad máxima 3 niveles. Nivel 3 solo puede ser 'item'
+function validateAndNormalizeNode(node, depth = 1) {
+  if (!node || typeof node !== 'object') throw new Error('Nodo inválido en el árbol de evaluación.');
+
+  // Ensure id
+  if (!node.id) node.id = randomUUID();
+
+  // Basic shape validations
+  if (!node.name || typeof node.name !== 'string') throw new Error(`Nodo ${node.id} falta name.`);
+  if (!['folder', 'item'].includes(node.type)) throw new Error(`Nodo ${node.id} tiene type inválido.`);
+  if (typeof node.weight !== 'number' || node.weight < 0 || node.weight > 100) throw new Error(`Nodo ${node.id} tiene weight inválido (0-100).`);
+
+  // Depth rules
+  if (depth > 3) throw new Error('Profundidad máxima (3) excedida en criterios de evaluación.');
+  if (depth === 3 && node.type === 'folder') {
+    throw new Error('Regla de profundidad: nivel 3 solo puede contener ítems (type === "item").');
+  }
+
+  if (node.type === 'item') {
+    // Items no deben tener children
+    if (node.children && node.children.length) throw new Error(`Item ${node.id} no puede tener children.`);
+    // grade puede ser null o number 0..100
+    if (node.grade != null && (typeof node.grade !== 'number' || node.grade < 0 || node.grade > 100)) {
+      throw new Error(`Item ${node.id} tiene grade inválido.`);
+    }
+    // Normalize fields
+    return {
+      id: String(node.id),
+      name: node.name,
+      type: 'item',
+      weight: node.weight,
+      grade: node.grade == null ? null : node.grade
+    };
+  }
+
+  // Folder handling
+  const children = Array.isArray(node.children) ? node.children : [];
+  // Sum children weights and validate <= node.weight
+  const sumChildren = children.reduce((acc, c) => acc + (typeof c.weight === 'number' ? c.weight : 0), 0);
+  if (sumChildren > node.weight) {
+    // Throw a specific error message expected by frontend to rollback
+    throw new Error('Validación fallida: La suma de los subcriterios excede el peso asignado al elemento padre.');
+  }
+
+  const normalizedChildren = children.map((ch) => validateAndNormalizeNode(ch, depth + 1));
+
+  return {
+    id: String(node.id),
+    name: node.name,
+    type: 'folder',
+    weight: node.weight,
+    children: normalizedChildren
+  };
+}
+
+exports.updateEvaluationCriteria = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user?.id || req.user?._id;
+
+    const materia = await Materia.findById(id);
+    if (!materia) return res.status(404).json({ error: 'Materia no encontrada.' });
+    if (String(materia.userId) !== String(userId)) {
+      return res.status(403).json({ error: 'No tienes permisos para modificar esta materia.' });
+    }
+
+    const { evaluationCriteria } = req.body || {};
+    if (!Array.isArray(evaluationCriteria)) {
+      return res.status(400).json({ error: 'Payload inválido: evaluationCriteria debe ser un array.' });
+    }
+
+    // Validar y normalizar cada nodo de primer nivel
+    const normalized = evaluationCriteria.map((n) => validateAndNormalizeNode(n, 1));
+
+    materia.evaluationCriteria = normalized;
+    await materia.save();
+
+    return res.status(200).json({ materia: materia.serialize() });
+  } catch (err) {
+    console.error('[academic:updateEvaluationCriteria] error:', err.message);
+    // Si es un error de validación esperado, retornar 400 con mensaje legible
+    if (err.message && err.message.startsWith('Validación')) {
+      return res.status(400).json({ error: err.message });
+    }
+    if (err.message && (err.message.includes('Profundidad') || err.message.includes('inválido') || err.message.includes('Item'))) {
+      return res.status(400).json({ error: err.message });
+    }
+    return res.status(500).json({ error: 'Server error al actualizar criterios de evaluación.' });
+  }
+};

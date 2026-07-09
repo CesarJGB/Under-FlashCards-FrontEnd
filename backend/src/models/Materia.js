@@ -10,10 +10,13 @@ const materiaSchema = new mongoose.Schema(
     activeParciales: { type: [Number], default: [1, 2, 3] },
 
     // Inyección del Radar de Conocimiento (Nivel Asignatura Global)
-    knowledgeMetrics: {
+  knowledgeMetrics: {
       type: knowledgeMetricsSchema,
       default: () => ({}) // Se inicializa con los defaults del subdocumento
     }
+    ,
+    // Evaluación jerárquica: árbol recursivo de criterios (folders/items)
+    evaluationCriteria: { type: mongoose.Schema.Types.Mixed, default: [] }
   },
   { timestamps: true }
 );
@@ -35,6 +38,8 @@ materiaSchema.methods.serialize = function () {
       lastCalculatedAt: this.knowledgeMetrics?.lastReview || this.createdAt,
     },
     createdAt: this.createdAt,
+    // Incluir criterios de evaluación en la serialización (siempre devolver array)
+    evaluationCriteria: this.evaluationCriteria || []
   };
 };
 
