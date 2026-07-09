@@ -3,16 +3,19 @@ import React, { useState } from 'react';
 import { Calculator, FileText, BarChart3 } from 'lucide-react';
 import EvaluacionLevel from './info/EvaluacionLevel'; // 👈 Importamos el nuevo componente
 
-export default function InfoLevel({ materia, currentPath, setCurrentPath }) {
+export default function InfoLevel({ materia, currentPath, setCurrentPath, materias, setMaterias, userId }) {
   // 💡 Estado local para controlar el sub-apartado dentro de Info
   const [view, setView] = useState('menu'); // 'menu' | 'evaluacion'
 
   // Si el usuario entra a evaluación, renderizamos ese componente
   if (view === 'evaluacion') {
     return (
-      <EvaluacionLevel 
-        materia={materia} 
-        onBack={() => setView('menu')} 
+      <EvaluacionLevel
+        materia={materia}
+        onBack={() => setView('menu')}
+        materias={materias}
+        setMaterias={setMaterias}
+        userId={userId}
       />
     );
   }

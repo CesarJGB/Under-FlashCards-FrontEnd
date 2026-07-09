@@ -398,6 +398,9 @@ export default function LibrarySection({
                 materia={materias.find(m => (m._id || m.id) === currentPath.materiaId)}
                 currentPath={currentPath}
                 setCurrentPath={setCurrentPath}
+                materias={materias}
+                setMaterias={setMaterias}
+                userId={userId}
               />
             )}
 
