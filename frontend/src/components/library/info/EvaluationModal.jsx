@@ -1,4 +1,4 @@
-// ARCHIVO: frontend/src/components/library/info/EvaluationModal.jsx
+// FILE: frontend/src/components/library/info/EvaluationModal.jsx
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../../ui/dialog';
 import { Input } from '../../ui/input';
@@ -9,6 +9,8 @@ export default function EvaluationModal({ open, onClose, onSave, parentChildren 
   const [type, setType] = useState(initial?.type || 'item');
   const [weight, setWeight] = useState(initial?.weight ?? 0);
   const [grade, setGrade] = useState(initial?.grade == null ? '' : String(initial.grade));
+  // 🎯 NUEVO: Estado para controlar la escala de calificación (por defecto 100)
+  const [gradingBase, setGradingBase] = useState(initial?.gradingBase || 100);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -17,6 +19,7 @@ export default function EvaluationModal({ open, onClose, onSave, parentChildren 
     setType(startType);
     setWeight(initial?.weight ?? 0);
     setGrade(initial?.grade == null ? '' : String(initial.grade));
+    setGradingBase(initial?.gradingBase || 100); // Sincroniza la base guardada
     setError('');
   }, [initial, open, isRoot]);
 
@@ -25,7 +28,7 @@ export default function EvaluationModal({ open, onClose, onSave, parentChildren 
   const nameLabel = isRoot ? 'Nombre del Criterio Base' : 'Nombre';
 
   const handleSave = async () => {
-    console.log('[EvaluationModal] Intentando guardar:', { name, type, weight, grade, isRoot, depth });
+    console.log('[EvaluationModal] Intentando guardar:', { name, type, weight, grade, gradingBase, isRoot, depth });
     try {
       setError('');
       
@@ -35,17 +38,16 @@ export default function EvaluationModal({ open, onClose, onSave, parentChildren 
       const w = Number(weight || 0);
       if (isNaN(w) || w < 0 || w > 100) { setError('El peso debe ser un número entre 0 y 100.'); return; }
 
-      // 💡 CORRECCIÓN MATEMÁTICA: Sumar hermanos excluyendo el que se edita
+      // CORRECCIÓN MATEMÁTICA: Sumar hermanos excluyendo el que se edita
       const siblings = parentChildren || [];
       const replacingId = initial?.id || initial?._id || null;
       
       const currentSiblingsSum = siblings.reduce((acc, s) => {
         const sId = s.id || s._id;
-        if (replacingId && sId === replacingId) return acc; // Ignora su propio peso viejo si es edición
+        if (replacingId && sId === replacingId) return acc;
         return acc + (typeof s.weight === 'number' ? s.weight : Number(s.weight || 0));
       }, 0);
 
-      // Validar si el peso actual total con el nuevo elemento excede al padre
       if (currentSiblingsSum + w > parentWeight) { 
         setError(`La suma total (${currentSiblingsSum + w}%) supera el límite permitido por el padre (${parentWeight}%). Falta asignar: ${parentWeight - currentSiblingsSum}%.`); 
         return; 
@@ -61,17 +63,26 @@ export default function EvaluationModal({ open, onClose, onSave, parentChildren 
 
       if (effectiveType === 'item') {
         const g = grade === '' ? null : Number(grade);
-        if (g != null && (isNaN(g) || g < 0 || g > 100)) { setError('La calificación debe estar entre 0 y 100.'); return; }
+        const baseValue = Number(gradingBase || 100);
+        
+        // 🎯 VALIDACIÓN DINÁMICA: Valida contra la base seleccionada en lugar de un 100 estático
+        if (g != null && (isNaN(g) || g < 0 || g > baseValue)) { 
+          setError(`La calificación obtenida debe estar entre 0 y ${baseValue} según la base seleccionada.`); 
+          return; 
+        }
+        
         payload.grade = g;
+        payload.gradingBase = baseValue; // Guardamos la escala en el objeto
       } else {
         payload.children = initial?.children || [];
       }
 
       console.log('[EvaluationModal] Enviando payload final al padre:', payload);
       
-      // Llamamos a la acción del padre y esperamos confirmación
-      await onSave(payload);
-      onClose();
+      const success = await onSave(payload);
+      if (success !== false) {
+        onClose();
+      }
     } catch (err) {
       console.error('[EvaluationModal] Error crítico en el guardado:', err);
       setError('Ocurrió un error inesperado al intentar guardar.');
@@ -80,7 +91,6 @@ export default function EvaluationModal({ open, onClose, onSave, parentChildren 
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
-      {/* 💡 Removido el div duplicado interno. Ahora DialogContent maneja las clases nativas */}
       <DialogContent className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl p-6">
         <DialogHeader>
           <DialogTitle className="text-slate-950 dark:text-slate-50">{titleText}</DialogTitle>
@@ -93,7 +103,6 @@ export default function EvaluationModal({ open, onClose, onSave, parentChildren 
             <Input value={name} onChange={(e) => setName(e.target.value)} className="w-full" placeholder="Ej. Exámenes, Tareas, Proyecto..." />
           </div>
 
-          {/* Oculto en la raíz ya que siempre es un Criterio (contenedor) */}
           {!isRoot && (
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Tipo de elemento</label>
@@ -119,10 +128,37 @@ export default function EvaluationModal({ open, onClose, onSave, parentChildren 
             <Input type="number" value={weight} onChange={(e) => setWeight(e.target.value)} className="w-full" placeholder="0" min="0" max="100" />
           </div>
 
+          {/* 🎯 NUEVO: Formulario selector de escala de evaluación */}
+          {type === 'item' && !isRoot && (
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Base de calificación</label>
+              <select
+                value={gradingBase}
+                onChange={(e) => {
+                  setGradingBase(Number(e.target.value));
+                  setGrade(''); // Resetea la nota actual para evitar discrepancias de escala al cambiar
+                }}
+                className="w-full h-10 rounded-xl border border-slate-200 dark:border-slate-800 px-3 text-sm bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-50 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer"
+              >
+                <option value={100}>Base 100 (0 - 100)</option>
+                <option value={10}>Base 10 (0 - 10)</option>
+                <option value={5}>Base 5 (0 - 5)</option>
+              </select>
+            </div>
+          )}
+
           {type === 'item' && !isRoot && (
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Calificación obtenida (opcional)</label>
-              <Input type="number" value={grade} onChange={(e) => setGrade(e.target.value)} className="w-full" placeholder="Ej. 85 (Dejar vacío si no se ha evaluado)" min="0" max="100" />
+              <Input 
+                type="number" 
+                value={grade} 
+                onChange={(e) => setGrade(e.target.value)} 
+                className="w-full" 
+                placeholder={gradingBase === 100 ? "Ej. 85" : gradingBase === 10 ? "Ej. 9" : "Ej. 4"} 
+                min="0" 
+                max={gradingBase} 
+              />
             </div>
           )}
 
