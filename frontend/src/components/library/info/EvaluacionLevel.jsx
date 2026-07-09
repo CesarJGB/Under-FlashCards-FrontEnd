@@ -50,6 +50,7 @@ export default function EvaluacionLevel({ onBack, materia, materias, setMaterias
     try {
       const res = await fetch(`${BACKEND_URL}/api/academic/materias/${materia._id || materia.id}/evaluation`, {
         method: 'PUT',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ evaluationCriteria: treeClone })
       });

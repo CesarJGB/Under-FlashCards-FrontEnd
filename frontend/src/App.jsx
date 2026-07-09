@@ -42,7 +42,7 @@ function DashboardScreen({ user, onLogout }) {
   const loadDecks = useCallback(async (showSpinner = false, signal) => {
     if (showSpinner) setLoading(true);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/decks/${user.id}?t=${Date.now()}`, { signal });
+      const res = await fetch(`${BACKEND_URL}/api/decks/${user.id}?t=${Date.now()}`, { signal, credentials: 'include' });
       if (!res.ok) throw new Error();
       const data = await res.json();
       setDecks(data);
@@ -57,7 +57,7 @@ function DashboardScreen({ user, onLogout }) {
   const loadMaterias = useCallback(async (showSpinner = false, signal) => {
     if (showSpinner) setLoading(true);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/academic/materias/${user.id}?t=${Date.now()}`, { signal });
+      const res = await fetch(`${BACKEND_URL}/api/academic/materias/${user.id}?t=${Date.now()}`, { signal, credentials: 'include' });
       if (!res.ok) throw new Error();
       const data = await res.json();
       setMaterias(data);
@@ -329,6 +329,7 @@ function FlashcardsApp() {
       jwtDecode(credential);
       const res = await fetch(`${BACKEND_URL}/api/auth/google`, {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ credential }),
       });
