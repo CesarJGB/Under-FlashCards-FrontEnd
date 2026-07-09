@@ -1,5 +1,16 @@
 // ARCHIVO: frontend/src/lib/utils.js
 
+import clsx from "clsx";
+import { twMerge } from "tailwind-merge";
+
+/**
+ * Utility para combinar clases de Tailwind/React.
+ * Se expone como `cn` porque los componentes importan `cn` desde este archivo.
+ */
+export function cn(...inputs) {
+  return twMerge(clsx(...inputs));
+}
+
 /**
  * Mapa de clases viejas de Tailwind (pre-migración a tamaños numéricos en px)
  * a su equivalente en píxeles. Se usa solo como fallback de retrocompatibilidad
