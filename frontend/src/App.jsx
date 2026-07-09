@@ -42,7 +42,12 @@ function DashboardScreen({ user, onLogout }) {
   const loadDecks = useCallback(async (showSpinner = false, signal) => {
     if (showSpinner) setLoading(true);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/decks/${user.id}?t=${Date.now()}`, { signal, credentials: 'include' });
+      const res = await fetch(`${BACKEND_URL}/api/decks/${user.id}?t=${Date.now()}`, { 
+        signal,
+        headers: {
+          'X-User-Id': user.id // 🔑 Pasamos la identidad del usuario requerida por tu backend
+        }
+      });
       if (!res.ok) throw new Error();
       const data = await res.json();
       setDecks(data);
@@ -57,7 +62,12 @@ function DashboardScreen({ user, onLogout }) {
   const loadMaterias = useCallback(async (showSpinner = false, signal) => {
     if (showSpinner) setLoading(true);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/academic/materias/${user.id}?t=${Date.now()}`, { signal, credentials: 'include' });
+      const res = await fetch(`${BACKEND_URL}/api/academic/materias/${user.id}?t=${Date.now()}`, { 
+        signal,
+        headers: {
+          'X-User-Id': user.id // 🔑 Pasamos la identidad del usuario requerida por tu backend
+        }
+      });
       if (!res.ok) throw new Error();
       const data = await res.json();
       setMaterias(data);
@@ -273,7 +283,7 @@ function DashboardScreen({ user, onLogout }) {
           )}
         </div>
 
-        {/* 👇 NUEVO MENÚ DE NAVEGACIÓN MÓVIL OPTIMIZADO 👇 */}
+        {/* 👇 MENÚ DE NAVEGACIÓN MÓVIL OPTIMIZADO 👇 */}
         <div className="md:hidden fixed bottom-6 inset-x-0 mx-auto w-fit bg-white/90 backdrop-blur-xl border border-slate-200/80 h-14 rounded-full px-2 flex items-center gap-1.5 z-40 shadow-[0_8px_32px_rgba(0,0,0,0.12)] animate-[slideUp_0.2s_ease-out]">
           {[
             { id: 'home', title: 'Inicio', Icon: Home },
@@ -329,7 +339,6 @@ function FlashcardsApp() {
       jwtDecode(credential);
       const res = await fetch(`${BACKEND_URL}/api/auth/google`, {
         method: 'POST',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ credential }),
       });
