@@ -78,9 +78,18 @@ export default function EvaluacionLevel({ onBack, materia, materias, setMaterias
   const openAddModal = () => { setModalInitial(null); setModalOpen(true); };
 
   const handleAddOrEdit = async (node) => {
+    console.log('[EvaluacionLevel] handleAddOrEdit received node:', node);
     // node may or may not have id
-    if (!node.id) node.id = (typeof window !== 'undefined' && window.crypto?.randomUUID) ? window.crypto.randomUUID() : `${Date.now()}`;
-    await updateTree((tree) => {
+    try {
+      if (!node.id) {
+        node.id = (typeof window !== 'undefined' && window.crypto?.randomUUID) ? window.crypto.randomUUID() : `${Date.now()}`;
+      }
+    } catch (err) {
+      console.error('[EvaluacionLevel] id generation failed:', err);
+      node.id = `${Date.now()}`; // fallback
+    }
+
+    const ok = await updateTree((tree) => {
       if (!modalInitial) {
         // add to currentNode.children
         // find currentNode in tree by navStack
@@ -108,8 +117,12 @@ export default function EvaluacionLevel({ onBack, materia, materias, setMaterias
         replace(tree);
       }
     });
-    setModalOpen(false);
-    setModalInitial(null);
+    if (ok) {
+      setModalOpen(false);
+      setModalInitial(null);
+      return true;
+    }
+    return false;
   };
 
   const handleEdit = (n) => { setModalInitial(n); setModalOpen(true); };
@@ -216,6 +229,7 @@ export default function EvaluacionLevel({ onBack, materia, materias, setMaterias
         })() : 100}
         initial={modalInitial}
         depth={navStack.length + 1}
+        isRoot={navStack.length === 0}
       />
     </div>
   );
