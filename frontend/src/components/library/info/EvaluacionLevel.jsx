@@ -1,21 +1,22 @@
-// FILE: frontend/src/components/library/info/EvaluacionLevel.jsx
+// ARCHIVO: frontend/src/components/library/info/EvaluacionLevel.jsx
 import React, { useState, useMemo } from 'react';
-import { ArrowLeft, FileText, Plus, Milestone } from 'lucide-react';
+import { ArrowLeft, FileText, Plus } from 'lucide-react';
 import EvaluationFolderView from './EvaluationFolderView';
 import EvaluationModal from './EvaluationModal';
-import { getJSON, setJSON } from '../../../lib/safeLocalStorage';
+import { setJSON } from '../../../lib/safeLocalStorage';
 import { cloneDeep, computeAccumulatedPercent, validateTreeRecursively } from '../../../lib/evaluationUtils';
 import { toast } from '../../../hooks/use-toast';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
 export default function EvaluacionLevel({ onBack, materia, materias, setMaterias, userId }) {
-  const [navStack, setNavStack] = useState([]); // array of ids representing path from root
+  const [navStack, setNavStack] = useState([]); // Array de IDs que representan la ruta desde la raíz
   const [modalOpen, setModalOpen] = useState(false);
   const [modalInitial, setModalInitial] = useState(null);
 
   const evaluationTree = materia?.evaluationCriteria || [];
 
+  // Nodo actual donde está parado el usuario en el árbol
   const currentNode = useMemo(() => {
     if (!navStack.length) return { children: evaluationTree };
     let node = { children: evaluationTree };
@@ -25,28 +26,32 @@ export default function EvaluacionLevel({ onBack, materia, materias, setMaterias
     return node;
   }, [navStack, evaluationTree]);
 
-  // Helper: update the tree immutably given a function that mutates a cloned tree
+  // Función encargada de actualizar de manera inmutable el árbol y sincronizar
   const updateTree = async (mutator) => {
     const prevMaterias = cloneDeep(materias);
+    // Clonamos el estado de las materias
     const nextMaterias = prevMaterias.map(m => ((m._id || m.id) === (materia._id || materia.id) ? { ...m } : m));
     const target = nextMaterias.find(m => (m._id || m.id) === (materia._id || materia.id));
-    if (!target) return;
+    
+    if (!target) return false;
+    
     const treeClone = cloneDeep(target.evaluationCriteria || []);
     mutator(treeClone);
-    // Validate client-side quickly
+
+    // Validación rápida en el cliente antes de enviar
     const valid = validateTreeRecursively(treeClone);
     if (!valid.ok) {
-      toast({ title: 'Validación', description: valid.error || 'Estructura inválida.' });
+      toast({ title: 'Validación de Criterios', description: valid.error || 'Estructura inválida.' });
       return false;
     }
 
     target.evaluationCriteria = treeClone;
 
-    // Optimistic update
+    // Actualización optimista en el estado y LocalStorage
     setMaterias(nextMaterias);
-    try { setJSON(`materias_${userId}`, nextMaterias); } catch (e) { /* ignore */ }
+    try { setJSON(`materias_${userId}`, nextMaterias); } catch (e) { console.error(e); }
 
-    // Persist to backend
+    // Sincronización con el Servidor Backend
     try {
       const res = await fetch(`${BACKEND_URL}/api/academic/materias/${materia._id || materia.id}/evaluation`, {
         method: 'PUT',
@@ -54,24 +59,25 @@ export default function EvaluacionLevel({ onBack, materia, materias, setMaterias
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ evaluationCriteria: treeClone })
       });
+
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || 'Error al guardar en servidor');
+        throw new Error(body.error || 'Error al guardar en el servidor');
       }
-      // success: optionally update with server response
+
       const data = await res.json().catch(() => null);
       if (data?.materia) {
         const updated = nextMaterias.map(m => (String(m._id || m.id) === String(data.materia.id || data.materia._id) ? { ...m, ...data.materia } : m));
         setMaterias(updated);
-        try { setJSON(`materias_${userId}`, updated); } catch (e) { /* ignore */ }
+        try { setJSON(`materias_${userId}`, updated); } catch (e) { console.error(e); }
       }
       return true;
     } catch (err) {
-      console.error('[EvaluacionLevel] sync error:', err.message);
-      // rollback
+      console.error('[EvaluacionLevel] Error de sincronización:', err.message);
+      // Reversión (Rollback) si el servidor falla
       setMaterias(prevMaterias);
-      try { setJSON(`materias_${userId}`, prevMaterias); } catch (e) { /* ignore */ }
-      toast({ title: 'Error', description: 'No se pudo sincronizar el criterio. Cambios revertidos.' });
+      try { setJSON(`materias_${userId}`, prevMaterias); } catch (e) { console.error(e); }
+      toast({ title: 'Error de servidor', description: 'No se pudo guardar en la base de datos. Cambios revertidos.' });
       return false;
     }
   };
@@ -79,21 +85,16 @@ export default function EvaluacionLevel({ onBack, materia, materias, setMaterias
   const openAddModal = () => { setModalInitial(null); setModalOpen(true); };
 
   const handleAddOrEdit = async (node) => {
-    console.log('[EvaluacionLevel] handleAddOrEdit received node:', node);
-    // node may or may not have id
-    try {
-      if (!node.id) {
-        node.id = (typeof window !== 'undefined' && window.crypto?.randomUUID) ? window.crypto.randomUUID() : `${Date.now()}`;
-      }
-    } catch (err) {
-      console.error('[EvaluacionLevel] id generation failed:', err);
-      node.id = `${Date.now()}`; // fallback
+    console.log('[EvaluacionLevel] handleAddOrEdit procesando nodo:', node);
+    
+    // Asegurar ID único si es creación
+    if (!node.id) {
+      node.id = (typeof window !== 'undefined' && window.crypto?.randomUUID) ? window.crypto.randomUUID() : `${Date.now()}`;
     }
 
-    const ok = await updateTree((tree) => {
+    const success = await updateTree((tree) => {
       if (!modalInitial) {
-        // add to currentNode.children
-        // find currentNode in tree by navStack
+        // MODO: CREACIÓN
         if (!navStack.length) {
           tree.push(node);
         } else {
@@ -102,13 +103,19 @@ export default function EvaluacionLevel({ onBack, materia, materias, setMaterias
             n = (n.children || []).find(c => (c.id || c._id) === id);
             if (!n) break;
           }
-          if (n) n.children = n.children || [], n.children.push(node);
+          if (n) {
+            n.children = n.children || [];
+            n.children.push(node); // Corrección: Bloque limpio estructurado
+          }
         }
       } else {
-        // edit node: find and replace
+        // MODO: EDICIÓN
         const replace = (arr) => {
           for (let i = 0; i < arr.length; i++) {
-            if ((arr[i].id || arr[i]._id) === (node.id || node._id)) { arr[i] = { ...arr[i], ...node }; return true; }
+            if ((arr[i].id || arr[i]._id) === (node.id || node._id)) { 
+              arr[i] = { ...arr[i], ...node }; 
+              return true; 
+            }
             if (arr[i].children) {
               if (replace(arr[i].children)) return true;
             }
@@ -118,18 +125,14 @@ export default function EvaluacionLevel({ onBack, materia, materias, setMaterias
         replace(tree);
       }
     });
-    if (ok) {
-      setModalOpen(false);
-      setModalInitial(null);
-      return true;
-    }
-    return false;
+
+    return success; 
   };
 
   const handleEdit = (n) => { setModalInitial(n); setModalOpen(true); };
 
   const handleDelete = async (n) => {
-    if (!confirm('Eliminar este criterio?')) return;
+    if (!confirm('¿Estás seguro de que deseas eliminar este criterio y todo su contenido?')) return;
     await updateTree((tree) => {
       const remove = (arr) => {
         const idx = arr.findIndex(x => (x.id || x._id) === (n.id || n._id));
@@ -150,7 +153,10 @@ export default function EvaluacionLevel({ onBack, materia, materias, setMaterias
     await updateTree((tree) => {
       const replace = (arr) => {
         for (const x of arr) {
-          if ((x.id || x._id) === (itemNode.id || itemNode._id)) { x.grade = newGrade == null ? null : Number(newGrade); return true; }
+          if ((x.id || x._id) === (itemNode.id || itemNode._id)) { 
+            x.grade = newGrade == null ? null : Number(newGrade); 
+            return true; 
+          }
           if (x.children) if (replace(x.children)) return true;
         }
         return false;
@@ -198,12 +204,17 @@ export default function EvaluacionLevel({ onBack, materia, materias, setMaterias
 
         <div className="mt-6">
           <div className="flex items-center justify-between mb-4">
-            <div className="text-sm font-medium">{navStack.length ? 'Carpeta' : 'Criterios raíz'}</div>
+            {/* 💡 Ajustada terminología dinámica */}
+            <div className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+              {navStack.length ? 'Subcriterios actuales' : 'Criterios base'}
+            </div>
             <div className="flex items-center gap-2">
               {navStack.length > 0 && (
-                <button onClick={handleBackFolder} className="text-sm px-3 py-1 rounded-lg border">Atrás</button>
+                <button onClick={handleBackFolder} className="text-xs px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-medium cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors">Atrás</button>
               )}
-              <button onClick={openAddModal} className="inline-flex items-center gap-2 px-3 py-1 rounded-xl bg-indigo-600 text-white text-sm"> <Plus className="w-4 h-4" /> Nuevo</button>
+              <button onClick={openAddModal} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold cursor-pointer shadow-xs transition-colors"> 
+                <Plus className="w-4 h-4" /> Nuevo {navStack.length ? 'Subcriterio' : 'Criterio'}
+              </button>
             </div>
           </div>
 
@@ -223,7 +234,6 @@ export default function EvaluacionLevel({ onBack, materia, materias, setMaterias
         onSave={handleAddOrEdit}
         parentChildren={currentNode.children || []}
         parentWeight={navStack.length ? (() => {
-          // find parent node weight
           let node = { children: evaluationTree };
           for (const id of navStack) { node = (node.children || []).find(c => (c.id || c._id) === id) || { children: [] }; }
           return node.weight || 100;
