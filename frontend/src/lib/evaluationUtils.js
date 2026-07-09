@@ -1,4 +1,4 @@
-// frontend/src/lib/evaluationUtils.js
+// FILE: frontend/src/lib/evaluationUtils.js
 // Utilidades para manejo y validación del árbol de criterios de evaluación
 
 export function cloneDeep(obj) {
@@ -34,27 +34,34 @@ export function validateTreeRecursively(nodes, depth = 1) {
   return { ok: true };
 }
 
-// Cálculo de nota acumulada según items evaluados
+// Calcula los puntos absolutos ganados por cada criterio en base a su escala
 function aggregate(node) {
-  if (!node) return { gained: 0, weightEvaluated: 0 };
+  if (!node) return 0;
+  
   if (node.type === 'item') {
-    if (node.grade == null) return { gained: 0, weightEvaluated: 0 };
-    return { gained: node.grade * node.weight, weightEvaluated: node.weight };
+    if (node.grade == null) return 0; // Si no está evaluado, aporta 0 puntos al global actual
+    
+    // 🎯 LEEMOS LA BASE CONFIGURADA (ej: base 10, base 100). Por defecto será base 100 si no existe.
+    const base = Number(node.gradingBase) || 100;
+    
+    // Rendimiento va de 0 a 1 (ej: 10/10 = 1 | 30/30 = 1 | 50/100 = 0.5)
+    const performanceRatio = Number(node.grade) / base;
+    
+    // Puntos reales aportados al global de la materia
+    return performanceRatio * (Number(node.weight) || 0);
   }
-  let gained = 0, weightEvaluated = 0;
+  
+  let totalGained = 0;
   for (const child of node.children || []) {
-    const a = aggregate(child);
-    gained += a.gained;
-    weightEvaluated += a.weightEvaluated;
+    totalGained += aggregate(child);
   }
-  return { gained, weightEvaluated };
+  return totalGained;
 }
 
 export function computeAccumulatedPercent(node) {
-  const { gained, weightEvaluated } = aggregate(node);
-  if (!weightEvaluated) return null;
-  // gained is sum(grade * weight). Dividir por weightEvaluated recupera el promedio ponderado (0..100)
-  return gained / weightEvaluated;
+  if (!node) return 0;
+  // Retorna la suma lineal directa de los puntos acumulados de la materia (0 a 100%)
+  return aggregate(node);
 }
 
 export default { cloneDeep, validateSiblingsWeight, validateTreeRecursively, computeAccumulatedPercent };
