@@ -1,6 +1,5 @@
 // FILE: frontend/src/components/library/info/EvaluacionLevel.jsx
 import React, { useState, useMemo } from 'react';
-import { ArrowLeft, FileText } from 'lucide-react';
 import EvaluationFolderView from './EvaluationFolderView';
 import EvaluationModal from './EvaluationModal';
 import { setJSON } from '../../../lib/safeLocalStorage';
@@ -203,29 +202,11 @@ export default function EvaluacionLevel({ onBack, materia, materias, setMaterias
   const accumulated = computeAccumulatedPercent({ type: 'folder', children: evaluationTree });
 
   return (
-    <div className="animate-[fadeIn_0.15s_ease] space-y-6">
-      <button
-        onClick={onBack}
-        className="flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-400 transition-colors cursor-pointer group"
-      >
-        <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
-        Volver a información
-      </button>
-
-      <div className="flex items-center gap-3 text-emerald-600 dark:text-emerald-400 border-b border-slate-100 dark:border-slate-800 pb-4">
-        <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/40">
-          <FileText className="w-5 h-5" />
-        </div>
-        <div>
-          <h3 className="text-lg font-bold text-slate-950 dark:text-slate-50 tracking-tight">Criterios de Evaluación</h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400">{materia?.name} • Reglas y porcentajes</p>
-        </div>
-      </div>
-
-      {/* 🧼 Contenedor unificado y limpio */}
+    <div className="animate-[fadeIn_0.15s_ease] pt-2">
+      {/* 🧼 Contenedor unificado y limpio acoplado directamente al menú superior */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xs max-w-3xl mx-auto">
         
-        {/* El botón de "Atrás" de navegación interna se queda arriba si entramos a una subcarpeta */}
+        {/* El botón de "Atrás" de navegación interna se activa únicamente al navegar dentro de subcarpetas */}
         {navStack.length > 0 && (
           <div className="mb-4">
             <button onClick={handleBackFolder} className="text-xs px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-medium cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors">
