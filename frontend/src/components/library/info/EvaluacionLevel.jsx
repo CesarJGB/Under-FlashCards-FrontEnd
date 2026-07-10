@@ -26,10 +26,57 @@ export default function EvaluacionLevel({ onBack, materia, materias, setMaterias
     return node;
   }, [navStack, evaluationTree]);
 
+  // Sincroniza la meta de calificación con soporte optimista y rollback
+  const handleUpdateTargetGrade = async (newMeta) => {
+    const materiaId = materia?._id || materia?.id;
+    if (!materiaId) return;
+
+    const prevMaterias = cloneDeep(materias);
+    // Modificamos localmente la meta de forma inmediata
+    const nextMaterias = prevMaterias.map(m => 
+      ((m._id || m.id) === materiaId ? { ...m, metaCalificacion: newMeta } : m)
+    );
+
+    setMaterias(nextMaterias);
+    try { setJSON(`materias_${userId}`, nextMaterias); } catch (e) { console.error(e); }
+
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/academic/materias/${materiaId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Id': userId // 🔒 Evitamos el Error 401
+        },
+        body: JSON.stringify({ metaCalificacion: newMeta })
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || 'Error al guardar la meta en el servidor.');
+      }
+
+      const data = await res.json().catch(() => null);
+      if (data) {
+        // Ajustamos por si el backend serializa id como _id o viceversa
+        const updated = nextMaterias.map(m => 
+          (String(m._id || m.id) === String(data.id || data._id) ? { ...m, ...data } : m)
+        );
+        setMaterias(updated);
+        try { setJSON(`materias_${userId}`, updated); } catch (e) { console.error(e); }
+        toast({ title: 'Meta actualizada', description: `Nueva meta fijada en ${newMeta} puntos.` });
+      }
+    } catch (err) {
+      console.error('[EvaluacionLevel:updateTargetGrade] Error:', err.message);
+      // Rollback si el servidor da error
+      setMaterias(prevMaterias);
+      try { setJSON(`materias_${userId}`, prevMaterias); } catch (e) { console.error(e); }
+      toast({ title: 'Error de servidor', description: 'No se pudo guardar la meta. Cambios revertidos.' });
+    }
+  };
+
   // Función encargada de actualizar de manera inmutable el árbol y sincronizar
   const updateTree = async (mutator) => {
     const prevMaterias = cloneDeep(materias);
-    // Clonamos el estado de las materias
     const nextMaterias = prevMaterias.map(m => ((m._id || m.id) === (materia._id || materia.id) ? { ...m } : m));
     const target = nextMaterias.find(m => (m._id || m.id) === (materia._id || materia.id));
     
@@ -38,7 +85,6 @@ export default function EvaluacionLevel({ onBack, materia, materias, setMaterias
     const treeClone = cloneDeep(target.evaluationCriteria || []);
     mutator(treeClone);
 
-    // Validación rápida en el cliente antes de enviar
     const valid = validateTreeRecursively(treeClone);
     if (!valid.ok) {
       toast({ title: 'Validación de Criterios', description: valid.error || 'Estructura inválida.' });
@@ -47,17 +93,15 @@ export default function EvaluacionLevel({ onBack, materia, materias, setMaterias
 
     target.evaluationCriteria = treeClone;
 
-    // Actualización optimista en el estado y LocalStorage
     setMaterias(nextMaterias);
     try { setJSON(`materias_${userId}`, nextMaterias); } catch (e) { console.error(e); }
 
-    // Sincronización con el Servidor Backend
     try {
       const res = await fetch(`${BACKEND_URL}/api/academic/materias/${materia._id || materia.id}/evaluation`, {
         method: 'PUT',
         headers: { 
           'Content-Type': 'application/json',
-          'X-User-Id': userId // 🔑 Reparado: Pasamos la identidad real del usuario al middleware protect
+          'X-User-Id': userId 
         },
         body: JSON.stringify({ evaluationCriteria: treeClone })
       });
@@ -76,7 +120,6 @@ export default function EvaluacionLevel({ onBack, materia, materias, setMaterias
       return true;
     } catch (err) {
       console.error('[EvaluacionLevel] Error de sincronización:', err.message);
-      // Reversión (Rollback) si el servidor falla
       setMaterias(prevMaterias);
       try { setJSON(`materias_${userId}`, prevMaterias); } catch (e) { console.error(e); }
       toast({ title: 'Error de servidor', description: 'No se pudo guardar en la base de datos. Cambios revertidos.' });
@@ -87,16 +130,12 @@ export default function EvaluacionLevel({ onBack, materia, materias, setMaterias
   const openAddModal = () => { setModalInitial(null); setModalOpen(true); };
 
   const handleAddOrEdit = async (node) => {
-    console.log('[EvaluacionLevel] handleAddOrEdit procesando nodo:', node);
-    
-    // Asegurar ID único si es creación
     if (!node.id) {
       node.id = (typeof window !== 'undefined' && window.crypto?.randomUUID) ? window.crypto.randomUUID() : `${Date.now()}`;
     }
 
     const success = await updateTree((tree) => {
       if (!modalInitial) {
-        // MODO: CREACIÓN
         if (!navStack.length) {
           tree.push(node);
         } else {
@@ -111,7 +150,6 @@ export default function EvaluacionLevel({ onBack, materia, materias, setMaterias
           }
         }
       } else {
-        // MODO: EDICIÓN
         const replace = (arr) => {
           for (let i = 0; i < arr.length; i++) {
             if ((arr[i].id || arr[i]._id) === (node.id || node._id)) { 
@@ -195,7 +233,7 @@ export default function EvaluacionLevel({ onBack, materia, materias, setMaterias
           <div>
             <div className="text-sm text-slate-500">Nota actual</div>
             <div className="text-2xl font-bold text-slate-900 dark:text-slate-50">{accumulated == null ? '—' : `${Math.round(accumulated)}%`}</div>
-            <div className="text-xs text-slate-500">Puntos evaluados: {accumulated == null ? 0 : 'calculado'}</div>
+            <div className="text-xs text-slate-500">Puntos evaluados en base real</div>
           </div>
           <div className="text-right">
             <div className="text-xs text-slate-500">Suma raíz</div>
@@ -219,8 +257,12 @@ export default function EvaluacionLevel({ onBack, materia, materias, setMaterias
             </div>
           </div>
 
+          {/* 🔌 Conexión total con las nuevas propiedades dinámicas de metas */}
           <EvaluationFolderView
             nodes={currentNode.children || []}
+            globalProgress={accumulated || 0}
+            targetGrade={materia?.metaCalificacion ?? 70}
+            onUpdateTargetGrade={handleUpdateTargetGrade}
             onOpenFolder={handleOpenFolder}
             onEdit={handleEdit}
             onDelete={handleDelete}
