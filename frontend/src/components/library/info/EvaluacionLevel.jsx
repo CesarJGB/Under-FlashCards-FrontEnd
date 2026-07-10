@@ -1,6 +1,6 @@
 // FILE: frontend/src/components/library/info/EvaluacionLevel.jsx
 import React, { useState, useMemo } from 'react';
-import { ArrowLeft, FileText, Plus } from 'lucide-react';
+import { ArrowLeft, FileText } from 'lucide-react';
 import EvaluationFolderView from './EvaluationFolderView';
 import EvaluationModal from './EvaluationModal';
 import { setJSON } from '../../../lib/safeLocalStorage';
@@ -10,13 +10,12 @@ import { toast } from '../../../hooks/use-toast';
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
 export default function EvaluacionLevel({ onBack, materia, materias, setMaterias, userId }) {
-  const [navStack, setNavStack] = useState([]); // Array de IDs que representan la ruta desde la raíz
+  const [navStack, setNavStack] = useState([]); 
   const [modalOpen, setModalOpen] = useState(false);
   const [modalInitial, setModalInitial] = useState(null);
 
   const evaluationTree = materia?.evaluationCriteria || [];
 
-  // Nodo actual donde está parado el usuario en el árbol
   const currentNode = useMemo(() => {
     if (!navStack.length) return { children: evaluationTree };
     let node = { children: evaluationTree };
@@ -26,7 +25,6 @@ export default function EvaluacionLevel({ onBack, materia, materias, setMaterias
     return node;
   }, [navStack, evaluationTree]);
 
-  // Sincroniza la meta de calificación con soporte optimista y rollback
   const handleUpdateTargetGrade = async (newMeta) => {
     const materiaId = materia?._id || materia?.id;
     if (!materiaId) return;
@@ -71,7 +69,6 @@ export default function EvaluacionLevel({ onBack, materia, materias, setMaterias
     }
   };
 
-  // Función encargada de actualizar de manera inmutable el árbol y sincronizar
   const updateTree = async (mutator) => {
     const prevMaterias = cloneDeep(materias);
     const nextMaterias = prevMaterias.map(m => ((m._id || m.id) === (materia._id || materia.id) ? { ...m } : m));
@@ -225,33 +222,30 @@ export default function EvaluacionLevel({ onBack, materia, materias, setMaterias
         </div>
       </div>
 
-      {/* 🧼 Contenedor unificado sin bloques redundantes superiores */}
+      {/* 🧼 Contenedor unificado y limpio */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xs max-w-3xl mx-auto">
-        <div className="flex items-center justify-between mb-4">
-          <div className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-            {navStack.length ? 'Subcriterios actuales' : 'Criterios base'}
-          </div>
-          <div className="flex items-center gap-2">
-            {navStack.length > 0 && (
-              <button onClick={handleBackFolder} className="text-xs px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-medium cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors">Atrás</button>
-            )}
-            <button onClick={openAddModal} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold cursor-pointer shadow-xs transition-colors"> 
-              <Plus className="w-4 h-4" /> Nuevo {navStack.length ? 'Subcriterio' : 'Criterio'}
+        
+        {/* El botón de "Atrás" de navegación interna se queda arriba si entramos a una subcarpeta */}
+        {navStack.length > 0 && (
+          <div className="mb-4">
+            <button onClick={handleBackFolder} className="text-xs px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-medium cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors">
+              ← Atrás
             </button>
           </div>
-        </div>
+        )}
 
-        {/* Pasamos el rootSum directamente al gestor interno de la tarjeta */}
         <EvaluationFolderView
           nodes={currentNode.children || []}
           globalProgress={accumulated || 0}
           targetGrade={materia?.metaCalificacion ?? 70}
           rootSum={rootSum}
-          onUpdateTargetGrade={handleUpdateTargetGrade}
+          isRoot={navStack.length === 0}
+          onAdd={openAddModal}
           onOpenFolder={handleOpenFolder}
           onEdit={handleEdit}
           onDelete={handleDelete}
           onChangeGrade={handleChangeGrade}
+          onUpdateTargetGrade={handleUpdateTargetGrade}
         />
       </div>
 
