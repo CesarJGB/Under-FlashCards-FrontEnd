@@ -8,8 +8,8 @@ export default function EvaluationFolderView({
   globalProgress = 0,       
   targetGrade = 70,          
   rootSum = 100,             
-  isRoot = true,             // 📐 Detecta si está en la raíz para ajustar el título
-  onAdd,                     // 🔌 Recibe la acción para abrir el modal de creación
+  isRoot = true,             
+  onAdd,                     
   onUpdateTargetGrade,       
   onOpenFolder = () => {}, 
   onEdit = () => {}, 
@@ -44,17 +44,21 @@ export default function EvaluationFolderView({
 
   return (
     <div className="space-y-5">
-      {/* 🎯 1. PANEL DE METAS Y RENDIMIENTO GLOBAL CONSOLIDADO (Siempre en la cima) */}
+      {/* 🎯 1. PANEL DE METAS Y RENDIMIENTO GLOBAL CONSOLIDADO (Alineación Mejorada) */}
       <div className="bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-2xs">
-        <div className="flex flex-row items-center justify-between gap-3 mb-4">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
+        <div className="flex flex-row items-start justify-between gap-4 mb-4">
+          
+          {/* Bloque Izquierdo: Meta */}
+          <div className="flex items-start gap-2.5 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5">
               <Target className="w-5 h-5" />
             </div>
-            <div>
-              <div className="text-xs font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wider">Meta Propuesta</div>
+            <div className="min-w-0">
+              <span className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider leading-none">
+                Meta Propuesta
+              </span>
               {isEditingTarget ? (
-                <div className="flex items-center gap-1.5 mt-0.5">
+                <div className="flex items-center gap-1.5 mt-1.5">
                   <input
                     type="number"
                     min="0"
@@ -69,8 +73,10 @@ export default function EvaluationFolderView({
                   </button>
                 </div>
               ) : (
-                <div className="flex items-center gap-1.5 mt-0.5">
-                  <span className="text-base font-bold text-slate-800 dark:text-slate-200">{targetGrade} pts</span>
+                <div className="flex items-center gap-1 mt-1.5">
+                  <span className="text-xl font-extrabold text-slate-800 dark:text-slate-200 truncate leading-none">
+                    {targetGrade} <span className="text-xs font-normal text-slate-400 lowercase">pts</span>
+                  </span>
                   <button onClick={() => setIsEditingTarget(true)} title="Editar meta" className="p-1 rounded-md text-slate-400 hover:text-indigo-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer">
                     <Edit2 className="w-3 h-3" />
                   </button>
@@ -79,20 +85,25 @@ export default function EvaluationFolderView({
             </div>
           </div>
 
-          <div className="text-right flex flex-col justify-center shrink-0">
-            <div>
-              <span className="text-[11px] font-medium text-slate-400 dark:text-slate-500 block leading-tight">Llevas acumulado:</span>
-              <span className="text-xl font-extrabold text-indigo-600 dark:text-indigo-400 block mt-0.5">{parseFloat(globalProgress.toFixed(2))}%</span>
-            </div>
-            <div className="mt-1 flex items-center justify-end gap-1 text-[11px]">
+          {/* Bloque Derecho: Rendimiento y Raíz (Perfectamente alineado al izquierdo) */}
+          <div className="text-right flex flex-col items-end justify-start shrink-0">
+            <span className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider leading-none">
+              Llevas acumulado
+            </span>
+            <span className="text-xl font-extrabold text-indigo-600 dark:text-indigo-400 block mt-1.5 leading-none">
+              {parseFloat(globalProgress.toFixed(2))}%
+            </span>
+            <div className="mt-2.5 flex items-center justify-end gap-1 text-[11px] leading-none">
               <span className="text-slate-400 dark:text-slate-500">Suma raíz:</span>
               <span className={`font-bold ${rootSum === 100 ? 'text-emerald-500 dark:text-emerald-400' : 'text-amber-500 dark:text-amber-400'}`}>
                 {rootSum}%
               </span>
             </div>
           </div>
+
         </div>
 
+        {/* Notificación Dinámica de progreso */}
         <div className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm border font-medium ${
           reached 
             ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' 
@@ -114,7 +125,7 @@ export default function EvaluationFolderView({
         )}
       </div>
 
-      {/* 📑 2. SUB-HEADER Y ACCIONES (Bajado e insertado debajo de la meta) */}
+      {/* 📑 2. SUB-HEADER Y ACCIONES */}
       <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-800/60 pt-4">
         <div className="text-sm font-bold text-slate-800 dark:text-slate-200">
           {isRoot ? 'Criterios base' : 'Subcriterios actuales'}
@@ -139,7 +150,6 @@ export default function EvaluationFolderView({
             <div key={n.id || n._id} className="flex items-center justify-between bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3 rounded-xl shadow-xs transition-all hover:border-slate-300 dark:hover:border-slate-700">
               <div className="flex items-center gap-3 min-w-0">
                 <div className="w-10 h-10 rounded-lg bg-slate-50 dark:bg-slate-800 flex items-center justify-center shrink-0">
-                  {/* 💜 Cambiado text-emerald-500 por text-indigo-500 para volver moradas las carpetas */}
                   {n.type === 'folder' ? <Folder className="w-5 h-5 text-indigo-500" /> : <FileText className="w-5 h-5 text-indigo-400" />}
                 </div>
                 <div className="min-w-0">
