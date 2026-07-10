@@ -1,13 +1,14 @@
 // FILE: frontend/src/components/library/info/EvaluationFolderView.jsx
 import React, { useState, useEffect } from 'react';
-import { Folder, FileText, Edit2, Trash2, ChevronRight, Target, CheckCircle2, Sparkles } from 'lucide-react';
+import { Folder, FileText, Edit2, Trash2, ChevronRight, Target, CheckCircle2, Sparkles, AlertTriangle } from 'lucide-react';
 import { calculateGoalMetrics } from '../../../lib/evaluationUtils';
 
 export default function EvaluationFolderView({ 
   nodes = [], 
-  globalProgress = 0,       // 📊 Puntos acumulados globales actuales de la materia (ej: 55.4)
-  targetGrade = 70,          // 🎯 Meta guardada en la base de datos (por defecto 70)
-  onUpdateTargetGrade,       // 🚀 Callback para enviar la nueva meta modificada al backend
+  globalProgress = 0,       
+  targetGrade = 70,          
+  rootSum = 100,             // 📐 Recibimos el porcentaje de suma raíz acumulada
+  onUpdateTargetGrade,       
   onOpenFolder = () => {}, 
   onEdit = () => {}, 
   onDelete = () => {}, 
@@ -16,12 +17,10 @@ export default function EvaluationFolderView({
   const [isEditingTarget, setIsEditingTarget] = useState(false);
   const [tempTarget, setTempTarget] = useState(targetGrade);
 
-  // Sincronizar el input si la meta cambia externamente
   useEffect(() => {
     setTempTarget(targetGrade);
   }, [targetGrade]);
 
-  // Ejecutamos la lógica de nuestro motor matemático extendido
   const { reached, pointsDifference, message } = calculateGoalMetrics(globalProgress, targetGrade);
 
   const handleSaveTarget = () => {
@@ -38,51 +37,57 @@ export default function EvaluationFolderView({
 
   return (
     <div className="space-y-4">
-      {/* 🎯 PANEL DE METAS Y RENDIMIENTO GLOBAL */}
+      {/* 🎯 PANEL DE METAS Y RENDIMIENTO GLOBAL CONSOLIDADO */}
       <div className="bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-2xs">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+        <div className="flex flex-row items-center justify-between gap-3 mb-4">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+            <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
               <Target className="w-5 h-5" />
             </div>
             <div>
               <div className="text-xs font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wider">Meta Propuesta</div>
               {isEditingTarget ? (
-                <div className="flex items-center gap-2 mt-0.5">
+                <div className="flex items-center gap-1.5 mt-0.5">
                   <input
                     type="number"
                     min="0"
                     max="100"
                     value={tempTarget}
                     onChange={(e) => setTempTarget(e.target.value)}
-                    className="w-16 text-sm font-semibold rounded-md border border-slate-300 dark:border-slate-700 px-1.5 py-0.5 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-50 text-center focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                    className="w-14 text-sm font-semibold rounded-md border border-slate-300 dark:border-slate-700 px-1 py-0.5 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-50 text-center focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                     autoFocus
                   />
-                  <button onClick={handleSaveTarget} className="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-0.5 rounded-md transition-colors cursor-pointer font-medium">
-                    Guardar
-                  </button>
-                  <button onClick={() => { setIsEditingTarget(false); setTempTarget(targetGrade); }} className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer">
-                    Cancelar
+                  <button onClick={handleSaveTarget} className="text-[11px] bg-indigo-600 hover:bg-indigo-500 text-white px-1.5 py-0.5 rounded-md transition-colors cursor-pointer font-medium">
+                    OK
                   </button>
                 </div>
               ) : (
                 <div className="flex items-center gap-1.5 mt-0.5">
-                  <span className="text-lg font-bold text-slate-800 dark:text-slate-200">{targetGrade} pts</span>
+                  <span className="text-base font-bold text-slate-800 dark:text-slate-200">{targetGrade} pts</span>
                   <button onClick={() => setIsEditingTarget(true)} title="Editar meta" className="p-1 rounded-md text-slate-400 hover:text-indigo-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer">
-                    <Edit2 className="w-3.5 h-3.5" />
+                    <Edit2 className="w-3 h-3" />
                   </button>
                 </div>
               )}
             </div>
           </div>
 
-          <div className="text-right sm:block flex justify-between items-center border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-200 dark:border-slate-800">
-            <span className="text-xs font-medium text-slate-400 dark:text-slate-500 sm:block">Llevas acumulado:</span>
-            <span className="text-xl font-extrabold text-indigo-600 dark:text-indigo-400 sm:mt-0.5 block">{parseFloat(globalProgress.toFixed(2))}%</span>
+          {/* 📊 Bloque Unificado de Totales y Configuraciones */}
+          <div className="text-right flex flex-col justify-center shrink-0">
+            <div>
+              <span className="text-[11px] font-medium text-slate-400 dark:text-slate-500 block leading-tight">Llevas acumulado:</span>
+              <span className="text-xl font-extrabold text-indigo-600 dark:text-indigo-400 block mt-0.5">{parseFloat(globalProgress.toFixed(2))}%</span>
+            </div>
+            <div className="mt-1 flex items-center justify-end gap-1 text-[11px]">
+              <span className="text-slate-400 dark:text-slate-500">Suma raíz:</span>
+              <span className={`font-bold ${rootSum === 100 ? 'text-emerald-500 dark:text-emerald-400' : 'text-amber-500 dark:text-amber-400'}`}>
+                {rootSum}%
+              </span>
+            </div>
           </div>
         </div>
 
-        {/* Notificación Dinámica */}
+        {/* Notificación Dinámica de progreso */}
         <div className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm border font-medium ${
           reached 
             ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' 
@@ -95,6 +100,14 @@ export default function EvaluationFolderView({
           )}
           <span>{message}</span>
         </div>
+
+        {/* ⚠️ Alerta condicional sutil en caso de desajuste en los criterios raíz */}
+        {rootSum !== 100 && (
+          <div className="mt-2 flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 font-medium">
+            <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+            <span>La suma de los criterios base no es 100%.</span>
+          </div>
+        )}
       </div>
 
       {/* 📂 LISTADO DE NODOS EXISTENTES */}
