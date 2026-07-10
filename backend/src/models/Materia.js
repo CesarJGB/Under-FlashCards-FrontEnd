@@ -16,7 +16,15 @@ const materiaSchema = new mongoose.Schema(
     }
     ,
     // Evaluación jerárquica: árbol recursivo de criterios (folders/items)
-    evaluationCriteria: { type: mongoose.Schema.Types.Mixed, default: [] }
+    evaluationCriteria: { type: mongoose.Schema.Types.Mixed, default: [] },
+
+    // Meta de calificación objetivo definida por el usuario (0-100)
+    metaCalificacion: {
+      type: Number,
+      default: 70,
+      min: 0,
+      max: 100
+    }
   },
   { timestamps: true }
 );
@@ -39,7 +47,9 @@ materiaSchema.methods.serialize = function () {
     },
     createdAt: this.createdAt,
     // Incluir criterios de evaluación en la serialización (siempre devolver array)
-    evaluationCriteria: this.evaluationCriteria || []
+    evaluationCriteria: this.evaluationCriteria || [],
+    // Meta de calificación objetivo (fallback preventivo)
+    metaCalificacion: this.metaCalificacion ?? 70
   };
 };
 
