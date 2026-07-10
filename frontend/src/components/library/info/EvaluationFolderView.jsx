@@ -1,13 +1,15 @@
 // FILE: frontend/src/components/library/info/EvaluationFolderView.jsx
-import React, { useState, useEffect } from 'react';
-import { Folder, FileText, Edit2, Trash2, ChevronRight, Target, CheckCircle2, Sparkles, AlertTriangle } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Folder, FileText, Edit2, Trash2, ChevronRight, Target, CheckCircle2, Sparkles, AlertTriangle, Plus } from 'lucide-react';
 import { calculateGoalMetrics } from '../../../lib/evaluationUtils';
 
 export default function EvaluationFolderView({ 
   nodes = [], 
   globalProgress = 0,       
   targetGrade = 70,          
-  rootSum = 100,             // 📐 Recibimos el porcentaje de suma raíz acumulada
+  rootSum = 100,             
+  isRoot = true,             // 📐 Detecta si está en la raíz para ajustar el título
+  onAdd,                     // 🔌 Recibe la acción para abrir el modal de creación
   onUpdateTargetGrade,       
   onOpenFolder = () => {}, 
   onEdit = () => {}, 
@@ -23,6 +25,11 @@ export default function EvaluationFolderView({
 
   const { reached, pointsDifference, message } = calculateGoalMetrics(globalProgress, targetGrade);
 
+  // 📊 Ordenamos automáticamente los criterios de mayor a menor peso (%)
+  const sortedNodes = useMemo(() => {
+    return [...nodes].sort((a, b) => (b.weight || 0) - (a.weight || 0));
+  }, [nodes]);
+
   const handleSaveTarget = () => {
     const val = Number(tempTarget);
     if (isNaN(val) || val < 0 || val > 100) {
@@ -36,8 +43,8 @@ export default function EvaluationFolderView({
   };
 
   return (
-    <div className="space-y-4">
-      {/* 🎯 PANEL DE METAS Y RENDIMIENTO GLOBAL CONSOLIDADO */}
+    <div className="space-y-5">
+      {/* 🎯 1. PANEL DE METAS Y RENDIMIENTO GLOBAL CONSOLIDADO (Siempre en la cima) */}
       <div className="bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-2xs">
         <div className="flex flex-row items-center justify-between gap-3 mb-4">
           <div className="flex items-center gap-2.5">
@@ -72,7 +79,6 @@ export default function EvaluationFolderView({
             </div>
           </div>
 
-          {/* 📊 Bloque Unificado de Totales y Configuraciones */}
           <div className="text-right flex flex-col justify-center shrink-0">
             <div>
               <span className="text-[11px] font-medium text-slate-400 dark:text-slate-500 block leading-tight">Llevas acumulado:</span>
@@ -87,7 +93,6 @@ export default function EvaluationFolderView({
           </div>
         </div>
 
-        {/* Notificación Dinámica de progreso */}
         <div className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm border font-medium ${
           reached 
             ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' 
@@ -101,7 +106,6 @@ export default function EvaluationFolderView({
           <span>{message}</span>
         </div>
 
-        {/* ⚠️ Alerta condicional sutil en caso de desajuste en los criterios raíz */}
         {rootSum !== 100 && (
           <div className="mt-2 flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 font-medium">
             <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
@@ -110,22 +114,33 @@ export default function EvaluationFolderView({
         )}
       </div>
 
-      {/* 📂 LISTADO DE NODOS EXISTENTES */}
+      {/* 📑 2. SUB-HEADER Y ACCIONES (Bajado e insertado debajo de la meta) */}
+      <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-800/60 pt-4">
+        <div className="text-sm font-bold text-slate-800 dark:text-slate-200">
+          {isRoot ? 'Criterios base' : 'Subcriterios actuales'}
+        </div>
+        <button onClick={onAdd} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold cursor-pointer shadow-xs transition-all active:scale-98"> 
+          <Plus className="w-3.5 h-3.5" /> Nuevo {isRoot ? 'Criterio' : 'Subcriterio'}
+        </button>
+      </div>
+
+      {/* 📂 3. LISTADO DE NODOS ORDENADOS */}
       <div className="space-y-3">
-        {nodes.length === 0 && (
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 text-sm text-slate-500">
-            No hay elementos.
+        {sortedNodes.length === 0 && (
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 text-sm text-slate-500 text-center">
+            No hay elementos creados aún.
           </div>
         )}
 
-        {nodes.map((n) => {
+        {sortedNodes.map((n) => {
           const currentBase = n.gradingBase || 100;
 
           return (
-            <div key={n.id || n._id} className="flex items-center justify-between bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3 rounded-xl shadow-xs transition-all">
+            <div key={n.id || n._id} className="flex items-center justify-between bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3 rounded-xl shadow-xs transition-all hover:border-slate-300 dark:hover:border-slate-700">
               <div className="flex items-center gap-3 min-w-0">
                 <div className="w-10 h-10 rounded-lg bg-slate-50 dark:bg-slate-800 flex items-center justify-center shrink-0">
-                  {n.type === 'folder' ? <Folder className="w-5 h-5 text-emerald-500" /> : <FileText className="w-5 h-5 text-indigo-500" />}
+                  {/* 💜 Cambiado text-emerald-500 por text-indigo-500 para volver moradas las carpetas */}
+                  {n.type === 'folder' ? <Folder className="w-5 h-5 text-indigo-500" /> : <FileText className="w-5 h-5 text-indigo-400" />}
                 </div>
                 <div className="min-w-0">
                   <div className="text-sm font-medium text-slate-900 dark:text-slate-50 truncate">{n.name}</div>
@@ -154,16 +169,13 @@ export default function EvaluationFolderView({
                         onChangeGrade(n, null);
                         return;
                       }
-                      
                       let val = Number(e.target.value);
-                      
                       if (val > currentBase) {
                         alert(`La nota máxima permitida para este criterio es ${currentBase}. Se ajustará automáticamente.`);
                         val = currentBase;
                       } else if (val < 0) {
                         val = 0;
                       }
-                      
                       onChangeGrade(n, val);
                     }}
                     className="w-20 text-sm text-center rounded-lg border border-slate-200 dark:border-slate-800 px-2 py-1 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-50 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
