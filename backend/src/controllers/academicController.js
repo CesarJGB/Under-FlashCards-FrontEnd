@@ -21,16 +21,25 @@ exports.getMaterias = async (req, res) => {
   }
 };
 
+// ✅ MODIFICADO: Soporte para metaCalificacion por defecto
 exports.createMateria = async (req, res) => {
   try {
-    const { userId, name } = req.body || {};
+    // 1. Extraemos metaCalificacion (si el usuario la define desde el inicio)
+    const { userId, name, metaCalificacion } = req.body || {};
     if (!name?.trim()) return res.status(400).json({ error: 'El nombre de la materia es requerido.' });
 
-    // Validar duplicados por usuario de forma preventiva
     const existe = await Materia.findOne({ name: name.trim(), userId });
     if (existe) return res.status(400).json({ error: 'Ya tienes una materia registrada con este nombre.' });
 
-    const materia = await Materia.create({ userId, name: name.trim() });
+    // 2. Si no mandan una meta, le asignamos 70 por defecto
+    const meta = metaCalificacion !== undefined ? Number(metaCalificacion) : 70;
+
+    const materia = await Materia.create({ 
+      userId, 
+      name: name.trim(),
+      metaCalificacion: meta 
+    });
+    
     return res.status(201).json(materia.serialize());
   } catch (err) {
     console.error('[academic:createMateria] error:', err.message);
@@ -38,18 +47,25 @@ exports.createMateria = async (req, res) => {
   }
 };
 
+// 🐛 CORREGIDO: Bug de limpieza en cascada (se obtenían IDs antes de borrar)
 exports.deleteMateria = async (req, res) => {
   try {
     const { id } = req.params;
     const materia = await Materia.findByIdAndDelete(id);
     if (!materia) return res.status(404).json({ error: 'Materia no encontrada.' });
 
+    // FIX: Obtener los IDs de los temas ANTES de eliminarlos
+    const temaIds = await Tema.find({ materiaId: id }).distinct('_id');
+
     // Limpieza en cascada para no corromper la base de datos
+    await Subtema.deleteMany({ temaId: { $in: temaIds } });
     await Tema.deleteMany({ materiaId: id });
-    await Subtema.deleteMany({ temaId: { $in: await Tema.find({ materiaId: id }).distinct('_id') } });
     
     // Desvincular los mazos (no los borramos para cumplir la regla de negocio de no perder datos)
-    await Deck.updateMany({ materiaId: id }, { $set: { materiaId: null, parcialNumber: null, temaId: null, subtemaId: null } });
+    await Deck.updateMany(
+      { materiaId: id }, 
+      { $set: { materiaId: null, parcialNumber: null, temaId: null, subtemaId: null } }
+    );
 
     return res.json({ success: true, message: 'Materia eliminada y mazos desvinculados.' });
   } catch (err) {
@@ -233,34 +249,43 @@ exports.getDomainPreview = async (req, res) => {
 };
 
 // =========================================================================
-// 5. EDICIÓN DE NOMBRE (Renombrar carpetas académicas)
+// 5. EDICIÓN DE NOMBRE Y META (Renombrar carpetas académicas + Meta)
 // =========================================================================
 
+// ✅ MODIFICADO: Soporte para actualizar metaCalificacion y validación parcial
 exports.updateMateria = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name } = req.body || {};
-
-    if (!name?.trim()) {
-      return res.status(400).json({ error: 'El nombre es requerido.' });
-    }
+    // 1. Aceptamos tanto el 'name' como la 'metaCalificacion' en el cuerpo del request
+    const { name, metaCalificacion } = req.body || {};
 
     const materia = await Materia.findById(id);
     if (!materia) return res.status(404).json({ error: 'Materia no encontrada.' });
 
-    // Validar duplicados por usuario (excluyendo el documento actual)
-    const duplicado = await Materia.findOne({
-      name: name.trim(),
-      userId: materia.userId,
-      _id: { $ne: id }
-    });
-    if (duplicado) {
-      return res.status(400).json({ error: 'Ya tienes una materia registrada con este nombre.' });
+    // 2. Si se envía un nuevo nombre, validamos duplicados
+    if (name !== undefined) {
+      if (!name.trim()) return res.status(400).json({ error: 'El nombre es requerido.' });
+      
+      const duplicado = await Materia.findOne({
+        name: name.trim(),
+        userId: materia.userId,
+        _id: { $ne: id }
+      });
+      if (duplicado) return res.status(400).json({ error: 'Ya tienes una materia registrada con este nombre.' });
+      
+      materia.name = name.trim();
     }
 
-    materia.name = name.trim();
-    await materia.save();
+    // 3. Si se envía una nueva meta, la validamos y guardamos
+    if (metaCalificacion !== undefined) {
+      const parsedMeta = Number(metaCalificacion);
+      if (isNaN(parsedMeta) || parsedMeta < 0 || parsedMeta > 100) {
+        return res.status(400).json({ error: 'La meta de calificación debe ser un número entre 0 y 100.' });
+      }
+      materia.metaCalificacion = parsedMeta;
+    }
 
+    await materia.save();
     return res.json(materia.serialize());
   } catch (err) {
     console.error('[academic:updateMateria] error:', err.message);
