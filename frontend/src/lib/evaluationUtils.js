@@ -64,4 +64,34 @@ export function computeAccumulatedPercent(node) {
   return aggregate(node);
 }
 
-export default { cloneDeep, validateSiblingsWeight, validateTreeRecursively, computeAccumulatedPercent };
+/**
+ * Calcula el estado de rendimiento actual frente a la meta del usuario.
+ * @param {number} currentProgress - Puntos acumulados actuales calculados por el motor (ej. 45.5)
+ * @param {number} targetGrade - Meta de calificación guardada en la materia (ej. 70)
+ * @returns {object} { reached: boolean, pointsDifference: number, message: string }
+ */
+export const calculateGoalMetrics = (currentProgress, targetGrade = 70) => {
+  const current = typeof currentProgress === 'number' ? currentProgress : 0;
+  const target = typeof targetGrade === 'number' ? targetGrade : 70;
+
+  const diff = current - target;
+  // Redondeamos a 2 decimales para evitar los clásicos errores de coma flotante de JavaScript (ej. 0.1 + 0.2 = 0.30000000000000004)
+  const pointsDifference = parseFloat(Math.abs(diff).toFixed(2));
+  const reached = diff >= 0;
+
+  return {
+    reached,
+    pointsDifference,
+    message: reached
+      ? `¡Meta alcanzada! Llevas +${pointsDifference} pts de más`
+      : `Te faltan ${pointsDifference} pts para tu meta`
+  };
+};
+
+export default { 
+  cloneDeep, 
+  validateSiblingsWeight, 
+  validateTreeRecursively, 
+  computeAccumulatedPercent,
+  calculateGoalMetrics 
+};
