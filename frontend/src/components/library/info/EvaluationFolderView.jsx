@@ -1,6 +1,6 @@
 // FILE: frontend/src/components/library/info/EvaluationFolderView.jsx
 import React, { useState, useEffect, useMemo } from 'react';
-import { Folder, FileText, Edit2, Trash2, ChevronRight, Target, CheckCircle2, Sparkles, AlertTriangle, Plus } from 'lucide-react';
+import { Folder, FileText, Edit2, Trash2, ChevronRight, CheckCircle2, Sparkles, AlertTriangle, Plus } from 'lucide-react';
 import { calculateGoalMetrics } from '../../../lib/evaluationUtils';
 
 export default function EvaluationFolderView({ 
@@ -44,48 +44,43 @@ export default function EvaluationFolderView({
 
   return (
     <div className="space-y-5">
-      {/* 🎯 1. PANEL DE METAS Y RENDIMIENTO GLOBAL CONSOLIDADO (Alineación Mejorada) */}
+      {/* 🎯 1. PANEL DE METAS Y RENDIMIENTO GLOBAL CONSOLIDADO (Sinfonía Simétrica) */}
       <div className="bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-2xs">
         <div className="flex flex-row items-start justify-between gap-4 mb-4">
           
-          {/* Bloque Izquierdo: Meta */}
-          <div className="flex items-start gap-2.5 min-w-0">
-            <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5">
-              <Target className="w-5 h-5" />
-            </div>
-            <div className="min-w-0">
-              <span className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider leading-none">
-                Meta Propuesta
-              </span>
-              {isEditingTarget ? (
-                <div className="flex items-center gap-1.5 mt-1.5">
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={tempTarget}
-                    onChange={(e) => setTempTarget(e.target.value)}
-                    className="w-14 text-sm font-semibold rounded-md border border-slate-300 dark:border-slate-700 px-1 py-0.5 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-50 text-center focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                    autoFocus
-                  />
-                  <button onClick={handleSaveTarget} className="text-[11px] bg-indigo-600 hover:bg-indigo-500 text-white px-1.5 py-0.5 rounded-md transition-colors cursor-pointer font-medium">
-                    OK
-                  </button>
-                </div>
-              ) : (
-                <div className="flex items-center gap-1 mt-1.5">
-                  <span className="text-xl font-extrabold text-slate-800 dark:text-slate-200 truncate leading-none">
-                    {targetGrade} <span className="text-xs font-normal text-slate-400 lowercase">pts</span>
-                  </span>
-                  <button onClick={() => setIsEditingTarget(true)} title="Editar meta" className="p-1 rounded-md text-slate-400 hover:text-indigo-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer">
-                    <Edit2 className="w-3 h-3" />
-                  </button>
-                </div>
-              )}
-            </div>
+          {/* Bloque Izquierdo: Meta Propuesta (Ahora perfectamente alineado sin el icono) */}
+          <div className="flex flex-col items-start justify-start min-w-0">
+            <span className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider leading-none">
+              Meta Propuesta
+            </span>
+            {isEditingTarget ? (
+              <div className="flex items-center gap-1.5 mt-1.5">
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={tempTarget}
+                  onChange={(e) => setTempTarget(e.target.value)}
+                  className="w-14 text-sm font-semibold rounded-md border border-slate-300 dark:border-slate-700 px-1 py-0.5 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-50 text-center focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  autoFocus
+                />
+                <button onClick={handleSaveTarget} className="text-[11px] bg-indigo-600 hover:bg-indigo-500 text-white px-1.5 py-0.5 rounded-md transition-colors cursor-pointer font-medium">
+                  OK
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1 mt-1.5">
+                <span className="text-xl font-extrabold text-slate-800 dark:text-slate-200 truncate leading-none">
+                  {targetGrade} <span className="text-xs font-normal text-slate-400 lowercase">pts</span>
+                </span>
+                <button onClick={() => setIsEditingTarget(true)} title="Editar meta" className="p-1 rounded-md text-slate-400 hover:text-indigo-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer">
+                  <Edit2 className="w-3 h-3" />
+                </button>
+              </div>
+            )}
           </div>
 
-          {/* Bloque Derecho: Rendimiento y Raíz (Perfectamente alineado al izquierdo) */}
+          {/* Bloque Derecho: Llevas Acumulado */}
           <div className="text-right flex flex-col items-end justify-start shrink-0">
             <span className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider leading-none">
               Llevas acumulado
