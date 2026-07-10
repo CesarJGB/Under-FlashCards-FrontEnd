@@ -32,7 +32,6 @@ export default function EvaluacionLevel({ onBack, materia, materias, setMaterias
     if (!materiaId) return;
 
     const prevMaterias = cloneDeep(materias);
-    // Modificamos localmente la meta de forma inmediata
     const nextMaterias = prevMaterias.map(m => 
       ((m._id || m.id) === materiaId ? { ...m, metaCalificacion: newMeta } : m)
     );
@@ -45,7 +44,7 @@ export default function EvaluacionLevel({ onBack, materia, materias, setMaterias
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'X-User-Id': userId // 🔒 Evitamos el Error 401
+          'X-User-Id': userId
         },
         body: JSON.stringify({ metaCalificacion: newMeta })
       });
@@ -57,7 +56,6 @@ export default function EvaluacionLevel({ onBack, materia, materias, setMaterias
 
       const data = await res.json().catch(() => null);
       if (data) {
-        // Ajustamos por si el backend serializa id como _id o viceversa
         const updated = nextMaterias.map(m => 
           (String(m._id || m.id) === String(data.id || data._id) ? { ...m, ...data } : m)
         );
@@ -67,7 +65,6 @@ export default function EvaluacionLevel({ onBack, materia, materias, setMaterias
       }
     } catch (err) {
       console.error('[EvaluacionLevel:updateTargetGrade] Error:', err.message);
-      // Rollback si el servidor da error
       setMaterias(prevMaterias);
       try { setJSON(`materias_${userId}`, prevMaterias); } catch (e) { console.error(e); }
       toast({ title: 'Error de servidor', description: 'No se pudo guardar la meta. Cambios revertidos.' });
@@ -228,47 +225,34 @@ export default function EvaluacionLevel({ onBack, materia, materias, setMaterias
         </div>
       </div>
 
+      {/* 🧼 Contenedor unificado sin bloques redundantes superiores */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xs max-w-3xl mx-auto">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-sm text-slate-500">Nota actual</div>
-            <div className="text-2xl font-bold text-slate-900 dark:text-slate-50">{accumulated == null ? '—' : `${Math.round(accumulated)}%`}</div>
-            <div className="text-xs text-slate-500">Puntos evaluados en base real</div>
+        <div className="flex items-center justify-between mb-4">
+          <div className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+            {navStack.length ? 'Subcriterios actuales' : 'Criterios base'}
           </div>
-          <div className="text-right">
-            <div className="text-xs text-slate-500">Suma raíz</div>
-            <div className={`text-sm font-medium ${rootSum === 100 ? 'text-emerald-600' : 'text-amber-600'}`}>{rootSum}%</div>
-            {rootSum !== 100 && <div className="text-xs text-amber-600">La suma de criterios raíz no es 100%</div>}
+          <div className="flex items-center gap-2">
+            {navStack.length > 0 && (
+              <button onClick={handleBackFolder} className="text-xs px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-medium cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors">Atrás</button>
+            )}
+            <button onClick={openAddModal} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold cursor-pointer shadow-xs transition-colors"> 
+              <Plus className="w-4 h-4" /> Nuevo {navStack.length ? 'Subcriterio' : 'Criterio'}
+            </button>
           </div>
         </div>
 
-        <div className="mt-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-              {navStack.length ? 'Subcriterios actuales' : 'Criterios base'}
-            </div>
-            <div className="flex items-center gap-2">
-              {navStack.length > 0 && (
-                <button onClick={handleBackFolder} className="text-xs px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-medium cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors">Atrás</button>
-              )}
-              <button onClick={openAddModal} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold cursor-pointer shadow-xs transition-colors"> 
-                <Plus className="w-4 h-4" /> Nuevo {navStack.length ? 'Subcriterio' : 'Criterio'}
-              </button>
-            </div>
-          </div>
-
-          {/* 🔌 Conexión total con las nuevas propiedades dinámicas de metas */}
-          <EvaluationFolderView
-            nodes={currentNode.children || []}
-            globalProgress={accumulated || 0}
-            targetGrade={materia?.metaCalificacion ?? 70}
-            onUpdateTargetGrade={handleUpdateTargetGrade}
-            onOpenFolder={handleOpenFolder}
-            onEdit={handleEdit}
-            onDelete={handleDelete}
-            onChangeGrade={handleChangeGrade}
-          />
-        </div>
+        {/* Pasamos el rootSum directamente al gestor interno de la tarjeta */}
+        <EvaluationFolderView
+          nodes={currentNode.children || []}
+          globalProgress={accumulated || 0}
+          targetGrade={materia?.metaCalificacion ?? 70}
+          rootSum={rootSum}
+          onUpdateTargetGrade={handleUpdateTargetGrade}
+          onOpenFolder={handleOpenFolder}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+          onChangeGrade={handleChangeGrade}
+        />
       </div>
 
       <EvaluationModal
