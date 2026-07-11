@@ -3,9 +3,88 @@ import { useState } from 'react';
 import { ImagePlus, Palette, Pipette } from 'lucide-react';
 
 const ALIGN_CLASS = { left: 'text-left', center: 'text-center', right: 'text-right' };
+const FLOATING_CARD_WIDTH = 320;
+const FLOATING_CARD_HEIGHT = 220;
 
-export default function LivePreview({ question, answer, bgImage, setBgImage, textAlign, styles, contentImage, imageSide, ALIGNS, SWATCHES, setTextAlign, handleBgFile, updateStyle }) {
+function CardFrame({ question, answer, bgImage, textAlign, styles, contentImage, imageSide, fixedSize = false }) {
+  return (
+    <div
+      style={{
+        backgroundColor: styles.bgColor || '#ffffff',
+        backgroundImage: bgImage ? `url(${bgImage})` : undefined,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        ...(fixedSize ? { width: FLOATING_CARD_WIDTH, height: FLOATING_CARD_HEIGHT } : {}),
+      }}
+      className={`relative rounded-2xl border border-slate-200 shadow-md overflow-hidden flex flex-col p-4 justify-center ${
+        fixedSize ? '' : 'w-full max-w-[320px] min-h-[220px]'
+      }`}
+    >
+      {bgImage && <span className="absolute inset-0 bg-black/55" />}
+      <span className="absolute top-2.5 left-1/2 -translate-x-1/2 w-8 h-1.5 rounded-full bg-slate-400/30 z-10" />
+
+      <div className="relative z-10 flex-1 flex flex-col justify-center min-w-0 py-2">
+        <p className={`text-[8px] font-bold uppercase tracking-wide ${bgImage ? 'text-white/60' : 'text-slate-400'} ${ALIGN_CLASS[textAlign] || 'text-center'}`}>Pregunta</p>
+        <p
+          style={{ fontSize: `${styles.qSize}px`, ...(styles.qColor ? { color: styles.qColor } : {}) }}
+          className={`mt-0.5 whitespace-pre-wrap truncate-3-lines ${ALIGN_CLASS[textAlign] || 'text-center'} ${styles.qBold ? 'font-bold' : 'font-normal'} ${styles.qItalic ? 'italic' : ''} ${bgImage && !styles.qColor ? 'text-white' : (!styles.qColor ? 'text-slate-900' : '')}`}
+        >
+          {question.trim() || 'Escribe tu pregunta...'}
+        </p>
+
+        {contentImage && imageSide === 'question' && (
+          <div className="mt-2 flex justify-center">
+            <img src={contentImage} alt="Preview P" className="max-h-24 rounded-lg object-contain border border-slate-200/60 bg-slate-50 p-0.5 shadow-2xs" />
+          </div>
+        )}
+
+        <div className={`my-2.5 border-t border-dashed ${bgImage ? 'border-white/30' : 'border-slate-200'}`} />
+
+        <p className={`text-[8px] font-bold uppercase tracking-wide ${bgImage ? 'text-white/60' : 'text-slate-400'} ${ALIGN_CLASS[textAlign] || 'text-center'}`}>Respuesta</p>
+        <p
+          style={{ fontSize: `${styles.aSize}px`, ...(styles.aColor ? { color: styles.aColor } : {}) }}
+          className={`mt-0.5 whitespace-pre-wrap truncate-3-lines ${ALIGN_CLASS[textAlign] || 'text-center'} ${styles.aBold ? 'font-bold' : 'font-normal'} ${styles.aItalic ? 'italic' : ''} ${bgImage && !styles.aColor ? 'text-white/90' : (!styles.aColor ? 'text-slate-700' : '')}`}
+        >
+          {answer.trim() || 'Escribe tu respuesta...'}
+        </p>
+
+        {contentImage && imageSide === 'answer' && (
+          <div className="mt-2 flex justify-center">
+            <img src={contentImage} alt="Preview R" className="max-h-24 rounded-lg object-contain border border-slate-200/60 bg-slate-50 p-0.5 shadow-2xs" />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default function LivePreview({ question, answer, bgImage, setBgImage, textAlign, styles, contentImage, imageSide, ALIGNS, SWATCHES, setTextAlign, handleBgFile, updateStyle, variant = 'docked', floatingSize }) {
   const [bgColorOpen, setBgColorOpen] = useState(false);
+
+  if (variant === 'floating') {
+    const availableWidth = Math.max(120, floatingSize?.width || FLOATING_CARD_WIDTH);
+    const availableHeight = Math.max(90, floatingSize?.height || FLOATING_CARD_HEIGHT);
+    const scale = Math.min(1, availableWidth / FLOATING_CARD_WIDTH, availableHeight / FLOATING_CARD_HEIGHT);
+
+    return (
+      <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-xl border border-slate-200/80 bg-slate-100/70">
+        <div style={{ width: FLOATING_CARD_WIDTH * scale, height: FLOATING_CARD_HEIGHT * scale }} className="shrink-0">
+          <div style={{ width: FLOATING_CARD_WIDTH, height: FLOATING_CARD_HEIGHT, transform: `scale(${scale})`, transformOrigin: 'top left' }}>
+            <CardFrame
+              question={question}
+              answer={answer}
+              bgImage={bgImage}
+              textAlign={textAlign}
+              styles={styles}
+              contentImage={contentImage}
+              imageSide={imageSide}
+              fixedSize
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mt-4 border border-slate-200 rounded-2xl p-4 bg-slate-50/70 space-y-4 animate-[fadeIn_0.15s_ease] shadow-inner">
@@ -15,50 +94,15 @@ export default function LivePreview({ question, answer, bgImage, setBgImage, tex
       </div>
       
       <div className="flex justify-center py-2 bg-white/40 border border-slate-200/40 rounded-xl">
-        <div 
-          style={{
-            backgroundColor: styles.bgColor || '#ffffff',
-            backgroundImage: bgImage ? `url(${bgImage})` : undefined, 
-            backgroundSize: 'cover', 
-            backgroundPosition: 'center'
-          }}
-          className="relative w-full max-w-[320px] min-h-[220px] rounded-2xl border border-slate-200 shadow-md overflow-hidden flex flex-col p-4 justify-center"
-        >
-          {bgImage && <span className="absolute inset-0 bg-black/55" />}
-          <span className="absolute top-2.5 left-1/2 -translate-x-1/2 w-8 h-1.5 rounded-full bg-slate-400/30 z-10" />
-          
-          <div className="relative z-10 flex-1 flex flex-col justify-center min-w-0 py-2">
-            <p className={`text-[8px] font-bold uppercase tracking-wide ${bgImage ? 'text-white/60' : 'text-slate-400'} ${ALIGN_CLASS[textAlign] || 'text-center'}`}>Pregunta</p>
-            <p 
-              style={{ fontSize: `${styles.qSize}px`, ...(styles.qColor ? { color: styles.qColor } : {}) }}
-              className={`mt-0.5 whitespace-pre-wrap truncate-3-lines ${ALIGN_CLASS[textAlign] || 'text-center'} ${styles.qBold ? 'font-bold' : 'font-normal'} ${styles.qItalic ? 'italic' : ''} ${bgImage && !styles.qColor ? 'text-white' : (!styles.qColor ? 'text-slate-900' : '')}`}
-            >
-              {question.trim() || 'Escribe tu pregunta...'}
-            </p>
-            
-            {contentImage && imageSide === 'question' && (
-              <div className="mt-2 flex justify-center">
-                <img src={contentImage} alt="Preview P" className="max-h-24 rounded-lg object-contain border border-slate-200/60 bg-slate-50 p-0.5 shadow-2xs" />
-              </div>
-            )}
-
-            <div className={`my-2.5 border-t border-dashed ${bgImage ? 'border-white/30' : 'border-slate-200'}`} />
-
-            <p className={`text-[8px] font-bold uppercase tracking-wide ${bgImage ? 'text-white/60' : 'text-slate-400'} ${ALIGN_CLASS[textAlign] || 'text-center'}`}>Respuesta</p>
-            <p 
-              style={{ fontSize: `${styles.aSize}px`, ...(styles.aColor ? { color: styles.aColor } : {}) }}
-              className={`mt-0.5 whitespace-pre-wrap truncate-3-lines ${ALIGN_CLASS[textAlign] || 'text-center'} ${styles.aBold ? 'font-bold' : 'font-normal'} ${styles.aItalic ? 'italic' : ''} ${bgImage && !styles.aColor ? 'text-white/90' : (!styles.aColor ? 'text-slate-700' : '')}`}
-            >
-              {answer.trim() || 'Escribe tu respuesta...'}
-            </p>
-
-            {contentImage && imageSide === 'answer' && (
-              <div className="mt-2 flex justify-center">
-                <img src={contentImage} alt="Preview R" className="max-h-24 rounded-lg object-contain border border-slate-200/60 bg-slate-50 p-0.5 shadow-2xs" />
-              </div>
-            )}
-          </div>
-        </div>
+        <CardFrame
+          question={question}
+          answer={answer}
+          bgImage={bgImage}
+          textAlign={textAlign}
+          styles={styles}
+          contentImage={contentImage}
+          imageSide={imageSide}
+        />
       </div>
 
       <div className="space-y-3 pt-1 border-t border-slate-200/60">

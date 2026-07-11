@@ -3,15 +3,21 @@ import { Move, Minimize2, Maximize2, X } from 'lucide-react';
 import { getJSON, setJSON } from '../../lib/safeLocalStorage';
 import LivePreview from './LivePreview';
 
-const STORAGE_KEY = 'ufc_preview_panel_v1';
-const MIN_W = 240;
-const MIN_H = 260;
+export const PREVIEW_PANEL_STORAGE_KEY = 'ufc_preview_panel_v1';
+
+const MIN_W = 150;
+const MIN_H = 160;
 const VIEWPORT_GUTTER = 8;
 const BUBBLE = 60;
 const DRAG_THRESHOLD = 5;
 
+export function getStoredPreviewPanelMode() {
+  const parsed = getJSON(PREVIEW_PANEL_STORAGE_KEY);
+  return parsed?.mode === 'floating' || parsed?.mode === 'minimized' ? parsed.mode : 'docked';
+}
+
 function loadPanelState() {
-  const parsed = getJSON(STORAGE_KEY);
+  const parsed = getJSON(PREVIEW_PANEL_STORAGE_KEY);
   if (parsed && typeof parsed === 'object') {
     return {
       mode: parsed.mode === 'floating' || parsed.mode === 'minimized' ? parsed.mode : 'docked',
@@ -64,14 +70,18 @@ function clampPanelByMode(panel) {
   return panel;
 }
 
-export default function FloatingPreviewPanel(props) {
+export default function FloatingPreviewPanel({ onModeChange, ...props }) {
   const [panel, setPanel] = useState(loadPanelState);
   const panelRef = useRef(panel);
   panelRef.current = panel;
 
   useEffect(() => {
-    setJSON(STORAGE_KEY, panel);
+    setJSON(PREVIEW_PANEL_STORAGE_KEY, panel);
   }, [panel]);
+
+  useEffect(() => {
+    if (typeof onModeChange === 'function') onModeChange(panel.mode);
+  }, [panel.mode, onModeChange]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -179,7 +189,7 @@ export default function FloatingPreviewPanel(props) {
             <Maximize2 className="w-3 h-3" /> Flotante
           </button>
         </div>
-        <LivePreview {...props} />
+        <LivePreview {...props} variant="docked" />
       </div>
     );
   }
@@ -234,16 +244,24 @@ export default function FloatingPreviewPanel(props) {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain rounded-b-2xl bg-white" style={{ touchAction: 'pan-y' }}>
-        <LivePreview {...props} />
+      <div className="flex-1 min-h-0 overflow-hidden overscroll-contain rounded-b-2xl bg-white p-2.5" style={{ touchAction: 'pan-y' }}>
+        <LivePreview
+          {...props}
+          variant="floating"
+          floatingSize={{ width: Math.max(120, panel.width - 20), height: Math.max(90, panel.height - 56) }}
+        />
       </div>
 
       <div
         onPointerDown={handleResizeStart}
-        className="absolute bottom-0 right-0 w-6 h-6 cursor-se-resize flex items-end justify-end p-1"
+        className="absolute bottom-0 right-0 w-10 h-10 cursor-se-resize flex items-end justify-end p-2 rounded-tl-xl border-l border-t border-slate-200 bg-white/95 shadow-sm"
         style={{ touchAction: 'none' }}
+        title="Redimensionar previsualización"
       >
-        <div className="w-2.5 h-2.5 border-r-2 border-b-2 border-slate-300 rounded-br" />
+        <div className="relative h-4 w-4">
+          <span className="absolute bottom-0 right-0 h-4 w-4 rounded-br-sm border-b-2 border-r-2 border-slate-500" />
+          <span className="absolute bottom-1 right-1 h-2.5 w-2.5 rounded-br-sm border-b-2 border-r-2 border-slate-400" />
+        </div>
       </div>
     </div>
   );

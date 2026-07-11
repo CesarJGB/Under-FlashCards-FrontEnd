@@ -5,7 +5,7 @@ import { SlidersHorizontal, Loader2, Plus, Check, Eye, EyeOff, Trash2, AlignLeft
 
 import FormInputs from './creator/FormInputs';
 import StylePanel from './creator/StylePanel';
-import FloatingPreviewPanel from './creator/FloatingPreviewPanel';
+import FloatingPreviewPanel, { getStoredPreviewPanelMode } from './creator/FloatingPreviewPanel';
 
 // Importamos la función de parseo unificada y centralizada
 import { parseCardStyles } from '../lib/utils';
@@ -41,6 +41,7 @@ export default function FlashcardCreator({
   userId, deckId, onAiSuccess
 }) {
   const [showPreview, setShowPreview] = useState(() => Boolean(getJSON(PREVIEW_VISIBLE_KEY)));
+  const [previewMode, setPreviewMode] = useState(() => getStoredPreviewPanelMode());
   
   const [isAi, setIsAi] = useState(false);
   const [aiText, setAiText] = useState('');
@@ -53,6 +54,10 @@ export default function FlashcardCreator({
   useEffect(() => {
     setJSON(PREVIEW_VISIBLE_KEY, showPreview);
   }, [showPreview]);
+
+  useEffect(() => {
+    if (showPreview && previewMode === 'docked' && showStyles) setShowStyles(false);
+  }, [previewMode, setShowStyles, showPreview, showStyles]);
 
   const handleTabChange = (tabId) => {
     setError('');
@@ -74,6 +79,8 @@ export default function FlashcardCreator({
   // El motor redundante parseCurrentStyles fue removido con éxito.
   // Ahora consumimos directamente la utilidad unificada de la aplicación.
   const styles = parseCardStyles(fontSize);
+  const previewLocksStandaloneStyles = showPreview && previewMode === 'docked';
+  const showStandaloneStylePanel = showStyles && (!showPreview || previewMode !== 'docked');
 
   const updateStyle = (key, value) => {
     setFontSize(JSON.stringify({ ...styles, [key]: value }));
@@ -225,7 +232,11 @@ export default function FlashcardCreator({
       <div className="mt-4 grid grid-cols-2 gap-3">
         <button 
           type="button" 
-          onClick={() => { setShowPreview(!showPreview); setShowStyles(false); }} 
+          onClick={() => {
+            const nextShowPreview = !showPreview;
+            setShowPreview(nextShowPreview);
+            if (nextShowPreview && previewMode === 'docked') setShowStyles(false);
+          }} 
           className={`flex w-full flex-col sm:flex-row items-center justify-center text-center gap-1 sm:gap-2 text-xs font-bold rounded-xl h-12 sm:h-11 border transition-all active:scale-[0.98] shadow-3xs cursor-pointer p-1 ${
             showPreview ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
           }`}
@@ -236,10 +247,10 @@ export default function FlashcardCreator({
 
         <button 
           type="button" 
-          onClick={() => { if (!showPreview) setShowStyles(!showStyles); }} 
-          disabled={showPreview} 
+          onClick={() => { if (!previewLocksStandaloneStyles) setShowStyles(!showStyles); }} 
+          disabled={previewLocksStandaloneStyles} 
           className={`flex w-full flex-col sm:flex-row items-center justify-center text-center gap-1 sm:gap-2 text-xs font-bold rounded-xl h-12 sm:h-11 border transition-all active:scale-[0.98] shadow-3xs cursor-pointer p-1 ${
-            showPreview 
+            previewLocksStandaloneStyles 
               ? 'opacity-40 cursor-not-allowed bg-slate-50 text-slate-400 border-slate-200' 
               : showStyles 
               ? 'bg-slate-100 text-slate-900 border-slate-300' 
@@ -258,11 +269,12 @@ export default function FlashcardCreator({
           answer={activeTab === 'ai' ? 'Esta será la respuesta explicativa de tu tarjeta inteligente.' : answer} 
           bgImage={bgImage} textAlign={textAlign} styles={styles} contentImage={contentImage} imageSide={imageSide}
           ALIGNS={ALIGNS} SWATCHES={SWATCHES} setTextAlign={setTextAlign} handleBgFile={handleBgFile} updateStyle={updateStyle} setBgImage={setBgImage}
+          onModeChange={setPreviewMode}
         />
       )}
 
       {/* ✨ ACTUALIZADO: Unificado el panel de control estético rápido para los 3 modos */}
-      {!showPreview && showStyles && (
+      {showStandaloneStylePanel && (
         <StylePanel 
           ALIGNS={ALIGNS} SWATCHES={SWATCHES} textAlign={textAlign} setTextAlign={setTextAlign} bgImage={bgImage} setBgImage={setBgImage}
           styles={styles} updateStyle={updateStyle} handleBgFile={handleBgFile}

@@ -32,8 +32,8 @@ export default function StylePanel({ ALIGNS, SWATCHES, textAlign, setTextAlign, 
               <button type="button" onClick={() => setColorOpen(!colorOpen)} style={styles[colorKey] ? { backgroundColor: styles[colorKey] } : {}} className={`p-1.5 rounded-lg border transition-all flex items-center justify-center ${styles[colorKey] ? 'text-white border-transparent shadow-xs' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}><Palette className="w-3.5 h-3.5" /></button>
               {colorOpen && (
                 <>
-                  <div className="fixed inset-0 z-30" onClick={() => setColorOpen(false)} />
-                  <div className="absolute right-0 bottom-full mb-2 bg-white border border-slate-200 p-2 rounded-2xl shadow-xl z-40 grid grid-cols-4 gap-2 w-[168px] animate-[slideUp_0.1s_ease-out]">
+                  <div className="fixed inset-0 z-[60]" onClick={() => setColorOpen(false)} />
+                  <div className="absolute right-0 bottom-full mb-2 bg-white border border-slate-200 p-2 rounded-2xl shadow-xl z-[65] grid grid-cols-4 gap-2 w-[168px] animate-[slideUp_0.1s_ease-out]">
                     {SWATCHES.map((c) => (
                       <button key={c.value} type="button" title={c.label} onClick={() => { updateStyle(colorKey, c.value); setColorOpen(false); }} style={c.value ? { backgroundColor: c.value } : {}} className={`w-8 h-8 rounded-xl border transition-all ${styles[colorKey] === c.value ? 'scale-110 ring-2 ring-slate-900 ring-offset-1' : 'border-slate-200 hover:scale-105'} ${!c.value ? 'bg-slate-100 relative after:absolute after:inset-0 after:flex after:items-center after:justify-center after:text-xs after:font-bold after:text-slate-500 after:content-["×"]' : ''}`} />
                     ))}
@@ -93,9 +93,9 @@ export default function StylePanel({ ALIGNS, SWATCHES, textAlign, setTextAlign, 
 
               {bgColorOpen && (
                 <>
-                  <div className="fixed inset-0 z-30" onClick={() => setBgColorOpen(false)} />
+                  <div className="fixed inset-0 z-[60]" onClick={() => setBgColorOpen(false)} />
                   {/* 🚀 SOLUCIÓN: right-0 mt-2 orienta la caja de muestras hacia adentro de la carta */}
-                  <div className="absolute right-0 mt-2 bg-white border border-slate-200 p-2 rounded-2xl shadow-xl z-40 grid grid-cols-4 gap-2 w-[168px] animate-[slideUp_0.1s_ease-out]">
+                  <div className="absolute right-0 mt-2 bg-white border border-slate-200 p-2 rounded-2xl shadow-xl z-[65] grid grid-cols-4 gap-2 w-[168px] animate-[slideUp_0.1s_ease-out]">
                     {SWATCHES.map((c) => (
                       <button
                         key={c.value} 
