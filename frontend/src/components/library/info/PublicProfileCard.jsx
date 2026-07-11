@@ -3,6 +3,7 @@ import {
   Check,
   Copy,
   Download,
+  Eye,
   ExternalLink,
   Link2,
   Loader2,
@@ -11,6 +12,7 @@ import {
 } from 'lucide-react';
 import { setJSON } from '../../../lib/safeLocalStorage';
 import { buildPublicMateriaUrl } from '../../../lib/publicMateria';
+import PublicMateriaPreviewDialog from './PublicMateriaPreviewDialog';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
@@ -40,6 +42,8 @@ async function copyToClipboard(text) {
 
 export default function PublicProfileCard({ materia, materias, setMaterias, userId }) {
   const [isActivating, setIsActivating] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewShareId, setPreviewShareId] = useState('');
   const [qrDataUrl, setQrDataUrl] = useState('');
   const [qrLoading, setQrLoading] = useState(false);
   const [feedback, setFeedback] = useState(null);
@@ -58,6 +62,10 @@ export default function PublicProfileCard({ materia, materias, setMaterias, user
     const timeoutId = window.setTimeout(() => setFeedback(null), 3200);
     return () => window.clearTimeout(timeoutId);
   }, [feedback]);
+
+  useEffect(() => {
+    setPreviewShareId(shareId || '');
+  }, [shareId]);
 
   useEffect(() => {
     if (!publicUrl) {
@@ -120,34 +128,73 @@ export default function PublicProfileCard({ materia, materias, setMaterias, user
     }
   };
 
-  const handleActivatePublicProfile = async () => {
+  const requestPublicProfile = async () => {
     const materiaId = materia?._id || materia?.id;
-    if (!materiaId || isActivating) return;
+    if (!materiaId) {
+      throw new Error('No se encontro la materia que quieres compartir.');
+    }
+
+    const res = await fetch(`${BACKEND_URL}/api/academic/materias/${materiaId}/public-profile`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-User-Id': userId
+      }
+    });
+
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok || !body?.materia) {
+      throw new Error(body.error || 'No se pudo activar el perfil publico.');
+    }
+
+    persistUpdatedMateria(body.materia);
+    return body.materia;
+  };
+
+  const handleActivatePublicProfile = async () => {
+    if (isActivating) return;
 
     setIsActivating(true);
     setFeedback(null);
 
     try {
-      const res = await fetch(`${BACKEND_URL}/api/academic/materias/${materiaId}/public-profile`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-User-Id': userId
-        }
-      });
-
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok || !body?.materia) {
-        throw new Error(body.error || 'No se pudo activar el perfil publico.');
-      }
-
-      persistUpdatedMateria(body.materia);
+      const updatedMateria = await requestPublicProfile();
+      setPreviewShareId(updatedMateria?.publicProfile?.shareId || '');
       setFeedback({ tone: 'success', message: 'Enlace publico generado. Ya puedes compartirlo.' });
     } catch (err) {
       setFeedback({ tone: 'error', message: err.message || 'No se pudo generar el enlace.' });
     } finally {
       setIsActivating(false);
     }
+  };
+
+  const handleOpenPreview = async () => {
+    if (previewOpen) return;
+
+    let resolvedShareId = previewShareId || shareId;
+
+    if (!resolvedShareId) {
+      if (isActivating) return;
+
+      setIsActivating(true);
+      setFeedback(null);
+
+      try {
+        const updatedMateria = await requestPublicProfile();
+        resolvedShareId = updatedMateria?.publicProfile?.shareId || '';
+        setPreviewShareId(resolvedShareId);
+        setFeedback({ tone: 'success', message: 'Vista previa lista. Asi se vera la materia compartida.' });
+      } catch (err) {
+        setFeedback({ tone: 'error', message: err.message || 'No se pudo abrir la vista previa.' });
+        return;
+      } finally {
+        setIsActivating(false);
+      }
+    }
+
+    if (!resolvedShareId) return;
+    setPreviewShareId(resolvedShareId);
+    setPreviewOpen(true);
   };
 
   const handleCopyLink = async () => {
@@ -209,15 +256,27 @@ export default function PublicProfileCard({ materia, materias, setMaterias, user
       </p>
 
       {!publicUrl ? (
-        <button
-          type="button"
-          onClick={handleActivatePublicProfile}
-          disabled={isActivating}
-          className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800 disabled:opacity-70 disabled:cursor-not-allowed transition-colors cursor-pointer"
-        >
-          {isActivating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Share2 className="w-4 h-4" />}
-          {isActivating ? 'Generando enlace...' : 'Generar enlace publico'}
-        </button>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={handleActivatePublicProfile}
+            disabled={isActivating}
+            className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800 disabled:opacity-70 disabled:cursor-not-allowed transition-colors cursor-pointer"
+          >
+            {isActivating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Share2 className="w-4 h-4" />}
+            {isActivating ? 'Generando enlace...' : 'Generar enlace publico'}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleOpenPreview}
+            disabled={isActivating}
+            className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-900 disabled:opacity-70 disabled:cursor-not-allowed transition-colors cursor-pointer"
+          >
+            {isActivating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
+            {isActivating ? 'Preparando preview...' : 'Vista previa'}
+          </button>
+        </div>
       ) : (
         <>
           <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 p-3 space-y-3">
@@ -251,6 +310,15 @@ export default function PublicProfileCard({ materia, materias, setMaterias, user
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={handleOpenPreview}
+              className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors cursor-pointer"
+            >
+              <Eye className="w-4 h-4" />
+              Vista previa
+            </button>
+
             <button
               type="button"
               onClick={handleCopyLink}
@@ -305,6 +373,13 @@ export default function PublicProfileCard({ materia, materias, setMaterias, user
           {feedback.message}
         </div>
       )}
+
+      <PublicMateriaPreviewDialog
+        open={previewOpen}
+        onOpenChange={setPreviewOpen}
+        shareId={previewShareId || shareId}
+        materiaName={materia?.name}
+      />
     </div>
   );
 }
