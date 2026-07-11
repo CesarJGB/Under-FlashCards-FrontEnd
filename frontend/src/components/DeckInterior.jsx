@@ -5,7 +5,6 @@ import DeckHeader from './DeckHeader';
 import FlashcardCreator from './FlashcardCreator';
 import FlashcardCollection from './FlashcardCollection'; 
 import FastDeleteMode from './FastDeleteMode'; 
-import StudyMethodsZone from './StudyMethodsZone'; 
 import SessionPlayer from './SessionPlayer'; 
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
@@ -313,9 +312,9 @@ console.log('DEBUG mode actual:', mode, '| isSessionMode:', isSessionMode);
         />
       )}
 
-      {/* 🧭 MODO ZONA DE MÉTODOS */}
+      {/* 📚 MODO REPASO SIMPLE */}
       {mode === 'review' && (
-        <StudyMethodsZone onSelectMethod={(methodId) => setMode(`${methodId}-review`)} />
+        <ReviewMode cards={cards} loading={loading} />
       )}
 
       {/* 🕹️ MODO REPASO CONTINUO (Bucle Inteligente) */}
