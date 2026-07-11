@@ -171,15 +171,15 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
     });
   };
 
-  const flushPendingSessionReviews = () => {
+  const flushPendingSessionReviews = async () => {
     if (!sessionIdRef.current || pendingSessionReviewsRef.current.length === 0) return;
 
     const queuedReviews = [...pendingSessionReviewsRef.current];
     pendingSessionReviewsRef.current = [];
 
-    queuedReviews.forEach((payload) => {
-      sendReview({ ...payload, sessionId: sessionIdRef.current }).catch(() => { /* handled inside sendReview */ });
-    });
+    for (const payload of queuedReviews) {
+      await sendReview({ ...payload, sessionId: sessionIdRef.current });
+    }
   };
 
   const flushPendingReviews = async () => {
@@ -221,7 +221,7 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
       const data = await response.json();
       sessionIdRef.current = data.session?.id || null;
 
-      flushPendingSessionReviews();
+      flushPendingSessionReviews().catch(() => { /* handled inside sendReview */ });
 
       // Si había notificaciones pendientes de lote, flusharlas ahora
       if (pendingBatchNotificationsRef.current.length > 0 && sessionIdRef.current) {
