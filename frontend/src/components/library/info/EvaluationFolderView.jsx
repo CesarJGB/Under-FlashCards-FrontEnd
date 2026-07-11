@@ -9,6 +9,7 @@ export default function EvaluationFolderView({
   targetGrade = 70,          
   rootSum = 100,             
   isRoot = true,             
+  readOnly = false,
   onAdd,                     
   onUpdateTargetGrade,       
   onOpenFolder = () => {}, 
@@ -53,7 +54,7 @@ export default function EvaluationFolderView({
             <span className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider leading-none">
               Meta Propuesta
             </span>
-            {isEditingTarget ? (
+            {!readOnly && isEditingTarget ? (
               <div className="flex items-center gap-1.5 mt-1.5">
                 <input
                   type="number"
@@ -73,9 +74,11 @@ export default function EvaluationFolderView({
                 <span className="text-xl font-extrabold text-slate-800 dark:text-slate-200 truncate leading-none">
                   {targetGrade} <span className="text-xs font-normal text-slate-400 lowercase">pts</span>
                 </span>
-                <button onClick={() => setIsEditingTarget(true)} title="Editar meta" className="p-1 rounded-md text-slate-400 hover:text-indigo-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer">
-                  <Edit2 className="w-3 h-3" />
-                </button>
+                {!readOnly && (
+                  <button onClick={() => setIsEditingTarget(true)} title="Editar meta" className="p-1 rounded-md text-slate-400 hover:text-indigo-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer">
+                    <Edit2 className="w-3 h-3" />
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -125,9 +128,11 @@ export default function EvaluationFolderView({
         <div className="text-sm font-bold text-slate-800 dark:text-slate-200">
           {isRoot ? 'Criterios base' : 'Subcriterios actuales'}
         </div>
-        <button onClick={onAdd} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold cursor-pointer shadow-xs transition-all active:scale-98"> 
-          <Plus className="w-3.5 h-3.5" /> Nuevo {isRoot ? 'Criterio' : 'Subcriterio'}
-        </button>
+        {!readOnly && (
+          <button onClick={onAdd} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold cursor-pointer shadow-xs transition-all active:scale-98"> 
+            <Plus className="w-3.5 h-3.5" /> Nuevo {isRoot ? 'Criterio' : 'Subcriterio'}
+          </button>
+        )}
       </div>
 
       {/* 📂 3. LISTADO DE NODOS ORDENADOS */}
@@ -163,36 +168,46 @@ export default function EvaluationFolderView({
                 )}
 
                 {n.type === 'item' && (
-                  <input
-                    type="number"
-                    min="0"
-                    max={currentBase}
-                    value={n.grade ?? ''}
-                    placeholder={`0-${currentBase}`}
-                    onChange={(e) => {
-                      if (e.target.value === '') {
-                        onChangeGrade(n, null);
-                        return;
-                      }
-                      let val = Number(e.target.value);
-                      if (val > currentBase) {
-                        alert(`La nota máxima permitida para este criterio es ${currentBase}. Se ajustará automáticamente.`);
-                        val = currentBase;
-                      } else if (val < 0) {
-                        val = 0;
-                      }
-                      onChangeGrade(n, val);
-                    }}
-                    className="w-20 text-sm text-center rounded-lg border border-slate-200 dark:border-slate-800 px-2 py-1 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-50 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-                  />
+                  readOnly ? (
+                    <div className="w-20 text-sm text-center rounded-lg border border-slate-200 dark:border-slate-800 px-2 py-1 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-50">
+                      {n.grade == null ? 'Sin nota' : n.grade}
+                    </div>
+                  ) : (
+                    <input
+                      type="number"
+                      min="0"
+                      max={currentBase}
+                      value={n.grade ?? ''}
+                      placeholder={`0-${currentBase}`}
+                      onChange={(e) => {
+                        if (e.target.value === '') {
+                          onChangeGrade(n, null);
+                          return;
+                        }
+                        let val = Number(e.target.value);
+                        if (val > currentBase) {
+                          alert(`La nota máxima permitida para este criterio es ${currentBase}. Se ajustará automáticamente.`);
+                          val = currentBase;
+                        } else if (val < 0) {
+                          val = 0;
+                        }
+                        onChangeGrade(n, val);
+                      }}
+                      className="w-20 text-sm text-center rounded-lg border border-slate-200 dark:border-slate-800 px-2 py-1 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-50 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                    />
+                  )
                 )}
 
-                <button onClick={() => onEdit(n)} title="Editar" className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 transition-colors cursor-pointer">
-                  <Edit2 className="w-4 h-4" />
-                </button>
-                <button onClick={() => onDelete(n)} title="Eliminar" className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-rose-600 transition-colors cursor-pointer">
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                {!readOnly && (
+                  <button onClick={() => onEdit(n)} title="Editar" className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 transition-colors cursor-pointer">
+                    <Edit2 className="w-4 h-4" />
+                  </button>
+                )}
+                {!readOnly && (
+                  <button onClick={() => onDelete(n)} title="Eliminar" className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-rose-600 transition-colors cursor-pointer">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
               </div>
             </div>
           );

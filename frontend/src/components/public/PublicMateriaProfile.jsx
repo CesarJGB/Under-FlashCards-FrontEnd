@@ -9,6 +9,7 @@ import {
   Radar,
   Sparkles
 } from 'lucide-react';
+import EvaluationCriteriaBrowser from '../library/info/EvaluationCriteriaBrowser';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
@@ -24,46 +25,9 @@ function formatDate(value) {
   }).format(date);
 }
 
-function CriteriaNode({ node, depth = 0 }) {
-  const hasChildren = Array.isArray(node.children) && node.children.length > 0;
-  const paddingLeft = depth > 0 ? `${depth * 14}px` : undefined;
-
-  return (
-    <div className="space-y-2" style={paddingLeft ? { paddingLeft } : undefined}>
-      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 shadow-xs">
-        <div className="flex flex-wrap items-center gap-2 justify-between">
-          <div className="min-w-0">
-            <p className="text-sm font-bold text-slate-900 dark:text-slate-50 truncate">{node.name}</p>
-            <p className="text-[11px] uppercase tracking-wider text-slate-400 dark:text-slate-500 font-semibold mt-1">
-              {node.type === 'folder' ? 'Criterio agrupador' : 'Criterio evaluable'}
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold">
-            <span className="px-2 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-900/40">
-              {node.weight || 0}% del curso
-            </span>
-            {node.grade != null && (
-              <span className="px-2 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-900/40">
-                Calificacion: {node.grade}
-              </span>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {hasChildren && (
-        <div className="space-y-2">
-          {node.children.map((child) => (
-            <CriteriaNode key={child.id || child._id} node={child} depth={depth + 1} />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function PublicMateriaView({ data, embedded = false }) {
+  const [criteriaNavStack, setCriteriaNavStack] = useState([]);
+
   const cards = useMemo(() => {
     if (!data) return [];
 
@@ -102,6 +66,10 @@ function PublicMateriaView({ data, embedded = false }) {
       }
     ];
   }, [data]);
+
+  useEffect(() => {
+    setCriteriaNavStack([]);
+  }, [data?.shareId]);
 
   return (
     <>
@@ -293,11 +261,13 @@ function PublicMateriaView({ data, embedded = false }) {
         </div>
 
         {Array.isArray(data.materia.evaluationCriteria) && data.materia.evaluationCriteria.length > 0 ? (
-          <div className="space-y-3">
-            {data.materia.evaluationCriteria.map((node) => (
-              <CriteriaNode key={node.id || node._id} node={node} />
-            ))}
-          </div>
+          <EvaluationCriteriaBrowser
+            evaluationTree={data.materia.evaluationCriteria}
+            targetGrade={data.materia.metaCalificacion ?? 70}
+            navStack={criteriaNavStack}
+            onNavStackChange={setCriteriaNavStack}
+            readOnly
+          />
         ) : (
           <div className="rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 px-5 py-10 text-center text-sm text-slate-500 dark:text-slate-400">
             Esta materia todavia no tiene criterios de evaluacion compartidos.

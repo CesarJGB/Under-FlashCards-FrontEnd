@@ -1,9 +1,9 @@
 // FILE: frontend/src/components/library/info/EvaluacionLevel.jsx
 import React, { useState, useMemo } from 'react';
-import EvaluationFolderView from './EvaluationFolderView';
+import EvaluationCriteriaBrowser from './EvaluationCriteriaBrowser';
 import EvaluationModal from './EvaluationModal';
 import { setJSON } from '../../../lib/safeLocalStorage';
-import { cloneDeep, computeAccumulatedPercent, validateTreeRecursively } from '../../../lib/evaluationUtils';
+import { cloneDeep, validateTreeRecursively } from '../../../lib/evaluationUtils';
 import { toast } from '../../../hooks/use-toast';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
@@ -179,9 +179,6 @@ export default function EvaluacionLevel({ onBack, materia, materias, setMaterias
     });
   };
 
-  const handleOpenFolder = (n) => { setNavStack(prev => [...prev, n.id || n._id]); };
-  const handleBackFolder = () => { setNavStack(prev => prev.slice(0, -1)); };
-
   const handleChangeGrade = async (itemNode, newGrade) => {
     await updateTree((tree) => {
       const replace = (arr) => {
@@ -198,31 +195,16 @@ export default function EvaluacionLevel({ onBack, materia, materias, setMaterias
     });
   };
 
-  const rootSum = (evaluationTree || []).reduce((a, c) => a + (c.weight || 0), 0);
-  const accumulated = computeAccumulatedPercent({ type: 'folder', children: evaluationTree });
-
   return (
     <div className="animate-[fadeIn_0.15s_ease] pt-2">
       {/* 🧼 Contenedor unificado y limpio acoplado directamente al menú superior */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xs max-w-3xl mx-auto">
-        
-        {/* El botón de "Atrás" de navegación interna se activa únicamente al navegar dentro de subcarpetas */}
-        {navStack.length > 0 && (
-          <div className="mb-4">
-            <button onClick={handleBackFolder} className="text-xs px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-medium cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors">
-              ← Atrás
-            </button>
-          </div>
-        )}
-
-        <EvaluationFolderView
-          nodes={currentNode.children || []}
-          globalProgress={accumulated || 0}
+        <EvaluationCriteriaBrowser
+          evaluationTree={evaluationTree}
           targetGrade={materia?.metaCalificacion ?? 70}
-          rootSum={rootSum}
-          isRoot={navStack.length === 0}
+          navStack={navStack}
+          onNavStackChange={setNavStack}
           onAdd={openAddModal}
-          onOpenFolder={handleOpenFolder}
           onEdit={handleEdit}
           onDelete={handleDelete}
           onChangeGrade={handleChangeGrade}
