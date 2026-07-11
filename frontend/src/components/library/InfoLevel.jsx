@@ -2,11 +2,12 @@
 import React, { useState } from 'react';
 import { FileText, BarChart3 } from 'lucide-react';
 import EvaluacionLevel from './info/EvaluacionLevel'; // 👈 Importamos el nuevo componente
+import MetricsLevel from './info/MetricsLevel';
 import PublicProfileCard from './info/PublicProfileCard';
 
 export default function InfoLevel({ materia, currentPath, setCurrentPath, materias, setMaterias, userId }) {
   // 💡 Estado local para controlar el sub-apartado dentro de Info
-  const [view, setView] = useState('menu'); // 'menu' | 'evaluacion'
+  const [view, setView] = useState('menu'); // 'menu' | 'evaluacion' | 'metricas'
 
   // Si el usuario entra a evaluación, renderizamos ese componente
   if (view === 'evaluacion') {
@@ -17,6 +18,15 @@ export default function InfoLevel({ materia, currentPath, setCurrentPath, materi
         materias={materias}
         setMaterias={setMaterias}
         userId={userId}
+      />
+    );
+  }
+
+  if (view === 'metricas') {
+    return (
+      <MetricsLevel
+        materia={materia}
+        onBack={() => setView('menu')}
       />
     );
   }
@@ -57,7 +67,10 @@ export default function InfoLevel({ materia, currentPath, setCurrentPath, materi
         </div>
 
         {/* Bloque 3: Analytics Expandido */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-2xl space-y-3 shadow-xs">
+        <div
+          onClick={() => setView('metricas')}
+          className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-2xl space-y-3 shadow-xs hover:border-purple-500/50 dark:hover:border-purple-500/30 transition-all duration-200 cursor-pointer active:scale-[0.99]"
+        >
           <div className="flex items-center gap-3 text-purple-600 dark:text-purple-400">
             <div className="p-2 rounded-xl bg-purple-50 dark:bg-purple-950/40">
               <BarChart3 className="w-5 h-5" />
@@ -65,11 +78,11 @@ export default function InfoLevel({ materia, currentPath, setCurrentPath, materi
             <h4 className="font-bold text-slate-950 dark:text-slate-50">Métricas de Estudio</h4>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-            Visualización profunda de tus tarjetas retenidas, velocidad de respuesta y consistencia semanal en esta materia.
+            Filtra uno o varios parciales para ver dominio actual, precisión, velocidad y desglose por tema dentro de esta materia.
           </p>
           <div className="pt-2">
-            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 border border-amber-100 dark:border-amber-900/30">
-              Próximamente
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border border-purple-100 dark:border-purple-900/30">
+              Explorar métricas
             </span>
           </div>
         </div>
