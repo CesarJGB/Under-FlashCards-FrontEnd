@@ -1,14 +1,15 @@
 // FILE: frontend/src/components/FlashcardCreator.jsx
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { SlidersHorizontal, Loader2, Plus, Check, Eye, EyeOff, Trash2, AlignLeft, AlignCenter, AlignRight, Sparkles, Layers } from 'lucide-react';
 
 import FormInputs from './creator/FormInputs';
 import StylePanel from './creator/StylePanel';
-import LivePreview from './creator/LivePreview';
+import FloatingPreviewPanel from './creator/FloatingPreviewPanel';
 
 // Importamos la función de parseo unificada y centralizada
 import { parseCardStyles } from '../lib/utils';
+import { getJSON, setJSON } from '../lib/safeLocalStorage';
 
 const ALIGNS = [
   { label: 'Izquierda', value: 'left', Icon: AlignLeft },
@@ -30,6 +31,7 @@ const SWATCHES = [
 // Debe ser coherent con AI_REASONER_THRESHOLD del backend (cantidad de tarjetas
 // CRUDAS, ya con padding aplicado) para avisar bien cuándo puede tardar más.
 const LIKELY_REASONER_INPUT_THRESHOLD = 15;
+const PREVIEW_VISIBLE_KEY = 'ufc_preview_visible_v1';
 
 export default function FlashcardCreator({
   question, setQuestion, answer, setAnswer, bgImage, setBgImage, textAlign, setTextAlign,
@@ -38,7 +40,7 @@ export default function FlashcardCreator({
   imageSide, setImageSide, onFastDelete, hasCards,
   userId, deckId, onAiSuccess
 }) {
-  const [showPreview, setShowPreview] = useState(false);
+  const [showPreview, setShowPreview] = useState(() => Boolean(getJSON(PREVIEW_VISIBLE_KEY)));
   
   const [isAi, setIsAi] = useState(false);
   const [aiText, setAiText] = useState('');
@@ -47,6 +49,10 @@ export default function FlashcardCreator({
   const [aiStageMsg, setAiStageMsg] = useState('');
 
   const activeTab = editingId ? 'single' : (isAi ? 'ai' : (isBulk ? 'bulk' : 'single'));
+
+  useEffect(() => {
+    setJSON(PREVIEW_VISIBLE_KEY, showPreview);
+  }, [showPreview]);
 
   const handleTabChange = (tabId) => {
     setError('');
@@ -247,11 +253,11 @@ export default function FlashcardCreator({
 
       {/* ✨ ACTUALIZADO: Inyección inteligente de placeholders dinámicos si están en modo IA */}
       {showPreview && (
-        <LivePreview 
+        <FloatingPreviewPanel 
           question={activeTab === 'ai' ? '¿Pregunta muestra generada por la IA?' : question} 
           answer={activeTab === 'ai' ? 'Esta será la respuesta explicativa de tu tarjeta inteligente.' : answer} 
           bgImage={bgImage} textAlign={textAlign} styles={styles} contentImage={contentImage} imageSide={imageSide}
-          ALIGNS={ALIGNS} SWATCHES={SWATCHES} setTextAlign={setTextAlign} handleBgFile={handleBgFile} updateStyle={updateStyle}
+          ALIGNS={ALIGNS} SWATCHES={SWATCHES} setTextAlign={setTextAlign} handleBgFile={handleBgFile} updateStyle={updateStyle} setBgImage={setBgImage}
         />
       )}
 

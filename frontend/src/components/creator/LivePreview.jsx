@@ -4,7 +4,7 @@ import { ImagePlus, Palette, Pipette } from 'lucide-react';
 
 const ALIGN_CLASS = { left: 'text-left', center: 'text-center', right: 'text-right' };
 
-export default function LivePreview({ question, answer, bgImage, textAlign, styles, contentImage, imageSide, ALIGNS, SWATCHES, setTextAlign, handleBgFile, updateStyle }) {
+export default function LivePreview({ question, answer, bgImage, setBgImage, textAlign, styles, contentImage, imageSide, ALIGNS, SWATCHES, setTextAlign, handleBgFile, updateStyle }) {
   const [bgColorOpen, setBgColorOpen] = useState(false);
 
   return (
@@ -80,7 +80,7 @@ export default function LivePreview({ question, answer, bgImage, textAlign, styl
                 <ImagePlus className="w-3.5 h-3.5 text-slate-500" /> <span className="text-[11px]">Subir</span>
                 <input type="file" accept="image/*" onChange={handleBgFile} className="hidden" />
               </label>
-              {bgImage && <button type="button" onClick={() => setBgImage('')} className="text-xs text-red-600 hover:underline shrink-0">Borrar</button>}
+              {bgImage && typeof setBgImage === 'function' && <button type="button" onClick={() => setBgImage('')} className="text-xs text-red-600 hover:underline shrink-0">Borrar</button>}
 
               <div className="relative">
                 <button
