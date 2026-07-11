@@ -1,5 +1,5 @@
 // FILE: frontend/src/hooks/useLibraryState.js
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
@@ -48,18 +48,44 @@ export function useLibraryState(userId, decks, materias, setDecks, setMaterias, 
     filterActiveParciales: false 
   });
 
-  const [temas, setTemas] = useState([]);
-  const [subtemas, setSubtemas] = useState([]);
+  const [temas, setTemasState] = useState([]);
+  const [subtemas, setSubtemasState] = useState([]);
   const [academicLoading, setAcademicLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('recent');
   const [viewMode, setViewMode] = useState('grid');
+  const temasCacheRef = useRef(new Map());
+  const subtemasCacheRef = useRef(new Map());
+
+  const setTemas = useCallback((nextValue) => {
+    setTemasState((prev) => {
+      const nextTemas = typeof nextValue === 'function' ? nextValue(prev) : nextValue;
+      if (currentPath.materiaId) {
+        temasCacheRef.current.set(String(currentPath.materiaId), nextTemas);
+      }
+      return nextTemas;
+    });
+  }, [currentPath.materiaId]);
+
+  const setSubtemas = useCallback((nextValue) => {
+    setSubtemasState((prev) => {
+      const nextSubtemas = typeof nextValue === 'function' ? nextValue(prev) : nextValue;
+      if (currentPath.temaId) {
+        subtemasCacheRef.current.set(String(currentPath.temaId), nextSubtemas);
+      }
+      return nextSubtemas;
+    });
+  }, [currentPath.temaId]);
 
   const refreshTemas = useCallback(async () => {
     if (!currentPath.materiaId) return;
     try {
       const res = await fetch(`${BACKEND_URL}/api/academic/temas/${currentPath.materiaId}`);
-      if (res.ok) setTemas(await res.json());
+      if (res.ok) {
+        const data = await res.json();
+        temasCacheRef.current.set(String(currentPath.materiaId), data);
+        setTemasState(data);
+      }
     } catch (e) {
       console.error("Error cargando temas:", e);
     }
@@ -67,29 +93,55 @@ export function useLibraryState(userId, decks, materias, setDecks, setMaterias, 
 
   useEffect(() => {
     if (!currentPath.materiaId) {
-      setTemas([]);
+      setAcademicLoading(false);
+      setTemasState([]);
       return;
     }
+
+    const cachedTemas = temasCacheRef.current.get(String(currentPath.materiaId));
+    if (cachedTemas) {
+      setAcademicLoading(false);
+      setTemasState(cachedTemas);
+      return;
+    }
+
+    setTemasState([]);
     setAcademicLoading(true);
     refreshTemas().finally(() => setAcademicLoading(false));
-  }, [currentPath.materiaId]);
+  }, [currentPath.materiaId, refreshTemas]);
+
+  const refreshSubtemas = useCallback(async () => {
+    if (!currentPath.temaId) return;
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/academic/subtemas/${currentPath.temaId}`);
+      if (res.ok) {
+        const data = await res.json();
+        subtemasCacheRef.current.set(String(currentPath.temaId), data);
+        setSubtemasState(data);
+      }
+    } catch (e) {
+      console.error("Error cargando subtemas:", e);
+    }
+  }, [currentPath.temaId]);
 
   useEffect(() => {
     if (!currentPath.temaId) {
-      setSubtemas([]);
+      setAcademicLoading(false);
+      setSubtemasState([]);
       return;
     }
-    const fetchSubtemas = async () => {
-      setAcademicLoading(true);
-      try {
-        const res = await fetch(`${BACKEND_URL}/api/academic/subtemas/${currentPath.temaId}`);
-        if (res.ok) setSubtemas(await res.json());
-      } catch (e) {
-        console.error("Error cargando subtemas:", e);
-      } finally { setAcademicLoading(false); }
-    };
-    fetchSubtemas();
-  }, [currentPath.temaId]);
+
+    const cachedSubtemas = subtemasCacheRef.current.get(String(currentPath.temaId));
+    if (cachedSubtemas) {
+      setAcademicLoading(false);
+      setSubtemasState(cachedSubtemas);
+      return;
+    }
+
+    setSubtemasState([]);
+    setAcademicLoading(true);
+    refreshSubtemas().finally(() => setAcademicLoading(false));
+  }, [currentPath.temaId, refreshSubtemas]);
 
   const processedDecks = useMemo(() => {
     let result = decks.filter((deck) => {
