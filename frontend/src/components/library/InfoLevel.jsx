@@ -26,6 +26,7 @@ export default function InfoLevel({ materia, currentPath, setCurrentPath, materi
     return (
       <MetricsLevel
         materia={materia}
+        userId={userId}
         onBack={() => setView('menu')}
       />
     );

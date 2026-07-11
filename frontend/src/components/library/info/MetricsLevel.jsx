@@ -11,9 +11,135 @@ import {
   Sparkles,
   Target
 } from 'lucide-react';
+import { getJSON, setJSON } from '../../../lib/safeLocalStorage';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 const AVAILABLE_PARCIALES = [1, 2, 3];
+const METRICS_PREVIEWS_TTL_MS = 15 * 60 * 1000;
+
+function sanitizeParciales(parciales) {
+  if (!Array.isArray(parciales)) return [];
+
+  return [...new Set(
+    parciales
+      .map(Number)
+      .filter((value) => AVAILABLE_PARCIALES.includes(value))
+  )].sort((a, b) => a - b);
+}
+
+function normalizeParciales(parciales, fallback = AVAILABLE_PARCIALES) {
+  const normalized = sanitizeParciales(parciales);
+  if (normalized.length > 0) return normalized;
+
+  const normalizedFallback = sanitizeParciales(fallback);
+  if (normalizedFallback.length > 0) return normalizedFallback;
+
+  return [...AVAILABLE_PARCIALES];
+}
+
+function areSameParciales(left = [], right = []) {
+  if (left.length !== right.length) return false;
+  for (let index = 0; index < left.length; index += 1) {
+    if (Number(left[index]) !== Number(right[index])) return false;
+  }
+  return true;
+}
+
+function normalizeStudyMetricsFilters(input) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return {};
+
+  return Object.entries(input).reduce((acc, [materiaId, parciales]) => {
+    const normalized = sanitizeParciales(parciales);
+    if (materiaId && normalized.length > 0) {
+      acc[materiaId] = normalized;
+    }
+    return acc;
+  }, {});
+}
+
+function getMetricsFiltersStorageKey(userId) {
+  return `metricsFilters_${userId}`;
+}
+
+function getMetricsPreviewsStorageKey(userId) {
+  return `metricsPreviews_${userId}`;
+}
+
+function getStoredMetricsFilters(userId) {
+  if (!userId) return {};
+  return normalizeStudyMetricsFilters(getJSON(getMetricsFiltersStorageKey(userId)));
+}
+
+function getStoredParciales(userId, materiaId, fallback) {
+  if (!materiaId) return normalizeParciales(fallback);
+
+  const storedFilters = getStoredMetricsFilters(userId);
+  if (storedFilters[materiaId]) {
+    return normalizeParciales(storedFilters[materiaId], fallback);
+  }
+
+  return normalizeParciales(fallback);
+}
+
+function saveStoredMetricsFilters(userId, nextFilters) {
+  if (!userId) return nextFilters;
+  const normalized = normalizeStudyMetricsFilters(nextFilters);
+  setJSON(getMetricsFiltersStorageKey(userId), normalized);
+  return normalized;
+}
+
+function saveStoredParciales(userId, materiaId, parciales) {
+  if (!userId || !materiaId) return {};
+
+  const currentFilters = getStoredMetricsFilters(userId);
+  const nextFilters = {
+    ...currentFilters,
+    [materiaId]: normalizeParciales(parciales)
+  };
+
+  return saveStoredMetricsFilters(userId, nextFilters);
+}
+
+function buildMetricsPreviewEntryKey(materiaId, parciales) {
+  return `${materiaId}::${normalizeParciales(parciales).join('-')}`;
+}
+
+function getStoredPreviewEntry(userId, materiaId, parciales) {
+  if (!userId || !materiaId) return null;
+
+  const cache = getJSON(getMetricsPreviewsStorageKey(userId));
+  if (!cache || typeof cache !== 'object' || Array.isArray(cache)) return null;
+
+  return cache[buildMetricsPreviewEntryKey(materiaId, parciales)] || null;
+}
+
+function saveStoredPreviewEntry(userId, materiaId, parciales, preview) {
+  if (!userId || !materiaId || !preview) return;
+
+  const storageKey = getMetricsPreviewsStorageKey(userId);
+  const currentCache = getJSON(storageKey);
+  const safeCache = currentCache && typeof currentCache === 'object' && !Array.isArray(currentCache)
+    ? currentCache
+    : {};
+
+  const entryKey = buildMetricsPreviewEntryKey(materiaId, parciales);
+  const normalizedParciales = normalizeParciales(parciales);
+  const nextCache = {
+    ...safeCache,
+    [entryKey]: {
+      parciales: normalizedParciales,
+      preview,
+      timestamp: Date.now()
+    }
+  };
+
+  setJSON(storageKey, nextCache);
+}
+
+function isFreshPreviewEntry(entry) {
+  if (!entry?.timestamp) return false;
+  return Date.now() - Number(entry.timestamp) <= METRICS_PREVIEWS_TTL_MS;
+}
 
 function formatMs(value) {
   const ms = Number(value) || 0;
@@ -75,19 +201,81 @@ function MetricBar({ label, value, tone = 'indigo', detail }) {
   );
 }
 
-export default function MetricsLevel({ materia, onBack }) {
+export default function MetricsLevel({ materia, userId, onBack }) {
   const materiaId = materia?._id || materia?.id;
-  const [selectedParciales, setSelectedParciales] = useState(materia?.activeParciales?.length ? materia.activeParciales : AVAILABLE_PARCIALES);
-  const [preview, setPreview] = useState(null);
+  const fallbackParciales = useMemo(
+    () => normalizeParciales(materia?.activeParciales, AVAILABLE_PARCIALES),
+    [materia?.activeParciales]
+  );
+  const fallbackParcialesKey = fallbackParciales.join(',');
+  const [selectedParciales, setSelectedParciales] = useState(() => getStoredParciales(userId, materiaId, fallbackParciales));
+  const [preview, setPreview] = useState(() => {
+    const initialParciales = getStoredParciales(userId, materiaId, fallbackParciales);
+    return getStoredPreviewEntry(userId, materiaId, initialParciales)?.preview || null;
+  });
   const [temas, setTemas] = useState([]);
-  const [loadingPreview, setLoadingPreview] = useState(true);
+  const [loadingPreview, setLoadingPreview] = useState(() => !getStoredPreviewEntry(userId, materiaId, getStoredParciales(userId, materiaId, fallbackParciales))?.preview);
   const [loadingTemas, setLoadingTemas] = useState(true);
   const [previewError, setPreviewError] = useState('');
   const [temasError, setTemasError] = useState('');
+  const parcialesKey = selectedParciales.join(',');
 
   useEffect(() => {
-    setSelectedParciales(materia?.activeParciales?.length ? materia.activeParciales : AVAILABLE_PARCIALES);
-  }, [materia?._id, materia?.id, materia?.activeParciales]);
+    const nextParciales = getStoredParciales(userId, materiaId, fallbackParciales);
+    setSelectedParciales((prev) => (areSameParciales(prev, nextParciales) ? prev : nextParciales));
+
+    const cachedPreview = getStoredPreviewEntry(userId, materiaId, nextParciales)?.preview || null;
+    setPreview(cachedPreview);
+    setLoadingPreview(!cachedPreview);
+  }, [userId, materiaId, fallbackParcialesKey]);
+
+  useEffect(() => {
+    if (!userId || !materiaId) return undefined;
+
+    let cancelled = false;
+
+    const syncPreferences = async () => {
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/users/${userId}/preferences`);
+        const body = await res.json().catch(() => ({}));
+
+        if (!res.ok) {
+          throw new Error(body.error || 'No se pudieron cargar las preferencias de métricas.');
+        }
+
+        const serverFilters = normalizeStudyMetricsFilters(body.studyMetricsFilters);
+        const localFilters = getStoredMetricsFilters(userId);
+        const mergedFilters = { ...serverFilters, ...localFilters };
+        saveStoredMetricsFilters(userId, mergedFilters);
+
+        const serverParciales = serverFilters[materiaId];
+        const localParciales = localFilters[materiaId];
+
+        if (localParciales?.length) {
+          if (!serverParciales || !areSameParciales(serverParciales, localParciales)) {
+            await fetch(`${BACKEND_URL}/api/users/${userId}/preferences`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ studyMetricsFilters: { ...serverFilters, [materiaId]: localParciales } })
+            });
+          }
+          return;
+        }
+
+        if (serverParciales?.length && !cancelled) {
+          setSelectedParciales((prev) => (areSameParciales(prev, serverParciales) ? prev : serverParciales));
+        }
+      } catch (error) {
+        console.error('[MetricsLevel] Error syncing studyMetricsFilters:', error);
+      }
+    };
+
+    syncPreferences();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, materiaId]);
 
   useEffect(() => {
     if (!materiaId) return;
@@ -124,8 +312,24 @@ export default function MetricsLevel({ materia, onBack }) {
     if (!materiaId || !selectedParciales.length) return;
 
     const controller = new AbortController();
-    const loadPreview = async () => {
+    const cachedEntry = getStoredPreviewEntry(userId, materiaId, selectedParciales);
+    const cachedPreview = cachedEntry?.preview || null;
+
+    if (cachedPreview) {
+      setPreview(cachedPreview);
+      setLoadingPreview(false);
+      setPreviewError('');
+    } else {
+      setPreview(null);
       setLoadingPreview(true);
+    }
+
+    if (cachedEntry && isFreshPreviewEntry(cachedEntry)) {
+      return () => controller.abort();
+    }
+
+    const loadPreview = async () => {
+      if (!cachedPreview) setLoadingPreview(true);
       setPreviewError('');
 
       try {
@@ -140,10 +344,13 @@ export default function MetricsLevel({ materia, onBack }) {
         }
 
         setPreview(body);
+        saveStoredPreviewEntry(userId, materiaId, selectedParciales, body);
       } catch (err) {
         if (err.name !== 'AbortError') {
           setPreviewError(err.message || 'No se pudieron calcular las métricas filtradas.');
-          setPreview(null);
+          if (!cachedPreview) {
+            setPreview(null);
+          }
         }
       } finally {
         if (!controller.signal.aborted) setLoadingPreview(false);
@@ -152,17 +359,49 @@ export default function MetricsLevel({ materia, onBack }) {
 
     loadPreview();
     return () => controller.abort();
-  }, [materiaId, selectedParciales]);
+  }, [userId, materiaId, parcialesKey]);
+
+  const persistSelectedParciales = async (nextParciales) => {
+    if (!materiaId) return;
+
+    const nextFilters = saveStoredParciales(userId, materiaId, nextParciales);
+    if (!userId) return;
+
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/users/${userId}/preferences`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studyMetricsFilters: nextFilters })
+      });
+
+      const body = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(body.error || 'No se pudieron guardar las preferencias de métricas.');
+      }
+
+      if (body.studyMetricsFilters) {
+        saveStoredMetricsFilters(userId, body.studyMetricsFilters);
+      }
+    } catch (error) {
+      console.error('[MetricsLevel] Error saving studyMetricsFilters:', error);
+    }
+  };
 
   const toggleParcial = (parcial) => {
     setSelectedParciales((prev) => {
       const exists = prev.includes(parcial);
+      let nextSelection;
+
       if (exists) {
         if (prev.length === 1) return prev;
-        return prev.filter((item) => item !== parcial);
+        nextSelection = prev.filter((item) => item !== parcial);
+      } else {
+        nextSelection = [...prev, parcial].sort((a, b) => a - b);
       }
 
-      return [...prev, parcial].sort((a, b) => a - b);
+      void persistSelectedParciales(nextSelection);
+      return nextSelection;
     });
   };
 

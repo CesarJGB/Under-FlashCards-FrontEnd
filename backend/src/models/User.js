@@ -12,6 +12,10 @@ const userSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId, 
       ref: 'Materia' 
     }],
+    studyMetricsFilters: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {}
+    },
     homeSectionVisibility: {
       quickView: { type: Boolean, default: true },
       detailedView: { type: Boolean, default: false },
@@ -26,4 +30,3 @@ userSchema.statics.maskKey = (key) =>
   key ? `${'•'.repeat(Math.max(0, key.length - 4))}${key.slice(-4)}` : '';
 
 module.exports = mongoose.model('User', userSchema);
-
