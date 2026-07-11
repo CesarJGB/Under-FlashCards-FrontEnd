@@ -29,6 +29,24 @@ const reviewLogSchema = new mongoose.Schema(
       default: null,
       index: true,
     },
+    parcialNumber: {
+      type: Number,
+      enum: [1, 2, 3],
+      default: null,
+      index: true,
+    },
+    temaId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Tema',
+      default: null,
+      index: true,
+    },
+    subtemaId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Subtema',
+      default: null,
+      index: true,
+    },
 
     // Vinculación opcional a la sesión de estudio (Bucle Activo) en la que ocurrió este repaso.
     // null para repasos que no ocurren dentro de una sesión trackeada (ej. modo deck simple,
@@ -74,6 +92,9 @@ const reviewLogSchema = new mongoose.Schema(
 // Optimiza el cálculo en caliente del dominio de una materia específica filtrando por los repasos recientes del usuario
 reviewLogSchema.index({ userId: 1, materiaId: 1, timestamp: -1 });
 
+// Optimiza series temporales y dashboards filtrados por parcial.
+reviewLogSchema.index({ userId: 1, materiaId: 1, parcialNumber: 1, timestamp: -1 });
+
 // Optimiza la telemetría interna por mazo
 reviewLogSchema.index({ userId: 1, deckId: 1, timestamp: -1 });
 
@@ -91,6 +112,9 @@ reviewLogSchema.methods.serialize = function () {
     cardId: this.cardId,
     deckId: this.deckId,
     materiaId: this.materiaId,
+    parcialNumber: this.parcialNumber,
+    temaId: this.temaId,
+    subtemaId: this.subtemaId,
     sessionId: this.sessionId,
     wasCorrect: this.wasCorrect,
     responseTimeMs: this.responseTimeMs,

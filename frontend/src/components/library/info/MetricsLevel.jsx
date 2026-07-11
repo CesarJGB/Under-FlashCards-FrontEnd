@@ -16,6 +16,8 @@ import { getJSON, setJSON } from '../../../lib/safeLocalStorage';
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 const AVAILABLE_PARCIALES = [1, 2, 3];
 const METRICS_PREVIEWS_TTL_MS = 15 * 60 * 1000;
+const METRICS_TEMAS_TTL_MS = 15 * 60 * 1000;
+const METRICS_HISTORY_DAYS = 14;
 
 function sanitizeParciales(parciales) {
   if (!Array.isArray(parciales)) return [];
@@ -63,6 +65,10 @@ function getMetricsFiltersStorageKey(userId) {
 
 function getMetricsPreviewsStorageKey(userId) {
   return `metricsPreviews_${userId}`;
+}
+
+function getMetricsTemasStorageKey(userId) {
+  return `metricsTemas_${userId}`;
 }
 
 function getStoredMetricsFilters(userId) {
@@ -141,6 +147,42 @@ function isFreshPreviewEntry(entry) {
   return Date.now() - Number(entry.timestamp) <= METRICS_PREVIEWS_TTL_MS;
 }
 
+function getStoredTemasEntry(userId, materiaId) {
+  if (!userId || !materiaId) return null;
+
+  const cache = getJSON(getMetricsTemasStorageKey(userId));
+  if (!cache || typeof cache !== 'object' || Array.isArray(cache)) return null;
+
+  return cache[materiaId] || null;
+}
+
+function hasStoredTemas(entry) {
+  return Array.isArray(entry?.temas);
+}
+
+function saveStoredTemasEntry(userId, materiaId, temas) {
+  if (!userId || !materiaId || !Array.isArray(temas)) return;
+
+  const storageKey = getMetricsTemasStorageKey(userId);
+  const currentCache = getJSON(storageKey);
+  const safeCache = currentCache && typeof currentCache === 'object' && !Array.isArray(currentCache)
+    ? currentCache
+    : {};
+
+  setJSON(storageKey, {
+    ...safeCache,
+    [materiaId]: {
+      temas,
+      timestamp: Date.now()
+    }
+  });
+}
+
+function isFreshTemasEntry(entry) {
+  if (!entry?.timestamp) return false;
+  return Date.now() - Number(entry.timestamp) <= METRICS_TEMAS_TTL_MS;
+}
+
 function formatMs(value) {
   const ms = Number(value) || 0;
   if (ms >= 1000) return `${(ms / 1000).toFixed(1)} s`;
@@ -153,6 +195,11 @@ function clampPercent(value) {
 
 function formatDecimal(value) {
   return Number(value || 0).toFixed(2);
+}
+
+function formatShortDate(value) {
+  if (!value) return '';
+  return String(value).slice(5).replace('-', '/');
 }
 
 function MetricCard({ title, value, hint, icon: Icon, accent = 'indigo' }) {
@@ -201,6 +248,84 @@ function MetricBar({ label, value, tone = 'indigo', detail }) {
   );
 }
 
+function HistorySeriesCard({ title, accent = 'indigo', summary, points = [] }) {
+  const tones = {
+    indigo: 'from-indigo-500 to-violet-500',
+    emerald: 'from-emerald-500 to-teal-500',
+    amber: 'from-amber-500 to-orange-500',
+    purple: 'from-purple-500 to-fuchsia-500',
+    sky: 'from-sky-500 to-cyan-500'
+  };
+
+  const maxReviews = Math.max(1, ...points.map((point) => point.reviews || 0));
+
+  return (
+    <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-xs space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h4 className="text-base font-black tracking-tight text-slate-950 dark:text-slate-50">{title}</h4>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Ultimos {METRICS_HISTORY_DAYS} dias registrados en ReviewLog.</p>
+        </div>
+        <div className="text-right text-sm font-semibold text-slate-700 dark:text-slate-200">
+          <div>{summary?.totalReviews ?? 0} repasos</div>
+          <div className="text-xs text-slate-500 dark:text-slate-400">Precision {Math.round((summary?.accuracyRate ?? 0) * 100)}%</div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3">
+        <div className="rounded-xl bg-slate-50 dark:bg-slate-800/70 px-3 py-3">
+          <p className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 font-bold">Repasos</p>
+          <p className="mt-1 text-lg font-black text-slate-900 dark:text-slate-50">{summary?.totalReviews ?? 0}</p>
+        </div>
+        <div className="rounded-xl bg-slate-50 dark:bg-slate-800/70 px-3 py-3">
+          <p className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 font-bold">Precision</p>
+          <p className="mt-1 text-lg font-black text-slate-900 dark:text-slate-50">{Math.round((summary?.accuracyRate ?? 0) * 100)}%</p>
+        </div>
+        <div className="rounded-xl bg-slate-50 dark:bg-slate-800/70 px-3 py-3">
+          <p className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 font-bold">Velocidad</p>
+          <p className="mt-1 text-lg font-black text-slate-900 dark:text-slate-50">{formatMs(summary?.avgResponseTimeMs ?? 0)}</p>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+          <span>Actividad diaria</span>
+          <span>Altura = repasos · opacidad = precision</span>
+        </div>
+
+        <div className="grid grid-cols-[repeat(14,minmax(0,1fr))] gap-1 items-end h-28">
+          {points.map((point) => {
+            const height = point.reviews > 0
+              ? Math.max(12, (point.reviews / maxReviews) * 100)
+              : 8;
+            const opacity = point.reviews > 0
+              ? Math.max(0.25, point.accuracyRate || 0)
+              : 0.14;
+
+            return (
+              <div
+                key={`${title}-${point.date}`}
+                className="flex items-end h-full"
+                title={`${point.date} · ${point.reviews} repasos · precision ${Math.round((point.accuracyRate || 0) * 100)}% · velocidad ${formatMs(point.avgResponseTimeMs || 0)}`}
+              >
+                <div
+                  className={`w-full rounded-t-md bg-gradient-to-t ${tones[accent] || tones.indigo}`}
+                  style={{ height: `${height}%`, opacity }}
+                />
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+          <span>{formatShortDate(points[0]?.date)}</span>
+          <span>{formatShortDate(points[points.length - 1]?.date)}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function MetricsLevel({ materia, userId, onBack }) {
   const materiaId = materia?._id || materia?.id;
   const fallbackParciales = useMemo(
@@ -213,11 +338,14 @@ export default function MetricsLevel({ materia, userId, onBack }) {
     const initialParciales = getStoredParciales(userId, materiaId, fallbackParciales);
     return getStoredPreviewEntry(userId, materiaId, initialParciales)?.preview || null;
   });
-  const [temas, setTemas] = useState([]);
+  const [temas, setTemas] = useState(() => getStoredTemasEntry(userId, materiaId)?.temas || []);
+  const [history, setHistory] = useState(null);
   const [loadingPreview, setLoadingPreview] = useState(() => !getStoredPreviewEntry(userId, materiaId, getStoredParciales(userId, materiaId, fallbackParciales))?.preview);
-  const [loadingTemas, setLoadingTemas] = useState(true);
+  const [loadingTemas, setLoadingTemas] = useState(() => !hasStoredTemas(getStoredTemasEntry(userId, materiaId)));
+  const [loadingHistory, setLoadingHistory] = useState(true);
   const [previewError, setPreviewError] = useState('');
   const [temasError, setTemasError] = useState('');
+  const [historyError, setHistoryError] = useState('');
   const parcialesKey = selectedParciales.join(',');
 
   useEffect(() => {
@@ -227,6 +355,12 @@ export default function MetricsLevel({ materia, userId, onBack }) {
     const cachedPreview = getStoredPreviewEntry(userId, materiaId, nextParciales)?.preview || null;
     setPreview(cachedPreview);
     setLoadingPreview(!cachedPreview);
+
+    const cachedTemasEntry = getStoredTemasEntry(userId, materiaId);
+    const cachedTemas = hasStoredTemas(cachedTemasEntry) ? cachedTemasEntry.temas : [];
+    setTemas(cachedTemas);
+    setLoadingTemas(!hasStoredTemas(cachedTemasEntry));
+    setTemasError('');
   }, [userId, materiaId, fallbackParcialesKey]);
 
   useEffect(() => {
@@ -281,8 +415,24 @@ export default function MetricsLevel({ materia, userId, onBack }) {
     if (!materiaId) return;
 
     const controller = new AbortController();
-    const loadTemas = async () => {
+    const cachedTemasEntry = getStoredTemasEntry(userId, materiaId);
+    const cachedTemas = hasStoredTemas(cachedTemasEntry) ? cachedTemasEntry.temas : null;
+
+    if (cachedTemas) {
+      setTemas(cachedTemas);
+      setLoadingTemas(false);
+      setTemasError('');
+    } else {
+      setTemas([]);
       setLoadingTemas(true);
+    }
+
+    if (cachedTemasEntry && isFreshTemasEntry(cachedTemasEntry)) {
+      return () => controller.abort();
+    }
+
+    const loadTemas = async () => {
+      if (!cachedTemas) setLoadingTemas(true);
       setTemasError('');
 
       try {
@@ -293,11 +443,15 @@ export default function MetricsLevel({ materia, userId, onBack }) {
           throw new Error(body.error || 'No se pudieron cargar los temas de la materia.');
         }
 
-        setTemas(Array.isArray(body) ? body : []);
+        const nextTemas = Array.isArray(body) ? body : [];
+        setTemas(nextTemas);
+        saveStoredTemasEntry(userId, materiaId, nextTemas);
       } catch (err) {
         if (err.name !== 'AbortError') {
           setTemasError(err.message || 'No se pudieron cargar los temas de la materia.');
-          setTemas([]);
+          if (!cachedTemas) {
+            setTemas([]);
+          }
         }
       } finally {
         if (!controller.signal.aborted) setLoadingTemas(false);
@@ -306,7 +460,7 @@ export default function MetricsLevel({ materia, userId, onBack }) {
 
     loadTemas();
     return () => controller.abort();
-  }, [materiaId]);
+  }, [userId, materiaId]);
 
   useEffect(() => {
     if (!materiaId || !selectedParciales.length) return;
@@ -360,6 +514,42 @@ export default function MetricsLevel({ materia, userId, onBack }) {
     loadPreview();
     return () => controller.abort();
   }, [userId, materiaId, parcialesKey]);
+
+  useEffect(() => {
+    if (!materiaId || !selectedParciales.length) return undefined;
+
+    const controller = new AbortController();
+
+    const loadHistory = async () => {
+      setLoadingHistory(true);
+      setHistoryError('');
+
+      try {
+        const query = selectedParciales.join(',');
+        const res = await fetch(`${BACKEND_URL}/api/academic/materias/${materiaId}/metrics-history?parciales=${query}&days=${METRICS_HISTORY_DAYS}`, {
+          signal: controller.signal
+        });
+        const body = await res.json().catch(() => ({}));
+
+        if (!res.ok) {
+          throw new Error(body.error || 'No se pudo cargar el histórico de métricas.');
+        }
+
+        setHistory(body);
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          setHistoryError(err.message || 'No se pudo cargar el histórico de métricas.');
+          setHistory(null);
+        }
+      } finally {
+        if (!controller.signal.aborted) setLoadingHistory(false);
+      }
+    };
+
+    loadHistory();
+
+    return () => controller.abort();
+  }, [materiaId, parcialesKey]);
 
   const persistSelectedParciales = async (nextParciales) => {
     if (!materiaId) return;
@@ -492,6 +682,45 @@ export default function MetricsLevel({ materia, userId, onBack }) {
       });
   }, [filteredTemas]);
 
+  const historyCards = useMemo(() => {
+    if (!history) return [];
+
+    const accentByParcial = {
+      1: 'indigo',
+      2: 'emerald',
+      3: 'amber'
+    };
+
+    const cards = [];
+
+    if (selectedParciales.length > 1 && history.total) {
+      cards.push({
+        key: 'history-total',
+        title: 'Bloque combinado',
+        accent: 'purple',
+        summary: history.total,
+        points: history.total.points || []
+      });
+    }
+
+    (history.series || []).forEach((item) => {
+      cards.push({
+        key: `history-parcial-${item.parcial}`,
+        title: `Parcial ${item.parcial}`,
+        accent: accentByParcial[item.parcial] || 'sky',
+        summary: item,
+        points: item.points || []
+      });
+    });
+
+    return cards;
+  }, [history, selectedParciales]);
+
+  const hasHistoryData = useMemo(
+    () => historyCards.some((card) => (card.summary?.totalReviews || 0) > 0),
+    [historyCards]
+  );
+
   return (
     <div className="animate-[fadeIn_0.15s_ease] pt-2">
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xs max-w-6xl mx-auto space-y-6">
@@ -612,6 +841,48 @@ export default function MetricsLevel({ materia, userId, onBack }) {
                   ))}
                 </div>
               </div>
+            </section>
+
+            <section className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-xs space-y-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-lg font-black tracking-tight text-slate-950 dark:text-slate-50">Serie temporal por parcial</h3>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">Actividad reciente basada en ReviewLog, separada por parciales y lista para crecer a análisis más finos.</p>
+                </div>
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  Ultimos {METRICS_HISTORY_DAYS} dias
+                </div>
+              </div>
+
+              {historyError && (
+                <div className="rounded-2xl border border-rose-200 dark:border-rose-900/40 bg-rose-50 dark:bg-rose-950/20 px-4 py-3 text-sm text-rose-700 dark:text-rose-300">
+                  {historyError}
+                </div>
+              )}
+
+              {loadingHistory ? (
+                <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40 p-8 text-center">
+                  <Loader2 className="w-6 h-6 animate-spin mx-auto text-purple-500 mb-3" />
+                  <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Cargando serie temporal...</p>
+                </div>
+              ) : historyCards.length > 0 && hasHistoryData ? (
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                  {historyCards.map((card) => (
+                    <HistorySeriesCard
+                      key={card.key}
+                      title={card.title}
+                      accent={card.accent}
+                      summary={card.summary}
+                      points={card.points}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 px-5 py-10 text-center text-sm text-slate-500 dark:text-slate-400">
+                  Aun no hay suficiente historial de repaso para dibujar la serie temporal de este bloque.
+                </div>
+              )}
             </section>
           </>
         ) : null}

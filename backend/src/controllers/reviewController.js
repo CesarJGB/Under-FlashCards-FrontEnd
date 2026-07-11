@@ -44,12 +44,17 @@ exports.registerReview = async (req, res) => {
 
     if (!card) return res.status(404).json({ error: 'Flashcard no encontrada.' });
 
+    const deckContext = await Deck.findById(deckId).select('materiaId parcialNumber temaId subtemaId');
+
     // 2. Insertar entrada inmutable en el Libro Contable (Ledger)
     const log = new ReviewLog({
       userId,
       cardId,
       deckId,
-      materiaId: (await Deck.findById(deckId))?.materiaId || null,
+      materiaId: deckContext?.materiaId || null,
+      parcialNumber: deckContext?.parcialNumber ?? null,
+      temaId: deckContext?.temaId || null,
+      subtemaId: deckContext?.subtemaId || null,
       sessionId: sessionId || null, // 🚀 Vínculo opcional a la sesión de estudio activa
       wasCorrect,
       responseTimeMs,

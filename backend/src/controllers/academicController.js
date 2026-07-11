@@ -5,8 +5,84 @@ const Tema = require('../models/Tema');
 const Subtema = require('../models/Subtema');
 const Deck = require('../models/Deck');
 const Flashcard = require('../models/Flashcard');
+const ReviewLog = require('../models/ReviewLog');
 const { calculateRadarMetrics } = require('../utils/radarMetrics');
 const { randomUUID } = require('crypto');
+
+const ALLOWED_PARCIALES = [1, 2, 3];
+const ALLOWED_HISTORY_WINDOWS = [7, 14, 30];
+
+function normalizeParcialesInput(rawParciales) {
+  const source = Array.isArray(rawParciales) ? rawParciales : String(rawParciales || '').split(',');
+  const normalized = [...new Set(
+    source
+      .map(Number)
+      .filter((value) => ALLOWED_PARCIALES.includes(value))
+  )].sort((a, b) => a - b);
+
+  return normalized.length > 0 ? normalized : [...ALLOWED_PARCIALES];
+}
+
+function normalizeHistoryWindow(rawValue) {
+  const parsed = Number(rawValue);
+  return ALLOWED_HISTORY_WINDOWS.includes(parsed) ? parsed : 14;
+}
+
+function buildHistoryDateKeys(days) {
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+
+  const labels = [];
+  for (let offset = days - 1; offset >= 0; offset -= 1) {
+    const date = new Date(today);
+    date.setUTCDate(today.getUTCDate() - offset);
+    labels.push(date.toISOString().slice(0, 10));
+  }
+
+  return labels;
+}
+
+function buildHistoryPoint(date, bucket = null) {
+  const reviews = bucket?.reviews || 0;
+  const correctCount = bucket?.correctCount || 0;
+  const incorrectCount = bucket?.incorrectCount || 0;
+  const totalResponseTimeMs = bucket?.totalResponseTimeMs || 0;
+
+  return {
+    date,
+    reviews,
+    correctCount,
+    incorrectCount,
+    totalResponseTimeMs,
+    avgResponseTimeMs: reviews > 0 ? Math.round(totalResponseTimeMs / reviews) : 0,
+    accuracyRate: reviews > 0 ? Number((correctCount / reviews).toFixed(2)) : 0
+  };
+}
+
+function summarizeHistoryPoints(points = []) {
+  const totals = points.reduce((acc, point) => {
+    acc.reviews += point.reviews || 0;
+    acc.correctCount += point.correctCount || 0;
+    acc.incorrectCount += point.incorrectCount || 0;
+    acc.totalResponseTimeMs += point.totalResponseTimeMs || 0;
+    return acc;
+  }, {
+    reviews: 0,
+    correctCount: 0,
+    incorrectCount: 0,
+    totalResponseTimeMs: 0
+  });
+
+  return {
+    totalReviews: totals.reviews,
+    correctCount: totals.correctCount,
+    incorrectCount: totals.incorrectCount,
+    totalResponseTimeMs: totals.totalResponseTimeMs,
+    avgResponseTimeMs: totals.reviews > 0 ? Math.round(totals.totalResponseTimeMs / totals.reviews) : 0,
+    accuracyRate: totals.reviews > 0 ? Number((totals.correctCount / totals.reviews).toFixed(2)) : 0,
+    points
+  };
+}
 
 function serializePublicMateriaProfile(materia, temasByParcial, deckCount, cardsCount) {
   const serialized = materia.serialize();
@@ -339,9 +415,7 @@ exports.updateActiveParciales = async (req, res) => {
 exports.getDomainPreview = async (req, res) => {
   try {
     const { id } = req.params;
-    const parciales = req.query.parciales
-      ? req.query.parciales.split(',').map(Number).filter(n => [1, 2, 3].includes(n))
-      : [1, 2, 3];
+    const parciales = normalizeParcialesInput(req.query.parciales || ALLOWED_PARCIALES);
 
     const filteredTemas = await Tema.find({ materiaId: id, parcialNumber: { $in: parciales } });
     const metrics = calculateRadarMetrics(filteredTemas, false);
@@ -355,6 +429,141 @@ exports.getDomainPreview = async (req, res) => {
   } catch (err) {
     console.error('[academic:getDomainPreview] error:', err.message);
     return res.status(500).json({ error: 'Server error al calcular preview de dominio.' });
+  }
+};
+
+exports.getMetricsHistory = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const parciales = normalizeParcialesInput(req.query.parciales || ALLOWED_PARCIALES);
+    const days = normalizeHistoryWindow(req.query.days);
+
+    const materia = await Materia.findById(id).select('_id userId');
+    if (!materia) {
+      return res.status(404).json({ error: 'Materia no encontrada.' });
+    }
+
+    const dateKeys = buildHistoryDateKeys(days);
+    const rangeStart = new Date(`${dateKeys[0]}T00:00:00.000Z`);
+
+    const historyBuckets = await ReviewLog.aggregate([
+      {
+        $match: {
+          userId: materia.userId,
+          materiaId: materia._id,
+          timestamp: { $gte: rangeStart }
+        }
+      },
+      {
+        $lookup: {
+          from: 'decks',
+          let: { reviewDeckId: '$deckId' },
+          as: 'deckMeta',
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $eq: ['$_id', '$$reviewDeckId']
+                }
+              }
+            },
+            { $project: { parcialNumber: 1 } }
+          ]
+        }
+      },
+      {
+        $addFields: {
+          resolvedParcialNumber: {
+            $ifNull: [
+              '$parcialNumber',
+              { $arrayElemAt: ['$deckMeta.parcialNumber', 0] }
+            ]
+          }
+        }
+      },
+      {
+        $match: {
+          resolvedParcialNumber: { $in: parciales }
+        }
+      },
+      {
+        $group: {
+          _id: {
+            date: {
+              $dateToString: {
+                format: '%Y-%m-%d',
+                date: '$timestamp',
+                timezone: 'UTC'
+              }
+            },
+            parcialNumber: '$resolvedParcialNumber'
+          },
+          reviews: { $sum: 1 },
+          correctCount: {
+            $sum: {
+              $cond: ['$wasCorrect', 1, 0]
+            }
+          },
+          incorrectCount: {
+            $sum: {
+              $cond: ['$wasCorrect', 0, 1]
+            }
+          },
+          totalResponseTimeMs: { $sum: '$responseTimeMs' }
+        }
+      },
+      {
+        $sort: {
+          '_id.date': 1,
+          '_id.parcialNumber': 1
+        }
+      }
+    ]);
+
+    const bucketMap = new Map(
+      historyBuckets.map((bucket) => [
+        `${bucket._id.parcialNumber}::${bucket._id.date}`,
+        bucket
+      ])
+    );
+
+    const series = parciales.map((parcial) => {
+      const points = dateKeys.map((date) => buildHistoryPoint(date, bucketMap.get(`${parcial}::${date}`)));
+      return {
+        parcial,
+        ...summarizeHistoryPoints(points)
+      };
+    });
+
+    const totalPoints = dateKeys.map((date) => {
+      const merged = series.reduce((acc, item) => {
+        const point = item.points.find((currentPoint) => currentPoint.date === date);
+        if (!point) return acc;
+        acc.reviews += point.reviews || 0;
+        acc.correctCount += point.correctCount || 0;
+        acc.incorrectCount += point.incorrectCount || 0;
+        acc.totalResponseTimeMs += point.totalResponseTimeMs || 0;
+        return acc;
+      }, {
+        reviews: 0,
+        correctCount: 0,
+        incorrectCount: 0,
+        totalResponseTimeMs: 0
+      });
+
+      return buildHistoryPoint(date, merged);
+    });
+
+    return res.json({
+      materiaId: String(materia._id),
+      parciales,
+      days,
+      series,
+      total: summarizeHistoryPoints(totalPoints)
+    });
+  } catch (err) {
+    console.error('[academic:getMetricsHistory] error:', err.message);
+    return res.status(500).json({ error: 'Server error al calcular histórico de métricas.' });
   }
 };
 
