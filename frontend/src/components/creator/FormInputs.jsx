@@ -1,6 +1,7 @@
+import { lazy, Suspense, startTransition } from 'react';
 import { ImagePlus, X, FileText, Layers } from 'lucide-react';
-// Importamos nuestro nuevo componente modularizado
-import PdfExtractor from './PdfExtractor';
+
+const PdfExtractor = lazy(() => import('./PdfExtractor'));
 
 export default function FormInputs({
   isBulk, isAi, question, setQuestion, answer, setAnswer, bulkText, setBulkText,
@@ -14,11 +15,22 @@ export default function FormInputs({
       <div className="animate-[fadeIn_0.2s_ease] flex flex-col gap-4">
         
         {/* ✨ MÓDULO EXTRACTOR INDEPENDIENTE VISUAL CON RENDER DE PÁGINAS */}
-        <PdfExtractor 
-          onTextExtracted={(extractedText) => {
-            setAiText(prev => (prev ? prev + "\n" : "") + extractedText);
-          }} 
-        />
+        <Suspense
+          fallback={
+            <div className="border border-slate-200 rounded-xl bg-slate-50/70 p-4 flex items-center gap-3 text-xs font-semibold text-slate-500 animate-[fadeIn_0.15s_ease]">
+              <FileText className="w-4 h-4 text-indigo-500 shrink-0" />
+              <span>Preparando el módulo PDF bajo demanda...</span>
+            </div>
+          }
+        >
+          <PdfExtractor
+            onTextExtracted={(extractedText) => {
+              startTransition(() => {
+                setAiText((prev) => (prev ? prev + "\n" : "") + extractedText);
+              });
+            }}
+          />
+        </Suspense>
 
         {/* EDITOR DE TEXTO PRINCIPAL DE LA IA */}
         <div>

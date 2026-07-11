@@ -7,9 +7,20 @@ import FlashcardCollection from './FlashcardCollection';
 import FastDeleteMode from './FastDeleteMode'; 
 import StudyMethodsZone from './StudyMethodsZone'; 
 import SessionPlayer from './SessionPlayer'; 
-import { exportDeckToPDF } from '../utils/pdfExporter'; 
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+let pdfExporterPromise = null;
+
+const loadPdfExporter = async () => {
+  if (!pdfExporterPromise) {
+    pdfExporterPromise = import('../utils/pdfExporter').catch((error) => {
+      pdfExporterPromise = null;
+      throw error;
+    });
+  }
+
+  return pdfExporterPromise;
+};
 
 // Modos que corresponden a una sesión de estudio activa (SessionPlayer).
 // Centralizado acá para no tener que acordarse de actualizar cada `mode !== '...'`
@@ -93,13 +104,21 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
     } catch (e) { setError(e.message); }
   };
 
-  const handleExportPDF = (type = 'guide') => {
+  const handleExportPDF = async (type = 'guide') => {
     if (cards.length === 0) {
       setError('No hay tarjetas en este mazo para exportar a PDF.');
       return;
     }
+
     setError('');
-    exportDeckToPDF(deck.title, cards, type);
+
+    try {
+      const { exportDeckToPDF } = await loadPdfExporter();
+      exportDeckToPDF(deck.title, cards, type);
+    } catch (err) {
+      console.error('[DeckInterior] Error loading PDF exporter:', err);
+      setError('No se pudo cargar el exportador PDF. Inténtalo de nuevo.');
+    }
   };
 
   const handleImportJSON = async (file) => {

@@ -1,7 +1,7 @@
 // FILE: frontend/src/components/library/info/EvaluationModal.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
-import { useKeyboardHeight } from '../../hooks/useKeyboardHeight';
+import { useKeyboardHeight } from '../../../hooks/useKeyboardHeight';
 
 export default function EvaluationModal({ open, onClose, onSave, parentChildren = [], parentWeight = 100, initial = null, depth = 1, isRoot = false }) {
   const keyboardHeight = useKeyboardHeight();
