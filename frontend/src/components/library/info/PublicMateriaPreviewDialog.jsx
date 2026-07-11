@@ -6,7 +6,7 @@ export default function PublicMateriaPreviewDialog({ open, onOpenChange, shareId
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[calc(100vw-1rem)] max-w-[1280px] h-[calc(100dvh-1rem)] max-h-none p-0 gap-0 overflow-hidden rounded-[28px] sm:rounded-[28px] border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950">
-        <div className="flex h-full flex-col">
+        <div className="flex h-full min-h-0 flex-col">
           <div className="shrink-0 border-b border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-950/95 backdrop-blur px-5 py-4 pr-12">
             <p className="text-[11px] uppercase tracking-[0.24em] text-slate-400 dark:text-slate-500 font-bold">
               Vista previa publica
@@ -19,7 +19,7 @@ export default function PublicMateriaPreviewDialog({ open, onOpenChange, shareId
             </p>
           </div>
 
-          <div className="flex-1 overflow-y-auto">
+          <div data-immersive-allow-scroll="true" className="flex-1 min-h-0 overflow-y-auto">
             <PublicMateriaProfile shareId={shareId} embedded />
           </div>
         </div>
