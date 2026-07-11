@@ -22,6 +22,13 @@ const reviewLogSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    mode: {
+      type: String,
+      enum: ['continuous', 'normal'],
+      required: true,
+      default: 'continuous',
+      index: true,
+    },
     // Vinculación jerárquica para permitir agregaciones directas por asignatura
     materiaId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -98,6 +105,9 @@ reviewLogSchema.index({ userId: 1, materiaId: 1, parcialNumber: 1, timestamp: -1
 // Optimiza la telemetría interna por mazo
 reviewLogSchema.index({ userId: 1, deckId: 1, timestamp: -1 });
 
+// Optimiza series y dashboards filtrados por modo sin depender de joins con StudySession.
+reviewLogSchema.index({ userId: 1, mode: 1, timestamp: -1 });
+
 // Optimiza la reconstrucción de detalle de una sesión específica (qué tarjetas se vieron y en qué orden)
 reviewLogSchema.index({ sessionId: 1, timestamp: 1 });
 
@@ -111,6 +121,7 @@ reviewLogSchema.methods.serialize = function () {
     userId: this.userId,
     cardId: this.cardId,
     deckId: this.deckId,
+    mode: this.mode,
     materiaId: this.materiaId,
     parcialNumber: this.parcialNumber,
     temaId: this.temaId,

@@ -96,6 +96,7 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
   const sessionStartPromiseRef = useRef(null);
   const pendingReviewsRef = useRef([]);
   const pendingBatchNotificationsRef = useRef([]);
+  const pendingSessionReviewsRef = useRef([]);
   const allCardsRef = useRef([]); // mazo completo, cargado una sola vez; se actualiza localmente tras cada respuesta
 
   const currentCard = cards[currentIndex];
@@ -119,8 +120,14 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
 
   // Telemetría: sendBeacon fallback + cola local persistida vía safeLocalStorage
   const sendReview = (payload) => {
-    // Enrich payload with deckId to ensure queued items are flushable
-    const enrichedPayload = { ...payload, deckId };
+    // Enrich payload with deckId y mode para asegurar que toda review quede autocontenida.
+    const enrichedPayload = { ...payload, deckId, mode };
+
+    if (!enrichedPayload.sessionId) {
+      pendingSessionReviewsRef.current.push(enrichedPayload);
+      return Promise.resolve(true);
+    }
+
     const body = JSON.stringify(enrichedPayload);
     // Preferir sendBeacon cuando esté disponible (mejor para unload/navigation)
     try {
@@ -164,6 +171,17 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
     });
   };
 
+  const flushPendingSessionReviews = () => {
+    if (!sessionIdRef.current || pendingSessionReviewsRef.current.length === 0) return;
+
+    const queuedReviews = [...pendingSessionReviewsRef.current];
+    pendingSessionReviewsRef.current = [];
+
+    queuedReviews.forEach((payload) => {
+      sendReview({ ...payload, sessionId: sessionIdRef.current }).catch(() => { /* handled inside sendReview */ });
+    });
+  };
+
   const flushPendingReviews = async () => {
     // cargar cola persistida
     const persisted = getJSON(`pending_reviews_${userId}`) || [];
@@ -195,13 +213,15 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
       sessionStartPromiseRef.current = makeFetch(`${BACKEND_URL}/api/decks/${deckId}/sessions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId })
+        body: JSON.stringify({ userId, mode })
       });
 
       const response = await sessionStartPromiseRef.current;
       if (!response || !response.ok) throw new Error('No se pudo iniciar la sesión.');
       const data = await response.json();
       sessionIdRef.current = data.session?.id || null;
+
+      flushPendingSessionReviews();
 
       // Si había notificaciones pendientes de lote, flusharlas ahora
       if (pendingBatchNotificationsRef.current.length > 0 && sessionIdRef.current) {
@@ -301,6 +321,12 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
   };
 
   useEffect(() => {
+    sessionIdRef.current = null;
+    sessionClosedRef.current = false;
+    sessionStartPromiseRef.current = null;
+    pendingBatchNotificationsRef.current = [];
+    pendingSessionReviewsRef.current = [];
+
     // cargar cola persistente de reviews
     try {
       pendingReviewsRef.current = getJSON(`pending_reviews_${userId}`) || [];
@@ -353,7 +379,8 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
       userId,
       wasCorrect,
       responseTimeMs,
-      sessionId: sessionIdRef.current
+      sessionId: sessionIdRef.current,
+      mode
     }).catch(() => { /* handled inside sendReview */ });
 
     // Actualizamos la copia local de la tarjeta (mismo delta que aplica el

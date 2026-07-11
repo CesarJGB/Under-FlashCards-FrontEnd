@@ -9,13 +9,19 @@ const StudySession = require('../models/StudySession');
 const { enqueueForUser, flushUserQueue } = require('../utils/userQueue');
 const { calculateRadarMetrics, WEIGHTS, TARGETS, getFluidityScore, getRetentionScore, getVolumeScore, getResilienceScore } = require('../utils/radarMetrics');
 
+const STUDY_MODES = new Set(['continuous', 'normal']);
+
+function normalizeStudyMode(mode) {
+  return STUDY_MODES.has(mode) ? mode : null;
+}
+
 
 // =========================================================================
 // ACTION HANDLER: REGISTRO DE REPASO Y PROPAGACIÓN EN CASCADA
 // =========================================================================
 exports.registerReview = async (req, res) => {
   const { deckId } = req.params;
-  const { cardId, userId, wasCorrect, responseTimeMs, sessionId } = req.body;
+  const { cardId, userId, wasCorrect, responseTimeMs, sessionId, mode } = req.body;
 
   try {
     // 1. Mutación Atómica de la Flashcard (Nivel Micro) — pipeline update
@@ -45,12 +51,19 @@ exports.registerReview = async (req, res) => {
     if (!card) return res.status(404).json({ error: 'Flashcard no encontrada.' });
 
     const deckContext = await Deck.findById(deckId).select('materiaId parcialNumber temaId subtemaId');
+    let resolvedMode = normalizeStudyMode(mode);
+    if (!resolvedMode && sessionId) {
+      const session = await StudySession.findById(sessionId).select('mode');
+      resolvedMode = session?.mode || null;
+    }
+    resolvedMode = resolvedMode || 'continuous';
 
     // 2. Insertar entrada inmutable en el Libro Contable (Ledger)
     const log = new ReviewLog({
       userId,
       cardId,
       deckId,
+      mode: resolvedMode,
       materiaId: deckContext?.materiaId || null,
       parcialNumber: deckContext?.parcialNumber ?? null,
       temaId: deckContext?.temaId || null,
@@ -319,14 +332,18 @@ exports.getAllSessionCards = async (req, res) => {
  */
 exports.startSession = async (req, res) => {
   const { deckId } = req.params;
-  const { userId } = req.body;
+  const { userId, mode } = req.body;
 
   try {
     if (!userId) {
       return res.status(400).json({ error: 'userId es requerido para iniciar una sesión.' });
     }
 
-    const session = new StudySession({ userId, deckId });
+    const session = new StudySession({
+      userId,
+      deckId,
+      mode: normalizeStudyMode(mode) || 'continuous'
+    });
     await session.save();
 
     return res.status(201).json({

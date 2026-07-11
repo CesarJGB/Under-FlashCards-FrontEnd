@@ -15,6 +15,13 @@ const studySessionSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    mode: {
+      type: String,
+      enum: ['continuous', 'normal'],
+      required: true,
+      default: 'continuous',
+      index: true,
+    },
 
     // =========================================================================
     // VENTANA TEMPORAL DE LA SESIÓN
@@ -64,6 +71,7 @@ studySessionSchema.methods.serialize = function () {
     id: this._id,
     userId: this.userId,
     deckId: this.deckId,
+    mode: this.mode,
     startedAt: this.startedAt,
     endedAt: this.endedAt,
     cardsAnswered: this.cardsAnswered,
