@@ -4,7 +4,48 @@ const Materia = require('../models/Materia');
 const Tema = require('../models/Tema');
 const Subtema = require('../models/Subtema');
 const Deck = require('../models/Deck');
+const Flashcard = require('../models/Flashcard');
 const { calculateRadarMetrics } = require('../utils/radarMetrics');
+const { randomUUID } = require('crypto');
+
+function serializePublicMateriaProfile(materia, temasByParcial, deckCount, cardsCount) {
+  const serialized = materia.serialize();
+  const activeParciales = Array.isArray(serialized.activeParciales) && serialized.activeParciales.length
+    ? serialized.activeParciales
+    : [1, 2, 3];
+  const parcialCountMap = new Map(
+    temasByParcial.map(item => [Number(item._id), item.count])
+  );
+
+  return {
+    shareId: serialized.publicProfile?.shareId || null,
+    materia: {
+      id: serialized.id,
+      _id: serialized._id,
+      name: serialized.name,
+      analytics: serialized.analytics,
+      activeParciales,
+      metaCalificacion: serialized.metaCalificacion,
+      evaluationCriteria: serialized.evaluationCriteria,
+      createdAt: serialized.createdAt,
+      publicProfile: {
+        enabled: !!serialized.publicProfile?.enabled,
+        shareId: serialized.publicProfile?.shareId || null,
+        sharedAt: serialized.publicProfile?.sharedAt || null
+      }
+    },
+    stats: {
+      temasCount: temasByParcial.reduce((sum, item) => sum + (item.count || 0), 0),
+      decksCount: deckCount,
+      cardsCount,
+      parciales: [1, 2, 3].map(number => ({
+        number,
+        temasCount: parcialCountMap.get(number) || 0,
+        isActive: activeParciales.includes(number)
+      }))
+    }
+  };
+}
 
 // =========================================================================
 // 1. MATERIAS (Asignaturas principales)
@@ -18,6 +59,75 @@ exports.getMaterias = async (req, res) => {
   } catch (err) {
     console.error('[academic:getMaterias] error:', err.message);
     return res.status(500).json({ error: 'Server error al obtener materias.' });
+  }
+};
+
+exports.enablePublicProfile = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user?.id || req.user?._id;
+
+    const materia = await Materia.findById(id);
+    if (!materia) return res.status(404).json({ error: 'Materia no encontrada.' });
+    if (String(materia.userId) !== String(userId)) {
+      return res.status(403).json({ error: 'No tienes permisos para compartir esta materia.' });
+    }
+
+    materia.publicProfile = {
+      enabled: true,
+      shareId: materia.publicProfile?.shareId || randomUUID().replace(/-/g, ''),
+      sharedAt: materia.publicProfile?.sharedAt || new Date()
+    };
+
+    await materia.save();
+
+    return res.json({ materia: materia.serialize() });
+  } catch (err) {
+    console.error('[academic:enablePublicProfile] error:', err.message);
+    return res.status(500).json({ error: 'Server error al compartir la materia.' });
+  }
+};
+
+exports.getPublicMateriaProfile = async (req, res) => {
+  try {
+    const { shareId } = req.params;
+
+    const materia = await Materia.findOne({
+      'publicProfile.shareId': shareId,
+      'publicProfile.enabled': true
+    });
+
+    if (!materia) {
+      return res.status(404).json({ error: 'Perfil público de materia no encontrado.' });
+    }
+
+    const deckDocs = await Deck.find({ materiaId: materia._id }).select('_id');
+    const deckIds = deckDocs.map(deck => deck._id);
+
+    const [temasByParcial, cardsAgg] = await Promise.all([
+      Tema.aggregate([
+        { $match: { materiaId: materia._id } },
+        { $group: { _id: '$parcialNumber', count: { $sum: 1 } } }
+      ]),
+      deckIds.length > 0
+        ? Flashcard.aggregate([
+            { $match: { deckId: { $in: deckIds } } },
+            { $group: { _id: null, total: { $sum: 1 } } }
+          ])
+        : Promise.resolve([])
+    ]);
+
+    return res.json(
+      serializePublicMateriaProfile(
+        materia,
+        temasByParcial,
+        deckDocs.length,
+        cardsAgg[0]?.total || 0
+      )
+    );
+  } catch (err) {
+    console.error('[academic:getPublicMateriaProfile] error:', err.message);
+    return res.status(500).json({ error: 'Server error al obtener el perfil público de la materia.' });
   }
 };
 
@@ -361,7 +471,6 @@ exports.updateSubtema = async (req, res) => {
 // =========================================================================
 // 6. ACTUALIZAR CRITERIOS DE EVALUACIÓN (Árbol recursivo con validación server-side)
 // =========================================================================
-const { randomUUID } = require('crypto');
 
 // Valida y normaliza recursivamente el árbol de criterios.
 // Reglas importantes aplicadas:

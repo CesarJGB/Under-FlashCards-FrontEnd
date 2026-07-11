@@ -7,11 +7,13 @@ const { protect } = require('../controllers/authController');
 
 // --- Endpoints de Materias ---
 router.get('/academic/materias/:userId', academicController.getMaterias);
+router.post('/academic/materias/:id/public-profile', protect, academicController.enablePublicProfile);
 router.post('/academic/materias', academicController.createMateria);
 router.put('/academic/materias/:id', academicController.updateMateria);
 router.delete('/academic/materias/:id', academicController.deleteMateria);
 // Actualizar criterios de evaluación (optimista/estructurado)
 router.put('/academic/materias/:id/evaluation', protect, academicController.updateEvaluationCriteria);
+router.get('/public/materias/:shareId', academicController.getPublicMateriaProfile);
 
 // --- Endpoints de Temas ---
 router.get('/academic/temas/:materiaId', academicController.getTemas);

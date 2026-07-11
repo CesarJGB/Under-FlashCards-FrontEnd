@@ -24,12 +24,19 @@ const materiaSchema = new mongoose.Schema(
       default: 70,
       min: 0,
       max: 100
+    },
+
+    publicProfile: {
+      enabled: { type: Boolean, default: false },
+      shareId: { type: String, default: null },
+      sharedAt: { type: Date, default: null }
     }
   },
   { timestamps: true }
 );
 
 materiaSchema.index({ name: 1, userId: 1 }, { unique: true });
+materiaSchema.index({ 'publicProfile.shareId': 1 }, { unique: true, sparse: true });
 
 materiaSchema.methods.serialize = function () {
   return {
@@ -49,7 +56,12 @@ materiaSchema.methods.serialize = function () {
     // Incluir criterios de evaluación en la serialización (siempre devolver array)
     evaluationCriteria: this.evaluationCriteria || [],
     // Meta de calificación objetivo (fallback preventivo)
-    metaCalificacion: this.metaCalificacion ?? 70
+    metaCalificacion: this.metaCalificacion ?? 70,
+    publicProfile: {
+      enabled: !!this.publicProfile?.enabled,
+      shareId: this.publicProfile?.shareId || null,
+      sharedAt: this.publicProfile?.sharedAt || null
+    }
   };
 };
 

@@ -13,6 +13,8 @@ import LibrarySection from './components/LibrarySection';
 import SettingsSection from './components/SettingsSection';
 import UserSection from './components/UserSection';
 import ChatSection from './components/ChatSection';
+import PublicMateriaPage from './components/PublicMateriaPage';
+import { getPublicMateriaShareId } from './lib/publicMateria';
 
 const DebugPanel = lazy(() => import('./components/DebugPanel'));
 
@@ -355,6 +357,12 @@ function FlashcardsApp() {
 }
 
 export default function App() {
+  const publicMateriaShareId = getPublicMateriaShareId();
+
+  if (publicMateriaShareId) {
+    return <PublicMateriaPage shareId={publicMateriaShareId} />;
+  }
+
   if (!GOOGLE_CLIENT_ID) return null;
   return (
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>

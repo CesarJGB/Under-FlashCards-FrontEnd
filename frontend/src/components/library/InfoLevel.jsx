@@ -1,7 +1,8 @@
 // FILE: frontend/src/components/library/InfoLevel.jsx
 import React, { useState } from 'react';
-import { Calculator, FileText, BarChart3 } from 'lucide-react';
+import { FileText, BarChart3 } from 'lucide-react';
 import EvaluacionLevel from './info/EvaluacionLevel'; // 👈 Importamos el nuevo componente
+import PublicProfileCard from './info/PublicProfileCard';
 
 export default function InfoLevel({ materia, currentPath, setCurrentPath, materias, setMaterias, userId }) {
   // 💡 Estado local para controlar el sub-apartado dentro de Info
@@ -27,23 +28,12 @@ export default function InfoLevel({ materia, currentPath, setCurrentPath, materi
       {/* Grid de Secciones Interiores */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         
-        {/* Bloque 1: Calculadora */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-2xl space-y-3 shadow-xs">
-          <div className="flex items-center gap-3 text-indigo-600 dark:text-indigo-400">
-            <div className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/40">
-              <Calculator className="w-5 h-5" />
-            </div>
-            <h4 className="font-bold text-slate-950 dark:text-slate-50">Calculadora de Notas</h4>
-          </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-            Calcula cuánto necesitas en el examen final ingresando los pesos de tus tareas, proyectos y parciales.
-          </p>
-          <div className="pt-2">
-            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 border border-amber-100 dark:border-amber-900/30">
-              Próximamente
-            </span>
-          </div>
-        </div>
+        <PublicProfileCard
+          materia={materia}
+          materias={materias}
+          setMaterias={setMaterias}
+          userId={userId}
+        />
 
         {/* Bloque 2: Criterios / Información (¡Ahora es interactivo! 👈) */}
         <div
