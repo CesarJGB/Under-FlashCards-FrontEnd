@@ -5,6 +5,7 @@ import FlipCard from './FlipCard';
 import { parseCardStyles } from '../lib/utils';
 import { buildContinuousBatch, buildNormalBatch, applyLocalAnswer, getCardId } from '../lib/batchBuilder';
 import { getJSON, setJSON } from '../lib/safeLocalStorage';
+import useImmersiveScrollGuard from '../hooks/useImmersiveScrollGuard';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
@@ -42,7 +43,7 @@ const FlipCardSection = React.memo(function FlipCardSection({ currentCard, parse
     >
       {hasBg && <span className="absolute inset-0 bg-black/55" />}
       <span className={`relative z-10 text-[10px] font-bold tracking-widest uppercase ${hasBg ? 'text-white/70' : 'text-amber-500'}`}>Pregunta</span>
-      <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-4 overflow-y-auto">
+      <div data-immersive-allow-scroll="true" className="relative z-10 flex-1 flex flex-col items-center justify-center px-4 overflow-y-auto">
         <CardFace card={currentCard} side="question" dark={hasBg} parsedStyles={parsedStyles} onExpandImage={() => setIsZoomed(true)} />
       </div>
       <div className={`relative z-10 text-[10px] font-semibold text-center flex items-center justify-center gap-1.5 uppercase tracking-wider ${hasBg ? 'text-white/60' : 'text-slate-400'}`}>
@@ -58,7 +59,7 @@ const FlipCardSection = React.memo(function FlipCardSection({ currentCard, parse
     >
       {hasBg && <span className="absolute inset-0 bg-black/55" />}
       <span className="relative z-10 text-[10px] font-bold text-indigo-400 tracking-widest uppercase">Respuesta Correcta</span>
-      <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-4 overflow-y-auto">
+      <div data-immersive-allow-scroll="true" className="relative z-10 flex-1 flex flex-col items-center justify-center px-4 overflow-y-auto">
         <CardFace card={currentCard} side="answer" dark={true} parsedStyles={parsedStyles} onExpandImage={() => setIsZoomed(true)} />
       </div>
       <div className="relative z-10 text-[10px] font-medium text-center text-slate-500 uppercase tracking-wider">
@@ -76,6 +77,8 @@ const FlipCardSection = React.memo(function FlipCardSection({ currentCard, parse
 
 export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuous' }) {
   const config = MODE_CONFIG[mode] || MODE_CONFIG.continuous;
+
+  useImmersiveScrollGuard(true, `SessionPlayer-${mode}`);
 
   const [cards, setCards] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -483,7 +486,7 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
           <div style={bgStyle} className="relative flex-1 flex flex-col items-center justify-center px-6 py-4 border-b border-slate-100 overflow-hidden">
             {hasBg && <span className="absolute inset-0 bg-black/55" />}
             <span className={`relative z-10 text-[10px] font-bold tracking-widest uppercase mb-2 ${hasBg ? 'text-white/70' : 'text-amber-500'}`}>Pregunta</span>
-            <div className="relative z-10 flex flex-col items-center overflow-y-auto max-h-full">
+            <div data-immersive-allow-scroll="true" className="relative z-10 flex flex-col items-center overflow-y-auto max-h-full">
               <CardFace card={currentCard} side="question" dark={hasBg} parsedStyles={parsedStyles} onExpandImage={() => setIsZoomed(true)} />
             </div>
           </div>
@@ -493,7 +496,7 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
           >
             {hasBg && <span className="absolute inset-0 bg-black/55" />}
             <span className="relative z-10 text-[10px] font-bold text-indigo-400 tracking-widest uppercase mb-2">Respuesta</span>
-            <div className="relative z-10 flex flex-col items-center overflow-y-auto max-h-full">
+            <div data-immersive-allow-scroll="true" className="relative z-10 flex flex-col items-center overflow-y-auto max-h-full">
               <CardFace card={currentCard} side="answer" dark={true} parsedStyles={parsedStyles} onExpandImage={() => setIsZoomed(true)} />
             </div>
           </div>

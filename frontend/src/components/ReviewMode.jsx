@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, RotateCw, BookOpen, Loader2, Maximize2, X } 
 
 // Importamos la función de parseo unificada y centralizada
 import { parseCardStyles } from '../lib/utils';
+import useImmersiveScrollGuard from '../hooks/useImmersiveScrollGuard';
 
 const ALIGN_CLASS = { left: 'text-left', center: 'text-center', right: 'text-right' };
 
@@ -14,9 +15,8 @@ export default function ReviewMode({ cards, loading }) {
   const [isZoomed, setIsZoomed] = useState(false);
   const touchStartX = useRef(null);
 
-  // 🩹 CORREGIDO: Removimos el bloqueo estricto de 'overflow = hidden' en el body.
-  // Esto previene que en pantallas pequeñas o modos horizontales (landscape) 
-  // los botones de control queden completamente inaccesibles y fuera de la vista.
+  useImmersiveScrollGuard(true, 'ReviewMode');
+
   useEffect(() => {
     if (index > cards.length - 1) setIndex(Math.max(0, cards.length - 1));
   }, [cards.length, index]);
@@ -106,7 +106,7 @@ export default function ReviewMode({ cards, loading }) {
           onTouchStart={onTouchStart}
           onTouchEnd={onTouchEnd}
           style={cardStyle}
-          className="relative w-full rounded-2xl border border-slate-200 shadow-md overflow-hidden min-h-[290px] sm:min-h-[340px] flex flex-col select-none animate-[slideIn_0.2s_ease-out] touch-pan-x overscroll-none"
+          className="relative w-full rounded-2xl border border-slate-200 shadow-md overflow-hidden h-[max(220px,min(380px,calc(100dvh-14rem)))] sm:h-[420px] flex flex-col select-none animate-[slideIn_0.2s_ease-out] touch-pan-x overscroll-none"
         >
           <div className="absolute top-0 inset-x-0 h-1.5 bg-black/10 z-20">
             <div className="h-full bg-slate-900/80 transition-all duration-300" style={{ width: `${progress}%` }} />
@@ -115,12 +115,12 @@ export default function ReviewMode({ cards, loading }) {
           {hasBg && <span className="absolute inset-0 bg-black/55" />}
           <span className="absolute top-4 left-1/2 -translate-x-1/2 w-10 h-2.5 rounded-full bg-slate-400/40 z-10" />
 
-          <div className="relative z-10 flex-1 flex flex-col justify-center p-6 sm:p-8">
+          <div className="relative z-10 flex-1 min-h-0 flex flex-col justify-center p-6 sm:p-8">
             <p className={`text-[10px] font-semibold uppercase tracking-widest ${alignClass} ${hasBg ? 'text-white/70' : 'text-slate-400'}`}>
               {showAnswer ? 'Respuesta' : 'Pregunta'}
             </p>
             
-            <div key={`${index}-${showAnswer}`} className="mt-2 flex flex-col flex-1 justify-center animate-[fadeIn_0.25s_ease]">
+            <div key={`${index}-${showAnswer}`} data-immersive-allow-scroll="true" className="mt-2 flex flex-col flex-1 min-h-0 justify-center overflow-y-auto animate-[fadeIn_0.25s_ease]">
               <p 
                 style={{
                   ...sizeStyle,

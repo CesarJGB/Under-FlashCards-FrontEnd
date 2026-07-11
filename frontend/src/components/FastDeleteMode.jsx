@@ -5,6 +5,7 @@ import { Trash2, ArrowUp, ArrowDown, X, Layers, Check } from 'lucide-react';
 
 // Importamos la función de parseo unificada y centralizada
 import { parseCardStyles } from '../lib/utils';
+import useImmersiveScrollGuard from '../hooks/useImmersiveScrollGuard';
 
 const ALIGN_CLASS = { left: 'text-left', center: 'text-center', right: 'text-right' };
 
@@ -17,6 +18,8 @@ export default function FastDeleteMode({ cards, onDelete, onClose }) {
   
   const touchStartY = useRef(null);
   const cardRef = useRef(null); // Ref para interceptar y anular el scroll nativo móvil
+
+  useImmersiveScrollGuard(true, 'FastDeleteMode');
 
   // ⌨️ ATAJOS DE TECLADO: Agiliza el filtrado drásticamente en escritorio
   useEffect(() => {
