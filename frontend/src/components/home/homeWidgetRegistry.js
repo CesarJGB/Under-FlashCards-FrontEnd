@@ -18,6 +18,13 @@ const LEGACY_WIDGET_ID_MAP = {
   3: 'unclassifiedDecks'
 };
 
+const WIDGET_ID_TO_LEGACY_INDEX = {
+  quickViewSubjects: 0,
+  globalStats: 1,
+  materiasSummary: 2,
+  unclassifiedDecks: 3
+};
+
 export const HOME_WIDGET_REGISTRY = {
   quickViewSubjects: {
     id: 'quickViewSubjects',
@@ -84,4 +91,10 @@ export function normalizeWidgetOrder(order) {
 
   const missingIds = DEFAULT_WIDGET_ORDER.filter((id) => !uniqueIds.includes(id));
   return [...uniqueIds, ...missingIds];
+}
+
+export function serializeWidgetOrder(order) {
+  return normalizeWidgetOrder(order)
+    .map((widgetId) => WIDGET_ID_TO_LEGACY_INDEX[widgetId])
+    .filter((value) => Number.isInteger(value));
 }

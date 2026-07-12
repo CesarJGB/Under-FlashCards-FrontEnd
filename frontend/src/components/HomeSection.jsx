@@ -9,10 +9,20 @@ import UnclassifiedDecksSection from './home/UnclassifiedDecksSection';
 import WidgetCarouselExpanded from './home/WidgetCarouselExpanded';
 import { getJSON, setJSON, remove } from '../lib/safeLocalStorage';
 import useQuickViewMaterias from './home/useQuickViewMaterias';
-import { DEFAULT_WIDGET_ORDER, normalizeWidgetOrder } from './home/homeWidgetRegistry';
+import { DEFAULT_WIDGET_ORDER, normalizeWidgetOrder, serializeWidgetOrder } from './home/homeWidgetRegistry';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 const DOMAIN_PREVIEWS_TTL_MS = 15 * 60 * 1000; // 15 minutos
+
+function getHomeWidgetOrderCacheKey(userId) {
+  return `homeWidgetOrder_${userId}`;
+}
+
+function getCachedHomeWidgetOrder(userId) {
+  if (!userId) return DEFAULT_WIDGET_ORDER;
+  return normalizeWidgetOrder(getJSON(getHomeWidgetOrderCacheKey(userId)));
+}
+
 function rotateWidgetOrder(order, offset) {
   if (!Array.isArray(order) || order.length === 0) return [];
 
@@ -41,7 +51,7 @@ export default function HomeSection({
 
   // Estados para la librería expandida y el ordenamiento de los widgets
   const [showWidgetLibrary, setShowWidgetLibrary] = useState(false);
-  const [preferredWidgetOrder, setPreferredWidgetOrder] = useState(DEFAULT_WIDGET_ORDER);
+  const [preferredWidgetOrder, setPreferredWidgetOrder] = useState(() => getCachedHomeWidgetOrder(user?.id));
   const [widgetOffset, setWidgetOffset] = useState(0);
   const [hasLoadedPreferences, setHasLoadedPreferences] = useState(false);
 
@@ -102,10 +112,17 @@ export default function HomeSection({
   }, [loadDecks, loadMaterias]);
 
   const handleWidgetOrderChange = useCallback((nextOrder) => {
+    const normalizedOrder = normalizeWidgetOrder(nextOrder);
+
     widgetOrderTouched.current = true;
-    setPreferredWidgetOrder(normalizeWidgetOrder(nextOrder));
+    setPreferredWidgetOrder(normalizedOrder);
+
+    if (user?.id) {
+      setJSON(getHomeWidgetOrderCacheKey(user.id), normalizedOrder);
+    }
+
     setWidgetOffset(0);
-  }, []);
+  }, [user?.id]);
 
   const handleCarouselShift = useCallback((direction) => {
     setWidgetOffset((prev) => {
@@ -134,6 +151,11 @@ export default function HomeSection({
 
     setHasLoadedPreferences(false);
 
+    if (!widgetOrderTouched.current) {
+      setPreferredWidgetOrder(getCachedHomeWidgetOrder(user.id));
+      setWidgetOffset(0);
+    }
+
     const loadPreferences = async () => {
       try {
         const res = await fetch(`${BACKEND_URL}/api/users/${user.id}/preferences`);
@@ -144,6 +166,7 @@ export default function HomeSection({
           }
 
           const serverWidgetOrder = normalizeWidgetOrder(data.homeWidgetOrder);
+          setJSON(getHomeWidgetOrderCacheKey(user.id), serverWidgetOrder);
           lastSyncedWidgetOrder.current = JSON.stringify(serverWidgetOrder);
 
           if (!widgetOrderTouched.current) {
@@ -171,7 +194,7 @@ export default function HomeSection({
         const res = await fetch(`${BACKEND_URL}/api/users/${user.id}/preferences`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ homeWidgetOrder: preferredWidgetOrder }),
+          body: JSON.stringify({ homeWidgetOrder: serializeWidgetOrder(preferredWidgetOrder) }),
           signal: controller.signal
         });
 

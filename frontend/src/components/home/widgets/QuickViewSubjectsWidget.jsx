@@ -1,7 +1,5 @@
-import { useMemo, useState } from 'react';
-import { Layers, Settings } from 'lucide-react';
-import MateriaSelectorModal from '../MateriaSelectorModal';
-import HomeWidgetShell from './HomeWidgetShell';
+import { useMemo } from 'react';
+import { Layers } from 'lucide-react';
 import useWidgetPager from './useWidgetPager';
 import { buildQuickViewNavigationTarget } from '../quickViewNavigation';
 
@@ -9,14 +7,36 @@ const GRID_COLUMNS = 5;
 const GRID_ROWS = 2;
 const PAGE_SIZE = GRID_COLUMNS * GRID_ROWS;
 
+function PagerDots({ currentPage, totalPages, onSelectPage }) {
+  if (totalPages <= 1) return null;
+
+  return (
+    <div className="flex items-center justify-center gap-1.5">
+      {Array.from({ length: totalPages }, (_, index) => {
+        const isActive = currentPage === index;
+
+        return (
+          <button
+            key={index}
+            type="button"
+            onClick={() => onSelectPage(index)}
+            className={`rounded-full transition-all ${
+              isActive ? 'w-4 h-1.5 bg-indigo-500' : 'w-1.5 h-1.5 bg-zinc-200'
+            }`}
+            aria-label={`Ir a la página ${index + 1}`}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
 export default function QuickViewSubjectsWidget({
   quickView,
-  enrichedMaterias,
   getKnowledgeAccent,
   getParcialesBadge,
   onNavigateToLibrary
 }) {
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const { currentPage, totalPages, pageItems, goToPage, shouldSuppressClick, swipeHandlers } = useWidgetPager(
     quickView.visibleMaterias,
     PAGE_SIZE
@@ -31,10 +51,6 @@ export default function QuickViewSubjectsWidget({
     return [...pageItems, ...placeholders];
   }, [pageItems]);
 
-  const footerNote = totalPages > 1
-    ? `Página ${currentPage + 1} de ${totalPages}. Desliza izquierda o derecha.`
-    : `${quickView.visibleMaterias.length} materias en esta carta.`;
-
   const handleCardClick = (materia) => {
     if (shouldSuppressClick()) return;
 
@@ -42,45 +58,87 @@ export default function QuickViewSubjectsWidget({
     if (target) onNavigateToLibrary?.(target);
   };
 
-  return (
-    <>
-      <HomeWidgetShell
-        title="Vista rápida de materias"
-        description="La misma selección de Quick View, ahora dentro del carrusel."
-        icon={Layers}
-        headerAction={(
-          <button
-            type="button"
-            onClick={() => setIsModalOpen(true)}
-            onPointerDown={(event) => event.stopPropagation()}
-            className="w-10 h-10 rounded-2xl border border-zinc-200 text-zinc-500 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50 transition-colors flex items-center justify-center"
-            aria-label="Configurar materias de vista rápida"
-          >
-            <Settings className="w-4 h-4" />
-          </button>
-        )}
-        currentPage={currentPage}
-        totalPages={totalPages}
-        onSelectPage={goToPage}
-        footerNote={footerNote}
+  const renderMateriaCard = (materia) => {
+    const accent = getKnowledgeAccent(materia.masteryPercentage);
+    const circumference = 2 * Math.PI * 18;
+    const strokeDashoffset = circumference - (materia.masteryPercentage / 100) * circumference;
+    const parcialesBadge = getParcialesBadge(materia.activeParciales);
+
+    return (
+      <button
+        key={materia.id}
+        type="button"
+        onClick={() => handleCardClick(materia)}
+        className="group bg-white p-1.5 rounded-xl border border-zinc-200/70 flex flex-col items-center text-center hover:shadow-sm hover:border-indigo-200 transition-all active:scale-[0.97] min-w-0"
       >
+        <div className="relative w-10 h-10 mb-1">
+          <svg className="w-full h-full transform -rotate-90">
+            <circle cx="20" cy="20" r="18" stroke="currentColor" strokeWidth="4" fill="none" className="text-zinc-100" />
+            <circle
+              cx="20"
+              cy="20"
+              r="18"
+              stroke="currentColor"
+              strokeWidth="4"
+              fill="none"
+              strokeLinecap="round"
+              strokeDasharray={circumference}
+              strokeDashoffset={strokeDashoffset}
+              className={`${accent.circle} transition-all duration-500`}
+            />
+          </svg>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="text-[9px] font-black text-zinc-800 leading-none">
+              {materia.masteryPercentage}%
+            </span>
+          </div>
+        </div>
+
+        <p className="text-[9px] font-bold text-zinc-800 leading-tight line-clamp-2 min-h-[22px] w-full px-0.5">
+          {materia.title}
+        </p>
+
+        <div className="mt-0.5 min-h-[14px] flex items-center justify-center w-full">
+          {parcialesBadge ? (
+            <span
+              title={parcialesBadge}
+              className="block max-w-full truncate text-[7px] font-bold px-1 py-0.5 rounded text-indigo-600 bg-indigo-50"
+            >
+              {parcialesBadge}
+            </span>
+          ) : null}
+        </div>
+      </button>
+    );
+  };
+
+  return (
+    <div className="h-full flex flex-col px-3 py-3">
+      <div className="flex items-center gap-2 mb-2 px-1">
+        <div className="w-7 h-7 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+          <Layers className="w-3.5 h-3.5" />
+        </div>
+        <h3 className="text-sm font-bold text-zinc-900 truncate">Vista rápida</h3>
+      </div>
+
+      <div className="flex-1 min-h-0">
         {quickView.isInitialLoad && quickView.selectedMaterias.length === 0 ? (
-          <div className="h-full rounded-[28px] border border-dashed border-zinc-200 bg-zinc-50/70 flex flex-col items-center justify-center gap-3 text-center px-6">
+          <div className="h-full rounded-[24px] border border-dashed border-zinc-200 bg-zinc-50/70 flex flex-col items-center justify-center gap-3 text-center px-6">
             <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
             <p className="text-xs font-bold text-zinc-700">Cargando tus materias rápidas...</p>
           </div>
         ) : quickView.visibleMaterias.length === 0 ? (
-          <div className="h-full rounded-[28px] border border-dashed border-zinc-200 bg-zinc-50/70 flex flex-col items-center justify-center gap-2 text-center px-6">
+          <div className="h-full rounded-[24px] border border-dashed border-zinc-200 bg-zinc-50/70 flex flex-col items-center justify-center gap-2 text-center px-6">
             <Layers className="w-7 h-7 text-zinc-400" />
-            <p className="text-sm font-bold text-zinc-700">Esta carta todavía no tiene materias.</p>
+            <p className="text-sm font-bold text-zinc-700">No hay materias todavía.</p>
             <p className="text-[11px] text-zinc-400 max-w-[26ch]">
-              Usa la rueda para elegir qué materias aparecen aquí y en tu Quick View clásico.
+              Configura tu Quick View clásico y aparecerán aquí.
             </p>
           </div>
         ) : (
           <div
             {...swipeHandlers}
-            className="h-full grid grid-cols-5 grid-rows-2 gap-2.5"
+            className="h-full grid grid-cols-5 grid-rows-2 gap-1.5"
             style={{ touchAction: totalPages > 1 ? 'pan-y' : 'auto' }}
           >
             {gridItems.map((materia) => {
@@ -88,67 +146,20 @@ export default function QuickViewSubjectsWidget({
                 return (
                   <div
                     key={materia.id}
-                    className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50/60"
+                    className="rounded-xl border border-dashed border-zinc-200 bg-zinc-50/60"
                   />
                 );
               }
 
-              const accent = getKnowledgeAccent(materia.masteryPercentage);
-              const parcialesBadge = getParcialesBadge(materia.activeParciales);
-
-              return (
-                <button
-                  key={materia.id}
-                  type="button"
-                  onClick={() => handleCardClick(materia)}
-                  className="rounded-2xl border border-zinc-200 bg-white hover:border-indigo-200 hover:shadow-sm transition-all text-left p-2.5 flex flex-col justify-between active:scale-[0.98]"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <span className={`text-[10px] font-black px-1.5 py-1 rounded-lg ${accent.badge}`}>
-                      {materia.masteryPercentage}%
-                    </span>
-                    <span className="text-[10px] text-zinc-400 shrink-0">{materia.decksCount}</span>
-                  </div>
-
-                  <div>
-                    <div className="w-full h-1.5 rounded-full bg-zinc-100 overflow-hidden mb-2">
-                      <div
-                        className={`h-full rounded-full ${accent.bar}`}
-                        style={{ width: `${materia.masteryPercentage}%` }}
-                      />
-                    </div>
-
-                    <p className="text-[11px] font-bold text-zinc-800 leading-tight line-clamp-2 min-h-[28px]">
-                      {materia.title}
-                    </p>
-
-                    <div className="mt-1.5 min-h-[16px]">
-                      {parcialesBadge ? (
-                        <span className="text-[9px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded-md">
-                          {parcialesBadge}
-                        </span>
-                      ) : (
-                        <span className="text-[10px] text-zinc-400">{materia.totalCards} tarjetas</span>
-                      )}
-                    </div>
-                  </div>
-                </button>
-              );
+              return renderMateriaCard(materia);
             })}
           </div>
         )}
-      </HomeWidgetShell>
+      </div>
 
-      {isModalOpen && (
-        <MateriaSelectorModal
-          materias={enrichedMaterias}
-          selectedMaterias={quickView.selectedMaterias}
-          onToggle={quickView.toggleMateria}
-          onSelectAll={quickView.selectAll}
-          onClearAll={quickView.clearAll}
-          onClose={() => setIsModalOpen(false)}
-        />
-      )}
-    </>
+      <div className="mt-2 min-h-[12px] px-1">
+        <PagerDots currentPage={currentPage} totalPages={totalPages} onSelectPage={goToPage} />
+      </div>
+    </div>
   );
 }

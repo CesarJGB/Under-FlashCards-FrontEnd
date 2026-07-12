@@ -92,7 +92,7 @@ export default function WidgetCarousel({
             height: CARD_HEIGHT,
             transform: `translateY(${dragY}px) scale(${isPickedUp ? 1.02 : 1})`,
             transition: isPickedUp ? 'none' : 'transform 200ms ease',
-            touchAction: isPickedUp ? 'none' : 'auto',
+            touchAction: isPickedUp ? 'none' : 'pan-x',
             boxShadow: isPickedUp
               ? '0 12px 32px rgba(15, 23, 42, 0.18)'
               : '0 1px 2px rgba(15, 23, 42, 0.06)'
