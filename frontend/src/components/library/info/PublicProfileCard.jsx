@@ -187,7 +187,7 @@ export default function PublicProfileCard({ materia, materias, setMaterias, user
         resolvedShareId = updatedMateria?.publicProfile?.shareId || '';
         setPreviewShareId(resolvedShareId);
         setFeedback({ tone: 'success', message: 'Vista previa lista. Asi se vera la materia compartida.' });
-      } catch (err).antano {
+      } catch (err) {
         setFeedback({ tone: 'error', message: err.message || 'No se pudo abrir la vista previa.' });
         return;
       } finally {
