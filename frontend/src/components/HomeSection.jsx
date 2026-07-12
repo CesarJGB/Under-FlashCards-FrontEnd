@@ -1,5 +1,6 @@
 import React, { useMemo, useEffect, useState, useCallback, useRef } from 'react';
 import RadarDebugPanel from './RadarDebugPanel';
+import HomeHeader from './home/HomeHeader';
 import GlobalStatsHeader from './home/GlobalStatsHeader';
 import QuickViewGrid from './home/QuickViewGrid';
 import DetailedMateriasGrid from './home/DetailedMateriasGrid';
@@ -17,7 +18,8 @@ export default function HomeSection({
   onNavigateToLibrary,
   onLogout,
   loadDecks,     
-  loadMaterias   
+  loadMaterias,
+  onOpenProfile
 }) {
   const [homeVisibility, setHomeVisibility] = useState({
     quickView: true,
@@ -383,7 +385,10 @@ export default function HomeSection({
 
   return (
     <div className="w-full space-y-8 animate-[fadeIn_0.15s_ease]">
-      
+
+      {/* Encabezado de usuario: avatar + saludo + nombre (reemplaza el header móvil de App.jsx en 'home') */}
+      <HomeHeader user={user} onOpenProfile={onOpenProfile} />
+
       {/* Resumen Global */}
       <GlobalStatsHeader 
         user={user} 
