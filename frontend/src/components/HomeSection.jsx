@@ -377,7 +377,7 @@ export default function HomeSection({
       <WidgetCarousel 
         onViewAll={() => setShowWidgetLibrary(true)} 
         order={widgetOrder} 
-        onReorder={setWidgetOrder} // 👈 Agregado onReorder directo
+        onReorder={setWidgetOrder}
       />
 
       {/* Resumen Global */}
@@ -418,7 +418,7 @@ export default function HomeSection({
       {showWidgetLibrary && (
         <WidgetCarouselExpanded
           order={widgetOrder}
-          onReorder={setWidgetOrder} // 👈 Referencia simplificada
+          onReorder={setWidgetOrder}
           onClose={() => setShowWidgetLibrary(false)}
         />
       )}
