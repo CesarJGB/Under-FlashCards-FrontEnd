@@ -7,9 +7,10 @@ export default function WidgetCarousel({
   title = 'Widgets', 
   onViewAll, 
   cardCount = 4,
-  order = [0, 1, 2, 3]
+  order = [0, 1, 2, 3],
+  onReorder
 }) {
-  const { isPickedUp, dragY, handlers } = useCardStack(cardCount);
+  const { isPickedUp, dragY, handlers } = useCardStack(cardCount, order, onReorder);
   const behindIds = order.slice(1, 3);
 
   return (
@@ -26,7 +27,6 @@ export default function WidgetCarousel({
       </div>
 
       <div className="relative" style={{ height: CARD_HEIGHT + 24 }}>
-        {/* Asomo de la tarjeta más al fondo */}
         {behindIds[1] !== undefined && (
           <div
             className="absolute inset-x-4 top-0 rounded-3xl bg-white border border-slate-200/60 z-10 flex items-center justify-center"
@@ -40,7 +40,6 @@ export default function WidgetCarousel({
           </div>
         )}
 
-        {/* Asomo de la tarjeta intermedia */}
         {behindIds[0] !== undefined && (
           <div
             className="absolute inset-x-2 top-0 rounded-3xl bg-white border border-slate-200/80 z-20 flex items-center justify-center"
@@ -54,7 +53,6 @@ export default function WidgetCarousel({
           </div>
         )}
 
-        {/* Tarjeta del frente */}
         <div
           {...handlers}
           className="absolute inset-x-0 top-0 z-30 rounded-3xl bg-white border border-slate-200 select-none flex items-center justify-center"
