@@ -21,7 +21,7 @@ function normalizeStudyMode(mode) {
 // =========================================================================
 exports.registerReview = async (req, res) => {
   const { deckId } = req.params;
-  const { cardId, userId, wasCorrect, responseTimeMs, sessionId, mode } = req.body;
+  const { cardId, userId, wasCorrect, responseTimeMs, sessionId, mode, isFragileRetry } = req.body;
 
   try {
     // 1. Mutación Atómica de la Flashcard (Nivel Micro) — pipeline update
@@ -70,6 +70,7 @@ exports.registerReview = async (req, res) => {
       subtemaId: deckContext?.subtemaId || null,
       sessionId: sessionId || null, // 🚀 Vínculo opcional a la sesión de estudio activa
       wasCorrect,
+      isFragileRetry: Boolean(isFragileRetry),
       responseTimeMs,
       currentDifficulty: card.difficulty,
       reviewNumber: card.totalReviews

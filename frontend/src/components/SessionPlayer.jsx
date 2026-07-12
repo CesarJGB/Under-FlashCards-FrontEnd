@@ -3,7 +3,7 @@ import { RotateCw, CheckCircle, XCircle, ArrowLeft, Loader2, RefreshCw, BarChart
 import CardFace, { getCardBackgroundStyle } from './CardFace';
 import FlipCard from './FlipCard';
 import { parseCardStyles } from '../lib/utils';
-import { buildContinuousBatch, buildNormalBatch, applyLocalAnswer, getCardId } from '../lib/batchBuilder';
+import { buildContinuousBatch, buildNormalBatch, applyLocalAnswer, getCardId, getInitialFragileGap, growFragileGap, insertFragileRetries } from '../lib/batchBuilder';
 import { getJSON, setJSON } from '../lib/safeLocalStorage';
 import useImmersiveScrollGuard from '../hooks/useImmersiveScrollGuard';
 
@@ -98,10 +98,102 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
   const pendingBatchNotificationsRef = useRef([]);
   const pendingSessionReviewsRef = useRef([]);
   const allCardsRef = useRef([]); // mazo completo, cargado una sola vez; se actualiza localmente tras cada respuesta
+  const fragileCardsRef = useRef(new Map());
+  const fragileRecoveredCardIdsRef = useRef(new Set());
+  const uniqueStudiedCardIdsRef = useRef(new Set());
+  const uniqueCardOutcomeRef = useRef(new Map());
+  const fragileSequenceRef = useRef(0);
 
   const currentCard = cards[currentIndex];
   const parsedStyles = useMemo(() => currentCard ? parseCardStyles(currentCard.fontSize) : null, [currentCard]);
   const { style: bgStyle, hasBg } = useMemo(() => getCardBackgroundStyle(currentCard, parsedStyles), [currentCard, parsedStyles]);
+
+  const scheduleFragileCard = (cardId, gap, spacedSuccesses) => {
+    fragileCardsRef.current.set(cardId, {
+      gap,
+      spacedSuccesses,
+      cardsUntilRetry: gap,
+      queueOrder: ++fragileSequenceRef.current,
+      queued: false,
+    });
+    fragileRecoveredCardIdsRef.current.delete(cardId);
+  };
+
+  const buildFragileRetryCard = (cardId) => {
+    const liveCard = allCardsRef.current.find(card => getCardId(card) === cardId);
+    if (!liveCard) return null;
+    return { ...liveCard, isFragileRetry: true };
+  };
+
+  const injectDueFragileRetries = (sourceCards, insertIndex) => {
+    const dueRetries = [];
+
+    fragileCardsRef.current.forEach((state, cardId) => {
+      if (state.queued || state.cardsUntilRetry > 0) return;
+
+      const retryCard = buildFragileRetryCard(cardId);
+      if (!retryCard) return;
+
+      state.queued = true;
+      dueRetries.push({ card: retryCard, queueOrder: state.queueOrder });
+    });
+
+    if (dueRetries.length === 0) return sourceCards;
+
+    dueRetries.sort((a, b) => a.queueOrder - b.queueOrder);
+    return insertFragileRetries(sourceCards, dueRetries.map(item => item.card), insertIndex);
+  };
+
+  const advanceFragileSpacing = (answeredCardId) => {
+    fragileCardsRef.current.forEach((state, cardId) => {
+      if (cardId === answeredCardId || state.queued || state.cardsUntilRetry <= 0) return;
+      state.cardsUntilRetry -= 1;
+    });
+  };
+
+  const updateFragileState = (cardId, wasCorrect) => {
+    const fragileState = fragileCardsRef.current.get(cardId);
+
+    if (!fragileState) {
+      if (!wasCorrect) {
+        scheduleFragileCard(cardId, getInitialFragileGap(), 0);
+      }
+      return;
+    }
+
+    fragileState.queued = false;
+
+    if (wasCorrect) {
+      const nextSpacedSuccesses = fragileState.spacedSuccesses + 1;
+      if (nextSpacedSuccesses >= 2) {
+        fragileCardsRef.current.delete(cardId);
+        fragileRecoveredCardIdsRef.current.add(cardId);
+        return;
+      }
+
+      scheduleFragileCard(cardId, fragileState.gap, nextSpacedSuccesses);
+      return;
+    }
+
+    scheduleFragileCard(cardId, growFragileGap(fragileState.gap), 0);
+  };
+
+  const buildLocalSessionSummary = (baseSummary) => {
+    const uniqueCardsStudied = uniqueStudiedCardIdsRef.current.size;
+    const uniqueCorrectCount = [...uniqueCardOutcomeRef.current.values()].filter(Boolean).length;
+
+    return {
+      ...baseSummary,
+      totalAttempts: baseSummary.cardsAnswered,
+      uniqueCardsStudied,
+      uniqueCorrectCount,
+      uniqueAccuracyRate: uniqueCardsStudied > 0
+        ? parseFloat((uniqueCorrectCount / uniqueCardsStudied).toFixed(2))
+        : 0,
+      fragileRecoveredCount: fragileRecoveredCardIdsRef.current.size,
+      fragileRemainingCount: fragileCardsRef.current.size,
+    };
+  };
 
   // =========================================================================
   // CICLO DE VIDA DE LA SESIÓN DE ESTUDIO
@@ -254,7 +346,7 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
       });
       if (response && response.ok) {
         const data = await response.json();
-        if (showSummary) setSessionSummary(data.session);
+        if (showSummary) setSessionSummary(buildLocalSessionSummary(data.session));
       }
     } catch (err) {
       console.error('Error al cerrar sesión de estudio:', err);
@@ -301,7 +393,17 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
   const lastCardIdRef = useRef(null);
 
   const startNewBatch = () => {
-    let batch = config.buildBatch(allCardsRef.current, { excludeCardId: lastCardIdRef.current });
+    const blockedFragileCardIds = [...fragileCardsRef.current.keys()];
+    let batch = config.buildBatch(allCardsRef.current, {
+      excludeCardId: lastCardIdRef.current,
+      blockedCardIds: blockedFragileCardIds,
+    });
+    batch = injectDueFragileRetries(batch, 0);
+
+    if ((!batch || batch.length === 0) && blockedFragileCardIds.length > 0) {
+      batch = injectDueFragileRetries([], 0);
+    }
+
     if (!batch || batch.length === 0) {
       // fallback: usar todo el mazo si existe
       batch = allCardsRef.current && allCardsRef.current.length ? [...allCardsRef.current] : [];
@@ -326,6 +428,11 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
     sessionStartPromiseRef.current = null;
     pendingBatchNotificationsRef.current = [];
     pendingSessionReviewsRef.current = [];
+    fragileCardsRef.current = new Map();
+    fragileRecoveredCardIdsRef.current = new Set();
+    uniqueStudiedCardIdsRef.current = new Set();
+    uniqueCardOutcomeRef.current = new Map();
+    fragileSequenceRef.current = 0;
 
     // cargar cola persistente de reviews
     try {
@@ -371,6 +478,7 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
     const responseTimeMs = startTimeRef.current ? Math.round(endTime - startTimeRef.current) : 0;
     const currentCard = cards[currentIndex];
     const cardId = getCardId(currentCard);
+    const isFragileRetry = Boolean(currentCard?.isFragileRetry);
 
     // 🔥 Disparo Optimista hacia el Ledger y Motor en Cascada (No bloquea la UI)
     // Telemetría optimista: usar sendBeacon si es posible + persistir en cola si falla
@@ -380,17 +488,28 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
       wasCorrect,
       responseTimeMs,
       sessionId: sessionIdRef.current,
-      mode
+      mode,
+      isFragileRetry
     }).catch(() => { /* handled inside sendReview */ });
+
+    uniqueStudiedCardIdsRef.current.add(cardId);
+    uniqueCardOutcomeRef.current.set(cardId, wasCorrect);
 
     // Actualizamos la copia local de la tarjeta (mismo delta que aplica el
     // backend) para que el próximo lote ya priorice con datos frescos,
     // sin esperar ningún round-trip de red.
     allCardsRef.current = applyLocalAnswer(allCardsRef.current, cardId, wasCorrect);
+    updateFragileState(cardId, wasCorrect);
+    advanceFragileSpacing(cardId);
+    const nextCards = injectDueFragileRetries(cards, currentIndex + 1);
 
     lastCardIdRef.current = cardId;
 
-    if (currentIndex < cards.length - 1) {
+    if (nextCards !== cards) {
+      setCards(nextCards);
+    }
+
+    if (currentIndex < nextCards.length - 1) {
       setCurrentIndex((prev) => prev + 1);
     } else {
       notifyBatchCompleted();
@@ -428,12 +547,12 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
 
         <div className="grid grid-cols-2 gap-3 mb-6">
           <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4">
-            <p className="text-2xl font-extrabold text-slate-800">{sessionSummary.cardsAnswered}</p>
-            <p className="text-[10px] text-slate-400 uppercase tracking-wider font-bold mt-1">Tarjetas</p>
+            <p className="text-2xl font-extrabold text-slate-800">{sessionSummary.totalAttempts}</p>
+            <p className="text-[10px] text-slate-400 uppercase tracking-wider font-bold mt-1">Intentos</p>
           </div>
           <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4">
-            <p className="text-2xl font-extrabold text-slate-800">{sessionSummary.batchesCompleted}</p>
-            <p className="text-[10px] text-slate-400 uppercase tracking-wider font-bold mt-1">{config.batchLabel}</p>
+            <p className="text-2xl font-extrabold text-slate-800">{sessionSummary.uniqueCardsStudied}</p>
+            <p className="text-[10px] text-slate-400 uppercase tracking-wider font-bold mt-1">Tarjetas únicas</p>
           </div>
           <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4">
             <p className="text-2xl font-extrabold text-emerald-600">{sessionSummary.correctCount}</p>
@@ -443,12 +562,26 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
             <p className="text-2xl font-extrabold text-red-500">{sessionSummary.incorrectCount}</p>
             <p className="text-[10px] text-red-400 uppercase tracking-wider font-bold mt-1">Errores</p>
           </div>
+          <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4">
+            <p className="text-2xl font-extrabold text-indigo-600">{sessionSummary.fragileRecoveredCount}</p>
+            <p className="text-[10px] text-indigo-500 uppercase tracking-wider font-bold mt-1">Recuperadas</p>
+          </div>
+          <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4">
+            <p className="text-2xl font-extrabold text-amber-600">{sessionSummary.fragileRemainingCount}</p>
+            <p className="text-[10px] text-amber-500 uppercase tracking-wider font-bold mt-1">Aún frágiles</p>
+          </div>
         </div>
 
         <p className="text-xs text-slate-400 mb-6">
-          Precisión: <span className="font-bold text-slate-600">{Math.round(sessionSummary.accuracyRate * 100)}%</span>
+          Precisión única: <span className="font-bold text-slate-600">{Math.round(sessionSummary.uniqueAccuracyRate * 100)}%</span>
           {' · '}
           Tiempo promedio: <span className="font-bold text-slate-600">{sessionSummary.avgResponseTimeMs}ms</span>
+        </p>
+
+        <p className="text-[11px] text-slate-400 mb-6">
+          Precisión por intento: <span className="font-bold text-slate-600">{Math.round(sessionSummary.accuracyRate * 100)}%</span>
+          {' · '}
+          {config.batchLabel}: <span className="font-bold text-slate-600">{sessionSummary.batchesCompleted}</span>
         </p>
 
         <button
@@ -497,6 +630,14 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
           {config.progressLabel}: {currentIndex + 1} / {cards.length}
         </span>
       </div>
+
+      {currentCard?.isFragileRetry && (
+        <div className="mb-4 flex justify-center">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[10px] font-extrabold uppercase tracking-wider text-amber-700">
+            <RefreshCw className="w-3 h-3" /> Repaso
+          </span>
+        </div>
+      )}
 
       {config.cardStyle === 'flip' ? (
         <FlipCardSection

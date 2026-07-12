@@ -70,6 +70,10 @@ const reviewLogSchema = new mongoose.Schema(
       type: Boolean,
       required: true,
     },
+    isFragileRetry: {
+      type: Boolean,
+      default: false,
+    },
     responseTimeMs: {
       type: Number,
       required: true, // Tiempo exacto que tardó el usuario en presionar "Mostrar Respuesta"
@@ -128,6 +132,7 @@ reviewLogSchema.methods.serialize = function () {
     subtemaId: this.subtemaId,
     sessionId: this.sessionId,
     wasCorrect: this.wasCorrect,
+    isFragileRetry: this.isFragileRetry,
     responseTimeMs: this.responseTimeMs,
     currentDifficulty: this.currentDifficulty,
     reviewNumber: this.reviewNumber,

@@ -10,8 +10,15 @@ const BATCH_SIZE = 30;
 const NEW_CARD_RATIO = 0.6; // hasta 60% del lote puede ser tarjetas nunca repasadas
 const ERROR_CAP = 5; // techo para que consecutiveErrors no monopolice infinitamente
 
+export const FRAGILE_MIN_GAP = 3;
+export const FRAGILE_MAX_GAP = 6;
+
 export function getCardId(card) {
   return card.id || card._id;
+}
+
+function buildBlockedCardSet(blockedCardIds = []) {
+  return new Set(blockedCardIds);
 }
 
 function shuffleByWeight(list, weightFn) {
@@ -35,8 +42,14 @@ function fisherYates(list) {
  * pero con boost fuerte para tarjetas nunca repasadas (60/40), igual que
  * getContinuousSessionCards en el backend.
  */
-export function buildContinuousBatch(allCards, { excludeCardId } = {}) {
-  const pool = excludeCardId ? allCards.filter(c => getCardId(c) !== excludeCardId) : allCards;
+export function buildContinuousBatch(allCards, { excludeCardId, blockedCardIds = [] } = {}) {
+  const blocked = buildBlockedCardSet(blockedCardIds);
+  const pool = (excludeCardId || blocked.size > 0)
+    ? allCards.filter(c => {
+      const cardId = getCardId(c);
+      return cardId !== excludeCardId && !blocked.has(cardId);
+    })
+    : allCards;
   const newCards = [];
   const reviewedCards = [];
   pool.forEach(card => {
@@ -78,14 +91,37 @@ export function buildContinuousBatch(allCards, { excludeCardId } = {}) {
  * Arma un lote con el mazo completo en orden aleatorio simple, sin ponderar
  * por dificultad ni errores. Igual que getNormalSessionCards en el backend.
  */
-export function buildNormalBatch(allCards, { excludeCardId } = {}) {
-  const pool = excludeCardId ? allCards.filter(c => getCardId(c) !== excludeCardId) : allCards;
+export function buildNormalBatch(allCards, { excludeCardId, blockedCardIds = [] } = {}) {
+  const blocked = buildBlockedCardSet(blockedCardIds);
+  const pool = (excludeCardId || blocked.size > 0)
+    ? allCards.filter(c => {
+      const cardId = getCardId(c);
+      return cardId !== excludeCardId && !blocked.has(cardId);
+    })
+    : allCards;
   const shuffled = fisherYates(pool);
-  if (excludeCardId) {
+  if (excludeCardId && !blocked.has(excludeCardId)) {
     const excluded = allCards.find(c => getCardId(c) === excludeCardId);
     if (excluded) shuffled.push(excluded);
   }
   return shuffled;
+}
+
+export function getInitialFragileGap() {
+  return FRAGILE_MIN_GAP;
+}
+
+export function growFragileGap(currentGap) {
+  return Math.min(FRAGILE_MAX_GAP, Math.max(FRAGILE_MIN_GAP, (currentGap ?? FRAGILE_MIN_GAP) + 1));
+}
+
+export function insertFragileRetries(cards, retryCards, insertIndex = 0) {
+  if (!retryCards || retryCards.length === 0) return cards;
+
+  const nextCards = [...cards];
+  const boundedIndex = Math.max(0, Math.min(insertIndex, nextCards.length));
+  nextCards.splice(boundedIndex, 0, ...retryCards);
+  return nextCards;
 }
 
 /**
