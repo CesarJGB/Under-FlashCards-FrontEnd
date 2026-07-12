@@ -1,173 +1,27 @@
 // FILE: frontend/src/components/home/QuickViewGrid.jsx
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState } from 'react';
 import { Layers, Settings, Plus } from 'lucide-react';
 import MateriaSelectorModal from './MateriaSelectorModal';
-
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos
-import { getJSON, setJSON } from '../../lib/safeLocalStorage';
+import { buildQuickViewNavigationTarget } from './quickViewNavigation';
 
 export default function QuickViewGrid({ 
   enrichedMaterias, 
+  visibleMaterias,
+  selectedMaterias,
+  isInitialLoad,
+  onToggleMateria,
+  onSelectAll,
+  onClearAll,
   getKnowledgeAccent, 
   getParcialesBadge,
-  userId,
   onMateriaClick
 }) {
-  const [selectedMaterias, setSelectedMaterias] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isInitialLoad, setIsInitialLoad] = useState(true);
-  
-  // Ref para evitar race conditions en desmontaje
-  const isMounted = useRef(true);
-  const abortController = useRef(null);
-
-  // ========================================================================
-  // CARGA INICIAL CON CONFIANZA EN CACHÉ (stale-while-revalidate)
-  // ========================================================================
-  useEffect(() => {
-    if (!userId) return;
-    isMounted.current = true;
-
-    const loadPreferences = async () => {
-      // 1. Cargar desde localStorage INMEDIATAMENTE (sin spinner)
-    const cached = getJSON(`quickView_materias_${userId}`);
-    const cachedTimestamp = getJSON(`quickView_materias_${userId}_ts`);
-
-    if (cached) {
-      if (isMounted.current) setSelectedMaterias(cached);
-    }
-
-    // 2. Decidir si necesitamos sincronizar con backend
-    const cacheAge = cachedTimestamp ? Date.now() - Number(cachedTimestamp) : Infinity;
-      const needsSync = cacheAge > CACHE_TTL_MS;
-
-      if (!needsSync) {
-        // Caché fresco → no hacer fetch, solo marcar como listo
-        if (isMounted.current) setIsInitialLoad(false);
-        return;
-      }
-
-      // 3. Sincronización silenciosa en background
-      
-      // Cancelar request anterior si existe
-      if (abortController.current) abortController.current.abort();
-      abortController.current = new AbortController();
-
-      try {
-        const res = await fetch(`${BACKEND_URL}/api/users/${userId}/preferences`, {
-          signal: abortController.current.signal
-        });
-        
-        if (!isMounted.current) return;
-        
-        if (res.ok) {
-          const data = await res.json();
-          const serverMaterias = data.quickViewMaterias || [];
-          
-          // Actualizar estado solo si cambió (evita re-render innecesario)
-          setSelectedMaterias(prev => {
-            if (JSON.stringify(prev) === JSON.stringify(serverMaterias)) return prev;
-            setJSON(`quickView_materias_${userId}`, serverMaterias);
-            setJSON(`quickView_materias_${userId}_ts`, Date.now());
-            return serverMaterias;
-          });
-        }
-      } catch (error) {
-        if (error.name !== 'AbortError') {
-          console.error('[QuickViewGrid] Error al sincronizar:', error);
-        }
-      } finally {
-        if (isMounted.current) {
-          setIsInitialLoad(false);
-        }
-      }
-    };
-
-    loadPreferences();
-
-    return () => {
-      isMounted.current = false;
-      if (abortController.current) abortController.current.abort();
-    };
-  }, [userId]);
-
-  // ========================================================================
-  // GUARDAR CON OPTIMISTIC UPDATE
-  // ========================================================================
-  const savePreferences = useCallback(async (materiasIds) => {
-    if (!userId) return;
-
-    // Actualizar localStorage INMEDIATAMENTE + timestamp
-    setJSON(`quickView_materias_${userId}`, materiasIds);
-    setJSON(`quickView_materias_${userId}_ts`, Date.now());
-
-    // Sincronización silenciosa en background (sin UI de "saving")
-    try {
-      const res = await fetch(`${BACKEND_URL}/api/users/${userId}/preferences`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ quickViewMaterias: materiasIds })
-      });
-      
-      if (!res.ok) throw new Error('Error al sincronizar');
-    } catch (error) {
-      console.error('[QuickViewGrid] Error en sync:', error);
-      // Opcional: retry o notificar al usuario si es crítico
-    }
-  }, [userId]);
-
-  const handleToggleMateria = (materiaId) => {
-    setSelectedMaterias(prev => {
-      const newSelection = prev.includes(materiaId)
-        ? prev.filter(id => id !== materiaId)
-        : [...prev, materiaId];
-      
-      savePreferences(newSelection);
-      return newSelection;
-    });
-  };
-
-  const handleSelectAll = () => {
-    const allIds = enrichedMaterias.map(m => m.id);
-    setSelectedMaterias(allIds);
-    savePreferences(allIds);
-  };
-
-  const handleClearAll = () => {
-    setSelectedMaterias([]);
-    savePreferences([]);
-  };
-
   const handleCardClick = (materia) => {
     if (!onMateriaClick) return;
-    
-    const ap = materia.activeParciales || [];
-    const isFiltered = ap.length > 0 && ap.length < 3;
-    
-    if (!isFiltered) {
-      onMateriaClick({ materiaId: materia.id, parcialNumber: null, temaId: null, subtemaId: null });
-    } else if (ap.length === 1) {
-      onMateriaClick({ materiaId: materia.id, parcialNumber: ap[0], temaId: null, subtemaId: null });
-    } else {
-      onMateriaClick({ 
-        materiaId: materia.id, 
-        parcialNumber: null, 
-        temaId: null, 
-        subtemaId: null,
-        filterActiveParciales: true
-      });
-    }
+    onMateriaClick(buildQuickViewNavigationTarget(materia));
   };
 
-  // ========================================================================
-  // RENDERIZADO
-  // ========================================================================
-  const visibleMaterias = selectedMaterias.length > 0
-    ? enrichedMaterias.filter(m => selectedMaterias.includes(m.id))
-    : [];
-
-  // Caso 1: Primera carga sin caché (usuario nuevo o localStorage vacío)
   if (isInitialLoad && selectedMaterias.length === 0) {
     return (
       <div className="space-y-4">
@@ -261,9 +115,9 @@ export default function QuickViewGrid({
         <MateriaSelectorModal
           materias={enrichedMaterias}
           selectedMaterias={selectedMaterias}
-          onToggle={handleToggleMateria}
-          onSelectAll={handleSelectAll}
-          onClearAll={handleClearAll}
+          onToggle={onToggleMateria}
+          onSelectAll={onSelectAll}
+          onClearAll={onClearAll}
           onClose={() => setIsModalOpen(false)}
         />
       )}

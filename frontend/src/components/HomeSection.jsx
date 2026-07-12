@@ -8,27 +8,11 @@ import DetailedMateriasGrid from './home/DetailedMateriasGrid';
 import UnclassifiedDecksSection from './home/UnclassifiedDecksSection';
 import WidgetCarouselExpanded from './home/WidgetCarouselExpanded';
 import { getJSON, setJSON, remove } from '../lib/safeLocalStorage';
+import useQuickViewMaterias from './home/useQuickViewMaterias';
+import { DEFAULT_WIDGET_ORDER, normalizeWidgetOrder } from './home/homeWidgetRegistry';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 const DOMAIN_PREVIEWS_TTL_MS = 15 * 60 * 1000; // 15 minutos
-const DEFAULT_WIDGET_ORDER = [0, 1, 2, 3];
-
-function normalizeWidgetOrder(order) {
-  if (!Array.isArray(order)) return DEFAULT_WIDGET_ORDER;
-
-  const allowedIds = new Set(DEFAULT_WIDGET_ORDER);
-  const uniqueIds = [];
-
-  order.forEach((id) => {
-    if (!allowedIds.has(id)) return;
-    if (uniqueIds.includes(id)) return;
-    uniqueIds.push(id);
-  });
-
-  const missingIds = DEFAULT_WIDGET_ORDER.filter((id) => !uniqueIds.includes(id));
-  return [...uniqueIds, ...missingIds];
-}
-
 function rotateWidgetOrder(order, offset) {
   if (!Array.isArray(order) || order.length === 0) return [];
 
@@ -466,6 +450,33 @@ export default function HomeSection({
     };
   };
 
+  const quickView = useQuickViewMaterias({
+    userId: user?.id,
+    enrichedMaterias
+  });
+
+  const widgetContext = useMemo(() => ({
+    user,
+    globalStats,
+    enrichedMaterias,
+    unclassifiedDecks,
+    quickView,
+    getKnowledgeAccent,
+    getParcialesBadge,
+    onNavigateToLibrary,
+    onOpenReview
+  }), [
+    user,
+    globalStats,
+    enrichedMaterias,
+    unclassifiedDecks,
+    quickView,
+    getKnowledgeAccent,
+    getParcialesBadge,
+    onNavigateToLibrary,
+    onOpenReview
+  ]);
+
   return (
     <>
       <div className="w-full space-y-8 animate-[fadeIn_0.15s_ease]">
@@ -478,6 +489,7 @@ export default function HomeSection({
           onViewAll={() => setShowWidgetLibrary(true)}
           order={visibleWidgetOrder}
           onShift={handleCarouselShift}
+          widgetContext={widgetContext}
         />
 
         {/* Resumen Global */}
@@ -490,9 +502,14 @@ export default function HomeSection({
         {homeVisibility.quickView && (
           <QuickViewGrid
             enrichedMaterias={enrichedMaterias}
+            visibleMaterias={quickView.visibleMaterias}
+            selectedMaterias={quickView.selectedMaterias}
+            isInitialLoad={quickView.isInitialLoad}
+            onToggleMateria={quickView.toggleMateria}
+            onSelectAll={quickView.selectAll}
+            onClearAll={quickView.clearAll}
             getKnowledgeAccent={getKnowledgeAccent}
             getParcialesBadge={getParcialesBadge}
-            userId={user?.id}
             onMateriaClick={onNavigateToLibrary}
           />
         )}

@@ -1,14 +1,16 @@
 // FILE: frontend/src/components/home/useCardStack.js
 import { useRef, useState, useCallback } from 'react';
 
-const LONG_PRESS_MS = 600;
-const DRAG_THRESHOLD_PX = 80;
+const LONG_PRESS_MS = 750;
+const DRAG_THRESHOLD_PX = 88;
+const PRE_DRAG_SLOP_PX = 14;
 
 export default function useCardStack(itemCount, onShift) {
   const [isPickedUp, setIsPickedUp] = useState(false);
   const [dragY, setDragY] = useState(0);
 
   const pressTimer = useRef(null);
+  const startX = useRef(0);
   const startY = useRef(0);
   const dragYRef = useRef(0);
   const isDragging = useRef(false);
@@ -24,6 +26,7 @@ export default function useCardStack(itemCount, onShift) {
   const onPointerDown = useCallback((e) => {
     cancelledByMove.current = false;
     isDragging.current = false;
+    startX.current = e.clientX;
     startY.current = e.clientY;
 
     pressTimer.current = setTimeout(() => {
@@ -41,7 +44,11 @@ export default function useCardStack(itemCount, onShift) {
       setDragY(next);
       return;
     }
-    if (Math.abs(e.clientY - startY.current) > 10) {
+
+    const deltaX = e.clientX - startX.current;
+    const deltaY = e.clientY - startY.current;
+
+    if (Math.abs(deltaX) > PRE_DRAG_SLOP_PX || Math.abs(deltaY) > PRE_DRAG_SLOP_PX) {
       cancelledByMove.current = true;
       clearPressTimer();
     }

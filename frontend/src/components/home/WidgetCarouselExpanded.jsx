@@ -1,11 +1,16 @@
 // FILE: frontend/src/components/home/WidgetCarouselExpanded.jsx
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { LayoutTemplate } from 'lucide-react';
+import WidgetLibrary from './WidgetLibrary';
+import { getHomeWidgetDefinition } from './homeWidgetRegistry';
 
 export default function WidgetCarouselExpanded({ 
   order, 
   onReorder, 
   onClose 
 }) {
+  const [showLibrary, setShowLibrary] = useState(false);
+
   // Bloquear scroll del body cuando el modal está abierto
   useEffect(() => {
     document.body.style.overflow = 'hidden';
@@ -32,14 +37,23 @@ export default function WidgetCarouselExpanded({
             <h2 className="text-2xl font-bold text-slate-900">Tus Widgets</h2>
             <p className="text-sm text-slate-500">Orden actual ({order.length} widgets)</p>
           </div>
-          <button
-            onClick={onClose}
-            className="p-3 rounded-full bg-slate-100 hover:bg-slate-200 transition-colors"
-          >
-            <svg className="w-6 h-6 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowLibrary(true)}
+              className="px-3 py-2 rounded-xl border border-slate-200 text-sm font-medium text-slate-600 hover:border-indigo-200 hover:text-indigo-600 transition-colors flex items-center gap-2"
+            >
+              <LayoutTemplate className="w-4 h-4" />
+              Biblioteca
+            </button>
+            <button
+              onClick={onClose}
+              className="p-3 rounded-full bg-slate-100 hover:bg-slate-200 transition-colors"
+            >
+              <svg className="w-6 h-6 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
         
         <div className="bg-indigo-50 border border-indigo-200 rounded-xl px-3 py-2 text-xs text-indigo-700">
@@ -55,12 +69,16 @@ export default function WidgetCarouselExpanded({
           WebkitOverflowScrolling: 'touch' 
         }}
       >
-        {order.map((widgetNum, position) => {
+        {order.map((widgetId, position) => {
           const isFirst = position === 0;
+          const widget = getHomeWidgetDefinition(widgetId);
+          const Icon = widget?.icon;
+
+          if (!widget) return null;
           
           return (
             <div
-              key={`${widgetNum}-${position}`}
+              key={`${widgetId}-${position}`}
               className={`bg-white rounded-2xl border-2 p-6 transition-all ${
                 isFirst 
                   ? 'border-indigo-400 shadow-lg shadow-indigo-100' 
@@ -75,7 +93,17 @@ export default function WidgetCarouselExpanded({
                 </div>
                 
                 <div className="flex-1">
-                  <span className="text-4xl font-bold text-slate-800">#{widgetNum}</span>
+                  <div className="flex items-center gap-3">
+                    {Icon && (
+                      <div className="w-11 h-11 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                        <Icon className="w-5 h-5" />
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-lg font-bold text-slate-900">{widget.title}</p>
+                      <p className="text-sm text-slate-500">{widget.description}</p>
+                    </div>
+                  </div>
                   {isFirst && (
                     <span className="ml-3 text-xs font-medium text-indigo-600 bg-indigo-50 px-2 py-1 rounded-full">
                       Visible ahora
@@ -108,6 +136,13 @@ export default function WidgetCarouselExpanded({
           );
         })}
       </div>
+
+      {showLibrary && (
+        <WidgetLibrary
+          activeWidgetIds={order}
+          onClose={() => setShowLibrary(false)}
+        />
+      )}
     </div>
   );
 }
