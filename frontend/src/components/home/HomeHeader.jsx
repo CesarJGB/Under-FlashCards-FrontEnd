@@ -1,5 +1,6 @@
 // FILE: frontend/src/components/home/HomeHeader.jsx
 import { useMemo } from 'react';
+import { Bell, Settings } from 'lucide-react';
 
 function getGreeting() {
   const hour = new Date().getHours();
@@ -15,18 +16,17 @@ function getInitials(name) {
   return initials.join('') || '?';
 }
 
-export default function HomeHeader({ user, onOpenProfile }) {
+// Nota: el ícono de engranaje abre el perfil (onOpenProfile), no una pantalla de
+// ajustes independiente — decisión explícita de Cesar. onOpenNotifications es
+// opcional y aún no está cableado a ninguna funcionalidad (placeholder visual).
+export default function HomeHeader({ user, onOpenProfile, onOpenNotifications }) {
   const greeting = useMemo(() => getGreeting(), []);
   const name = user?.name || user?.given_name || user?.email?.split('@')[0] || 'Usuario';
   const picture = user?.picture;
 
   return (
-    <button
-      type="button"
-      onClick={onOpenProfile}
-      className="w-full flex items-center gap-3 text-left group cursor-pointer"
-    >
-      <div className="w-14 h-14 rounded-full overflow-hidden shrink-0 bg-slate-200 flex items-center justify-center ring-1 ring-slate-200 group-active:scale-95 transition-transform">
+    <div className="w-full flex items-center gap-3">
+      <div className="w-14 h-14 rounded-full overflow-hidden shrink-0 bg-slate-200 flex items-center justify-center ring-1 ring-slate-200">
         {picture ? (
           <img
             src={picture}
@@ -41,12 +41,32 @@ export default function HomeHeader({ user, onOpenProfile }) {
         )}
       </div>
 
-      <div className="min-w-0">
-        <p className="text-sm text-slate-400 leading-tight">{greeting}!</p>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm text-slate-400 leading-tight truncate">{greeting}!</p>
         <p className="text-lg font-bold text-slate-900 leading-tight truncate">
           {name}
         </p>
       </div>
-    </button>
+
+      <div className="flex items-center gap-2 shrink-0">
+        <button
+          type="button"
+          onClick={onOpenNotifications}
+          title="Notificaciones"
+          className="w-11 h-11 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50 active:scale-95 transition-all cursor-pointer"
+        >
+          <Bell className="w-5 h-5" />
+        </button>
+
+        <button
+          type="button"
+          onClick={onOpenProfile}
+          title="Perfil"
+          className="w-11 h-11 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50 active:scale-95 transition-all cursor-pointer"
+        >
+          <Settings className="w-5 h-5" />
+        </button>
+      </div>
+    </div>
   );
 }
