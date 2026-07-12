@@ -6,7 +6,7 @@ export default function WidgetCarouselExpanded({
   onReorder, 
   onClose 
 }) {
-  // Prevenir scroll del body cuando el modal está abierto
+  // Bloquear scroll del body cuando el modal está abierto
   useEffect(() => {
     document.body.style.overflow = 'hidden';
     return () => {
@@ -24,8 +24,8 @@ export default function WidgetCarouselExpanded({
   };
 
   return (
-    <div className="fixed inset-0 z-[9999] bg-white animate-[fadeIn_0.2s_ease]">
-      {/* Header sticky */}
+    <div className="fixed inset-0 z-[9999] bg-white">
+      {/* Header completo (sin asumir que hay header en HomeSection) */}
       <div className="sticky top-0 bg-white border-b border-slate-200 px-4 py-4 z-10">
         <div className="flex items-center justify-between mb-3">
           <div>
@@ -47,8 +47,14 @@ export default function WidgetCarouselExpanded({
         </div>
       </div>
 
-      {/* Lista con scroll independiente */}
-      <div className="p-4 space-y-3 overflow-y-auto" style={{ height: 'calc(100vh - 140px)' }}>
+      {/* Contenido con scroll independiente */}
+      <div 
+        className="p-4 space-y-3 overflow-y-auto" 
+        style={{ 
+          height: 'calc(100vh - 140px)', 
+          WebkitOverflowScrolling: 'touch' 
+        }}
+      >
         {order.map((widgetNum, position) => {
           const isFirst = position === 0;
           
