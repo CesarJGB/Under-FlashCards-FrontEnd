@@ -6,6 +6,7 @@ import GlobalStatsHeader from './home/GlobalStatsHeader';
 import QuickViewGrid from './home/QuickViewGrid';
 import DetailedMateriasGrid from './home/DetailedMateriasGrid';
 import UnclassifiedDecksSection from './home/UnclassifiedDecksSection';
+import WidgetLibrary from './home/WidgetLibrary'; // 👈 Añadido el import
 import { getJSON, setJSON, remove } from '../lib/safeLocalStorage';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
@@ -27,6 +28,9 @@ export default function HomeSection({
     detailedView: false,
     unclassifiedDecks: false
   });
+
+  // 👈 Añadido el estado para controlar la visibilidad de la librería de widgets
+  const [showWidgetLibrary, setShowWidgetLibrary] = useState(false);
 
   const isMounted = useRef(true);
   const abortController = useRef(null);
@@ -142,7 +146,6 @@ export default function HomeSection({
   // 🔄 FETCH SILENCIOSO CON VALIDACIÓN DE TTL
   // =========================================================================
   const fetchDomainPreviews = useCallback(async () => {
-    // Incremental request id to prevent out-of-order responses from overwriting newer data
     const myRequestId = ++requestSeq.current;
 
     if (!materias || !user?.id) return;
@@ -157,21 +160,17 @@ export default function HomeSection({
       return;
     }
 
-    // 1. Leer caché actual
     let cachedPreviews = getJSON(`domainPreviews_${user.id}`) || {};
 
-    // 2. Determinar qué materias necesitan fetch
     const needsFetch = filtered.filter(m => {
       const id = String(m._id || m.id);
       const cached = cachedPreviews[id];
       
       if (!cached) return true;
       
-      // Validar TTL
       const cacheAge = Date.now() - (cached.timestamp || 0);
       if (cacheAge > DOMAIN_PREVIEWS_TTL_MS) return true;
       
-      // Validar que los parciales coinciden
       const currentParciales = m.activeParciales || [];
       const cachedParciales = cached.parciales || [];
       
@@ -187,7 +186,6 @@ export default function HomeSection({
       return false;
     });
 
-    // 3. Si no necesita fetch, inicializar con caché y salir
     if (needsFetch.length === 0) {
       setDomainPreviews(prev => {
         const updated = {};
@@ -198,14 +196,12 @@ export default function HomeSection({
           }
         });
         
-        // Solo actualizar si cambió algo
         if (JSON.stringify(prev) === JSON.stringify(updated)) return prev;
         return updated;
       });
       return;
     }
 
-    // 4. Fetch silencioso en background
     if (abortController.current) abortController.current.abort();
     const controller = new AbortController();
     abortController.current = controller;
@@ -238,7 +234,6 @@ export default function HomeSection({
       }
     }));
 
-    // 5. Guardar en caché y actualizar state solo si cambió y esta es la última petición
     if (hasChanges && isMounted.current && requestSeq.current === myRequestId) {
       try {
         setJSON(`domainPreviews_${user.id}`, results);
@@ -255,21 +250,16 @@ export default function HomeSection({
           }
         });
         
-        // Solo actualizar si cambió algo
         if (JSON.stringify(prev) === JSON.stringify(updated)) return prev;
         return updated;
       });
     }
 
-    // Limpiar controller si sigue siendo el actual
     if (abortController.current === controller) {
       abortController.current = null;
     }
   }, [materias, user?.id]);
 
-  // =========================================================================
-  // 🚀 EJECUTAR FETCH AL MONTAR Y CUANDO CAMBIEN LAS MATERIAS
-  // =========================================================================
   useEffect(() => {
     isMounted.current = true;
     fetchDomainPreviews();
@@ -286,7 +276,6 @@ export default function HomeSection({
   // =========================================================================
   // MOTOR DE PROCESAMIENTO REACTIVO EN MEMORIA (0ms)
   // =========================================================================
-  // Agrupar los mazos por materia para evitar filtros O(N*M) dentro del map
   const decksByMateria = useMemo(() => {
     if (!decks) return {};
     return decks.reduce((acc, deck) => {
@@ -297,7 +286,6 @@ export default function HomeSection({
     }, {});
   }, [decks]);
 
-  // Huella simplificada de domainPreviews para evitar recomputos por referencia
   const domainPreviewsKey = useMemo(
     () => JSON.stringify(domainPreviews),
     [domainPreviews]
@@ -317,7 +305,6 @@ export default function HomeSection({
       const ap = materia.activeParciales || [1, 2, 3];
       const isFiltered = ap.length > 0 && ap.length < 3;
       
-      // Usar domainPreviews si está disponible, sino fallback a analytics general
       const masteryPercentage = isFiltered && typeof domainPreviews[currentMateriaId] === 'number'
         ? domainPreviews[currentMateriaId]
         : (materia.analytics?.masteryPercentage ?? 0);
@@ -387,11 +374,11 @@ export default function HomeSection({
   return (
     <div className="w-full space-y-8 animate-[fadeIn_0.15s_ease]">
 
-      {/* Encabezado de usuario: avatar + saludo + nombre (reemplaza el header móvil de App.jsx en 'home') */}
+      {/* Encabezado de usuario */}
       <HomeHeader user={user} onOpenProfile={onOpenProfile} />
 
-      {/* Carrusel de widgets: tarjetas en blanco por ahora, reordenables con long-press + arrastre */}
-      <WidgetCarousel />
+      {/* Carrusel de widgets modificado con el handler onViewAll */}
+      <WidgetCarousel onViewAll={() => setShowWidgetLibrary(true)} />
 
       {/* Resumen Global */}
       <GlobalStatsHeader 
@@ -424,6 +411,19 @@ export default function HomeSection({
         <UnclassifiedDecksSection 
           unclassifiedDecks={unclassifiedDecks}
           onOpenReview={onOpenReview}
+        />
+      )}
+
+      {/* Librería de Widgets condicional */}
+      {showWidgetLibrary && (
+        <WidgetLibrary
+          user={user}
+          globalStats={globalStats}
+          enrichedMaterias={enrichedMaterias}
+          unclassifiedDecks={unclassifiedDecks}
+          onClose={() => setShowWidgetLibrary(false)}
+          onOpenReview={onOpenReview}
+          onNavigateToLibrary={onNavigateToLibrary}
         />
       )}
 
