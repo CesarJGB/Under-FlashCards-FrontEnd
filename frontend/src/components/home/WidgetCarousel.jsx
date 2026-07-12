@@ -1,11 +1,15 @@
 // FILE: frontend/src/components/home/WidgetCarousel.jsx
 import useCardStack from './useCardStack';
 
-const CARD_HEIGHT = 264; // 50% más largo (antes 176)
+const CARD_HEIGHT = 264;
 
-export default function WidgetCarousel({ title = 'Widgets', onViewAll, cardCount = 4 }) {
-  const { order, isPickedUp, dragY, handlers } = useCardStack(cardCount);
-
+export default function WidgetCarousel({ 
+  title = 'Widgets', 
+  onViewAll, 
+  cardCount = 4,
+  order = [0, 1, 2, 3]
+}) {
+  const { isPickedUp, dragY, handlers } = useCardStack(cardCount);
   const behindIds = order.slice(1, 3);
 
   return (
@@ -17,7 +21,7 @@ export default function WidgetCarousel({ title = 'Widgets', onViewAll, cardCount
           onClick={onViewAll}
           className="text-sm text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
         >
-          Ver todas
+          Ver todas ({order.length})
         </button>
       </div>
 
@@ -32,7 +36,7 @@ export default function WidgetCarousel({ title = 'Widgets', onViewAll, cardCount
               opacity: 0.6
             }}
           >
-            <span className="text-4xl font-bold text-slate-300">#{order[2]}</span>
+            <span className="text-5xl font-bold text-slate-300">#{order[2]}</span>
           </div>
         )}
 
@@ -46,7 +50,7 @@ export default function WidgetCarousel({ title = 'Widgets', onViewAll, cardCount
               opacity: 0.8
             }}
           >
-            <span className="text-4xl font-bold text-slate-400">#{order[1]}</span>
+            <span className="text-5xl font-bold text-slate-400">#{order[1]}</span>
           </div>
         )}
 
@@ -65,17 +69,12 @@ export default function WidgetCarousel({ title = 'Widgets', onViewAll, cardCount
           }}
         >
           <div className="text-center">
-            <span className="text-6xl font-bold text-slate-800">#{order[0]}</span>
+            <span className="text-7xl font-bold text-slate-800">#{order[0]}</span>
             <p className="text-sm text-slate-500 mt-2">
               {isPickedUp ? 'Arrastra ↑↓' : 'Mantén presionado'}
             </p>
           </div>
         </div>
-      </div>
-      
-      {/* Debug info */}
-      <div className="mt-2 text-xs text-slate-400 text-center">
-        Orden: [{order.join(', ')}]
       </div>
     </div>
   );
