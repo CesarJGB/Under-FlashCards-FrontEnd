@@ -1,13 +1,11 @@
-
 // FILE: frontend/src/components/home/WidgetCarousel.jsx
 import useCardStack from './useCardStack';
 
-const CARD_HEIGHT = 176;
+const CARD_HEIGHT = 264; // 50% más largo (antes 176)
 
 export default function WidgetCarousel({ title = 'Widgets', onViewAll, cardCount = 4 }) {
   const { order, isPickedUp, dragY, handlers } = useCardStack(cardCount);
 
-  // Mostrar solo 2 asomos detrás
   const behindIds = order.slice(1, 3);
 
   return (
@@ -24,7 +22,7 @@ export default function WidgetCarousel({ title = 'Widgets', onViewAll, cardCount
       </div>
 
       <div className="relative" style={{ height: CARD_HEIGHT + 24 }}>
-        {/* Asomo de la tarjeta más al fondo (tercera posición) */}
+        {/* Asomo de la tarjeta más al fondo */}
         {behindIds[1] !== undefined && (
           <div
             className="absolute inset-x-4 top-0 rounded-3xl bg-white border border-slate-200/60 z-10 flex items-center justify-center"
@@ -38,7 +36,7 @@ export default function WidgetCarousel({ title = 'Widgets', onViewAll, cardCount
           </div>
         )}
 
-        {/* Asomo de la tarjeta intermedia (segunda posición) */}
+        {/* Asomo de la tarjeta intermedia */}
         {behindIds[0] !== undefined && (
           <div
             className="absolute inset-x-2 top-0 rounded-3xl bg-white border border-slate-200/80 z-20 flex items-center justify-center"
@@ -52,7 +50,7 @@ export default function WidgetCarousel({ title = 'Widgets', onViewAll, cardCount
           </div>
         )}
 
-        {/* Tarjeta del frente - PRIMERA posición */}
+        {/* Tarjeta del frente */}
         <div
           {...handlers}
           className="absolute inset-x-0 top-0 z-30 rounded-3xl bg-white border border-slate-200 select-none flex items-center justify-center"
@@ -60,7 +58,7 @@ export default function WidgetCarousel({ title = 'Widgets', onViewAll, cardCount
             height: CARD_HEIGHT,
             transform: `translateY(${dragY}px) scale(${isPickedUp ? 1.02 : 1})`,
             transition: isPickedUp ? 'none' : 'transform 200ms ease',
-            touchAction: isPickedUp ? 'none' : 'pan-x', // Cambiado a pan-x (permitir scroll horizontal, bloquear vertical)
+            touchAction: isPickedUp ? 'none' : 'pan-x',
             boxShadow: isPickedUp
               ? '0 12px 32px rgba(15, 23, 42, 0.18)'
               : '0 1px 2px rgba(15, 23, 42, 0.06)'
