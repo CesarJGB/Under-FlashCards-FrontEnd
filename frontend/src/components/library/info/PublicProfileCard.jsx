@@ -10,7 +10,7 @@ import {
   Loader2,
   QrCode,
   Share2,
-  MoreHorizontal // 👈 Agregado para el menú de los 3 puntos
+  MoreHorizontal
 } from 'lucide-react';
 import { setJSON } from '../../../lib/safeLocalStorage';
 import { buildPublicMateriaUrl } from '../../../lib/publicMateria';
@@ -49,7 +49,7 @@ export default function PublicProfileCard({ materia, materias, setMaterias, user
   const [qrDataUrl, setQrDataUrl] = useState('');
   const [qrLoading, setQrLoading] = useState(false);
   const [feedback, setFeedback] = useState(null);
-  const [showInfo, setShowInfo] = useState(false); // 👈 Estado para el menú desplegable de información
+  const [showInfo, setShowInfo] = useState(false);
 
   const shareId = materia?.publicProfile?.shareId || null;
   const isPublicEnabled = !!materia?.publicProfile?.enabled;
@@ -243,7 +243,7 @@ export default function PublicProfileCard({ materia, materias, setMaterias, user
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-2xl space-y-4 shadow-xs">
       
-      {/* 🔗 TÍTULO E ÍCONO ALINEADOS HORIZONTALMENTE (Subtítulo eliminado permanentemente) */}
+      {/* 🔗 TÍTULO E ÍCONO ALINEADOS HORIZONTALMENTE */}
       <div className="flex items-center gap-3 text-indigo-600 dark:text-indigo-400">
         <div className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 shrink-0">
           <Link2 className="w-5 h-5" />
@@ -253,7 +253,7 @@ export default function PublicProfileCard({ materia, materias, setMaterias, user
         </h4>
       </div>
 
-      {/* 📝 DESCRIPCIÓN INICIAL (Se elimina dinámicamente al generar el link) */}
+      {/* 📝 DESCRIPCIÓN INICIAL */}
       {!publicUrl && (
         <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
           Genera un enlace publico de solo lectura para compartir el panorama general de esta materia. Tambien puedes descargar un QR que abra la pagina publica directamente.
@@ -261,7 +261,7 @@ export default function PublicProfileCard({ materia, materias, setMaterias, user
       )}
 
       {!publicUrl ? (
-        /* 🔘 ESTADO INICIAL: Mantiene exactamente 2 botones alineados */
+        /* 🔘 ESTADO INICIAL */
         <div className="grid grid-cols-2 gap-2">
           <button
             type="button"
@@ -285,7 +285,7 @@ export default function PublicProfileCard({ materia, materias, setMaterias, user
         </div>
       ) : (
         <>
-          {/* 🔍 APARTADO DE URL PÚBLICA COMPACTO CON MENÚ FLOTANTE DE 3 PUNTOS */}
+          {/* 🔍 APARTADO DE URL PÚBLICA TOTALMENTE RESPONSIVO Y CORREGIDO */}
           <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 p-3 space-y-2.5">
             <div className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 font-bold flex items-center justify-between relative">
               <span>URL publica</span>
@@ -300,7 +300,7 @@ export default function PublicProfileCard({ materia, materias, setMaterias, user
                   <MoreHorizontal className="w-4 h-4" />
                 </button>
 
-                {/* Menú contextual flotante que aloja la información oculta */}
+                {/* Menú contextual flotante */}
                 {showInfo && (
                   <>
                     <div className="fixed inset-0 z-10" onClick={() => setShowInfo(false)} />
@@ -312,8 +312,8 @@ export default function PublicProfileCard({ materia, materias, setMaterias, user
               </div>
             </div>
 
-            {/* Fila del QR y Enlace (Alineados al centro horizontalmente) */}
-            <div className="flex items-center gap-3">
+            {/* 🛠️ Corregido: Alineación superior (items-start) y removido el line-clamp */}
+            <div className="flex items-start gap-3">
               {qrLoading ? (
                 <div className="w-16 h-16 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-center shrink-0">
                   <Loader2 className="w-4 h-4 animate-spin text-indigo-500" />
@@ -331,14 +331,14 @@ export default function PublicProfileCard({ materia, materias, setMaterias, user
               )}
 
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-mono text-slate-600 dark:text-slate-400 break-all bg-white dark:bg-slate-900 p-2 rounded-lg border border-slate-200/60 dark:border-slate-800/60 line-clamp-2 select-all">
+                <p className="text-[11px] font-mono text-slate-600 dark:text-slate-400 break-all bg-white dark:bg-slate-900 p-2 rounded-lg border border-slate-200/60 dark:border-slate-800/60 select-all leading-relaxed whitespace-pre-wrap">
                   {publicUrl}
                 </p>
               </div>
             </div>
           </div>
 
-          {/* 🔘 ESTADO ACTIVO: Cuadrícula simétrica estricta de 2 columnas (Grid 2x2 / 2x3) */}
+          {/* 🔘 ESTADO ACTIVO: Cuadrícula Grid 2x2 / 2x3 */}
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
