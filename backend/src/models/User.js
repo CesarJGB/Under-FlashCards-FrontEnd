@@ -16,6 +16,10 @@ const userSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.Mixed,
       default: {}
     },
+    homeWidgetOrder: {
+      type: [Number],
+      default: [0, 1, 2, 3]
+    },
     homeSectionVisibility: {
       quickView: { type: Boolean, default: true },
       detailedView: { type: Boolean, default: false },

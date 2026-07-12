@@ -6,11 +6,10 @@ const CARD_HEIGHT = 264;
 export default function WidgetCarousel({ 
   title = 'Widgets', 
   onViewAll, 
-  cardCount = 4,
   order = [0, 1, 2, 3],
-  onReorder
+  onShift
 }) {
-  const { isPickedUp, dragY, handlers } = useCardStack(cardCount, order, onReorder);
+  const { isPickedUp, dragY, handlers } = useCardStack(order.length, onShift);
   const behindIds = order.slice(1, 3);
 
   return (

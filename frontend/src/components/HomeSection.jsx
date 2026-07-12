@@ -11,6 +11,32 @@ import { getJSON, setJSON, remove } from '../lib/safeLocalStorage';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 const DOMAIN_PREVIEWS_TTL_MS = 15 * 60 * 1000; // 15 minutos
+const DEFAULT_WIDGET_ORDER = [0, 1, 2, 3];
+
+function normalizeWidgetOrder(order) {
+  if (!Array.isArray(order)) return DEFAULT_WIDGET_ORDER;
+
+  const allowedIds = new Set(DEFAULT_WIDGET_ORDER);
+  const uniqueIds = [];
+
+  order.forEach((id) => {
+    if (!allowedIds.has(id)) return;
+    if (uniqueIds.includes(id)) return;
+    uniqueIds.push(id);
+  });
+
+  const missingIds = DEFAULT_WIDGET_ORDER.filter((id) => !uniqueIds.includes(id));
+  return [...uniqueIds, ...missingIds];
+}
+
+function rotateWidgetOrder(order, offset) {
+  if (!Array.isArray(order) || order.length === 0) return [];
+
+  const normalizedOffset = ((offset % order.length) + order.length) % order.length;
+  if (normalizedOffset === 0) return order;
+
+  return [...order.slice(normalizedOffset), ...order.slice(0, normalizedOffset)];
+}
 
 export default function HomeSection({ 
   user,          
@@ -31,11 +57,15 @@ export default function HomeSection({
 
   // Estados para la librería expandida y el ordenamiento de los widgets
   const [showWidgetLibrary, setShowWidgetLibrary] = useState(false);
-  const [widgetOrder, setWidgetOrder] = useState([0, 1, 2, 3]);
+  const [preferredWidgetOrder, setPreferredWidgetOrder] = useState(DEFAULT_WIDGET_ORDER);
+  const [widgetOffset, setWidgetOffset] = useState(0);
+  const [hasLoadedPreferences, setHasLoadedPreferences] = useState(false);
 
   const isMounted = useRef(true);
   const abortController = useRef(null);
   const requestSeq = useRef(0);
+  const lastSyncedWidgetOrder = useRef(JSON.stringify(DEFAULT_WIDGET_ORDER));
+  const widgetOrderTouched = useRef(false);
 
   // Escuchar actualizaciones/invalidation disparadas por otras secciones (Library) para evitar parpadeos
   useEffect(() => {
@@ -87,11 +117,40 @@ export default function HomeSection({
     if (typeof loadMaterias === 'function') loadMaterias();
   }, [loadDecks, loadMaterias]);
 
-  // Cargar preferencias de visibilidad del home
+  const handleWidgetOrderChange = useCallback((nextOrder) => {
+    widgetOrderTouched.current = true;
+    setPreferredWidgetOrder(normalizeWidgetOrder(nextOrder));
+    setWidgetOffset(0);
+  }, []);
+
+  const handleCarouselShift = useCallback((direction) => {
+    setWidgetOffset((prev) => {
+      const totalWidgets = preferredWidgetOrder.length;
+      if (totalWidgets <= 1) return 0;
+
+      return direction > 0
+        ? (prev + 1) % totalWidgets
+        : (prev - 1 + totalWidgets) % totalWidgets;
+    });
+  }, [preferredWidgetOrder.length]);
+
+  const visibleWidgetOrder = useMemo(
+    () => rotateWidgetOrder(preferredWidgetOrder, widgetOffset),
+    [preferredWidgetOrder, widgetOffset]
+  );
+
+  const preferredWidgetOrderKey = useMemo(
+    () => JSON.stringify(preferredWidgetOrder),
+    [preferredWidgetOrder]
+  );
+
+  // Cargar preferencias del home
   useEffect(() => {
     if (!user?.id) return;
-    
-    const loadVisibility = async () => {
+
+    setHasLoadedPreferences(false);
+
+    const loadPreferences = async () => {
       try {
         const res = await fetch(`${BACKEND_URL}/api/users/${user.id}/preferences`);
         if (res.ok) {
@@ -99,14 +158,54 @@ export default function HomeSection({
           if (data.homeSectionVisibility) {
             setHomeVisibility(data.homeSectionVisibility);
           }
+
+          const serverWidgetOrder = normalizeWidgetOrder(data.homeWidgetOrder);
+          lastSyncedWidgetOrder.current = JSON.stringify(serverWidgetOrder);
+
+          if (!widgetOrderTouched.current) {
+            setPreferredWidgetOrder(serverWidgetOrder);
+            setWidgetOffset(0);
+          }
         }
       } catch (error) {
-        console.error('Error al cargar visibilidad del home:', error);
+        console.error('Error al cargar preferencias del home:', error);
+      } finally {
+        setHasLoadedPreferences(true);
       }
     };
-    
-    loadVisibility();
+
+    loadPreferences();
   }, [user?.id]);
+
+  useEffect(() => {
+    if (!user?.id || !hasLoadedPreferences) return;
+    if (preferredWidgetOrderKey === lastSyncedWidgetOrder.current) return;
+
+    const controller = new AbortController();
+    const syncTimeout = window.setTimeout(async () => {
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/users/${user.id}/preferences`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ homeWidgetOrder: preferredWidgetOrder }),
+          signal: controller.signal
+        });
+
+        if (!res.ok) throw new Error('Error al sincronizar el orden de widgets');
+
+        lastSyncedWidgetOrder.current = preferredWidgetOrderKey;
+      } catch (error) {
+        if (error.name !== 'AbortError') {
+          console.error('Error al guardar orden de widgets:', error);
+        }
+      }
+    }, 250);
+
+    return () => {
+      window.clearTimeout(syncTimeout);
+      controller.abort();
+    };
+  }, [hasLoadedPreferences, preferredWidgetOrder, preferredWidgetOrderKey, user?.id]);
 
   // =========================================================================
   // 🎯 INICIALIZACIÓN SINCRÓNICA DESDE CACHÉ (sin fase intermedia)
@@ -368,71 +467,72 @@ export default function HomeSection({
   };
 
   return (
-    <div className="w-full space-y-8 animate-[fadeIn_0.15s_ease]">
+    <>
+      <div className="w-full space-y-8 animate-[fadeIn_0.15s_ease]">
 
-      {/* Encabezado de usuario */}
-      <HomeHeader user={user} onOpenProfile={onOpenProfile} />
+        {/* Encabezado de usuario */}
+        <HomeHeader user={user} onOpenProfile={onOpenProfile} />
 
-      {/* Carrusel de widgets */}
-      <WidgetCarousel 
-        onViewAll={() => setShowWidgetLibrary(true)} 
-        order={widgetOrder} 
-        onReorder={setWidgetOrder}
-      />
-
-      {/* Resumen Global */}
-      <GlobalStatsHeader 
-        user={user} 
-        globalStats={globalStats} 
-      />
-
-      {/* Vista Rápida */}
-      {homeVisibility.quickView && (
-        <QuickViewGrid 
-          enrichedMaterias={enrichedMaterias}
-          getKnowledgeAccent={getKnowledgeAccent}
-          getParcialesBadge={getParcialesBadge}
-          userId={user?.id}
-          onMateriaClick={onNavigateToLibrary}
+        {/* Carrusel de widgets */}
+        <WidgetCarousel
+          onViewAll={() => setShowWidgetLibrary(true)}
+          order={visibleWidgetOrder}
+          onShift={handleCarouselShift}
         />
-      )}
 
-      {/* Vista Detallada */}
-      {homeVisibility.detailedView && (
-        <DetailedMateriasGrid 
-          enrichedMaterias={enrichedMaterias}
-          getKnowledgeAccent={getKnowledgeAccent}
-          getParcialesLabel={getParcialesLabel}
+        {/* Resumen Global */}
+        <GlobalStatsHeader
+          user={user}
+          globalStats={globalStats}
         />
-      )}
 
-      {/* Mazos Sueltos */}
-      {homeVisibility.unclassifiedDecks && (
-        <UnclassifiedDecksSection 
-          unclassifiedDecks={unclassifiedDecks}
-          onOpenReview={onOpenReview}
-        />
-      )}
+        {/* Vista Rápida */}
+        {homeVisibility.quickView && (
+          <QuickViewGrid
+            enrichedMaterias={enrichedMaterias}
+            getKnowledgeAccent={getKnowledgeAccent}
+            getParcialesBadge={getParcialesBadge}
+            userId={user?.id}
+            onMateriaClick={onNavigateToLibrary}
+          />
+        )}
 
-      {/* Modal expandido (Librería) condicional */}
+        {/* Vista Detallada */}
+        {homeVisibility.detailedView && (
+          <DetailedMateriasGrid
+            enrichedMaterias={enrichedMaterias}
+            getKnowledgeAccent={getKnowledgeAccent}
+            getParcialesLabel={getParcialesLabel}
+          />
+        )}
+
+        {/* Mazos Sueltos */}
+        {homeVisibility.unclassifiedDecks && (
+          <UnclassifiedDecksSection
+            unclassifiedDecks={unclassifiedDecks}
+            onOpenReview={onOpenReview}
+          />
+        )}
+
+        {/* ⚡ PANEL DE TELEMETRÍA Y DEBUGGING DEL RADAR DE CONOCIMIENTO */}
+        {import.meta.env.DEV && (
+          <RadarDebugPanel
+            userId={user?.id}
+            decks={decks}
+            loadDecks={loadDecks}
+            loadMaterias={loadMaterias}
+          />
+        )}
+
+      </div>
+
       {showWidgetLibrary && (
         <WidgetCarouselExpanded
-          order={widgetOrder}
-          onReorder={setWidgetOrder}
+          order={preferredWidgetOrder}
+          onReorder={handleWidgetOrderChange}
           onClose={() => setShowWidgetLibrary(false)}
         />
       )}
-
-      {/* ⚡ PANEL DE TELEMETRÍA Y DEBUGGING DEL RADAR DE CONOCIMIENTO */}
-      {import.meta.env.DEV && (
-        <RadarDebugPanel
-          userId={user?.id}
-          decks={decks}
-          loadDecks={loadDecks}
-          loadMaterias={loadMaterias}
-        />
-      )}
-
-    </div>
+    </>
   );
 }

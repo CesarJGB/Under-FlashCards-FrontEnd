@@ -1,10 +1,10 @@
 // FILE: frontend/src/components/home/useCardStack.js
-import { useRef, useState, useCallback, useEffect } from 'react';
+import { useRef, useState, useCallback } from 'react';
 
 const LONG_PRESS_MS = 600;
 const DRAG_THRESHOLD_PX = 80;
 
-export default function useCardStack(initialCount, order, onReorder) {
+export default function useCardStack(itemCount, onShift) {
   const [isPickedUp, setIsPickedUp] = useState(false);
   const [dragY, setDragY] = useState(0);
 
@@ -50,16 +50,12 @@ export default function useCardStack(initialCount, order, onReorder) {
   const onPointerUp = useCallback(() => {
     clearPressTimer();
 
-    if (isDragging.current) {
+    if (isDragging.current && itemCount > 1) {
       const finalDragY = dragYRef.current;
       if (finalDragY <= -DRAG_THRESHOLD_PX) {
-        // Avanzar: mover primero al final
-        const newOrder = [...order.slice(1), order[0]];
-        onReorder(newOrder);
+        onShift(1);
       } else if (finalDragY >= DRAG_THRESHOLD_PX) {
-        // Retroceder: mover último al principio
-        const newOrder = [order[order.length - 1], ...order.slice(0, -1)];
-        onReorder(newOrder);
+        onShift(-1);
       }
     }
 
@@ -67,10 +63,9 @@ export default function useCardStack(initialCount, order, onReorder) {
     dragYRef.current = 0;
     setIsPickedUp(false);
     setDragY(0);
-  }, [order, onReorder]);
+  }, [itemCount, onShift]);
 
   return {
-    order,
     isPickedUp,
     dragY,
     handlers: {

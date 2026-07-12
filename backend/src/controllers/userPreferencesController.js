@@ -6,6 +6,28 @@ const DEFAULT_HOME_SECTION_VISIBILITY = {
   detailedView: false,
   unclassifiedDecks: false
 };
+const DEFAULT_HOME_WIDGET_ORDER = [0, 1, 2, 3];
+
+function normalizeHomeWidgetOrder(input) {
+  if (input == null) return DEFAULT_HOME_WIDGET_ORDER;
+  if (!Array.isArray(input)) {
+    throw new Error('homeWidgetOrder debe ser un array');
+  }
+
+  const allowedIds = new Set(DEFAULT_HOME_WIDGET_ORDER);
+  const uniqueIds = [];
+
+  input
+    .map(Number)
+    .forEach((id) => {
+      if (!allowedIds.has(id)) return;
+      if (uniqueIds.includes(id)) return;
+      uniqueIds.push(id);
+    });
+
+  const missingIds = DEFAULT_HOME_WIDGET_ORDER.filter((id) => !uniqueIds.includes(id));
+  return [...uniqueIds, ...missingIds];
+}
 
 function normalizeStudyMetricsFilters(input) {
   if (input == null) return {};
@@ -38,14 +60,15 @@ function normalizeStudyMetricsFilters(input) {
 // GET /api/users/:userId/preferences
 exports.getUserPreferences = async (req, res) => {
   try {
-    const user = await User.findById(req.params.userId).select('quickViewMaterias homeSectionVisibility studyMetricsFilters');
+    const user = await User.findById(req.params.userId).select('quickViewMaterias homeSectionVisibility studyMetricsFilters homeWidgetOrder');
     if (!user) {
       return res.status(404).json({ error: 'Usuario no encontrado' });
     }
     res.json({ 
       quickViewMaterias: user.quickViewMaterias || [],
       homeSectionVisibility: user.homeSectionVisibility || DEFAULT_HOME_SECTION_VISIBILITY,
-      studyMetricsFilters: normalizeStudyMetricsFilters(user.studyMetricsFilters)
+      studyMetricsFilters: normalizeStudyMetricsFilters(user.studyMetricsFilters),
+      homeWidgetOrder: normalizeHomeWidgetOrder(user.homeWidgetOrder)
     });
   } catch (error) {
     console.error('Error al obtener preferencias:', error);
@@ -56,7 +79,7 @@ exports.getUserPreferences = async (req, res) => {
 // PUT /api/users/:userId/preferences
 exports.updateUserPreferences = async (req, res) => {
   try {
-    const { quickViewMaterias, homeSectionVisibility, studyMetricsFilters } = req.body;
+    const { quickViewMaterias, homeSectionVisibility, studyMetricsFilters, homeWidgetOrder } = req.body;
     
     const updateData = {};
     
@@ -82,11 +105,19 @@ exports.updateUserPreferences = async (req, res) => {
       }
     }
 
+    if (homeWidgetOrder !== undefined) {
+      try {
+        updateData.homeWidgetOrder = normalizeHomeWidgetOrder(homeWidgetOrder);
+      } catch (error) {
+        return res.status(400).json({ error: error.message || 'homeWidgetOrder es inválido' });
+      }
+    }
+
     const user = await User.findByIdAndUpdate(
       req.params.userId,
       { $set: updateData },
       { new: true, runValidators: true }
-    ).select('quickViewMaterias homeSectionVisibility studyMetricsFilters');
+    ).select('quickViewMaterias homeSectionVisibility studyMetricsFilters homeWidgetOrder');
 
     if (!user) {
       return res.status(404).json({ error: 'Usuario no encontrado' });
@@ -96,7 +127,8 @@ exports.updateUserPreferences = async (req, res) => {
       success: true, 
       quickViewMaterias: user.quickViewMaterias || [],
       homeSectionVisibility: user.homeSectionVisibility || DEFAULT_HOME_SECTION_VISIBILITY,
-      studyMetricsFilters: normalizeStudyMetricsFilters(user.studyMetricsFilters)
+      studyMetricsFilters: normalizeStudyMetricsFilters(user.studyMetricsFilters),
+      homeWidgetOrder: normalizeHomeWidgetOrder(user.homeWidgetOrder)
     });
   } catch (error) {
     console.error('Error al actualizar preferencias:', error);
