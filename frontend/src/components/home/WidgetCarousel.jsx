@@ -1,14 +1,13 @@
+
 // FILE: frontend/src/components/home/WidgetCarousel.jsx
 import useCardStack from './useCardStack';
 
-const CARD_HEIGHT = 176; // ajustable — equivale a h-44
+const CARD_HEIGHT = 176;
 
 export default function WidgetCarousel({ title = 'Widgets', onViewAll, cardCount = 4 }) {
-  const { order, isPickedUp, dragX, handlers } = useCardStack(cardCount);
+  const { order, isPickedUp, dragY, handlers } = useCardStack(cardCount);
 
-  // Solo se muestran hasta 2 "asomos" detrás de la tarjeta del frente,
-  // igual que en la referencia — el resto de la pila existe en `order`
-  // pero no se renderiza en esta versión mínima.
+  // Mostrar solo 2 asomos detrás
   const behindIds = order.slice(1, 3);
 
   return (
@@ -25,38 +24,60 @@ export default function WidgetCarousel({ title = 'Widgets', onViewAll, cardCount
       </div>
 
       <div className="relative" style={{ height: CARD_HEIGHT + 24 }}>
-        {/* Asomo de la tarjeta más al fondo */}
+        {/* Asomo de la tarjeta más al fondo (tercera posición) */}
         {behindIds[1] !== undefined && (
           <div
-            className="absolute inset-x-4 top-0 rounded-3xl bg-white border border-slate-200/60 z-10"
-            style={{ height: CARD_HEIGHT, transform: 'translateY(24px)' }}
-          />
+            className="absolute inset-x-4 top-0 rounded-3xl bg-white border border-slate-200/60 z-10 flex items-center justify-center"
+            style={{ 
+              height: CARD_HEIGHT, 
+              transform: 'translateY(24px) scale(0.95)',
+              opacity: 0.6
+            }}
+          >
+            <span className="text-4xl font-bold text-slate-300">#{order[2]}</span>
+          </div>
         )}
 
-        {/* Asomo de la tarjeta intermedia */}
+        {/* Asomo de la tarjeta intermedia (segunda posición) */}
         {behindIds[0] !== undefined && (
           <div
-            className="absolute inset-x-2 top-0 rounded-3xl bg-white border border-slate-200/80 z-20"
-            style={{ height: CARD_HEIGHT, transform: 'translateY(12px)' }}
-          />
+            className="absolute inset-x-2 top-0 rounded-3xl bg-white border border-slate-200/80 z-20 flex items-center justify-center"
+            style={{ 
+              height: CARD_HEIGHT, 
+              transform: 'translateY(12px) scale(0.97)',
+              opacity: 0.8
+            }}
+          >
+            <span className="text-4xl font-bold text-slate-400">#{order[1]}</span>
+          </div>
         )}
 
-        {/* Tarjeta del frente — mantener presionado ~600ms y arrastrar para reordenar */}
+        {/* Tarjeta del frente - PRIMERA posición */}
         <div
           {...handlers}
-          className="absolute inset-x-0 top-0 z-30 rounded-3xl bg-white border border-slate-200 select-none"
+          className="absolute inset-x-0 top-0 z-30 rounded-3xl bg-white border border-slate-200 select-none flex items-center justify-center"
           style={{
             height: CARD_HEIGHT,
-            transform: `translateX(${dragX}px) scale(${isPickedUp ? 1.02 : 1})`,
+            transform: `translateY(${dragY}px) scale(${isPickedUp ? 1.02 : 1})`,
             transition: isPickedUp ? 'none' : 'transform 200ms ease',
-            touchAction: isPickedUp ? 'none' : 'pan-y',
+            touchAction: isPickedUp ? 'none' : 'pan-x', // Cambiado a pan-x (permitir scroll horizontal, bloquear vertical)
             boxShadow: isPickedUp
               ? '0 12px 32px rgba(15, 23, 42, 0.18)'
               : '0 1px 2px rgba(15, 23, 42, 0.06)'
           }}
         >
-          {/* En blanco por ahora — acá va el contenido real (QuickViewGrid, DetailedMateriasGrid, etc.) */}
+          <div className="text-center">
+            <span className="text-6xl font-bold text-slate-800">#{order[0]}</span>
+            <p className="text-sm text-slate-500 mt-2">
+              {isPickedUp ? 'Arrastra ↑↓' : 'Mantén presionado'}
+            </p>
+          </div>
         </div>
+      </div>
+      
+      {/* Debug info */}
+      <div className="mt-2 text-xs text-slate-400 text-center">
+        Orden: [{order.join(', ')}]
       </div>
     </div>
   );
