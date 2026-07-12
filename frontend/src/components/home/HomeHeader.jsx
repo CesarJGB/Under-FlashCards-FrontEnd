@@ -9,6 +9,12 @@ function getGreeting() {
   return 'Buenas noches';
 }
 
+function getDisplayName(fullName) {
+  if (!fullName) return 'Usuario';
+  const parts = fullName.trim().split(/\s+/);
+  return parts.slice(0, 2).join(' ');
+}
+
 function getInitials(name) {
   if (!name) return '?';
   const parts = name.trim().split(/\s+/);
@@ -21,12 +27,13 @@ function getInitials(name) {
 // opcional y aún no está cableado a ninguna funcionalidad (placeholder visual).
 export default function HomeHeader({ user, onOpenProfile, onOpenNotifications }) {
   const greeting = useMemo(() => getGreeting(), []);
-  const name = user?.name || user?.given_name || user?.email?.split('@')[0] || 'Usuario';
+  const rawName = user?.name || user?.given_name || user?.email?.split('@')[0] || 'Usuario';
+  const name = getDisplayName(rawName);
   const picture = user?.picture;
 
   return (
     <div className="w-full flex items-center gap-3">
-      <div className="w-14 h-14 rounded-full overflow-hidden shrink-0 bg-slate-200 flex items-center justify-center ring-1 ring-slate-200">
+      <div className="w-11 h-11 rounded-full overflow-hidden shrink-0 bg-slate-200 flex items-center justify-center ring-1 ring-slate-200">
         {picture ? (
           <img
             src={picture}
@@ -35,7 +42,7 @@ export default function HomeHeader({ user, onOpenProfile, onOpenNotifications })
             referrerPolicy="no-referrer"
           />
         ) : (
-          <span className="text-slate-500 font-semibold text-base">
+          <span className="text-slate-500 font-semibold text-sm">
             {getInitials(name)}
           </span>
         )}
@@ -43,7 +50,7 @@ export default function HomeHeader({ user, onOpenProfile, onOpenNotifications })
 
       <div className="min-w-0 flex-1">
         <p className="text-sm text-slate-400 leading-tight truncate">{greeting}!</p>
-        <p className="text-lg font-bold text-slate-900 leading-tight truncate">
+        <p className="text-base font-bold text-slate-900 leading-tight truncate">
           {name}
         </p>
       </div>
