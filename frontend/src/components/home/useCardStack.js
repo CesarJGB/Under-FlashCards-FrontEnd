@@ -4,22 +4,9 @@ import { useRef, useState, useCallback, useEffect } from 'react';
 const LONG_PRESS_MS = 600;
 const DRAG_THRESHOLD_PX = 80;
 
-export default function useCardStack(initialCount, externalOrder, onReorder) {
-  const [internalOrder, setInternalOrder] = useState(() => 
-    Array.from({ length: initialCount }, (_, i) => i)
-  );
+export default function useCardStack(initialCount, order, onReorder) {
   const [isPickedUp, setIsPickedUp] = useState(false);
   const [dragY, setDragY] = useState(0);
-
-  // Usar orden externo si viene, sino el interno
-  const order = externalOrder || internalOrder;
-
-  // Sincronizar cuando cambia externalOrder
-  useEffect(() => {
-    if (externalOrder) {
-      setInternalOrder(externalOrder);
-    }
-  }, [externalOrder]);
 
   const pressTimer = useRef(null);
   const startY = useRef(0);
@@ -68,19 +55,11 @@ export default function useCardStack(initialCount, externalOrder, onReorder) {
       if (finalDragY <= -DRAG_THRESHOLD_PX) {
         // Avanzar: mover primero al final
         const newOrder = [...order.slice(1), order[0]];
-        if (onReorder) {
-          onReorder(newOrder);
-        } else {
-          setInternalOrder(newOrder);
-        }
+        onReorder(newOrder);
       } else if (finalDragY >= DRAG_THRESHOLD_PX) {
         // Retroceder: mover último al principio
         const newOrder = [order[order.length - 1], ...order.slice(0, -1)];
-        if (onReorder) {
-          onReorder(newOrder);
-        } else {
-          setInternalOrder(newOrder);
-        }
+        onReorder(newOrder);
       }
     }
 
