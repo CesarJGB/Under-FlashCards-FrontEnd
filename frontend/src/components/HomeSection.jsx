@@ -6,7 +6,7 @@ import GlobalStatsHeader from './home/GlobalStatsHeader';
 import QuickViewGrid from './home/QuickViewGrid';
 import DetailedMateriasGrid from './home/DetailedMateriasGrid';
 import UnclassifiedDecksSection from './home/UnclassifiedDecksSection';
-import WidgetLibrary from './home/WidgetLibrary'; // 👈 Añadido el import
+import WidgetCarouselExpanded from './home/WidgetCarouselExpanded'; // 👈 Cambiado el import a WidgetCarouselExpanded
 import { getJSON, setJSON, remove } from '../lib/safeLocalStorage';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
@@ -29,8 +29,9 @@ export default function HomeSection({
     unclassifiedDecks: false
   });
 
-  // 👈 Añadido el estado para controlar la visibilidad de la librería de widgets
+  // 👈 Estados para la librería expandida y el orden de los widgets
   const [showWidgetLibrary, setShowWidgetLibrary] = useState(false);
+  const [widgetOrder, setWidgetOrder] = useState([0, 1, 2, 3]);
 
   const isMounted = useRef(true);
   const abortController = useRef(null);
@@ -377,8 +378,11 @@ export default function HomeSection({
       {/* Encabezado de usuario */}
       <HomeHeader user={user} onOpenProfile={onOpenProfile} />
 
-      {/* Carrusel de widgets modificado con el handler onViewAll */}
-      <WidgetCarousel onViewAll={() => setShowWidgetLibrary(true)} />
+      {/* Carrusel de widgets modificado con el handler onViewAll y el ordenamiento */}
+      <WidgetCarousel 
+        onViewAll={() => setShowWidgetLibrary(true)} 
+        order={widgetOrder} 
+      />
 
       {/* Resumen Global */}
       <GlobalStatsHeader 
@@ -414,16 +418,12 @@ export default function HomeSection({
         />
       )}
 
-      {/* Librería de Widgets condicional */}
+      {/* Carrusel de widgets expandido (Librería) condicional */}
       {showWidgetLibrary && (
-        <WidgetLibrary
-          user={user}
-          globalStats={globalStats}
-          enrichedMaterias={enrichedMaterias}
-          unclassifiedDecks={unclassifiedDecks}
+        <WidgetCarouselExpanded
+          order={widgetOrder}
+          onReorder={(newOrder) => setWidgetOrder(newOrder)}
           onClose={() => setShowWidgetLibrary(false)}
-          onOpenReview={onOpenReview}
-          onNavigateToLibrary={onNavigateToLibrary}
         />
       )}
 
