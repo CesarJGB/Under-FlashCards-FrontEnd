@@ -1,6 +1,7 @@
 import React, { useMemo, useEffect, useState, useCallback, useRef } from 'react';
 import RadarDebugPanel from './RadarDebugPanel';
 import HomeHeader from './home/HomeHeader';
+import WidgetCarousel from './home/WidgetCarousel';
 import GlobalStatsHeader from './home/GlobalStatsHeader';
 import QuickViewGrid from './home/QuickViewGrid';
 import DetailedMateriasGrid from './home/DetailedMateriasGrid';
@@ -388,6 +389,9 @@ export default function HomeSection({
 
       {/* Encabezado de usuario: avatar + saludo + nombre (reemplaza el header móvil de App.jsx en 'home') */}
       <HomeHeader user={user} onOpenProfile={onOpenProfile} />
+
+      {/* Carrusel de widgets: tarjetas en blanco por ahora, reordenables con long-press + arrastre */}
+      <WidgetCarousel />
 
       {/* Resumen Global */}
       <GlobalStatsHeader 
