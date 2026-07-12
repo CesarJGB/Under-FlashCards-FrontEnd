@@ -1,24 +1,17 @@
 // FILE: frontend/src/components/home/useCardStack.js
 import { useRef, useState, useCallback } from 'react';
 
-const LONG_PRESS_MS = 600; // tiempo manteniendo presionado antes de poder arrastrar
-const DRAG_THRESHOLD_PX = 60; // distancia mínima de arrastre para reordenar
+const LONG_PRESS_MS = 600;
+const DRAG_THRESHOLD_PX = 80; // Un poco más generoso para vertical
 
-// Hook mínimo para una pila de tarjetas reordenable por gesto:
-// - Mantener presionada la tarjeta del frente ~600ms la "levanta" (isPickedUp).
-// - Arrastrar hacia la izquierda más allá del umbral: la tarjeta del frente
-//   pasa al final (avanza a la siguiente).
-// - Arrastrar hacia la derecha más allá del umbral: la última tarjeta pasa
-//   al frente (retrocede a la anterior).
-// - Soltar antes del hold, o sin arrastre suficiente: no reordena nada.
 export default function useCardStack(initialCount) {
   const [order, setOrder] = useState(() => Array.from({ length: initialCount }, (_, i) => i));
   const [isPickedUp, setIsPickedUp] = useState(false);
-  const [dragX, setDragX] = useState(0);
+  const [dragY, setDragY] = useState(0); // Cambiado a dragY
 
   const pressTimer = useRef(null);
-  const startX = useRef(0);
-  const dragXRef = useRef(0);
+  const startY = useRef(0); // Cambiado a startY
+  const dragYRef = useRef(0); // Cambiado a dragYRef
   const isDragging = useRef(false);
   const cancelledByMove = useRef(false);
 
@@ -32,7 +25,7 @@ export default function useCardStack(initialCount) {
   const onPointerDown = useCallback((e) => {
     cancelledByMove.current = false;
     isDragging.current = false;
-    startX.current = e.clientX;
+    startY.current = e.clientY; // Cambiado a clientY
 
     pressTimer.current = setTimeout(() => {
       if (!cancelledByMove.current) {
@@ -44,13 +37,13 @@ export default function useCardStack(initialCount) {
 
   const onPointerMove = useCallback((e) => {
     if (isDragging.current) {
-      const next = e.clientX - startX.current;
-      dragXRef.current = next;
-      setDragX(next);
+      const next = e.clientY - startY.current; // Cambiado a clientY
+      dragYRef.current = next;
+      setDragY(next); // Cambiado a setDragY
       return;
     }
-    // Si se mueve antes de completar el hold, se cancela (era scroll, no long-press)
-    if (Math.abs(e.clientX - startX.current) > 10) {
+    // Si se mueve verticalmente antes de completar el hold, se cancela
+    if (Math.abs(e.clientY - startY.current) > 10) { // Cambiado a clientY
       cancelledByMove.current = true;
       clearPressTimer();
     }
@@ -60,24 +53,27 @@ export default function useCardStack(initialCount) {
     clearPressTimer();
 
     if (isDragging.current) {
-      const finalDragX = dragXRef.current;
-      if (finalDragX <= -DRAG_THRESHOLD_PX) {
+      const finalDragY = dragYRef.current;
+      // Arrastrar hacia ARRIBA (negativo) = avanzar a siguiente tarjeta
+      if (finalDragY <= -DRAG_THRESHOLD_PX) {
         setOrder(prev => [...prev.slice(1), prev[0]]); // avanzar
-      } else if (finalDragX >= DRAG_THRESHOLD_PX) {
+      } 
+      // Arrastrar hacia ABAJO (positivo) = retroceder a tarjeta anterior
+      else if (finalDragY >= DRAG_THRESHOLD_PX) {
         setOrder(prev => [prev[prev.length - 1], ...prev.slice(0, -1)]); // retroceder
       }
     }
 
     isDragging.current = false;
-    dragXRef.current = 0;
+    dragYRef.current = 0;
     setIsPickedUp(false);
-    setDragX(0);
+    setDragY(0); // Cambiado a setDragY
   }, []);
 
   return {
     order,
     isPickedUp,
-    dragX,
+    dragY, // Cambiado a dragY
     handlers: {
       onPointerDown,
       onPointerMove,
