@@ -190,41 +190,33 @@ function DashboardScreen({ user, onLogout }) {
       </aside>
 
       <main className="flex-1 min-w-0 relative">
-        <div className="md:hidden sticky top-0 z-30 bg-white border-b border-slate-200 px-4 py-3.5 flex items-center justify-between shadow-xs">
-          <span className="min-w-0 max-w-[80%]">
-            {currentDeck && tab === 'library' ? (
-              <span className="font-black text-slate-900 text-base border-l-4 border-slate-900 pl-2.5 block truncate">
-                {currentDeck.title}
-              </span>
-              ) : (
-              <span className="font-black text-slate-900 tracking-tight text-base block animate-[fadeIn_0.1s_ease]">
-                {tab === 'library' ? 'Biblioteca' : tab === 'home' ? '' : tab === 'study' ? 'Modo de Estudio' : tab === 'usuario' ? 'Perfil' : tab === 'chat' ? 'Chat' : 'Ajustes'}
-              </span>
+        {/* Header móvil: oculto en 'home' para no pisar la UI propia que Home va a manejar (perfil, foto, nombre, etc.) */}
+        {tab !== 'home' && (
+          <div className="md:hidden sticky top-0 z-30 bg-white border-b border-slate-200 px-4 py-3.5 flex items-center justify-between shadow-xs">
+            <span className="min-w-0 max-w-[80%]">
+              {currentDeck && tab === 'library' ? (
+                <span className="font-black text-slate-900 text-base border-l-4 border-slate-900 pl-2.5 block truncate">
+                  {currentDeck.title}
+                </span>
+                ) : (
+                <span className="font-black text-slate-900 tracking-tight text-base block animate-[fadeIn_0.1s_ease]">
+                  {tab === 'library' ? 'Biblioteca' : tab === 'study' ? 'Modo de Estudio' : tab === 'usuario' ? 'Perfil' : tab === 'chat' ? 'Chat' : 'Ajustes'}
+                </span>
+              )}
+            </span>
+
+            {tab === 'usuario' && (
+              <button
+                type="button"
+                onClick={() => handleTabChange('settings')}
+                className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg transition-colors shrink-0 animate-[fadeIn_0.12s_ease] cursor-pointer"
+                title="Ajustes"
+              >
+                <Settings className="w-4 h-4" />
+              </button>
             )}
-          </span>
-
-          {tab === 'home' && (
-            <button
-              type="button"
-              onClick={() => handleTabChange('usuario')}
-              className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg transition-colors shrink-0 animate-[fadeIn_0.12s_ease] cursor-pointer"
-              title="Perfil de usuario"
-            >
-              <User className="w-4 h-4" />
-            </button>
-          )}
-
-          {tab === 'usuario' && (
-            <button
-              type="button"
-              onClick={() => handleTabChange('settings')}
-              className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg transition-colors shrink-0 animate-[fadeIn_0.12s_ease] cursor-pointer"
-              title="Ajustes"
-            >
-              <Settings className="w-4 h-4" />
-            </button>
-          )}
-        </div>
+          </div>
+        )}
 
         <div className="max-w-5xl mx-auto px-4 py-4 pb-24 md:pb-8 md:px-6 md:py-8">
           {tab === 'home' && (
@@ -238,6 +230,7 @@ function DashboardScreen({ user, onLogout }) {
               onLogout={onLogout}
               loadDecks={loadDecks}
               loadMaterias={loadMaterias}
+              onOpenProfile={() => handleTabChange('usuario')}
             />
           )}
 
