@@ -6,7 +6,7 @@ import GlobalStatsHeader from './home/GlobalStatsHeader';
 import QuickViewGrid from './home/QuickViewGrid';
 import DetailedMateriasGrid from './home/DetailedMateriasGrid';
 import UnclassifiedDecksSection from './home/UnclassifiedDecksSection';
-import WidgetCarouselExpanded from './home/WidgetCarouselExpanded'; // 👈 Cambiado el import a WidgetCarouselExpanded
+import WidgetCarouselExpanded from './home/WidgetCarouselExpanded';
 import { getJSON, setJSON, remove } from '../lib/safeLocalStorage';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
@@ -29,7 +29,7 @@ export default function HomeSection({
     unclassifiedDecks: false
   });
 
-  // 👈 Estados para la librería expandida y el orden de los widgets
+  // Estados para la librería expandida y el ordenamiento de los widgets
   const [showWidgetLibrary, setShowWidgetLibrary] = useState(false);
   const [widgetOrder, setWidgetOrder] = useState([0, 1, 2, 3]);
 
@@ -118,17 +118,13 @@ export default function HomeSection({
     if (!parsed) return {};
     
     try {
-      
-      // Validar estructura y extraer solo los valores de mastery
       if (typeof parsed === 'object' && parsed !== null) {
         const masteryMap = {};
         
         Object.entries(parsed).forEach(([id, data]) => {
-          // Si es la estructura nueva (objeto con mastery)
           if (data && typeof data === 'object' && 'mastery' in data) {
             masteryMap[id] = data.mastery;
           }
-          // Si es la estructura antigua (número directo)
           else if (typeof data === 'number') {
             masteryMap[id] = data;
           }
@@ -137,7 +133,6 @@ export default function HomeSection({
         return masteryMap;
       }
     } catch {
-      // Caché corrupto, limpiar y retornar vacío
       remove(`domainPreviews_${user.id}`);
     }
     return {};
@@ -378,10 +373,11 @@ export default function HomeSection({
       {/* Encabezado de usuario */}
       <HomeHeader user={user} onOpenProfile={onOpenProfile} />
 
-      {/* Carrusel de widgets modificado con el handler onViewAll y el ordenamiento */}
+      {/* Carrusel de widgets */}
       <WidgetCarousel 
         onViewAll={() => setShowWidgetLibrary(true)} 
         order={widgetOrder} 
+        onReorder={setWidgetOrder} // 👈 Agregado onReorder directo
       />
 
       {/* Resumen Global */}
@@ -418,11 +414,11 @@ export default function HomeSection({
         />
       )}
 
-      {/* Carrusel de widgets expandido (Librería) condicional */}
+      {/* Modal expandido (Librería) condicional */}
       {showWidgetLibrary && (
         <WidgetCarouselExpanded
           order={widgetOrder}
-          onReorder={(newOrder) => setWidgetOrder(newOrder)}
+          onReorder={setWidgetOrder} // 👈 Referencia simplificada
           onClose={() => setShowWidgetLibrary(false)}
         />
       )}
