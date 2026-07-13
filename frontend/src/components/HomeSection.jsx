@@ -243,10 +243,15 @@ export default function HomeSection({
   const comfortablePreviewMeasureRef = useRef(null);
   const expandedPreviewMeasureRef = useRef(null);
   const [adaptivePreviewHeights, setAdaptivePreviewHeights] = useState(ADAPTIVE_PREVIEW_FALLBACK_HEIGHTS);
+  const [areAdaptivePreviewMeasurementsReady, setAreAdaptivePreviewMeasurementsReady] = useState(false);
 
   useImmersiveScrollGuard(!showWidgetLibrary, 'home-section');
 
   useLayoutEffect(() => {
+    let isCancelled = false;
+
+    setAreAdaptivePreviewMeasurementsReady(false);
+
     const measure = () => {
       const nextHeights = {
         compact: Math.ceil(compactPreviewMeasureRef.current?.getBoundingClientRect().height || ADAPTIVE_PREVIEW_FALLBACK_HEIGHTS.compact),
@@ -267,7 +272,33 @@ export default function HomeSection({
       });
     };
 
+    const markReadyAfterSettle = async () => {
+      try {
+        if (typeof document !== 'undefined' && document.fonts?.ready) {
+          await Promise.race([
+            document.fonts.ready,
+            new Promise((resolve) => window.setTimeout(resolve, 450))
+          ]);
+        }
+      } catch {
+        // noop
+      }
+
+      if (isCancelled) return;
+
+      measure();
+      window.requestAnimationFrame(() => {
+        if (isCancelled) return;
+        window.requestAnimationFrame(() => {
+          if (isCancelled) return;
+          measure();
+          setAreAdaptivePreviewMeasurementsReady(true);
+        });
+      });
+    };
+
     measure();
+    markReadyAfterSettle();
 
     const viewport = window.visualViewport;
     const observer = typeof ResizeObserver !== 'undefined'
@@ -282,6 +313,7 @@ export default function HomeSection({
     viewport?.addEventListener('resize', measure);
 
     return () => {
+      isCancelled = true;
       observer?.disconnect();
       window.removeEventListener('resize', measure);
       viewport?.removeEventListener('resize', measure);
@@ -714,7 +746,7 @@ export default function HomeSection({
   const adaptivePreviewVariant = isBottomGapReady
     ? resolveAdaptivePreviewVariant(bottomGap, adaptivePreviewHeights)
     : 'none';
-  const showAdaptivePreview = adaptivePreviewVariant !== 'none' && !showWidgetLibrary;
+  const showAdaptivePreview = adaptivePreviewVariant !== 'none' && areAdaptivePreviewMeasurementsReady && !showWidgetLibrary;
   const adaptivePreviewSlotPadding = getAdaptivePreviewSlotPadding(adaptivePreviewVariant);
 
   const widgetContext = useMemo(() => ({

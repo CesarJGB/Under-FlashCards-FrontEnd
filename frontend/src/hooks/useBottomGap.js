@@ -12,6 +12,36 @@ const INITIAL_STATE = {
   isReady: false
 };
 
+function waitForAnimationSettle(node) {
+  if (!node?.getAnimations) {
+    return Promise.resolve();
+  }
+
+  const animations = node.getAnimations().filter((animation) => animation.playState !== 'finished');
+  if (animations.length === 0) {
+    return Promise.resolve();
+  }
+
+  return Promise.allSettled(animations.map((animation) => animation.finished));
+}
+
+function waitForFontsReady() {
+  if (typeof document === 'undefined' || !document.fonts?.ready) {
+    return Promise.resolve();
+  }
+
+  return document.fonts.ready;
+}
+
+function waitWithTimeout(promise, timeoutMs) {
+  return Promise.race([
+    promise,
+    new Promise((resolve) => {
+      window.setTimeout(resolve, timeoutMs);
+    })
+  ]);
+}
+
 function resolveTier(gap, thresholds) {
   if (gap >= thresholds.expanded) return 'expanded';
   if (gap >= thresholds.comfortable) return 'comfortable';
@@ -40,6 +70,8 @@ export default function useBottomGap({
   const [state, setState] = useState(INITIAL_STATE);
   const frameRef = useRef(0);
   const lastStateRef = useRef(INITIAL_STATE);
+  const pendingStateRef = useRef(INITIAL_STATE);
+  const readyRef = useRef(false);
 
   useLayoutEffect(() => {
     if (isPaused) return undefined;
@@ -50,19 +82,44 @@ export default function useBottomGap({
     let contentObserver = null;
     let navObserver = null;
     let animationFrameTimeout = 0;
+    let isCancelled = false;
+
+    readyRef.current = false;
+    pendingStateRef.current = INITIAL_STATE;
+    lastStateRef.current = INITIAL_STATE;
+    setState(INITIAL_STATE);
 
     const commitState = (nextState) => {
+      const resolvedState = {
+        ...nextState,
+        isReady: readyRef.current && nextState.isReady
+      };
       const prevState = lastStateRef.current;
       if (
-        prevState.gap === nextState.gap &&
-        prevState.tier === nextState.tier &&
-        prevState.isReady === nextState.isReady
+        prevState.gap === resolvedState.gap &&
+        prevState.tier === resolvedState.tier &&
+        prevState.isReady === resolvedState.isReady
       ) {
         return;
       }
 
-      lastStateRef.current = nextState;
-      setState(nextState);
+      lastStateRef.current = resolvedState;
+      setState(resolvedState);
+    };
+
+    const publishStableMeasurement = () => {
+      if (isCancelled) return;
+
+      readyRef.current = true;
+
+      if (!pendingStateRef.current.isReady) {
+        measure();
+      }
+
+      commitState({
+        ...pendingStateRef.current,
+        isReady: true
+      });
     };
 
     const measure = () => {
@@ -72,7 +129,8 @@ export default function useBottomGap({
       const currentNavNode = navRef?.current;
 
       if (!currentContentNode || !currentNavNode) {
-        commitState(INITIAL_STATE);
+        pendingStateRef.current = INITIAL_STATE;
+        if (readyRef.current) commitState(INITIAL_STATE);
         return;
       }
 
@@ -80,17 +138,24 @@ export default function useBottomGap({
       const navRect = currentNavNode.getBoundingClientRect();
 
       if (!isVisibleNav(currentNavNode, navRect)) {
-        commitState(INITIAL_STATE);
+        pendingStateRef.current = INITIAL_STATE;
+        if (readyRef.current) commitState(INITIAL_STATE);
         return;
       }
 
       const gap = Math.max(0, Math.round(navRect.top - contentRect.bottom));
 
-      commitState({
+      const nextState = {
         gap,
         tier: resolveTier(gap, resolvedThresholds),
         isReady: true
-      });
+      };
+
+      pendingStateRef.current = nextState;
+
+      if (readyRef.current) {
+        commitState(nextState);
+      }
     };
 
     const scheduleMeasure = () => {
@@ -99,6 +164,24 @@ export default function useBottomGap({
     };
 
     scheduleMeasure();
+
+    waitWithTimeout(
+      Promise.allSettled([
+        waitForAnimationSettle(navNode),
+        waitForFontsReady()
+      ]),
+      450
+    ).then(() => {
+      if (isCancelled) return;
+
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          if (isCancelled) return;
+          measure();
+          publishStableMeasurement();
+        });
+      });
+    });
 
     if (typeof ResizeObserver !== 'undefined') {
       if (contentContainer) {
@@ -123,6 +206,8 @@ export default function useBottomGap({
     animationFrameTimeout = window.setTimeout(scheduleMeasure, 240);
 
     return () => {
+      isCancelled = true;
+
       if (frameRef.current) {
         window.cancelAnimationFrame(frameRef.current);
         frameRef.current = 0;
