@@ -622,10 +622,15 @@ export default function HomeSection({
   const { gap: bottomGap, tier: bottomGapTier, isReady: isBottomGapReady } = useBottomGap({
     contentEndRef,
     navRef: bottomNavRef,
+    thresholds: {
+      compact: 0,
+      comfortable: 120,
+      expanded: 260
+    },
     isPaused: showWidgetLibrary
   });
 
-  const showAdaptivePreview = isBottomGapReady && bottomGapTier !== 'none' && !showWidgetLibrary;
+  const showAdaptivePreview = isBottomGapReady && !showWidgetLibrary;
 
   const widgetContext = useMemo(() => ({
     user,
