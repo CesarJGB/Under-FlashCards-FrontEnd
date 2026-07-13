@@ -12,6 +12,8 @@ const INITIAL_STATE = {
   isReady: false
 };
 
+const GAP_JITTER_TOLERANCE_PX = 4;
+
 function waitForAnimationSettle(node) {
   if (!node?.getAnimations) {
     return Promise.resolve();
@@ -95,6 +97,18 @@ export default function useBottomGap({
         isReady: readyRef.current && nextState.isReady
       };
       const prevState = lastStateRef.current;
+
+      // Safari can settle the visual viewport a few pixels after first paint.
+      // Keeping same-tier changes within this range avoids moving the preview.
+      if (
+        prevState.isReady &&
+        resolvedState.isReady &&
+        prevState.tier === resolvedState.tier &&
+        Math.abs(prevState.gap - resolvedState.gap) <= GAP_JITTER_TOLERANCE_PX
+      ) {
+        return;
+      }
+
       if (
         prevState.gap === resolvedState.gap &&
         prevState.tier === resolvedState.tier &&
@@ -199,7 +213,6 @@ export default function useBottomGap({
     const resizeTarget = viewport || window;
 
     resizeTarget.addEventListener('resize', scheduleMeasure);
-    viewport?.addEventListener('scroll', scheduleMeasure);
     window.addEventListener('orientationchange', scheduleMeasure);
     navNode?.addEventListener('animationend', scheduleMeasure);
 
@@ -221,7 +234,6 @@ export default function useBottomGap({
       contentObserver?.disconnect();
       navObserver?.disconnect();
       resizeTarget.removeEventListener('resize', scheduleMeasure);
-      viewport?.removeEventListener('scroll', scheduleMeasure);
       window.removeEventListener('orientationchange', scheduleMeasure);
       navNode?.removeEventListener('animationend', scheduleMeasure);
     };

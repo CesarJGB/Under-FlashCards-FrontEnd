@@ -25,7 +25,8 @@ export default function LibrarySection({
   currentDeck, setCurrentDeck, initialMode, setInitialMode,
   onExitToStudy,
   pendingNav,       
-  clearPendingNav   
+  clearPendingNav,
+  dashboardShell
 }) {
   
   useEffect(() => {
@@ -484,6 +485,7 @@ export default function LibrarySection({
           importing={importing}
           academicModal={academicModal}
           modal={modal}
+          dashboardShell={dashboardShell}
         />
       )}
     </div>

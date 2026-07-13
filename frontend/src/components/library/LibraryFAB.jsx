@@ -1,5 +1,6 @@
 // ARCHIVO: frontend/src/components/library/LibraryFAB.jsx
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Plus, Upload, Loader2, FolderPlus, FileText } from 'lucide-react';
 
 export default function LibraryFAB({ 
@@ -7,7 +8,8 @@ export default function LibraryFAB({
   setModal, 
   setAcademicModal,
   fileInputRef, 
-  importing 
+  importing,
+  dashboardShell
 }) {
   const [fabOpen, setFabOpen] = useState(false);
 
@@ -27,19 +29,19 @@ export default function LibraryFAB({
 
   const isTemasLevel = currentPath.materiaId !== null && currentPath.parcialNumber !== null && currentPath.temaId === null;
 
-  return (
-    <>
-      {/* FAB Button */}
-      {!fabOpen && !isParcialesLevel && (
-        <button
-          type="button"
-          onClick={() => setFabOpen(true)}
-          className="fixed bottom-24 right-6 w-14 h-14 rounded-2xl bg-slate-900 text-white shadow-lg flex items-center justify-center z-50 hover:bg-slate-800 hover:scale-105 active:scale-90 transition-all duration-200 cursor-pointer"
-        >
-          <Plus className="w-6 h-6 stroke-[2.5]" />
-        </button>
-      )}
+  const fabButton = !fabOpen && !isParcialesLevel && (
+    <button
+      type="button"
+      onClick={() => setFabOpen(true)}
+      className="absolute right-6 w-14 h-14 rounded-2xl bg-slate-900 text-white shadow-lg flex items-center justify-center z-50 hover:bg-slate-800 hover:scale-105 active:scale-90 transition-all duration-200 cursor-pointer md:fixed"
+      style={{ bottom: 'max(0px, calc(6rem - env(safe-area-inset-bottom)))' }}
+    >
+      <Plus className="w-6 h-6 stroke-[2.5]" />
+    </button>
+  );
 
+  const fabOverlays = (
+    <>
       {/* Backdrop con fade suave */}
       {fabOpen && (
         <div
@@ -155,5 +157,11 @@ export default function LibraryFAB({
       )}
     </>
   );
-}
 
+  return (
+    <>
+      {dashboardShell ? createPortal(fabButton, dashboardShell) : fabButton}
+      {fabOverlays}
+    </>
+  );
+}
