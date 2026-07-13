@@ -61,7 +61,6 @@ export default function QuickViewSubjectsWidget({
 
   const renderMateriaCard = (materia) => {
     const accent = getKnowledgeAccent(materia.masteryPercentage);
-    // 1. Ampliamos el radio a 24 para que el anillo tenga mayor presencia visual
     const circumference = 2 * Math.PI * 24;
     const strokeDashoffset = circumference - (materia.masteryPercentage / 100) * circumference;
     const parcialesBadge = getParcialesBadge(materia.activeParciales);
@@ -71,11 +70,11 @@ export default function QuickViewSubjectsWidget({
         key={materia.id}
         type="button"
         onClick={() => handleCardClick(materia)}
-        // 2. Aumentamos la altura fija a h-36 y mejoramos el padding a p-2.5
-        className="group bg-white dark:bg-zinc-900 p-2.5 rounded-xl border border-zinc-200/70 dark:border-zinc-800 flex flex-col items-center text-center hover:shadow-sm hover:border-indigo-200 dark:hover:border-indigo-900 transition-all active:scale-[0.97] min-w-0 h-36 justify-start"
+        // 1. Reducimos el alto de la tarjeta a h-32 y cambiamos el padding a p-2 para compactarlo
+        className="group bg-white dark:bg-zinc-900 p-2 rounded-xl border border-zinc-200/70 dark:border-zinc-800 flex flex-col items-center text-center hover:shadow-sm hover:border-indigo-200 dark:hover:border-indigo-900 transition-all active:scale-[0.97] min-w-0 h-32 justify-start"
       >
-        {/* 3. El contenedor del círculo ahora pasa a w-14 h-14 (56px) */}
-        <div className="relative w-14 h-14 mb-2 shrink-0">
+        {/* Mantener anillo grande pero reducir el margen inferior a mb-1.5 */}
+        <div className="relative w-14 h-14 mb-1.5 shrink-0">
           <svg className="w-full h-full transform -rotate-90">
             <circle cx="28" cy="28" r="24" stroke="currentColor" strokeWidth="5" fill="none" className="text-zinc-100 dark:text-zinc-800" />
             <circle
@@ -92,18 +91,18 @@ export default function QuickViewSubjectsWidget({
             />
           </svg>
           <div className="absolute inset-0 flex items-center justify-center">
-            {/* Escalamos el texto del porcentaje a text-[11px] */}
             <span className="text-[11px] font-black text-zinc-800 dark:text-zinc-200 leading-none">
               {materia.masteryPercentage}%
             </span>
           </div>
         </div>
 
-        {/* Ajustamos ligeramente el tamaño y altura mínima del título */}
-        <p className="text-[10px] font-bold text-zinc-800 dark:text-zinc-100 leading-tight line-clamp-2 min-h-[26px] w-full px-0.5 mb-1">
+        {/* 2. Reducimos la altura mínima del título a min-h-[24px] y su margen a mb-0.5 */}
+        <p className="text-[10px] font-bold text-zinc-800 dark:text-zinc-100 leading-tight line-clamp-2 min-h-[24px] w-full px-0.5 mb-0.5">
           {materia.title}
         </p>
 
+        {/* Al ser h-32, el mt-auto juntará el badge al texto de forma orgánica */}
         <div className="mt-auto min-h-[14px] flex items-center justify-center w-full shrink-0">
           {parcialesBadge ? (
             <span
@@ -129,12 +128,12 @@ export default function QuickViewSubjectsWidget({
 
       <div className="flex-1 min-h-0">
         {quickView.isInitialLoad && quickView.selectedMaterias.length === 0 ? (
-          <div className="h-full min-h-[280px] rounded-[24px] border border-dashed border-zinc-200 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-900/40 flex flex-col items-center justify-center gap-3 text-center px-6">
+          <div className="h-full min-h-[250px] rounded-[24px] border border-dashed border-zinc-200 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-900/40 flex flex-col items-center justify-center gap-3 text-center px-6">
             <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
             <p className="text-xs font-bold text-zinc-700 dark:text-zinc-300">Cargando tus materias rápidas...</p>
           </div>
         ) : quickView.visibleMaterias.length === 0 ? (
-          <div className="h-full min-h-[280px] rounded-[24px] border border-dashed border-zinc-200 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-900/40 flex flex-col items-center justify-center gap-2 text-center px-6">
+          <div className="h-full min-h-[250px] rounded-[24px] border border-dashed border-zinc-200 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-900/40 flex flex-col items-center justify-center gap-2 text-center px-6">
             <Layers className="w-7 h-7 text-zinc-400" />
             <p className="text-sm font-bold text-zinc-700 dark:text-zinc-300">No hay materias todavía.</p>
             <p className="text-[11px] text-zinc-400 max-w-[26ch]">
@@ -152,8 +151,8 @@ export default function QuickViewSubjectsWidget({
                 return (
                   <div
                     key={materia.id}
-                    // 4. Mantenemos sincronizada la altura h-36 aquí también
-                    className="rounded-xl border border-dashed border-zinc-200 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-900/20 h-36"
+                    // 3. Sincronizamos la altura h-32 para los slots vacíos
+                    className="rounded-xl border border-dashed border-zinc-200 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-900/20 h-32"
                   />
                 );
               }
@@ -164,8 +163,8 @@ export default function QuickViewSubjectsWidget({
         )}
       </div>
 
-      {/* 5. Aumentamos el margen superior a mt-5 para separar físicamente los puntos del grid */}
-      <div className="mt-5 min-h-[12px] px-1">
+      {/* 4. Dejamos una separación limpia mt-4. Con el nuevo tamaño de rejilla ya no habrá roces */}
+      <div className="mt-4 min-h-[12px] px-1">
         <PagerDots currentPage={currentPage} totalPages={totalPages} onSelectPage={goToPage} />
       </div>
     </div>
