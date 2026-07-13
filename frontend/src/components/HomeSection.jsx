@@ -34,15 +34,38 @@ function rotateWidgetOrder(order, offset) {
   return [...order.slice(normalizedOffset), ...order.slice(0, normalizedOffset)];
 }
 
-const ADAPTIVE_PANEL_MAX_HEIGHT = {
+const ADAPTIVE_PREVIEW_HEIGHTS = {
+  compact: 34,
   comfortable: 136,
-  expanded: 260
+  expanded: 196
 };
 
-function HomeAdaptivePreview({ tier, gap }) {
-  if (!tier || tier === 'none') return null;
+const ADAPTIVE_PREVIEW_EDGE_SPACE = {
+  compact: 0,
+  comfortable: 14,
+  expanded: 18
+};
 
-  if (tier === 'compact') {
+function resolveAdaptivePreviewVariant(gap) {
+  if (gap >= ADAPTIVE_PREVIEW_HEIGHTS.expanded + ADAPTIVE_PREVIEW_EDGE_SPACE.expanded * 2) {
+    return 'expanded';
+  }
+
+  if (gap >= ADAPTIVE_PREVIEW_HEIGHTS.comfortable + ADAPTIVE_PREVIEW_EDGE_SPACE.comfortable * 2) {
+    return 'comfortable';
+  }
+
+  if (gap >= ADAPTIVE_PREVIEW_HEIGHTS.compact) {
+    return 'compact';
+  }
+
+  return 'none';
+}
+
+function HomeAdaptivePreview({ variant, gap }) {
+  if (!variant || variant === 'none') return null;
+
+  if (variant === 'compact') {
     return (
       <button
         type="button"
@@ -55,11 +78,8 @@ function HomeAdaptivePreview({ tier, gap }) {
     );
   }
 
-  const previewHeight = Math.max(0, Math.min(Math.max(gap - 24, 0), ADAPTIVE_PANEL_MAX_HEIGHT[tier] || 0));
-
-  if (previewHeight <= 0) return null;
-
-  const isExpanded = tier === 'expanded';
+  const previewHeight = ADAPTIVE_PREVIEW_HEIGHTS[variant] || 0;
+  const isExpanded = variant === 'expanded';
 
   return (
     <section
@@ -80,7 +100,7 @@ function HomeAdaptivePreview({ tier, gap }) {
 
           <div className="flex items-center gap-2 shrink-0">
             <span className="px-2.5 py-1 rounded-full bg-white/90 border border-slate-200 text-[10px] font-bold uppercase tracking-wide text-slate-500">
-              {tier}
+              {variant}
             </span>
             <span className="px-2.5 py-1 rounded-full bg-indigo-50 text-[10px] font-bold text-indigo-600">
               {gap}px
@@ -600,18 +620,14 @@ export default function HomeSection({
     enrichedMaterias
   });
 
-  const { gap: bottomGap, tier: bottomGapTier, isReady: isBottomGapReady } = useBottomGap({
+  const { gap: bottomGap, isReady: isBottomGapReady } = useBottomGap({
     contentEndRef,
     navRef: bottomNavRef,
-    thresholds: {
-      compact: 1,
-      comfortable: 140,
-      expanded: 280
-    },
     isPaused: showWidgetLibrary
   });
 
-  const showAdaptivePreview = isBottomGapReady && bottomGapTier !== 'none' && !showWidgetLibrary;
+  const adaptivePreviewVariant = isBottomGapReady ? resolveAdaptivePreviewVariant(bottomGap) : 'none';
+  const showAdaptivePreview = adaptivePreviewVariant !== 'none' && !showWidgetLibrary;
 
   const widgetContext = useMemo(() => ({
     user,
@@ -641,7 +657,7 @@ export default function HomeSection({
         className="w-full animate-[fadeIn_0.15s_ease]"
         data-bottom-gap={bottomGap}
         data-bottom-gap-ready={isBottomGapReady ? 'true' : 'false'}
-        data-bottom-gap-tier={bottomGapTier}
+        data-bottom-gap-tier={adaptivePreviewVariant}
         style={{ '--home-bottom-gap': `${bottomGap}px` }}
       >
 
@@ -710,11 +726,11 @@ export default function HomeSection({
           )}
         </div>
 
-        <div ref={contentEndRef} aria-hidden="true" className="h-px w-full pointer-events-none" />
+        <div ref={contentEndRef} aria-hidden="true" className="h-0 w-full pointer-events-none" />
 
         {showAdaptivePreview && (
           <div className="flex items-center justify-center" style={{ height: bottomGap }}>
-            <HomeAdaptivePreview tier={bottomGapTier} gap={bottomGap} />
+            <HomeAdaptivePreview variant={adaptivePreviewVariant} gap={bottomGap} />
           </div>
         )}
 

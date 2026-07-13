@@ -219,7 +219,7 @@ function DashboardScreen({ user, onLogout }) {
           </div>
         )}
 
-        <div className="max-w-5xl mx-auto px-4 py-4 pb-24 md:pb-8 md:px-6 md:py-8">
+        <div className={`max-w-5xl mx-auto px-4 py-4 ${tab === 'home' ? 'pb-0' : 'pb-24'} md:pb-8 md:px-6 md:py-8`}>
           {tab === 'home' && (
             <HomeSection 
               key={homeKey}
