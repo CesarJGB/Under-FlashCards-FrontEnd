@@ -44,7 +44,7 @@ export default function useBottomGap({
   useLayoutEffect(() => {
     if (isPaused) return undefined;
 
-    const contentContainer = contentEndRef?.current?.parentElement || null;
+    const contentContainer = contentEndRef?.current?.previousElementSibling || contentEndRef?.current?.parentElement || null;
     const navNode = navRef?.current || null;
 
     let contentObserver = null;
@@ -116,7 +116,6 @@ export default function useBottomGap({
 
     resizeTarget.addEventListener('resize', scheduleMeasure);
     window.addEventListener('orientationchange', scheduleMeasure);
-    window.addEventListener('scroll', scheduleMeasure, { passive: true });
 
     return () => {
       if (frameRef.current) {
@@ -128,7 +127,6 @@ export default function useBottomGap({
       navObserver?.disconnect();
       resizeTarget.removeEventListener('resize', scheduleMeasure);
       window.removeEventListener('orientationchange', scheduleMeasure);
-      window.removeEventListener('scroll', scheduleMeasure);
     };
   }, [
     contentEndRef,

@@ -1,5 +1,5 @@
 import React, { useMemo, useEffect, useState, useCallback, useRef } from 'react';
-import { ArrowRight, BarChart3, Clock3, Sparkles, TrendingUp } from 'lucide-react';
+import { ArrowRight, BarChart3, ChevronUp, Clock3, Sparkles, TrendingUp } from 'lucide-react';
 import RadarDebugPanel from './RadarDebugPanel';
 import HomeHeader from './home/HomeHeader';
 import WidgetCarousel from './home/WidgetCarousel';
@@ -35,52 +35,35 @@ function rotateWidgetOrder(order, offset) {
 }
 
 const ADAPTIVE_PANEL_MAX_HEIGHT = {
-  compact: 92,
-  comfortable: 188,
-  expanded: 300
+  comfortable: 136,
+  expanded: 260
 };
 
 function HomeAdaptivePreview({ tier, gap }) {
-  const previewHeight = Math.max(0, Math.min(gap - 12, ADAPTIVE_PANEL_MAX_HEIGHT[tier] || 0));
+  if (!tier || tier === 'none') return null;
 
-  if (!tier || tier === 'none' || previewHeight <= 0) return null;
-
-  const isCompact = tier === 'compact';
-  const isExpanded = tier === 'expanded';
-
-  if (isCompact) {
+  if (tier === 'compact') {
     return (
-      <section
-        className="mt-3 rounded-[28px] border border-slate-200 bg-white/95 shadow-[0_14px_34px_rgba(15,23,42,0.08)] overflow-hidden"
-        style={{ height: previewHeight }}
+      <button
+        type="button"
+        onClick={() => {}}
+        className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/95 px-3.5 py-1.5 text-[11px] font-bold text-slate-600 shadow-[0_10px_24px_rgba(15,23,42,0.08)] hover:bg-white transition-colors cursor-pointer"
       >
-        <div className="h-full flex items-center justify-between gap-3 bg-gradient-to-r from-white via-slate-50 to-indigo-50/70 px-4">
-          <div className="min-w-0 flex items-center gap-3">
-            <div className="w-9 h-9 rounded-2xl bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
-              <Sparkles className="w-4 h-4" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-500">Preview compacto</p>
-              <p className="text-sm font-bold text-slate-900 truncate">Un CTA o micro resumen cabe aqu\u00ed cuando sobran {gap}px.</p>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => {}}
-            className="shrink-0 inline-flex items-center gap-2 rounded-full bg-slate-900 text-white px-3 py-2 text-[11px] font-bold hover:bg-slate-800 transition-colors cursor-pointer"
-          >
-            Ver
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      </section>
+        Más opciones
+        <ChevronUp className="w-4 h-4 text-indigo-500" />
+      </button>
     );
   }
 
+  const previewHeight = Math.max(0, Math.min(Math.max(gap - 24, 0), ADAPTIVE_PANEL_MAX_HEIGHT[tier] || 0));
+
+  if (previewHeight <= 0) return null;
+
+  const isExpanded = tier === 'expanded';
+
   return (
     <section
-      className="mt-3 rounded-[28px] border border-slate-200 bg-white/95 shadow-[0_14px_34px_rgba(15,23,42,0.08)] overflow-hidden"
+      className="rounded-[28px] border border-slate-200 bg-white/95 shadow-[0_14px_34px_rgba(15,23,42,0.08)] overflow-hidden"
       style={{ height: previewHeight }}
     >
       <div className="h-full flex flex-col bg-gradient-to-br from-white via-slate-50 to-indigo-50/70 px-5 py-4">
@@ -105,27 +88,25 @@ function HomeAdaptivePreview({ tier, gap }) {
           </div>
         </div>
 
-        {!isCompact && (
-          <div className="mt-4 grid grid-cols-2 gap-3">
-            <div className="rounded-2xl bg-white/85 border border-slate-200 px-3 py-3">
-              <div className="flex items-center gap-2 text-slate-400 text-[10px] font-bold uppercase tracking-wide">
-                <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
-                Dominio sugerido
-              </div>
-              <p className="mt-2 text-2xl font-black text-slate-900">78%</p>
-              <p className="text-[11px] text-slate-500 mt-1">Mini resumen de rendimiento o racha.</p>
+        <div className="mt-4 grid grid-cols-2 gap-3">
+          <div className="rounded-2xl bg-white/85 border border-slate-200 px-3 py-3">
+            <div className="flex items-center gap-2 text-slate-400 text-[10px] font-bold uppercase tracking-wide">
+              <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
+              Dominio sugerido
             </div>
-
-            <div className="rounded-2xl bg-slate-900 text-white px-3 py-3">
-              <div className="flex items-center gap-2 text-indigo-200 text-[10px] font-bold uppercase tracking-wide">
-                <Clock3 className="w-3.5 h-3.5" />
-                Próxima sesión
-              </div>
-              <p className="mt-2 text-sm font-bold">Repaso corto de 12 min</p>
-              <p className="text-[11px] text-slate-300 mt-1">Ideal para cerrar el día sin abrir una pantalla nueva.</p>
-            </div>
+            <p className="mt-2 text-2xl font-black text-slate-900">78%</p>
+            <p className="text-[11px] text-slate-500 mt-1">Mini resumen de rendimiento o racha.</p>
           </div>
-        )}
+
+          <div className="rounded-2xl bg-slate-900 text-white px-3 py-3">
+            <div className="flex items-center gap-2 text-indigo-200 text-[10px] font-bold uppercase tracking-wide">
+              <Clock3 className="w-3.5 h-3.5" />
+              Próxima sesión
+            </div>
+            <p className="mt-2 text-sm font-bold">Repaso corto de 12 min</p>
+            <p className="text-[11px] text-slate-300 mt-1">Ideal para cerrar el día sin abrir una pantalla nueva.</p>
+          </div>
+        </div>
 
         {isExpanded && (
           <div className="mt-4 grid grid-cols-[1.4fr_1fr] gap-3 flex-1 min-h-0">
@@ -135,9 +116,9 @@ function HomeAdaptivePreview({ tier, gap }) {
                 Ideas para el definitivo
               </div>
               <div className="mt-3 space-y-2 text-[11px] text-slate-600">
-                <div className="rounded-xl bg-slate-50 px-3 py-2">Racha de estudio con feedback del d\u00eda</div>
-                <div className="rounded-xl bg-slate-50 px-3 py-2">Mini gr\u00e1fico de dominio global o por materia</div>
-                <div className="rounded-xl bg-slate-50 px-3 py-2">Pr\u00f3xima sesi\u00f3n recomendada seg\u00fan urgencia</div>
+                <div className="rounded-xl bg-slate-50 px-3 py-2">Racha de estudio con feedback del día</div>
+                <div className="rounded-xl bg-slate-50 px-3 py-2">Mini gráfico de dominio global o por materia</div>
+                <div className="rounded-xl bg-slate-50 px-3 py-2">Próxima sesión recomendada según urgencia</div>
               </div>
             </div>
 
@@ -151,9 +132,9 @@ function HomeAdaptivePreview({ tier, gap }) {
 
         <div className="mt-auto pt-3 flex items-center justify-between gap-3">
           <p className="text-[11px] text-slate-500 leading-snug max-w-[34ch]">
-            {isCompact
-              ? 'Versión mínima: una sugerencia ligera para no saturar cuando el hueco es pequeño.'
-              : 'Mock temporal para explorar tamaño, densidad y ritmo visual antes del bloque definitivo.'}
+            {isExpanded
+              ? 'Versión amplia para explorar cuánto contenido secundario puede vivir antes del nav.'
+              : 'Versión compacta intermedia para estudiar densidad y legibilidad cuando hay espacio medio.'}
           </p>
 
           <button
@@ -623,14 +604,14 @@ export default function HomeSection({
     contentEndRef,
     navRef: bottomNavRef,
     thresholds: {
-      compact: 0,
-      comfortable: 120,
-      expanded: 260
+      compact: 1,
+      comfortable: 140,
+      expanded: 280
     },
     isPaused: showWidgetLibrary
   });
 
-  const showAdaptivePreview = isBottomGapReady && !showWidgetLibrary;
+  const showAdaptivePreview = isBottomGapReady && bottomGapTier !== 'none' && !showWidgetLibrary;
 
   const widgetContext = useMemo(() => ({
     user,
@@ -657,80 +638,87 @@ export default function HomeSection({
   return (
     <>
       <div
-        className="w-full space-y-8 animate-[fadeIn_0.15s_ease]"
+        className="w-full animate-[fadeIn_0.15s_ease]"
         data-bottom-gap={bottomGap}
         data-bottom-gap-ready={isBottomGapReady ? 'true' : 'false'}
         data-bottom-gap-tier={bottomGapTier}
         style={{ '--home-bottom-gap': `${bottomGap}px` }}
       >
 
-        {/* Encabezado de usuario */}
-        <HomeHeader user={user} onOpenProfile={onOpenProfile} />
+        <div className="space-y-8">
 
-        {/* Carrusel de widgets */}
-        <WidgetCarousel
-          onViewAll={() => setShowWidgetLibrary(true)}
-          order={visibleWidgetOrder}
-          onShift={handleCarouselShift}
-          widgetContext={widgetContext}
-        />
+          {/* Encabezado de usuario */}
+          <HomeHeader user={user} onOpenProfile={onOpenProfile} />
 
-        {/* Resumen Global */}
-        {homeVisibility.globalStats && (
-          <GlobalStatsHeader
-            user={user}
-            globalStats={globalStats}
+          {/* Carrusel de widgets */}
+          <WidgetCarousel
+            onViewAll={() => setShowWidgetLibrary(true)}
+            order={visibleWidgetOrder}
+            onShift={handleCarouselShift}
+            widgetContext={widgetContext}
           />
-        )}
 
-        {/* Vista Rápida */}
-        {homeVisibility.quickView && (
-          <QuickViewGrid
-            enrichedMaterias={enrichedMaterias}
-            visibleMaterias={quickView.visibleMaterias}
-            selectedMaterias={quickView.selectedMaterias}
-            isInitialLoad={quickView.isInitialLoad}
-            onToggleMateria={quickView.toggleMateria}
-            onSelectAll={quickView.selectAll}
-            onClearAll={quickView.clearAll}
-            getKnowledgeAccent={getKnowledgeAccent}
-            getParcialesBadge={getParcialesBadge}
-            onMateriaClick={onNavigateToLibrary}
-          />
-        )}
+          {/* Resumen Global */}
+          {homeVisibility.globalStats && (
+            <GlobalStatsHeader
+              user={user}
+              globalStats={globalStats}
+            />
+          )}
 
-        {/* Vista Detallada */}
-        {homeVisibility.detailedView && (
-          <DetailedMateriasGrid
-            enrichedMaterias={enrichedMaterias}
-            getKnowledgeAccent={getKnowledgeAccent}
-            getParcialesLabel={getParcialesLabel}
-          />
-        )}
+          {/* Vista Rápida */}
+          {homeVisibility.quickView && (
+            <QuickViewGrid
+              enrichedMaterias={enrichedMaterias}
+              visibleMaterias={quickView.visibleMaterias}
+              selectedMaterias={quickView.selectedMaterias}
+              isInitialLoad={quickView.isInitialLoad}
+              onToggleMateria={quickView.toggleMateria}
+              onSelectAll={quickView.selectAll}
+              onClearAll={quickView.clearAll}
+              getKnowledgeAccent={getKnowledgeAccent}
+              getParcialesBadge={getParcialesBadge}
+              onMateriaClick={onNavigateToLibrary}
+            />
+          )}
 
-        {/* Mazos Sueltos */}
-        {homeVisibility.unclassifiedDecks && (
-          <UnclassifiedDecksSection
-            unclassifiedDecks={unclassifiedDecks}
-            onOpenReview={onOpenReview}
-          />
-        )}
+          {/* Vista Detallada */}
+          {homeVisibility.detailedView && (
+            <DetailedMateriasGrid
+              enrichedMaterias={enrichedMaterias}
+              getKnowledgeAccent={getKnowledgeAccent}
+              getParcialesLabel={getParcialesLabel}
+            />
+          )}
+
+          {/* Mazos Sueltos */}
+          {homeVisibility.unclassifiedDecks && (
+            <UnclassifiedDecksSection
+              unclassifiedDecks={unclassifiedDecks}
+              onOpenReview={onOpenReview}
+            />
+          )}
+
+          {/* ⚡ PANEL DE TELEMETRÍA Y DEBUGGING DEL RADAR DE CONOCIMIENTO */}
+          {import.meta.env.DEV && (
+            <RadarDebugPanel
+              userId={user?.id}
+              decks={decks}
+              loadDecks={loadDecks}
+              loadMaterias={loadMaterias}
+            />
+          )}
+        </div>
 
         <div ref={contentEndRef} aria-hidden="true" className="h-px w-full pointer-events-none" />
 
-        {/* ⚡ PANEL DE TELEMETRÍA Y DEBUGGING DEL RADAR DE CONOCIMIENTO */}
-        {import.meta.env.DEV && (
-          <RadarDebugPanel
-            userId={user?.id}
-            decks={decks}
-            loadDecks={loadDecks}
-            loadMaterias={loadMaterias}
-          />
+        {showAdaptivePreview && (
+          <div className="flex items-center justify-center" style={{ height: bottomGap }}>
+            <HomeAdaptivePreview tier={bottomGapTier} gap={bottomGap} />
+          </div>
         )}
 
       </div>
-
-      {showAdaptivePreview && <HomeAdaptivePreview tier={bottomGapTier} gap={bottomGap} />}
 
       {showWidgetLibrary && (
         <WidgetCarouselExpanded
