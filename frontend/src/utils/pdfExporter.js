@@ -25,10 +25,10 @@ const hexToRgb = (hex) => {
   return null;
 };
 
-// El bloque redundante local "parseCardStyles" fue removido con éxito.
-
 /**
  * Genera y descarga un documento PDF basado en las tarjetas de un mazo con soporte de color.
+ * Admite los tipos: 'guide' (Guía de estudio), 'cards' (Tarjetas para recortar), 
+ * 'questions' (Banco de preguntas) y 'answers' (Banco de respuestas).
  */
 export const exportDeckToPDF = (deckTitle, cards, type = 'guide') => {
   if (!cards || cards.length === 0) return;
@@ -289,5 +289,144 @@ export const exportDeckToPDF = (deckTitle, cards, type = 'guide') => {
     });
 
     doc.save(`${safeName}-tarjetas.pdf`);
+    return;
+  }
+
+  // =======================================================================
+  // FORMATO C: BANCO DE PREGUNTAS (SÓLO PREGUNTAS NUMERADAS)
+  // =======================================================================
+  if (type === 'questions') {
+    const margin = 15;
+    const contentWidth = pageWidth - (margin * 2);
+
+    doc.setFont("Helvetica", "bold"); doc.setFontSize(22);
+    doc.text(`Banco de Preguntas: ${deckTitle}`, margin, 22);
+    doc.setFont("Helvetica", "normal"); doc.setFontSize(10); doc.setTextColor(100, 116, 139);
+    doc.text(`Total de preguntas: ${cards.length} | Generado el ${new Date().toLocaleDateString()}`, margin, 29);
+
+    doc.setDrawColor(226, 232, 240); doc.setLineWidth(0.5); doc.line(margin, 32, pageWidth - margin, 32);
+
+    let y = 42;
+    cards.forEach((card, index) => {
+      // Usamos el índice (+1) para identificar de forma clara la tarjeta correspondiente
+      const cardNum = index + 1;
+      const qLines = doc.splitTextToSize(`Pregunta #${cardNum}: ${card.question}`, contentWidth - 4);
+      
+      let blockTextHeight = (qLines.length * 6) + 4;
+      // Solo mostramos la imagen si está asignada al lado de la pregunta
+      let blockImgHeight = (card.contentImage && card.imageSide === 'question') ? 36 : 0;
+      const totalBlockHeight = blockTextHeight + blockImgHeight + 8;
+
+      // Prevención de desbordamiento de página
+      if (y - 6 + totalBlockHeight > 280) { doc.addPage(); y = 22; }
+
+      const st = parseCardStyles(card.fontSize);
+      const bgRgb = hexToRgb(st.bgColor);
+
+      let isDarkBg = false;
+      if (bgRgb) {
+        const luma = 0.2126 * bgRgb.r + 0.7152 * bgRgb.g + 0.0722 * bgRgb.b;
+        isDarkBg = luma < 140;
+      }
+
+      if (bgRgb) {
+        doc.setFillColor(bgRgb.r, bgRgb.g, bgRgb.b);
+      } else {
+        doc.setFillColor(250, 250, 250);
+      }
+      doc.setDrawColor(241, 245, 249);
+      doc.roundedRect(margin - 2, y - 6, contentWidth + 4, totalBlockHeight, 3, 3, "FD");
+
+      // Renderizado del texto de la pregunta
+      doc.setFont("Helvetica", "bold"); doc.setFontSize(11);
+      const finalQColor = hexToRgb(st.qColor) || (isDarkBg ? { r: 255, g: 255, b: 255 } : { r: 15, g: 23, b: 42 });
+      doc.setTextColor(finalQColor.r, finalQColor.g, finalQColor.b);
+      
+      qLines.forEach((line, i) => { doc.text(line, margin + 2, y + (i * 6)); });
+      y += (qLines.length * 6) + 2;
+
+      // Renderizado de imagen
+      if (card.contentImage && card.imageSide === 'question') {
+        try {
+          let imgFormat = card.contentImage.includes('image/png') ? 'PNG' : card.contentImage.includes('image/webp') ? 'WEBP' : 'JPEG';
+          doc.addImage(card.contentImage, imgFormat, margin + 2, y, 54, 32, undefined, 'FAST');
+        } catch (e) { console.error(e); }
+          y += 36;
+      }
+      
+      y += 12; // Separación entre tarjetas
+    });
+
+    doc.save(`${safeName}-banco-preguntas.pdf`);
+    return;
+  }
+
+  // =======================================================================
+  // FORMATO D: BANCO DE RESPUESTAS (SÓLO RESPUESTAS NUMERADAS)
+  // =======================================================================
+  if (type === 'answers') {
+    const margin = 15;
+    const contentWidth = pageWidth - (margin * 2);
+
+    doc.setFont("Helvetica", "bold"); doc.setFontSize(22);
+    doc.text(`Banco de Respuestas: ${deckTitle}`, margin, 22);
+    doc.setFont("Helvetica", "normal"); doc.setFontSize(10); doc.setTextColor(100, 116, 139);
+    doc.text(`Total de respuestas: ${cards.length} | Generado el ${new Date().toLocaleDateString()}`, margin, 29);
+
+    doc.setDrawColor(226, 232, 240); doc.setLineWidth(0.5); doc.line(margin, 32, pageWidth - margin, 32);
+
+    let y = 42;
+    cards.forEach((card, index) => {
+      // Usamos el índice (+1) para identificar de forma clara la tarjeta correspondiente
+      const cardNum = index + 1;
+      const aLines = doc.splitTextToSize(`Respuesta #${cardNum}: ${card.answer}`, contentWidth - 4);
+      
+      let blockTextHeight = (aLines.length * 6) + 4;
+      // Solo mostramos la imagen si está asignada al lado de la respuesta
+      let blockImgHeight = (card.contentImage && card.imageSide === 'answer') ? 36 : 0;
+      const totalBlockHeight = blockTextHeight + blockImgHeight + 8;
+
+      // Prevención de desbordamiento de página
+      if (y - 6 + totalBlockHeight > 280) { doc.addPage(); y = 22; }
+
+      const st = parseCardStyles(card.fontSize);
+      const bgRgb = hexToRgb(st.bgColor);
+
+      let isDarkBg = false;
+      if (bgRgb) {
+        const luma = 0.2126 * bgRgb.r + 0.7152 * bgRgb.g + 0.0722 * bgRgb.b;
+        isDarkBg = luma < 140;
+      }
+
+      if (bgRgb) {
+        doc.setFillColor(bgRgb.r, bgRgb.g, bgRgb.b);
+      } else {
+        doc.setFillColor(250, 250, 250);
+      }
+      doc.setDrawColor(241, 245, 249);
+      doc.roundedRect(margin - 2, y - 6, contentWidth + 4, totalBlockHeight, 3, 3, "FD");
+
+      // Renderizado del texto de la respuesta
+      doc.setFont("Helvetica", "normal"); doc.setFontSize(11);
+      const finalAColor = hexToRgb(st.aColor) || (isDarkBg ? { r: 241, g: 245, b: 249 } : { r: 71, g: 85, b: 105 });
+      doc.setTextColor(finalAColor.r, finalAColor.g, finalAColor.b);
+      
+      aLines.forEach((line, i) => { doc.text(line, margin + 2, y + (i * 6)); });
+      y += (aLines.length * 6) + 2;
+
+      // Renderizado de imagen
+      if (card.contentImage && card.imageSide === 'answer') {
+        try {
+          let imgFormat = card.contentImage.includes('image/png') ? 'PNG' : card.contentImage.includes('image/webp') ? 'WEBP' : 'JPEG';
+          doc.addImage(card.contentImage, imgFormat, margin + 2, y, 54, 32, undefined, 'FAST');
+        } catch (e) { console.error(e); }
+        y += 36;
+      }
+      
+      y += 12; // Separación entre tarjetas
+    });
+
+    doc.save(`${safeName}-banco-respuestas.pdf`);
+    return;
   }
 };
