@@ -153,7 +153,7 @@ function DashboardScreen({ user, onLogout }) {
   );
 
   return (
-    <div className="min-h-screen w-full bg-slate-50 flex" data-testid="dashboard-screen">
+    <div className="min-h-[100dvh] w-full bg-slate-50 flex" data-testid="dashboard-screen">
       <aside className="hidden md:flex w-72 shrink-0 flex-col bg-white border-r border-slate-200 p-5">
         <div className="flex items-center gap-2 px-1 mb-8 h-9 min-w-0">
           <div className="min-w-0 flex items-center gap-2">
@@ -219,7 +219,7 @@ function DashboardScreen({ user, onLogout }) {
           </div>
         )}
 
-        <div className={`max-w-5xl mx-auto px-4 py-4 ${tab === 'home' ? 'pb-0' : 'pb-24'} md:pb-8 md:px-6 md:py-8`}>
+        <div className={`max-w-5xl mx-auto px-4 pt-4 ${tab === 'home' ? 'pb-0' : 'pb-24'} md:px-6 md:pt-8 md:pb-8`}>
           {tab === 'home' && (
             <HomeSection 
               key={homeKey}
@@ -281,7 +281,7 @@ function DashboardScreen({ user, onLogout }) {
         </div>
 
         {/* 👇 MENÚ DE NAVEGACIÓN MÓVIL OPTIMIZADO 👇 */}
-        <div ref={mobileNavRef} className="md:hidden fixed bottom-6 inset-x-0 mx-auto w-fit bg-white/90 backdrop-blur-xl border border-slate-200/80 h-14 rounded-full px-2 flex items-center gap-1.5 z-40 shadow-[0_8px_32px_rgba(0,0,0,0.12)] animate-[slideUp_0.2s_ease-out]">
+        <div ref={mobileNavRef} className="md:hidden fixed inset-x-0 mx-auto w-fit bg-white/90 backdrop-blur-xl border border-slate-200/80 h-14 rounded-full px-2 flex items-center gap-1.5 z-40 shadow-[0_8px_32px_rgba(0,0,0,0.12)] animate-[slideUp_0.2s_ease-out]" style={{ bottom: 'calc(env(safe-area-inset-bottom) + 0.75rem)' }}>
           {[
             { id: 'home', title: 'Inicio', Icon: Home },
             { id: 'study', title: 'Estudio', Icon: BookOpen },

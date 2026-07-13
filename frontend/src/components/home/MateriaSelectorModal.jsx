@@ -42,7 +42,7 @@ export default function MateriaSelectorModal({
         </div>
 
         {/* Lista de materias */}
-        <div className="flex-1 overflow-y-auto p-3 space-y-2">
+        <div data-immersive-allow-scroll="true" className="flex-1 overflow-y-auto p-3 space-y-2">
           {materias.length === 0 ? (
             <div className="text-center py-8">
               <p className="text-xs text-zinc-400">No hay materias disponibles</p>
@@ -89,4 +89,3 @@ export default function MateriaSelectorModal({
     </div>
   );
 }
-

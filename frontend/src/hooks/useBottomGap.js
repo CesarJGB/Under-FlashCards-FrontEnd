@@ -49,6 +49,7 @@ export default function useBottomGap({
 
     let contentObserver = null;
     let navObserver = null;
+    let animationFrameTimeout = 0;
 
     const commitState = (nextState) => {
       const prevState = lastStateRef.current;
@@ -115,7 +116,11 @@ export default function useBottomGap({
     const resizeTarget = viewport || window;
 
     resizeTarget.addEventListener('resize', scheduleMeasure);
+    viewport?.addEventListener('scroll', scheduleMeasure);
     window.addEventListener('orientationchange', scheduleMeasure);
+    navNode?.addEventListener('animationend', scheduleMeasure);
+
+    animationFrameTimeout = window.setTimeout(scheduleMeasure, 240);
 
     return () => {
       if (frameRef.current) {
@@ -123,10 +128,17 @@ export default function useBottomGap({
         frameRef.current = 0;
       }
 
+      if (animationFrameTimeout) {
+        window.clearTimeout(animationFrameTimeout);
+        animationFrameTimeout = 0;
+      }
+
       contentObserver?.disconnect();
       navObserver?.disconnect();
       resizeTarget.removeEventListener('resize', scheduleMeasure);
+      viewport?.removeEventListener('scroll', scheduleMeasure);
       window.removeEventListener('orientationchange', scheduleMeasure);
+      navNode?.removeEventListener('animationend', scheduleMeasure);
     };
   }, [
     contentEndRef,

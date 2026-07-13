@@ -9,6 +9,7 @@ import DetailedMateriasGrid from './home/DetailedMateriasGrid';
 import UnclassifiedDecksSection from './home/UnclassifiedDecksSection';
 import WidgetCarouselExpanded from './home/WidgetCarouselExpanded';
 import { getJSON, setJSON, remove } from '../lib/safeLocalStorage';
+import useImmersiveScrollGuard from '../hooks/useImmersiveScrollGuard';
 import useBottomGap from '../hooks/useBottomGap';
 import useQuickViewMaterias from './home/useQuickViewMaterias';
 import { DEFAULT_WIDGET_ORDER, normalizeWidgetOrder, serializeWidgetOrder } from './home/homeWidgetRegistry';
@@ -35,27 +36,33 @@ function rotateWidgetOrder(order, offset) {
 }
 
 const ADAPTIVE_PREVIEW_HEIGHTS = {
-  compact: 34,
+  compact: 30,
   comfortable: 136,
   expanded: 196
 };
 
-const ADAPTIVE_PREVIEW_EDGE_SPACE = {
-  compact: 0,
-  comfortable: 14,
-  expanded: 18
+const ADAPTIVE_PREVIEW_CLEARANCE = {
+  compact: { top: 4, bottom: 12 },
+  comfortable: { top: 10, bottom: 28 },
+  expanded: { top: 12, bottom: 34 }
 };
 
+const ADAPTIVE_PREVIEW_VISUAL_BUFFER = 10;
+
+function getAdaptivePreviewSlotPadding(variant) {
+  return ADAPTIVE_PREVIEW_CLEARANCE[variant] || { top: 0, bottom: 0 };
+}
+
 function resolveAdaptivePreviewVariant(gap) {
-  if (gap >= ADAPTIVE_PREVIEW_HEIGHTS.expanded + ADAPTIVE_PREVIEW_EDGE_SPACE.expanded * 2) {
+  if (gap >= ADAPTIVE_PREVIEW_HEIGHTS.expanded + ADAPTIVE_PREVIEW_CLEARANCE.expanded.top + ADAPTIVE_PREVIEW_CLEARANCE.expanded.bottom) {
     return 'expanded';
   }
 
-  if (gap >= ADAPTIVE_PREVIEW_HEIGHTS.comfortable + ADAPTIVE_PREVIEW_EDGE_SPACE.comfortable * 2) {
+  if (gap >= ADAPTIVE_PREVIEW_HEIGHTS.comfortable + ADAPTIVE_PREVIEW_CLEARANCE.comfortable.top + ADAPTIVE_PREVIEW_CLEARANCE.comfortable.bottom) {
     return 'comfortable';
   }
 
-  if (gap >= ADAPTIVE_PREVIEW_HEIGHTS.compact) {
+  if (gap >= ADAPTIVE_PREVIEW_HEIGHTS.compact + ADAPTIVE_PREVIEW_CLEARANCE.compact.top + ADAPTIVE_PREVIEW_CLEARANCE.compact.bottom) {
     return 'compact';
   }
 
@@ -202,6 +209,8 @@ export default function HomeSection({
   const lastSyncedWidgetOrder = useRef(JSON.stringify(DEFAULT_WIDGET_ORDER));
   const widgetOrderTouched = useRef(false);
   const contentEndRef = useRef(null);
+
+  useImmersiveScrollGuard(!showWidgetLibrary, 'home-section');
 
   // Escuchar actualizaciones/invalidation disparadas por otras secciones (Library) para evitar parpadeos
   useEffect(() => {
@@ -626,8 +635,10 @@ export default function HomeSection({
     isPaused: showWidgetLibrary
   });
 
-  const adaptivePreviewVariant = isBottomGapReady ? resolveAdaptivePreviewVariant(bottomGap) : 'none';
+  const usableBottomGap = Math.max(0, bottomGap - ADAPTIVE_PREVIEW_VISUAL_BUFFER);
+  const adaptivePreviewVariant = isBottomGapReady ? resolveAdaptivePreviewVariant(usableBottomGap) : 'none';
   const showAdaptivePreview = adaptivePreviewVariant !== 'none' && !showWidgetLibrary;
+  const adaptivePreviewSlotPadding = getAdaptivePreviewSlotPadding(adaptivePreviewVariant);
 
   const widgetContext = useMemo(() => ({
     user,
@@ -729,8 +740,15 @@ export default function HomeSection({
         <div ref={contentEndRef} aria-hidden="true" className="h-0 w-full pointer-events-none" />
 
         {showAdaptivePreview && (
-          <div className="flex items-center justify-center" style={{ height: bottomGap }}>
-            <HomeAdaptivePreview variant={adaptivePreviewVariant} gap={bottomGap} />
+          <div
+            className="h-full flex items-center justify-center"
+            style={{
+              height: bottomGap,
+              paddingTop: adaptivePreviewSlotPadding.top,
+              paddingBottom: adaptivePreviewSlotPadding.bottom + ADAPTIVE_PREVIEW_VISUAL_BUFFER
+            }}
+          >
+            <HomeAdaptivePreview variant={adaptivePreviewVariant} gap={usableBottomGap} />
           </div>
         )}
 
