@@ -4,7 +4,7 @@ import { Layers } from 'lucide-react';
 import useWidgetPager from './useWidgetPager';
 import { buildQuickViewNavigationTarget } from '../quickViewNavigation';
 
-const GRID_COLUMNS = 4;
+const GRID_COLUMNS = 3;
 const GRID_ROWS = 2;
 const PAGE_SIZE = GRID_COLUMNS * GRID_ROWS;
 
@@ -95,7 +95,7 @@ export default function QuickViewSubjectsWidget({
           </div>
         </div>
 
-        <p className="text-[9px] font-bold text-zinc-800 dark:text-zinc-100 leading-tight line-clamp-2 min-h-[22px] w-full px-0.5 mb-1">
+        <p className="text-[9px] font-bold text-zinc-800 dark:text-zinc-100 leading-tight line-clamp-2 min-h-[22px] w-full px-1 mb-1">
           {materia.title}
         </p>
 
@@ -103,7 +103,7 @@ export default function QuickViewSubjectsWidget({
           {parcialesBadge ? (
             <span
               title={parcialesBadge}
-              className="block max-w-full truncate text-[7px] font-bold px-1 py-0.5 rounded text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40"
+              className="block max-w-full truncate text-[7px] font-bold px-1.5 py-0.5 rounded text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40"
             >
               {parcialesBadge}
             </span>
@@ -139,7 +139,7 @@ export default function QuickViewSubjectsWidget({
         ) : (
           <div
             {...swipeHandlers}
-            className="grid grid-cols-4 gap-2"
+            className="grid grid-cols-3 gap-2"
             style={{ touchAction: totalPages > 1 ? 'pan-y' : 'auto' }}
           >
             {gridItems.map((materia) => {
