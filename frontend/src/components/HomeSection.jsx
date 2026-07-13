@@ -1,4 +1,4 @@
-import React, { useMemo, useEffect, useState, useCallback, useRef } from 'react';
+import React, { useMemo, useEffect, useLayoutEffect, useState, useCallback, useRef } from 'react';
 import { ArrowRight, BarChart3, ChevronUp, Clock3, Sparkles, TrendingUp } from 'lucide-react';
 import RadarDebugPanel from './RadarDebugPanel';
 import HomeHeader from './home/HomeHeader';
@@ -35,65 +35,91 @@ function rotateWidgetOrder(order, offset) {
   return [...order.slice(normalizedOffset), ...order.slice(0, normalizedOffset)];
 }
 
-const ADAPTIVE_PREVIEW_HEIGHTS = {
-  compact: 30,
-  comfortable: 136,
-  expanded: 196
+const ADAPTIVE_PREVIEW_FALLBACK_HEIGHTS = {
+  compact: 26,
+  comfortable: 82,
+  expanded: 198
 };
 
 const ADAPTIVE_PREVIEW_CLEARANCE = {
-  compact: { top: 4, bottom: 12 },
-  comfortable: { top: 10, bottom: 28 },
-  expanded: { top: 12, bottom: 34 }
+  compact: { top: 0, bottom: 8 },
+  comfortable: { top: 8, bottom: 14 },
+  expanded: { top: 12, bottom: 26 }
 };
-
-const ADAPTIVE_PREVIEW_VISUAL_BUFFER = 10;
 
 function getAdaptivePreviewSlotPadding(variant) {
   return ADAPTIVE_PREVIEW_CLEARANCE[variant] || { top: 0, bottom: 0 };
 }
 
-function resolveAdaptivePreviewVariant(gap) {
-  if (gap >= ADAPTIVE_PREVIEW_HEIGHTS.expanded + ADAPTIVE_PREVIEW_CLEARANCE.expanded.top + ADAPTIVE_PREVIEW_CLEARANCE.expanded.bottom) {
+function resolveAdaptivePreviewVariant(gap, previewHeights) {
+  if (gap >= previewHeights.expanded + ADAPTIVE_PREVIEW_CLEARANCE.expanded.top + ADAPTIVE_PREVIEW_CLEARANCE.expanded.bottom) {
     return 'expanded';
   }
 
-  if (gap >= ADAPTIVE_PREVIEW_HEIGHTS.comfortable + ADAPTIVE_PREVIEW_CLEARANCE.comfortable.top + ADAPTIVE_PREVIEW_CLEARANCE.comfortable.bottom) {
+  if (gap >= previewHeights.comfortable + ADAPTIVE_PREVIEW_CLEARANCE.comfortable.top + ADAPTIVE_PREVIEW_CLEARANCE.comfortable.bottom) {
     return 'comfortable';
   }
 
-  if (gap >= ADAPTIVE_PREVIEW_HEIGHTS.compact + ADAPTIVE_PREVIEW_CLEARANCE.compact.top + ADAPTIVE_PREVIEW_CLEARANCE.compact.bottom) {
+  if (gap >= previewHeights.compact + ADAPTIVE_PREVIEW_CLEARANCE.compact.top + ADAPTIVE_PREVIEW_CLEARANCE.compact.bottom) {
     return 'compact';
   }
 
   return 'none';
 }
 
-function HomeAdaptivePreview({ variant, gap }) {
-  if (!variant || variant === 'none') return null;
-
-  if (variant === 'compact') {
-    return (
-      <button
-        type="button"
-        onClick={() => {}}
-        className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/95 px-3.5 py-1.5 text-[11px] font-bold text-slate-600 shadow-[0_10px_24px_rgba(15,23,42,0.08)] hover:bg-white transition-colors cursor-pointer"
-      >
-        Más opciones
-        <ChevronUp className="w-4 h-4 text-indigo-500" />
-      </button>
-    );
-  }
-
-  const previewHeight = ADAPTIVE_PREVIEW_HEIGHTS[variant] || 0;
-  const isExpanded = variant === 'expanded';
-
+function HomeAdaptiveCompactPreview() {
   return (
-    <section
-      className="rounded-[28px] border border-slate-200 bg-white/95 shadow-[0_14px_34px_rgba(15,23,42,0.08)] overflow-hidden"
-      style={{ height: previewHeight }}
+    <button
+      type="button"
+      onClick={() => {}}
+      className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white/95 px-3 py-1 text-[10px] font-bold text-slate-600 shadow-sm hover:bg-white transition-colors cursor-pointer"
     >
-      <div className="h-full flex flex-col bg-gradient-to-br from-white via-slate-50 to-indigo-50/70 px-5 py-4">
+      Más opciones
+      <ChevronUp className="w-3.5 h-3.5 text-indigo-500" />
+    </button>
+  );
+}
+
+function HomeAdaptiveComfortablePreview({ gap }) {
+  return (
+    <section className="w-full max-w-xl rounded-[24px] border border-slate-200 bg-white/95 shadow-[0_10px_28px_rgba(15,23,42,0.08)] overflow-hidden">
+      <div className="px-4 py-3 flex items-center gap-3">
+        <div className="w-9 h-9 rounded-2xl bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
+          <Sparkles className="w-4 h-4" />
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <p className="text-[9px] font-black uppercase tracking-[0.18em] text-indigo-500">Preview compacto</p>
+          <p className="text-sm font-bold text-slate-900 truncate">Aquí ya cabe una tarjeta útil sin rozar el nav.</p>
+        </div>
+
+        <div className="shrink-0 flex items-center gap-2">
+          <span className="px-2 py-1 rounded-full bg-indigo-50 text-[10px] font-bold text-indigo-600">
+            {gap}px
+          </span>
+          <button
+            type="button"
+            onClick={() => {}}
+            className="inline-flex items-center gap-1.5 rounded-full bg-slate-900 text-white px-3 py-1.5 text-[11px] font-bold hover:bg-slate-800 transition-colors cursor-pointer"
+          >
+            Ver
+            <ArrowRight className="w-3 h-3" />
+          </button>
+        </div>
+      </div>
+
+      <div className="px-4 pb-3 flex items-center gap-2 text-[10px] text-slate-500 flex-wrap">
+        <span className="rounded-full border border-slate-200 bg-white px-2 py-1 font-bold">78% dominio</span>
+        <span className="rounded-full bg-slate-900 text-white px-2 py-1 font-bold">12 min sugeridos</span>
+      </div>
+    </section>
+  );
+}
+
+function HomeAdaptiveExpandedPreview({ gap }) {
+  return (
+    <section className="w-full max-w-2xl rounded-[28px] border border-slate-200 bg-white/95 shadow-[0_14px_34px_rgba(15,23,42,0.08)] overflow-hidden">
+      <div className="bg-gradient-to-br from-white via-slate-50 to-indigo-50/70 px-5 py-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
@@ -107,7 +133,7 @@ function HomeAdaptivePreview({ variant, gap }) {
 
           <div className="flex items-center gap-2 shrink-0">
             <span className="px-2.5 py-1 rounded-full bg-white/90 border border-slate-200 text-[10px] font-bold uppercase tracking-wide text-slate-500">
-              {variant}
+              expanded
             </span>
             <span className="px-2.5 py-1 rounded-full bg-indigo-50 text-[10px] font-bold text-indigo-600">
               {gap}px
@@ -135,33 +161,29 @@ function HomeAdaptivePreview({ variant, gap }) {
           </div>
         </div>
 
-        {isExpanded && (
-          <div className="mt-4 grid grid-cols-[1.4fr_1fr] gap-3 flex-1 min-h-0">
-            <div className="rounded-2xl border border-slate-200 bg-white/80 px-3 py-3 min-h-0">
-              <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                <BarChart3 className="w-3.5 h-3.5 text-indigo-500" />
-                Ideas para el definitivo
-              </div>
-              <div className="mt-3 space-y-2 text-[11px] text-slate-600">
-                <div className="rounded-xl bg-slate-50 px-3 py-2">Racha de estudio con feedback del día</div>
-                <div className="rounded-xl bg-slate-50 px-3 py-2">Mini gráfico de dominio global o por materia</div>
-                <div className="rounded-xl bg-slate-50 px-3 py-2">Próxima sesión recomendada según urgencia</div>
-              </div>
+        <div className="mt-4 grid grid-cols-[1.4fr_1fr] gap-3">
+          <div className="rounded-2xl border border-slate-200 bg-white/80 px-3 py-3 min-h-0">
+            <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wide text-slate-400">
+              <BarChart3 className="w-3.5 h-3.5 text-indigo-500" />
+              Ideas para el definitivo
             </div>
-
-            <div className="rounded-2xl border border-dashed border-indigo-200 bg-indigo-50/70 px-3 py-3 min-h-0">
-              <p className="text-[10px] font-bold uppercase tracking-wide text-indigo-500">Espacio ganado</p>
-              <p className="mt-2 text-3xl font-black text-slate-900 leading-none">{gap}</p>
-              <p className="text-[11px] text-slate-500 mt-2">El panel crece solo cuando realmente sobra aire antes del nav fijo.</p>
+            <div className="mt-3 space-y-2 text-[11px] text-slate-600">
+              <div className="rounded-xl bg-slate-50 px-3 py-2">Racha de estudio con feedback del día</div>
+              <div className="rounded-xl bg-slate-50 px-3 py-2">Mini gráfico de dominio global o por materia</div>
+              <div className="rounded-xl bg-slate-50 px-3 py-2">Próxima sesión recomendada según urgencia</div>
             </div>
           </div>
-        )}
 
-        <div className="mt-auto pt-3 flex items-center justify-between gap-3">
+          <div className="rounded-2xl border border-dashed border-indigo-200 bg-indigo-50/70 px-3 py-3 min-h-0">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-indigo-500">Espacio ganado</p>
+            <p className="mt-2 text-3xl font-black text-slate-900 leading-none">{gap}</p>
+            <p className="text-[11px] text-slate-500 mt-2">El panel crece solo cuando realmente sobra aire antes del nav fijo.</p>
+          </div>
+        </div>
+
+        <div className="mt-4 pt-3 flex items-center justify-between gap-3">
           <p className="text-[11px] text-slate-500 leading-snug max-w-[34ch]">
-            {isExpanded
-              ? 'Versión amplia para explorar cuánto contenido secundario puede vivir antes del nav.'
-              : 'Versión compacta intermedia para estudiar densidad y legibilidad cuando hay espacio medio.'}
+            Versión amplia para explorar cuánto contenido secundario puede vivir antes del nav.
           </p>
 
           <button
@@ -176,6 +198,13 @@ function HomeAdaptivePreview({ variant, gap }) {
       </div>
     </section>
   );
+}
+
+function HomeAdaptivePreview({ variant, gap }) {
+  if (!variant || variant === 'none') return null;
+  if (variant === 'compact') return <HomeAdaptiveCompactPreview />;
+  if (variant === 'comfortable') return <HomeAdaptiveComfortablePreview gap={gap} />;
+  return <HomeAdaptiveExpandedPreview gap={gap} />;
 }
 
 export default function HomeSection({ 
@@ -209,8 +238,55 @@ export default function HomeSection({
   const lastSyncedWidgetOrder = useRef(JSON.stringify(DEFAULT_WIDGET_ORDER));
   const widgetOrderTouched = useRef(false);
   const contentEndRef = useRef(null);
+  const adaptivePreviewMeasureRootRef = useRef(null);
+  const compactPreviewMeasureRef = useRef(null);
+  const comfortablePreviewMeasureRef = useRef(null);
+  const expandedPreviewMeasureRef = useRef(null);
+  const [adaptivePreviewHeights, setAdaptivePreviewHeights] = useState(ADAPTIVE_PREVIEW_FALLBACK_HEIGHTS);
 
   useImmersiveScrollGuard(!showWidgetLibrary, 'home-section');
+
+  useLayoutEffect(() => {
+    const measure = () => {
+      const nextHeights = {
+        compact: Math.ceil(compactPreviewMeasureRef.current?.getBoundingClientRect().height || ADAPTIVE_PREVIEW_FALLBACK_HEIGHTS.compact),
+        comfortable: Math.ceil(comfortablePreviewMeasureRef.current?.getBoundingClientRect().height || ADAPTIVE_PREVIEW_FALLBACK_HEIGHTS.comfortable),
+        expanded: Math.ceil(expandedPreviewMeasureRef.current?.getBoundingClientRect().height || ADAPTIVE_PREVIEW_FALLBACK_HEIGHTS.expanded)
+      };
+
+      setAdaptivePreviewHeights((prev) => {
+        if (
+          prev.compact === nextHeights.compact &&
+          prev.comfortable === nextHeights.comfortable &&
+          prev.expanded === nextHeights.expanded
+        ) {
+          return prev;
+        }
+
+        return nextHeights;
+      });
+    };
+
+    measure();
+
+    const viewport = window.visualViewport;
+    const observer = typeof ResizeObserver !== 'undefined'
+      ? new ResizeObserver(measure)
+      : null;
+
+    if (observer && adaptivePreviewMeasureRootRef.current) {
+      observer.observe(adaptivePreviewMeasureRootRef.current);
+    }
+
+    window.addEventListener('resize', measure);
+    viewport?.addEventListener('resize', measure);
+
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', measure);
+      viewport?.removeEventListener('resize', measure);
+    };
+  }, []);
 
   // Escuchar actualizaciones/invalidation disparadas por otras secciones (Library) para evitar parpadeos
   useEffect(() => {
@@ -635,8 +711,9 @@ export default function HomeSection({
     isPaused: showWidgetLibrary
   });
 
-  const usableBottomGap = Math.max(0, bottomGap - ADAPTIVE_PREVIEW_VISUAL_BUFFER);
-  const adaptivePreviewVariant = isBottomGapReady ? resolveAdaptivePreviewVariant(usableBottomGap) : 'none';
+  const adaptivePreviewVariant = isBottomGapReady
+    ? resolveAdaptivePreviewVariant(bottomGap, adaptivePreviewHeights)
+    : 'none';
   const showAdaptivePreview = adaptivePreviewVariant !== 'none' && !showWidgetLibrary;
   const adaptivePreviewSlotPadding = getAdaptivePreviewSlotPadding(adaptivePreviewVariant);
 
@@ -665,7 +742,7 @@ export default function HomeSection({
   return (
     <>
       <div
-        className="w-full animate-[fadeIn_0.15s_ease]"
+        className="relative w-full animate-[fadeIn_0.15s_ease]"
         data-bottom-gap={bottomGap}
         data-bottom-gap-ready={isBottomGapReady ? 'true' : 'false'}
         data-bottom-gap-tier={adaptivePreviewVariant}
@@ -741,16 +818,31 @@ export default function HomeSection({
 
         {showAdaptivePreview && (
           <div
-            className="h-full flex items-center justify-center"
+            className="w-full flex items-center justify-center"
             style={{
               height: bottomGap,
+              boxSizing: 'border-box',
               paddingTop: adaptivePreviewSlotPadding.top,
-              paddingBottom: adaptivePreviewSlotPadding.bottom + ADAPTIVE_PREVIEW_VISUAL_BUFFER
+              paddingBottom: adaptivePreviewSlotPadding.bottom
             }}
           >
-            <HomeAdaptivePreview variant={adaptivePreviewVariant} gap={usableBottomGap} />
+            <HomeAdaptivePreview variant={adaptivePreviewVariant} gap={bottomGap} />
           </div>
         )}
+
+        <div ref={adaptivePreviewMeasureRootRef} aria-hidden="true" className="absolute inset-x-0 top-0 invisible pointer-events-none -z-10">
+          <div className="flex flex-col items-center gap-4">
+            <div ref={compactPreviewMeasureRef}>
+              <HomeAdaptiveCompactPreview />
+            </div>
+            <div ref={comfortablePreviewMeasureRef} className="w-full flex justify-center">
+              <HomeAdaptiveComfortablePreview gap={bottomGap} />
+            </div>
+            <div ref={expandedPreviewMeasureRef} className="w-full flex justify-center">
+              <HomeAdaptiveExpandedPreview gap={bottomGap} />
+            </div>
+          </div>
+        </div>
 
       </div>
 
