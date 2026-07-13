@@ -44,7 +44,8 @@ export default function HomeSection({
   onOpenProfile
 }) {
   const [homeVisibility, setHomeVisibility] = useState({
-    quickView: true,
+    globalStats: false,
+    quickView: false,
     detailedView: false,
     unclassifiedDecks: false
   });
@@ -162,7 +163,7 @@ export default function HomeSection({
         if (res.ok) {
           const data = await res.json();
           if (data.homeSectionVisibility) {
-            setHomeVisibility(data.homeSectionVisibility);
+            setHomeVisibility((prev) => ({ ...prev, ...data.homeSectionVisibility }));
           }
 
           const serverWidgetOrder = normalizeWidgetOrder(data.homeWidgetOrder);
@@ -516,10 +517,12 @@ export default function HomeSection({
         />
 
         {/* Resumen Global */}
-        <GlobalStatsHeader
-          user={user}
-          globalStats={globalStats}
-        />
+        {homeVisibility.globalStats && (
+          <GlobalStatsHeader
+            user={user}
+            globalStats={globalStats}
+          />
+        )}
 
         {/* Vista Rápida */}
         {homeVisibility.quickView && (

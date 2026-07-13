@@ -2,11 +2,25 @@
 const User = require('../models/User');
 
 const DEFAULT_HOME_SECTION_VISIBILITY = {
-  quickView: true,
+  globalStats: false,
+  quickView: false,
   detailedView: false,
   unclassifiedDecks: false
 };
 const DEFAULT_HOME_WIDGET_ORDER = [0, 1, 2, 3];
+
+function normalizeHomeSectionVisibility(input) {
+  if (input == null || typeof input !== 'object' || Array.isArray(input)) {
+    return DEFAULT_HOME_SECTION_VISIBILITY;
+  }
+
+  return {
+    globalStats: Boolean(input.globalStats),
+    quickView: Boolean(input.quickView),
+    detailedView: Boolean(input.detailedView),
+    unclassifiedDecks: Boolean(input.unclassifiedDecks)
+  };
+}
 
 function normalizeHomeWidgetOrder(input) {
   if (input == null) return DEFAULT_HOME_WIDGET_ORDER;
@@ -66,7 +80,7 @@ exports.getUserPreferences = async (req, res) => {
     }
     res.json({ 
       quickViewMaterias: user.quickViewMaterias || [],
-      homeSectionVisibility: user.homeSectionVisibility || DEFAULT_HOME_SECTION_VISIBILITY,
+      homeSectionVisibility: normalizeHomeSectionVisibility(user.homeSectionVisibility),
       studyMetricsFilters: normalizeStudyMetricsFilters(user.studyMetricsFilters),
       homeWidgetOrder: normalizeHomeWidgetOrder(user.homeWidgetOrder)
     });
@@ -91,10 +105,10 @@ exports.updateUserPreferences = async (req, res) => {
     }
     
     if (homeSectionVisibility !== undefined) {
-      if (typeof homeSectionVisibility !== 'object') {
+      if (typeof homeSectionVisibility !== 'object' || Array.isArray(homeSectionVisibility)) {
         return res.status(400).json({ error: 'homeSectionVisibility debe ser un objeto' });
       }
-      updateData.homeSectionVisibility = homeSectionVisibility;
+      updateData.homeSectionVisibility = normalizeHomeSectionVisibility(homeSectionVisibility);
     }
 
     if (studyMetricsFilters !== undefined) {
@@ -126,7 +140,7 @@ exports.updateUserPreferences = async (req, res) => {
     res.json({ 
       success: true, 
       quickViewMaterias: user.quickViewMaterias || [],
-      homeSectionVisibility: user.homeSectionVisibility || DEFAULT_HOME_SECTION_VISIBILITY,
+      homeSectionVisibility: normalizeHomeSectionVisibility(user.homeSectionVisibility),
       studyMetricsFilters: normalizeStudyMetricsFilters(user.studyMetricsFilters),
       homeWidgetOrder: normalizeHomeWidgetOrder(user.homeWidgetOrder)
     });

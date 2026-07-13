@@ -1,6 +1,6 @@
 // FILE: frontend/src/components/SettingsSection.jsx
 import { useState, useEffect, useCallback } from 'react';
-import { KeyRound, Loader2, Check, Wallet, RefreshCw, Layout, Eye, EyeOff } from 'lucide-react';
+import { KeyRound, Loader2, Check, Wallet, RefreshCw, Layout, Eye, EyeOff, BarChart3 } from 'lucide-react';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
@@ -19,7 +19,8 @@ export default function SettingsSection({ userId }) {
 
   // 👁️ ESTADOS DE VISIBILIDAD DEL HOME
   const [homeVisibility, setHomeVisibility] = useState({
-    quickView: true,
+    globalStats: false,
+    quickView: false,
     detailedView: false,
     unclassifiedDecks: false
   });
@@ -52,7 +53,7 @@ export default function SettingsSection({ userId }) {
       if (res.ok) {
         const data = await res.json();
         if (data.homeSectionVisibility) {
-          setHomeVisibility(data.homeSectionVisibility);
+          setHomeVisibility((prev) => ({ ...prev, ...data.homeSectionVisibility }));
         }
       }
     } catch (error) {
@@ -158,6 +159,34 @@ export default function SettingsSection({ userId }) {
         </div>
 
         <div className="space-y-3">
+          {/* Resumen Global */}
+          <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-violet-100 dark:bg-violet-950/60 flex items-center justify-center">
+                <BarChart3 className="w-4 h-4 text-violet-600 dark:text-violet-400" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-slate-900">Resumen Global</p>
+                <p className="text-[10px] text-slate-500">Saludo y métricas generales del mapa</p>
+              </div>
+            </div>
+            <button
+              onClick={() => handleToggleVisibility('globalStats')}
+              disabled={savingVisibility}
+              className="relative w-11 h-6 rounded-full transition-colors cursor-pointer disabled:opacity-50"
+              style={{
+                backgroundColor: homeVisibility.globalStats ? '#4f46e5' : '#cbd5e1'
+              }}
+            >
+              <div
+                className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform"
+                style={{
+                  transform: homeVisibility.globalStats ? 'translateX(22px)' : 'translateX(2px)'
+                }}
+              />
+            </button>
+          </div>
+
           {/* Vista Rápida */}
           <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800">
             <div className="flex items-center gap-3">
@@ -345,4 +374,3 @@ export default function SettingsSection({ userId }) {
     </div>
   );
 }
-

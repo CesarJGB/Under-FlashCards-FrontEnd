@@ -21,7 +21,8 @@ const userSchema = new mongoose.Schema(
       default: [0, 1, 2, 3]
     },
     homeSectionVisibility: {
-      quickView: { type: Boolean, default: true },
+      globalStats: { type: Boolean, default: false },
+      quickView: { type: Boolean, default: false },
       detailedView: { type: Boolean, default: false },
       unclassifiedDecks: { type: Boolean, default: false }
     }
