@@ -158,7 +158,7 @@ function DashboardScreen({ user, onLogout }) {
   );
 
   return (
-    <div ref={setDashboardShell} className="relative h-full min-h-0 w-full overflow-hidden bg-slate-50 flex md:min-h-[100dvh] md:h-auto md:overflow-visible" data-testid="dashboard-screen">
+    <div ref={setDashboardShell} className="fixed inset-0 w-full overflow-hidden bg-slate-50 flex pt-[env(safe-area-inset-top)] md:static md:min-h-[100dvh] md:overflow-visible md:pt-0" data-testid="dashboard-screen">
       <aside className="hidden md:flex w-72 shrink-0 flex-col bg-white border-r border-slate-200 p-5">
         <div className="flex items-center gap-2 px-1 mb-8 h-9 min-w-0">
           <div className="min-w-0 flex items-center gap-2">
@@ -224,7 +224,7 @@ function DashboardScreen({ user, onLogout }) {
           </div>
         )}
 
-        <div className={`max-w-5xl mx-auto px-4 pt-4 ${tab === 'home' ? 'pb-0' : 'pb-24'} md:px-6 md:pt-8 md:pb-8`}>
+        <div className={`max-w-5xl mx-auto px-4 pt-4 ${tab === 'home' ? 'pb-0' : 'pb-[calc(env(safe-area-inset-bottom)+6rem)]'} md:px-6 md:pt-8 md:pb-8`}>
           {tab === 'home' && (
             <HomeSection 
               key={homeKey}
@@ -289,7 +289,7 @@ function DashboardScreen({ user, onLogout }) {
       </main>
 
       {/* 👇 MENÚ DE NAVEGACIÓN MÓVIL OPTIMIZADO 👇 */}
-      <div ref={mobileNavRef} className="md:hidden absolute inset-x-0 mx-auto w-fit bg-white/90 backdrop-blur-xl border border-slate-200/80 h-14 rounded-full px-2 flex items-center gap-1.5 z-40 shadow-[0_8px_32px_rgba(0,0,0,0.12)] animate-[slideUp_0.2s_ease-out]" style={{ bottom: '0.75rem' }}>
+      <div ref={mobileNavRef} className="md:hidden absolute inset-x-0 mx-auto w-fit bg-white/90 backdrop-blur-xl border border-slate-200/80 h-14 rounded-full px-2 flex items-center gap-1.5 z-40 shadow-[0_8px_32px_rgba(0,0,0,0.12)] animate-[slideUp_0.2s_ease-out]" style={{ bottom: 'calc(env(safe-area-inset-bottom) + 0.75rem)' }}>
         {[
           { id: 'home', title: 'Inicio', Icon: Home },
           { id: 'study', title: 'Estudio', Icon: BookOpen },

@@ -34,7 +34,7 @@ export default function LibraryFAB({
       type="button"
       onClick={() => setFabOpen(true)}
       className="absolute right-6 w-14 h-14 rounded-2xl bg-slate-900 text-white shadow-lg flex items-center justify-center z-50 hover:bg-slate-800 hover:scale-105 active:scale-90 transition-all duration-200 cursor-pointer md:fixed"
-      style={{ bottom: 'max(0px, calc(6rem - env(safe-area-inset-bottom)))' }}
+      style={{ bottom: 'calc(env(safe-area-inset-bottom) + 6rem)' }}
     >
       <Plus className="w-6 h-6 stroke-[2.5]" />
     </button>
