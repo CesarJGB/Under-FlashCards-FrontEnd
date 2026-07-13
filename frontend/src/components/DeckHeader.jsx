@@ -1,4 +1,4 @@
-// ARCHIVO: frontend/src/components/DeckHeader.jsx
+// FILE: frontend/src/components/DeckHeader.jsx
 import { useState } from 'react';
 import { ArrowLeft, ChevronDown, FileText, Download, FileJson } from 'lucide-react';
 
@@ -81,6 +81,33 @@ export default function DeckHeader({ deck, mode, setMode, onBack, onExport, onEx
                     <div>
                       <p className="text-xs font-bold text-slate-800 group-hover:text-slate-950">Tarjetas imprimibles</p>
                       <p className="text-[10px] text-slate-400 font-medium mt-0.5 leading-relaxed">Genera un PDF con cuadrículas de tamaño real listas para imprimir y recortar.</p>
+                    </div>
+                  </button>
+
+                  {/* =======================================================================
+                      NUEVOS MODOS: BANCO DE PREGUNTAS Y BANCO DE RESPUESTAS
+                      ======================================================================= */}
+                  <button
+                    type="button"
+                    onClick={() => { onExportPDF('questions'); setIsOpen(false); }}
+                    className="w-full text-left p-2.5 hover:bg-slate-50 rounded-xl transition-colors flex items-start gap-2.5 group cursor-pointer"
+                  >
+                    <FileText className="w-4 h-4 text-slate-400 group-hover:text-slate-900 mt-0.5 shrink-0 transition-colors" />
+                    <div>
+                      <p className="text-xs font-bold text-slate-800 group-hover:text-slate-950">Banco de preguntas</p>
+                      <p className="text-[10px] text-slate-400 font-medium mt-0.5 leading-relaxed">Exporta únicamente las preguntas numeradas con soporte para imágenes frontales.</p>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => { onExportPDF('answers'); setIsOpen(false); }}
+                    className="w-full text-left p-2.5 hover:bg-slate-50 rounded-xl transition-colors flex items-start gap-2.5 group cursor-pointer"
+                  >
+                    <FileText className="w-4 h-4 text-slate-400 group-hover:text-slate-900 mt-0.5 shrink-0 transition-colors" />
+                    <div>
+                      <p className="text-xs font-bold text-slate-800 group-hover:text-slate-950">Banco de respuestas</p>
+                      <p className="text-[10px] text-slate-400 font-medium mt-0.5 leading-relaxed">Genera una hoja con las respuestas numeradas correspondientes para autoevaluación.</p>
                     </div>
                   </button>
 
