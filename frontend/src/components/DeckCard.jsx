@@ -12,7 +12,8 @@ export default function DeckCard({
   onToggleStar, 
   onToggleDefault, 
   onTogglePublicReadOnly, 
-  isList = false 
+  isList = false,
+  readOnly = false
 }) {
   const [showMenu, setShowMenu] = useState(false);
   
@@ -37,21 +38,21 @@ export default function DeckCard({
     <div role="button" tabIndex={0} onClick={() => onOpen(deck)} style={isList ? {} : bgStyle} className={containerClasses}>
       {!isList && <span className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/65 via-black/25 to-transparent pointer-events-none rounded-b-2xl z-0" />}
 
-      {showMenu && <div className="fixed inset-0 z-20 bg-transparent" onClick={(e) => handleAction(e, () => {})} />}
+      {!readOnly && showMenu && <div className="fixed inset-0 z-20 bg-transparent" onClick={(e) => handleAction(e, () => {})} />}
 
       {/* ======================================================================= */}
       {/* 🎴 MODO CUADRÍCULA (GRID VIEW) */}
       {/* ======================================================================= */}
       {!isList && (
         <>
-          {deck.isStarred && (
+          {!readOnly && deck.isStarred && (
             <button type="button" onClick={(e) => handleAction(e, () => onToggleStar(deck))} className="absolute top-2.5 left-2.5 p-1.5 rounded-lg bg-white/90 text-amber-500 shadow-3xs z-10 flex items-center justify-center cursor-pointer">
               <Star className="w-3.5 h-3.5 fill-amber-500" />
             </button>
           )}
 
-          {/* ✨ SOLUCIÓN: Columna de controles superior derecha alineada milimétricamente */}
-          <div className="absolute top-2.5 right-2.5 z-30 flex flex-col items-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+          {!readOnly && (
+            <div className="absolute top-2.5 right-2.5 z-30 flex flex-col items-end gap-1.5" onClick={(e) => e.stopPropagation()}>
             
             {/* Contenedor del Botón de Opciones */}
             <div className="relative">
@@ -119,7 +120,8 @@ export default function DeckCard({
                 <Eye className="w-2.5 h-2.5 shrink-0 stroke-[2.5]" /> Oficial
               </div>
             )}
-          </div>
+            </div>
+          )}
 
           {/* Texto inferior (pr-4 optimizado para evitar cualquier colisión) */}
           <div className="p-3.5 w-full z-10 min-w-0 relative pr-4">
@@ -149,7 +151,8 @@ export default function DeckCard({
             </div>
           </div>
 
-          <div className="flex items-center gap-1 shrink-0 z-30" onClick={(e) => e.stopPropagation()}>
+          {!readOnly && (
+            <div className="flex items-center gap-1 shrink-0 z-30" onClick={(e) => e.stopPropagation()}>
             <button type="button" onClick={() => setShowMenu(!showMenu)} className={`p-2 rounded-xl transition-colors ${showMenu ? 'bg-slate-100 text-slate-800' : 'text-slate-400 hover:text-slate-600'}`}>
               <MoreHorizontal className="w-4 h-4" />
             </button>
@@ -178,7 +181,8 @@ export default function DeckCard({
                 )}
               </div>
             )}
-          </div>
+            </div>
+          )}
         </>
       )}
     </div>

@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { Infinity, Calendar, ArrowLeft, Layers, BookOpen } from 'lucide-react';
-import DeckCard from './DeckCard';
+import { Infinity, Calendar, BookOpen } from 'lucide-react';
 import BlankCategoryView from './study/BlankCategoryView';
 import CategoryGrid from './study/CategoryGrid';
 import DailyChallengeCard from './study/DailyChallengeCard';
+import StudyDeckSelector from './study/StudyDeckSelector';
 import StudyModesList from './study/StudyModesList';
 
 export default function StudySection({ decks, materias, userId, userEmail, onOpenReview }) {
@@ -44,9 +44,6 @@ export default function StudySection({ decks, materias, userId, userEmail, onOpe
   ];
 
   const currentMethodObj = methods.find(m => m.id === selectedMethod);
-  const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL;
-  const isAdmin = userEmail === ADMIN_EMAIL;
-
   if (!selectedCategory) {
     return (
       <div className="space-y-5 animate-[fadeIn_0.15s_ease] pt-1 md:-mt-2">
@@ -76,51 +73,12 @@ export default function StudySection({ decks, materias, userId, userEmail, onOpe
   }
 
   return (
-    <div className="space-y-6 animate-[fadeIn_0.15s_ease]">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-slate-200/60 pb-4">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setSelectedMethod(null)}
-            className="h-9 w-9 border border-slate-200 bg-white hover:bg-slate-50 rounded-xl flex items-center justify-center text-slate-600 active:scale-95 transition-all cursor-pointer shadow-3xs"
-            title="Volver a estrategias"
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </button>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs bg-slate-900 text-white font-extrabold px-2 py-0.5 rounded-md tracking-wide uppercase">
-                {currentMethodObj?.title}
-              </span>
-            </div>
-            <h2 className="text-lg font-bold text-slate-900 mt-1">Selecciona el mazo para entrenar</h2>
-          </div>
-        </div>
-      </div>
-
-      {decks.length > 0 ? (
-        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 pb-12">
-          {decks.map((deck) => (
-            <DeckCard
-              key={deck.id}
-              deck={deck}
-              currentUserId={userId}
-              isAdmin={isAdmin}
-              isList={false}
-              onOpen={(dk) => onOpenReview(dk, currentMethodObj?.modeMapping)}
-            />
-          ))}
-        </div>
-      ) : (
-        <div className="border border-dashed border-slate-200 bg-white rounded-2xl p-8 text-center max-w-md mx-auto mt-6">
-          <div className="w-10 h-10 rounded-xl bg-slate-50 text-slate-400 flex items-center justify-center mx-auto mb-3">
-            <Layers className="w-5 h-5" />
-          </div>
-          <h4 className="text-sm font-bold text-slate-800">No hay mazos en tu biblioteca</h4>
-          <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-            Necesitas tener al menos un mazo configurado en tu biblioteca para poder iniciar un entrenamiento estratégico.
-          </p>
-        </div>
-      )}
-    </div>
+    <StudyDeckSelector
+      decks={decks}
+      materias={materias}
+      modeLabel={currentMethodObj?.title}
+      onBack={() => setSelectedMethod(null)}
+      onSelectDeck={(deck) => onOpenReview(deck, currentMethodObj?.modeMapping)}
+    />
   );
 }
