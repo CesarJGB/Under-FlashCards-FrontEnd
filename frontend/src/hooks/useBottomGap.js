@@ -14,17 +14,22 @@ const INITIAL_STATE = {
 
 const GAP_JITTER_TOLERANCE_PX = 4;
 
-function waitForAnimationSettle(node) {
-  if (!node?.getAnimations) {
-    return Promise.resolve();
-  }
+function waitForNextFrame() {
+  return new Promise((resolve) => window.requestAnimationFrame(resolve));
+}
 
-  const animations = node.getAnimations().filter((animation) => animation.playState !== 'finished');
-  if (animations.length === 0) {
-    return Promise.resolve();
-  }
+async function waitForAnimationSettle(nodes) {
+  // Safari may not expose newly mounted CSS animations until the next frame.
+  await waitForNextFrame();
 
-  return Promise.allSettled(animations.map((animation) => animation.finished));
+  const animations = nodes.flatMap((node) => {
+    if (!node?.getAnimations) return [];
+    return node.getAnimations().filter((animation) => animation.playState !== 'finished');
+  });
+
+  if (animations.length > 0) {
+    await Promise.allSettled(animations.map((animation) => animation.finished));
+  }
 }
 
 function waitForFontsReady() {
@@ -79,6 +84,7 @@ export default function useBottomGap({
     if (isPaused) return undefined;
 
     const contentContainer = contentEndRef?.current?.previousElementSibling || contentEndRef?.current?.parentElement || null;
+    const contentRoot = contentEndRef?.current?.parentElement || null;
     const navNode = navRef?.current || null;
 
     let contentObserver = null;
@@ -181,7 +187,7 @@ export default function useBottomGap({
 
     waitWithTimeout(
       Promise.allSettled([
-        waitForAnimationSettle(navNode),
+        waitForAnimationSettle([navNode, contentRoot]),
         waitForFontsReady()
       ]),
       450
