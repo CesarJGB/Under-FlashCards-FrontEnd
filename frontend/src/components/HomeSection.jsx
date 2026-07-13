@@ -1,4 +1,5 @@
 import React, { useMemo, useEffect, useState, useCallback, useRef } from 'react';
+import { ArrowRight, BarChart3, Clock3, Sparkles, TrendingUp } from 'lucide-react';
 import RadarDebugPanel from './RadarDebugPanel';
 import HomeHeader from './home/HomeHeader';
 import WidgetCarousel from './home/WidgetCarousel';
@@ -8,6 +9,7 @@ import DetailedMateriasGrid from './home/DetailedMateriasGrid';
 import UnclassifiedDecksSection from './home/UnclassifiedDecksSection';
 import WidgetCarouselExpanded from './home/WidgetCarouselExpanded';
 import { getJSON, setJSON, remove } from '../lib/safeLocalStorage';
+import useBottomGap from '../hooks/useBottomGap';
 import useQuickViewMaterias from './home/useQuickViewMaterias';
 import { DEFAULT_WIDGET_ORDER, normalizeWidgetOrder, serializeWidgetOrder } from './home/homeWidgetRegistry';
 
@@ -32,6 +34,142 @@ function rotateWidgetOrder(order, offset) {
   return [...order.slice(normalizedOffset), ...order.slice(0, normalizedOffset)];
 }
 
+const ADAPTIVE_PANEL_MAX_HEIGHT = {
+  compact: 92,
+  comfortable: 188,
+  expanded: 300
+};
+
+function HomeAdaptivePreview({ tier, gap }) {
+  const previewHeight = Math.max(0, Math.min(gap - 12, ADAPTIVE_PANEL_MAX_HEIGHT[tier] || 0));
+
+  if (!tier || tier === 'none' || previewHeight <= 0) return null;
+
+  const isCompact = tier === 'compact';
+  const isExpanded = tier === 'expanded';
+
+  if (isCompact) {
+    return (
+      <section
+        className="mt-3 rounded-[28px] border border-slate-200 bg-white/95 shadow-[0_14px_34px_rgba(15,23,42,0.08)] overflow-hidden"
+        style={{ height: previewHeight }}
+      >
+        <div className="h-full flex items-center justify-between gap-3 bg-gradient-to-r from-white via-slate-50 to-indigo-50/70 px-4">
+          <div className="min-w-0 flex items-center gap-3">
+            <div className="w-9 h-9 rounded-2xl bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
+              <Sparkles className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-500">Preview compacto</p>
+              <p className="text-sm font-bold text-slate-900 truncate">Un CTA o micro resumen cabe aqu\u00ed cuando sobran {gap}px.</p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {}}
+            className="shrink-0 inline-flex items-center gap-2 rounded-full bg-slate-900 text-white px-3 py-2 text-[11px] font-bold hover:bg-slate-800 transition-colors cursor-pointer"
+          >
+            Ver
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section
+      className="mt-3 rounded-[28px] border border-slate-200 bg-white/95 shadow-[0_14px_34px_rgba(15,23,42,0.08)] overflow-hidden"
+      style={{ height: previewHeight }}
+    >
+      <div className="h-full flex flex-col bg-gradient-to-br from-white via-slate-50 to-indigo-50/70 px-5 py-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
+              <Sparkles className="w-[18px] h-[18px]" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-indigo-500">Preview adaptable</p>
+              <h3 className="text-base font-bold text-slate-900 truncate">Bloque adicional en el hueco libre</h3>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="px-2.5 py-1 rounded-full bg-white/90 border border-slate-200 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+              {tier}
+            </span>
+            <span className="px-2.5 py-1 rounded-full bg-indigo-50 text-[10px] font-bold text-indigo-600">
+              {gap}px
+            </span>
+          </div>
+        </div>
+
+        {!isCompact && (
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            <div className="rounded-2xl bg-white/85 border border-slate-200 px-3 py-3">
+              <div className="flex items-center gap-2 text-slate-400 text-[10px] font-bold uppercase tracking-wide">
+                <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
+                Dominio sugerido
+              </div>
+              <p className="mt-2 text-2xl font-black text-slate-900">78%</p>
+              <p className="text-[11px] text-slate-500 mt-1">Mini resumen de rendimiento o racha.</p>
+            </div>
+
+            <div className="rounded-2xl bg-slate-900 text-white px-3 py-3">
+              <div className="flex items-center gap-2 text-indigo-200 text-[10px] font-bold uppercase tracking-wide">
+                <Clock3 className="w-3.5 h-3.5" />
+                Próxima sesión
+              </div>
+              <p className="mt-2 text-sm font-bold">Repaso corto de 12 min</p>
+              <p className="text-[11px] text-slate-300 mt-1">Ideal para cerrar el día sin abrir una pantalla nueva.</p>
+            </div>
+          </div>
+        )}
+
+        {isExpanded && (
+          <div className="mt-4 grid grid-cols-[1.4fr_1fr] gap-3 flex-1 min-h-0">
+            <div className="rounded-2xl border border-slate-200 bg-white/80 px-3 py-3 min-h-0">
+              <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                <BarChart3 className="w-3.5 h-3.5 text-indigo-500" />
+                Ideas para el definitivo
+              </div>
+              <div className="mt-3 space-y-2 text-[11px] text-slate-600">
+                <div className="rounded-xl bg-slate-50 px-3 py-2">Racha de estudio con feedback del d\u00eda</div>
+                <div className="rounded-xl bg-slate-50 px-3 py-2">Mini gr\u00e1fico de dominio global o por materia</div>
+                <div className="rounded-xl bg-slate-50 px-3 py-2">Pr\u00f3xima sesi\u00f3n recomendada seg\u00fan urgencia</div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-dashed border-indigo-200 bg-indigo-50/70 px-3 py-3 min-h-0">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-indigo-500">Espacio ganado</p>
+              <p className="mt-2 text-3xl font-black text-slate-900 leading-none">{gap}</p>
+              <p className="text-[11px] text-slate-500 mt-2">El panel crece solo cuando realmente sobra aire antes del nav fijo.</p>
+            </div>
+          </div>
+        )}
+
+        <div className="mt-auto pt-3 flex items-center justify-between gap-3">
+          <p className="text-[11px] text-slate-500 leading-snug max-w-[34ch]">
+            {isCompact
+              ? 'Versión mínima: una sugerencia ligera para no saturar cuando el hueco es pequeño.'
+              : 'Mock temporal para explorar tamaño, densidad y ritmo visual antes del bloque definitivo.'}
+          </p>
+
+          <button
+            type="button"
+            onClick={() => {}}
+            className="shrink-0 inline-flex items-center gap-2 rounded-full bg-slate-900 text-white px-4 py-2 text-xs font-bold hover:bg-slate-800 transition-colors cursor-pointer"
+          >
+            Ver idea
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function HomeSection({ 
   user,          
   decks,         
@@ -41,7 +179,8 @@ export default function HomeSection({
   onLogout,
   loadDecks,     
   loadMaterias,
-  onOpenProfile
+  onOpenProfile,
+  bottomNavRef
 }) {
   const [homeVisibility, setHomeVisibility] = useState({
     globalStats: false,
@@ -61,6 +200,7 @@ export default function HomeSection({
   const requestSeq = useRef(0);
   const lastSyncedWidgetOrder = useRef(JSON.stringify(DEFAULT_WIDGET_ORDER));
   const widgetOrderTouched = useRef(false);
+  const contentEndRef = useRef(null);
 
   // Escuchar actualizaciones/invalidation disparadas por otras secciones (Library) para evitar parpadeos
   useEffect(() => {
@@ -479,6 +619,14 @@ export default function HomeSection({
     enrichedMaterias
   });
 
+  const { gap: bottomGap, tier: bottomGapTier, isReady: isBottomGapReady } = useBottomGap({
+    contentEndRef,
+    navRef: bottomNavRef,
+    isPaused: showWidgetLibrary
+  });
+
+  const showAdaptivePreview = isBottomGapReady && bottomGapTier !== 'none' && !showWidgetLibrary;
+
   const widgetContext = useMemo(() => ({
     user,
     globalStats,
@@ -503,7 +651,13 @@ export default function HomeSection({
 
   return (
     <>
-      <div className="w-full space-y-8 animate-[fadeIn_0.15s_ease]">
+      <div
+        className="w-full space-y-8 animate-[fadeIn_0.15s_ease]"
+        data-bottom-gap={bottomGap}
+        data-bottom-gap-ready={isBottomGapReady ? 'true' : 'false'}
+        data-bottom-gap-tier={bottomGapTier}
+        style={{ '--home-bottom-gap': `${bottomGap}px` }}
+      >
 
         {/* Encabezado de usuario */}
         <HomeHeader user={user} onOpenProfile={onOpenProfile} />
@@ -557,6 +711,8 @@ export default function HomeSection({
           />
         )}
 
+        <div ref={contentEndRef} aria-hidden="true" className="h-px w-full pointer-events-none" />
+
         {/* ⚡ PANEL DE TELEMETRÍA Y DEBUGGING DEL RADAR DE CONOCIMIENTO */}
         {import.meta.env.DEV && (
           <RadarDebugPanel
@@ -568,6 +724,8 @@ export default function HomeSection({
         )}
 
       </div>
+
+      {showAdaptivePreview && <HomeAdaptivePreview tier={bottomGapTier} gap={bottomGap} />}
 
       {showWidgetLibrary && (
         <WidgetCarouselExpanded

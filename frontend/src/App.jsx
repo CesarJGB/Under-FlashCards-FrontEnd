@@ -1,5 +1,5 @@
 // FILE: frontend/src/App.jsx
-import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
+import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import { getJSON, setJSON } from './lib/safeLocalStorage';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
@@ -24,6 +24,7 @@ const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 function DashboardScreen({ user, onLogout }) {
   const [tab, setTab] = useState('home');
   const [homeKey, setHomeKey] = useState(0);
+  const mobileNavRef = useRef(null);
   
   // Estado puente para navegación Home → Library
   const [pendingLibraryNav, setPendingLibraryNav] = useState(null);
@@ -231,6 +232,7 @@ function DashboardScreen({ user, onLogout }) {
               loadDecks={loadDecks}
               loadMaterias={loadMaterias}
               onOpenProfile={() => handleTabChange('usuario')}
+              bottomNavRef={mobileNavRef}
             />
           )}
 
@@ -279,7 +281,7 @@ function DashboardScreen({ user, onLogout }) {
         </div>
 
         {/* 👇 MENÚ DE NAVEGACIÓN MÓVIL OPTIMIZADO 👇 */}
-        <div className="md:hidden fixed bottom-6 inset-x-0 mx-auto w-fit bg-white/90 backdrop-blur-xl border border-slate-200/80 h-14 rounded-full px-2 flex items-center gap-1.5 z-40 shadow-[0_8px_32px_rgba(0,0,0,0.12)] animate-[slideUp_0.2s_ease-out]">
+        <div ref={mobileNavRef} className="md:hidden fixed bottom-6 inset-x-0 mx-auto w-fit bg-white/90 backdrop-blur-xl border border-slate-200/80 h-14 rounded-full px-2 flex items-center gap-1.5 z-40 shadow-[0_8px_32px_rgba(0,0,0,0.12)] animate-[slideUp_0.2s_ease-out]">
           {[
             { id: 'home', title: 'Inicio', Icon: Home },
             { id: 'study', title: 'Estudio', Icon: BookOpen },
