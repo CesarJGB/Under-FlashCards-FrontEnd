@@ -1,21 +1,26 @@
 import React, { useState } from 'react';
 import { Infinity, Calendar, ArrowLeft, Layers, BookOpen } from 'lucide-react';
 import DeckCard from './DeckCard';
+import BlankCategoryView from './study/BlankCategoryView';
+import CategoryGrid from './study/CategoryGrid';
+import DailyChallengeCard from './study/DailyChallengeCard';
+import StudyModesList from './study/StudyModesList';
 
 export default function StudySection({ decks, materias, userId, userEmail, onOpenReview }) {
+  const [selectedCategory, setSelectedCategory] = useState(null);
   const [selectedMethod, setSelectedMethod] = useState(null);
 
   const methods = [
     {
-  id: 'normal',
-  title: 'Repaso Normal',
-  description: 'Recorre el mazo completo en orden aleatorio, sin priorizar errores. Ideal para una primera pasada o repasar todo el contenido.',
-  icon: BookOpen, // o el ícono que prefieras, ya importado de lucide-react
-  color: 'from-emerald-500 to-teal-600',
-  badge: 'Para empezar',
-  active: true,
-  modeMapping: 'normal-review'
-},
+      id: 'normal',
+      title: 'Repaso Normal',
+      description: 'Recorre el mazo completo en orden aleatorio, sin priorizar errores. Ideal para una primera pasada o repasar todo el contenido.',
+      icon: BookOpen,
+      color: 'from-emerald-500 to-teal-600',
+      badge: 'Para empezar',
+      active: true,
+      modeMapping: 'normal-review'
+    },
     {
       id: 'continuous',
       title: 'Repaso Continuo',
@@ -42,67 +47,39 @@ export default function StudySection({ decks, materias, userId, userEmail, onOpe
   const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL;
   const isAdmin = userEmail === ADMIN_EMAIL;
 
-  // VISTA 1: Catálogo de Estrategias de Estudio (Optimizado para no duplicar Header)
-  if (!selectedMethod) {
+  if (!selectedCategory) {
     return (
-      <div className="space-y-4 animate-[fadeIn_0.15s_ease] md:-mt-2">
-        <div className="hidden md:block">
-          <h1 className="text-xl font-black tracking-tight text-slate-900">Modo de Estudio</h1>
-        </div>
-
-        <div className="flex flex-col gap-2.5">
-          {methods.map((method) => {
-            const Icon = method.icon;
-            return (
-              <div 
-                key={method.id}
-                className={`p-4 rounded-2xl border bg-white flex items-center gap-4 transition-all duration-200 group ${
-                  method.active 
-                    ? 'border-slate-200 shadow-3xs hover:shadow-xs hover:border-slate-300 cursor-pointer active:scale-[0.99]' 
-                    : 'opacity-60 border-dashed border-slate-200 cursor-not-allowed select-none'
-                }`}
-                onClick={() => method.active && setSelectedMethod(method.id)}
-              >
-                <div className={`p-3 rounded-xl bg-gradient-to-br ${method.color} text-white shadow-xs shrink-0`}>
-                  <Icon className="w-5 h-5" />
-                </div>
-                
-                <div className="flex-1 min-w-0 flex flex-col justify-center">
-                  <div className="flex items-center justify-between gap-2">
-                    <h3 className="text-sm font-bold text-slate-900 tracking-tight">
-                      {method.title}
-                    </h3>
-                    <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider shrink-0 ${
-                      method.active ? 'bg-amber-50 text-amber-700 border border-amber-200/40' : 'bg-slate-100 text-slate-500'
-                    }`}>
-                      {method.badge}
-                    </span>
-                  </div>
-                  
-                  {method.active ? (
-                    <div className="text-xs font-bold text-indigo-600 mt-1 flex items-center gap-1 transition-all group-hover:text-indigo-700">
-                      Elegir mazo y comenzar ➔
-                    </div>
-                  ) : (
-                    <div className="text-xs font-medium text-slate-400 mt-1">
-                      No disponible
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+      <div className="space-y-5 animate-[fadeIn_0.15s_ease] pt-1 md:-mt-2">
+        <h1 className="mt-2 text-xl font-black tracking-tight text-slate-900">Modo de Estudio</h1>
+        <DailyChallengeCard />
+        <CategoryGrid onSelectCategory={setSelectedCategory} />
       </div>
     );
   }
 
-  // VISTA 2: Selector del Mazo a entrenar (Mantiene consistencia estructural)
+  if (selectedCategory === 'minigames') {
+    return <BlankCategoryView title="Minijuegos" onBack={() => setSelectedCategory(null)} />;
+  }
+
+  if (selectedCategory === 'features') {
+    return <BlankCategoryView title="Funcionalidades" onBack={() => setSelectedCategory(null)} />;
+  }
+
+  if (!selectedMethod) {
+    return (
+      <StudyModesList
+        methods={methods}
+        onBack={() => setSelectedCategory(null)}
+        onSelectMethod={setSelectedMethod}
+      />
+    );
+  }
+
   return (
     <div className="space-y-6 animate-[fadeIn_0.15s_ease]">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-slate-200/60 pb-4">
         <div className="flex items-center gap-3">
-          <button 
+          <button
             onClick={() => setSelectedMethod(null)}
             className="h-9 w-9 border border-slate-200 bg-white hover:bg-slate-50 rounded-xl flex items-center justify-center text-slate-600 active:scale-95 transition-all cursor-pointer shadow-3xs"
             title="Volver a estrategias"
@@ -123,13 +100,13 @@ export default function StudySection({ decks, materias, userId, userEmail, onOpe
       {decks.length > 0 ? (
         <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 pb-12">
           {decks.map((deck) => (
-            <DeckCard 
-              key={deck.id} 
-              deck={deck} 
-              currentUserId={userId} 
-              isAdmin={isAdmin} 
-              isList={false} 
-              onOpen={(dk) => onOpenReview(dk, currentMethodObj?.modeMapping)} 
+            <DeckCard
+              key={deck.id}
+              deck={deck}
+              currentUserId={userId}
+              isAdmin={isAdmin}
+              isList={false}
+              onOpen={(dk) => onOpenReview(dk, currentMethodObj?.modeMapping)}
             />
           ))}
         </div>

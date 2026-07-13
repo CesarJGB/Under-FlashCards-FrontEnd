@@ -24,6 +24,7 @@ const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 function DashboardScreen({ user, onLogout }) {
   const [tab, setTab] = useState('home');
   const [homeKey, setHomeKey] = useState(0);
+  const [studyKey, setStudyKey] = useState(0);
   const mobileNavRef = useRef(null);
   const contentScrollRef = useRef(null);
   const [dashboardShell, setDashboardShell] = useState(null);
@@ -112,6 +113,10 @@ function DashboardScreen({ user, onLogout }) {
     if (id === 'home') {
       setHomeKey(prev => prev + 1);
     }
+
+    if (id === 'study') {
+      setStudyKey(prev => prev + 1);
+    }
     
     setTab(id);
   };
@@ -196,8 +201,8 @@ function DashboardScreen({ user, onLogout }) {
       </aside>
 
       <main ref={contentScrollRef} className="relative flex-1 min-h-0 min-w-0 overflow-y-auto overscroll-contain md:min-h-[100dvh] md:overflow-visible">
-        {/* Header móvil: oculto en 'home' para no pisar la UI propia que Home va a manejar (perfil, foto, nombre, etc.) */}
-        {tab !== 'home' && (
+        {/* Header móvil: oculto donde la sección gestiona su propio encabezado. */}
+        {tab !== 'home' && tab !== 'study' && (
           <div className="md:hidden sticky top-0 z-30 bg-white border-b border-slate-200 px-4 py-3.5 flex items-center justify-between shadow-xs">
             <span className="min-w-0 max-w-[80%]">
               {currentDeck && tab === 'library' ? (
@@ -243,6 +248,7 @@ function DashboardScreen({ user, onLogout }) {
 
           {tab === 'study' && (
             <StudySection 
+              key={studyKey}
               decks={decks}
               materias={materias}
               userId={user.id}
