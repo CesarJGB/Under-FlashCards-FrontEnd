@@ -1,7 +1,7 @@
 import React from 'react';
-import { KeyRound, LayoutPanelTop, LogOut } from 'lucide-react';
+import { ArrowLeft, KeyRound, LayoutPanelTop, LogOut } from 'lucide-react';
 
-export default function UserSection({ user, onLogout, onOpenAiSettings, onOpenHomeSettings }) {
+export default function UserSection({ user, onLogout, onOpenAiSettings, onOpenHomeSettings, onBackHome }) {
   const name = user?.name || user?.given_name || '';
   const email = user?.email || '';
   const picture = user?.picture || '';
@@ -9,6 +9,14 @@ export default function UserSection({ user, onLogout, onOpenAiSettings, onOpenHo
   return (
     <div className="w-full">
       <div className="flex flex-col items-center justify-center h-full p-6">
+        <button
+          type="button"
+          onClick={onBackHome}
+          className="self-start mb-6 inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900"
+        >
+          <ArrowLeft className="w-4 h-4" /> Volver al inicio
+        </button>
+
         <h1 className="text-2xl font-bold text-slate-900 mb-6 text-center">Perfil</h1>
 
         {picture ? (

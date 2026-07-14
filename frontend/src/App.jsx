@@ -296,6 +296,7 @@ function DashboardScreen({ user, onLogout }) {
               onLogout={onLogout} 
               onOpenAiSettings={() => handleTabChange('ai-settings')}
               onOpenHomeSettings={() => handleTabChange('home-settings')}
+              onBackHome={() => handleTabChange('home')}
             />
           )}
         </div>

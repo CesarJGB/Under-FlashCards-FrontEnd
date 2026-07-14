@@ -1,4 +1,4 @@
-import { Gamepad2, Layers, Wrench } from 'lucide-react';
+import { ClipboardCheck, Gamepad2, Layers, Wrench } from 'lucide-react';
 
 const categories = [
   {
@@ -12,6 +12,12 @@ const categories = [
     title: 'Minijuegos',
     icon: Gamepad2,
     color: 'from-pink-500 to-rose-600',
+  },
+  {
+    id: 'exams',
+    title: 'Exámenes',
+    icon: ClipboardCheck,
+    color: 'from-violet-500 to-purple-600',
   },
   {
     id: 'features',

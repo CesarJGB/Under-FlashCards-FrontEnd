@@ -106,6 +106,10 @@ export default function StudySection({ decks, materias, userId, userEmail, onOpe
     return <BlankCategoryView title="Minijuegos" onBack={() => setSelectedCategory(null)} />;
   }
 
+  if (selectedCategory === 'exams') {
+    return <BlankCategoryView title="Exámenes" onBack={() => setSelectedCategory(null)} />;
+  }
+
   if (selectedCategory === 'features') {
     if (!selectedFeature) {
       return (
