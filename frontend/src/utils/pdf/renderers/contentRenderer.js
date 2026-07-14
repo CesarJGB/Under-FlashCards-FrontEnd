@@ -96,7 +96,7 @@ function drawTitleBlock(doc, kickerLabel, deckTitle, subtitleLabel) {
   doc.text(deckTitle.toUpperCase(), centerX, 26, { align: 'center' });
 
   // Firma: "N Tarjetas - UnderFlashCards"
-  doc.setLineWidth(0.6);
+  doc.setLineWidth(0.3);
   doc.setFont('times', 'italic');
   doc.setFontSize(11);
   doc.setTextColor(SUBTITLE_COLOR.r, SUBTITLE_COLOR.g, SUBTITLE_COLOR.b);
