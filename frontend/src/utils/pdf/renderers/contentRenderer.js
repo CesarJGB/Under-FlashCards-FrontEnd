@@ -1,120 +1,127 @@
-import { getPageMetrics } from '../document';
-import { fitContain, prepareImageAsset } from '../images';
-import { createCursor, hasSpace, nextPage, writeLines } from '../pagination';
-import { resolveCardPdfStyles, setPdfTextStyle } from '../styles';
+import { pdfStyles } from '../styles';
 
-function getLineHeight(fontSize) {
-  return Math.max(3.8, fontSize * 0.46);
-}
+/**
+ * Renderiza el contenido en formato de examen limpio.
+ * Evita que las preguntas, respuestas e imágenes se separen incorrectamente entre páginas.
+ */
+export function renderContent(doc, items, options) {
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    
+    // Configuración de márgenes estilo examen
+    const marginX = 20; 
+    const marginY = 20;
+    const contentWidth = pageWidth - (marginX * 2);
+    
+    // Posición inicial (asumiendo que el header ya ocupó espacio)
+    let currentY = marginY + 15; 
 
-function getTextX(metrics, align) {
-  if (align === 'center') return metrics.width / 2;
-  if (align === 'right') return metrics.width - metrics.margin;
-  return metrics.margin;
-}
-
-function drawHeader(doc, metrics, config, deckTitle, cardCount, continuation = false) {
-  doc.setFont('Helvetica', 'bold');
-  doc.setFontSize(20);
-  doc.setTextColor(15, 23, 42);
-  doc.text(`${config.title}: ${deckTitle}`, metrics.margin, metrics.top + 7);
-
-  doc.setFont('Helvetica', 'normal');
-  doc.setFontSize(9);
-  doc.setTextColor(100, 116, 139);
-  const detail = continuation
-    ? 'Continuación'
-    : `Total de tarjetas: ${cardCount} | Generado el ${new Date().toLocaleDateString()}`;
-  doc.text(detail, metrics.margin, metrics.top + 13);
-  doc.setDrawColor(226, 232, 240);
-  doc.setLineWidth(0.5);
-  doc.line(metrics.margin, metrics.top + 16, metrics.width - metrics.margin, metrics.top + 16);
-  return metrics.top + 26;
-}
-
-function sectionText(card, section, cardNumber, isGuide) {
-  const value = section === 'question' ? card.question : card.answer;
-  if (isGuide) return `${section === 'question' ? 'P' : 'R'}: ${value || ''}`;
-  return `${section === 'question' ? 'Pregunta' : 'Respuesta'} #${cardNumber}: ${value || ''}`;
-}
-
-function drawImage(doc, asset, x, y, dimensions, context) {
-  try {
-    doc.addImage(asset.data, asset.format, x, y, dimensions.width, dimensions.height, undefined, 'FAST');
-    return true;
-  } catch {
-    context.warn('Se omitió una imagen que jsPDF no pudo insertar.');
-    return false;
-  }
-}
-
-export async function renderContentDocument(doc, cards, config, context) {
-  const metrics = getPageMetrics(doc);
-  const deckTitle = context.deckTitle || 'Mazo';
-  const cursor = createCursor(metrics, drawHeader(doc, metrics, config, deckTitle, cards.length));
-  const isGuide = config.id === 'guide';
-
-  const drawContinuationHeader = () => drawHeader(doc, metrics, config, deckTitle, cards.length, true);
-
-  for (let index = 0; index < cards.length; index += 1) {
-    context.throwIfCancelled();
-    const card = cards[index];
-    const styles = resolveCardPdfStyles(card);
-    const shouldRenderImage = config.sections.includes(card.imageSide);
-    const imageResult = shouldRenderImage
-      ? await prepareImageAsset(card.contentImage, {
-        mode: 'contain',
-        signal: context.signal,
-        assetCache: context.imageAssetCache,
-        sourceBlobCache: context.sourceBlobCache,
-      })
-      : { asset: null, warning: null };
-    if (imageResult.warning) context.warn(imageResult.warning, index);
-    context.consumeImageAsset(imageResult.asset);
-
-    for (const section of config.sections) {
-      context.throwIfCancelled();
-      const style = styles[section];
-      const usesImage = imageResult.asset && card.imageSide === section;
-      const lineHeight = getLineHeight(style.size);
-      const align = styles.textAlign;
-      const textX = getTextX(metrics, align);
-
-      setPdfTextStyle(doc, style);
-      const lines = doc.splitTextToSize(sectionText(card, section, index + 1, isGuide), metrics.contentWidth);
-      const imageDimensions = usesImage ? fitContain(imageResult.asset, Math.min(58, metrics.contentWidth), 38) : null;
-      const estimatedHeight = (lines.length * lineHeight) + (imageDimensions ? imageDimensions.height + 5 : 0) + 8;
-
-      if (estimatedHeight <= metrics.bottom - cursor.y) {
-        doc.setFillColor(styles.background.r, styles.background.g, styles.background.b);
-        doc.setDrawColor(241, 245, 249);
-        doc.roundedRect(metrics.margin - 2, cursor.y - 4, metrics.contentWidth + 4, estimatedHeight, 3, 3, 'FD');
-      }
-
-      writeLines(doc, lines, {
-        cursor,
-        metrics,
-        x: textX,
-        lineHeight,
-        align,
-        drawPageHeader: drawContinuationHeader,
-        restoreTextStyle: () => setPdfTextStyle(doc, style),
-      });
-
-      if (imageDimensions) {
-        if (!hasSpace(cursor, metrics, imageDimensions.height + 3)) {
-          nextPage(doc, cursor, metrics, drawContinuationHeader);
+    items.forEach((item, index) => {
+        // ==========================================
+        // 1. PRE-CÁLCULO DE ALTURAS (Simulación)
+        // ==========================================
+        let questionLines = [];
+        let questionHeight = 0;
+        
+        if (options.sections.includes('question')) {
+            doc.setFont(pdfStyles.fontFamily || 'Helvetica', 'bold');
+            doc.setFontSize(pdfStyles.fontSizeQuestion || 12);
+            
+            // Formato de examen: "1. ¿Qué es un mol?"
+            const questionText = `${index + 1}. ${item.questionText}`;
+            questionLines = doc.splitTextToSize(questionText, contentWidth);
+            questionHeight = questionLines.length * (pdfStyles.lineHeight || 6);
+            
+            if (item.questionImage) {
+                // Altura de la imagen + un pequeño margen interno
+                questionHeight += item.questionImage.height + 6; 
+            }
         }
-        const imageX = metrics.margin + ((metrics.contentWidth - imageDimensions.width) / 2);
-        if (drawImage(doc, imageResult.asset, imageX, cursor.y + 1, imageDimensions, context)) {
-          cursor.y += imageDimensions.height + 4;
+        
+        let answerLines = [];
+        let answerHeight = 0;
+        
+        if (options.sections.includes('answer')) {
+            doc.setFont(pdfStyles.fontFamily || 'Helvetica', 'normal');
+            doc.setFontSize(pdfStyles.fontSizeAnswer || 11);
+            
+            const answerText = `R: ${item.answerText}`;
+            // Las respuestas llevan una ligera sangría a la izquierda (contentWidth - 6)
+            answerLines = doc.splitTextToSize(answerText, contentWidth - 6);
+            answerHeight = answerLines.length * (pdfStyles.lineHeight || 5) + 2;
+            
+            if (item.answerImage) {
+                answerHeight += item.answerImage.height + 6;
+            }
         }
-      }
+        
+        // Altura total requerida para este conjunto (Pregunta + Respuesta + Imágenes + Espaciado)
+        const totalBlockHeight = questionHeight + answerHeight + 8;
 
-      cursor.y += 7;
-    }
+        // ==========================================
+        // 2. CONTROL DE PAGINACIÓN (Keep Together)
+        // ==========================================
+        // Si el bloque completo NO cabe en el espacio restante de la página actual,
+        // movemos todo el conjunto a la siguiente página para evitar huérfanos.
+        if (currentY + totalBlockHeight > pageHeight - marginY) {
+            doc.addPage();
+            currentY = marginY + 10; // Reiniciamos el Y en la nueva página
+        }
 
-    context.reportProgress(index + 1, cards.length, `Procesando tarjeta ${index + 1} de ${cards.length}`);
-    await context.yield();
-  }
+        // ==========================================
+        // 3. RENDERIZACIÓN REAL EN EL PDF
+        // ==========================================
+        
+        // --- Render de la Pregunta e Imagen asociados ---
+        if (options.sections.includes('question')) {
+            doc.setFont(pdfStyles.fontFamily || 'Helvetica', 'bold');
+            doc.setFontSize(pdfStyles.fontSizeQuestion || 12);
+            doc.setTextColor(pdfStyles.colors.textDark || '#1A202C');
+            
+            doc.text(questionLines, marginX, currentY);
+            currentY += questionLines.length * (pdfStyles.lineHeight || 6);
+            
+            if (item.questionImage) {
+                currentY += 2; // Separación del texto
+                doc.addImage(
+                    item.questionImage.src, 
+                    'PNG', 
+                    marginX, 
+                    currentY, 
+                    item.questionImage.width, 
+                    item.questionImage.height
+                );
+                currentY += item.questionImage.height + 4;
+            }
+        }
+        
+        // --- Render de la Respuesta e Imagen asociados ---
+        if (options.sections.includes('answer')) {
+            currentY += 2; // Espacio entre pregunta y respuesta
+            
+            doc.setFont(pdfStyles.fontFamily || 'Helvetica', 'normal');
+            doc.setFontSize(pdfStyles.fontSizeAnswer || 11);
+            doc.setTextColor(pdfStyles.colors.textMuted || '#4A5568'); // Un tono más suave para la respuesta
+            
+            // Pintamos con una sangría de 6 unidades a la derecha para simular formato examen
+            doc.text(answerLines, marginX + 6, currentY);
+            currentY += answerLines.length * (pdfStyles.lineHeight || 5);
+            
+            if (item.answerImage) {
+                currentY += 2;
+                doc.addImage(
+                    item.answerImage.src, 
+                    'PNG', 
+                    marginX + 6, 
+                    currentY, 
+                    item.answerImage.width, 
+                    item.answerImage.height
+                );
+                currentY += item.answerImage.height + 4;
+            }
+        }
+        
+        // Separación limpia e invisible entre bloques de preguntas
+        currentY += 10; 
+    });
 }
