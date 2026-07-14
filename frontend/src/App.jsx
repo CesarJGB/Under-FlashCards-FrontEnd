@@ -116,6 +116,10 @@ function DashboardScreen({ user, onLogout }) {
     }
     
     if (id === 'home') {
+      contentScrollRef.current?.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+      if (typeof window !== 'undefined') {
+        window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+      }
       setHomeKey(prev => prev + 1);
     }
 

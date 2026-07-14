@@ -46,10 +46,17 @@ const ADAPTIVE_PREVIEW_CLEARANCE = {
   comfortable: { top: 8, bottom: 14 },
   expanded: { top: 12, bottom: 26 }
 };
-const ADAPTIVE_PREVIEW_GEOMETRY_TOLERANCE_PX = 4;
+const ADAPTIVE_PREVIEW_VIEWPORT_WIDTH_TOLERANCE_PX = 4;
 
 function getAdaptivePreviewSlotPadding(variant) {
   return ADAPTIVE_PREVIEW_CLEARANCE[variant] || { top: 0, bottom: 0 };
+}
+
+function getAdaptivePreviewRequiredSlotHeight(variant, previewHeights) {
+  const clearance = ADAPTIVE_PREVIEW_CLEARANCE[variant];
+  if (!clearance || !previewHeights?.[variant]) return 0;
+
+  return previewHeights[variant] + clearance.top + clearance.bottom;
 }
 
 function resolveAdaptivePreviewVariant(gap, previewHeights) {
@@ -73,7 +80,6 @@ function getAdaptivePreviewViewport() {
 
   return {
     width: Math.round(viewport?.width || window.innerWidth),
-    height: Math.round(viewport?.height || window.innerHeight),
     scale: viewport?.scale || 1
   };
 }
@@ -93,7 +99,7 @@ function getVisibleNavRect(navRef) {
 }
 
 function isValidAdaptivePreviewBootstrap(bootstrap, navRef) {
-  if (!bootstrap || !ADAPTIVE_PREVIEW_CLEARANCE[bootstrap.variant] || bootstrap.gap <= 0) {
+  if (!bootstrap || !ADAPTIVE_PREVIEW_CLEARANCE[bootstrap.variant] || bootstrap.requiredSlotHeight <= 0) {
     return false;
   }
 
@@ -103,12 +109,8 @@ function isValidAdaptivePreviewBootstrap(bootstrap, navRef) {
   const viewport = getAdaptivePreviewViewport();
 
   return (
-    Math.abs(viewport.width - bootstrap.viewport.width) <= ADAPTIVE_PREVIEW_GEOMETRY_TOLERANCE_PX &&
-    Math.abs(viewport.height - bootstrap.viewport.height) <= ADAPTIVE_PREVIEW_GEOMETRY_TOLERANCE_PX &&
-    viewport.scale === bootstrap.viewport.scale &&
-    Math.abs(navRect.top - bootstrap.nav.top) <= ADAPTIVE_PREVIEW_GEOMETRY_TOLERANCE_PX &&
-    Math.abs(navRect.width - bootstrap.nav.width) <= ADAPTIVE_PREVIEW_GEOMETRY_TOLERANCE_PX &&
-    Math.abs(navRect.height - bootstrap.nav.height) <= ADAPTIVE_PREVIEW_GEOMETRY_TOLERANCE_PX
+    Math.abs(viewport.width - bootstrap.viewport.width) <= ADAPTIVE_PREVIEW_VIEWPORT_WIDTH_TOLERANCE_PX &&
+    viewport.scale === bootstrap.viewport.scale
   );
 }
 
@@ -292,6 +294,7 @@ export default function HomeSection({
   const [adaptivePreviewHeights, setAdaptivePreviewHeights] = useState(ADAPTIVE_PREVIEW_FALLBACK_HEIGHTS);
   const [areAdaptivePreviewMeasurementsReady, setAreAdaptivePreviewMeasurementsReady] = useState(false);
   const [isAdaptivePreviewBootstrapValid, setIsAdaptivePreviewBootstrapValid] = useState(() => Boolean(adaptivePreviewBootstrap));
+  const [adaptivePreviewBootstrapGap, setAdaptivePreviewBootstrapGap] = useState(0);
 
   useImmersiveScrollGuard(!showWidgetLibrary, 'home-section');
 
@@ -382,14 +385,22 @@ export default function HomeSection({
     const validateContentGap = () => {
       const navRect = getVisibleNavRect(bottomNavRef);
       const contentRect = contentEndRef.current?.getBoundingClientRect();
+      const currentGap = navRect && contentRect
+        ? Math.max(0, Math.round(navRect.top - contentRect.bottom))
+        : 0;
 
       if (
         !isValidAdaptivePreviewBootstrap(adaptivePreviewBootstrap, bottomNavRef) ||
         !contentRect ||
-        navRect.top - contentRect.bottom < adaptivePreviewBootstrap.gap - ADAPTIVE_PREVIEW_GEOMETRY_TOLERANCE_PX
+        currentGap < adaptivePreviewBootstrap.requiredSlotHeight
       ) {
         invalidateBootstrap();
+        return;
       }
+
+      setAdaptivePreviewBootstrapGap((previousGap) => (
+        previousGap === currentGap ? previousGap : currentGap
+      ));
     };
 
     validateContentGap();
@@ -841,7 +852,11 @@ export default function HomeSection({
     ? resolveAdaptivePreviewVariant(bottomGap, adaptivePreviewHeights)
     : 'none';
   const isLiveAdaptivePreviewReady = isBottomGapReady && areAdaptivePreviewMeasurementsReady;
-  const canUseAdaptivePreviewBootstrap = !isLiveAdaptivePreviewReady && isAdaptivePreviewBootstrapValid && !showWidgetLibrary;
+  const canUseAdaptivePreviewBootstrap =
+    !isLiveAdaptivePreviewReady &&
+    isAdaptivePreviewBootstrapValid &&
+    adaptivePreviewBootstrapGap >= (adaptivePreviewBootstrap?.requiredSlotHeight || 0) &&
+    !showWidgetLibrary;
   const displayedAdaptivePreviewVariant = isLiveAdaptivePreviewReady
     ? adaptivePreviewVariant
     : canUseAdaptivePreviewBootstrap
@@ -850,7 +865,7 @@ export default function HomeSection({
   const displayedBottomGap = isLiveAdaptivePreviewReady
     ? bottomGap
     : canUseAdaptivePreviewBootstrap
-      ? adaptivePreviewBootstrap.gap
+      ? adaptivePreviewBootstrapGap
       : 0;
   const showAdaptivePreview = displayedAdaptivePreviewVariant !== 'none' && !showWidgetLibrary;
   const adaptivePreviewSlotPadding = getAdaptivePreviewSlotPadding(displayedAdaptivePreviewVariant);
@@ -876,18 +891,13 @@ export default function HomeSection({
     }
 
     onStableAdaptivePreview?.({
-      gap: bottomGap,
       variant: adaptivePreviewVariant,
-      viewport: getAdaptivePreviewViewport(),
-      nav: {
-        top: navRect.top,
-        width: navRect.width,
-        height: navRect.height
-      }
+      requiredSlotHeight: getAdaptivePreviewRequiredSlotHeight(adaptivePreviewVariant, adaptivePreviewHeights),
+      viewport: getAdaptivePreviewViewport()
     });
   }, [
     adaptivePreviewVariant,
-    bottomGap,
+    adaptivePreviewHeights,
     bottomNavRef,
     isLiveAdaptivePreviewReady,
     onStableAdaptivePreview,
