@@ -4,7 +4,7 @@ import { resolveCardPdfStyles, setPdfTextStyle } from '../styles';
  * Renderiza el contenido en formato de examen limpio.
  * Previene que las preguntas, respuestas e imágenes se separen incorrectamente entre páginas.
  */
-export function renderContent(doc, items, options) {
+export function renderContentDocument(doc, items, options) {
     const pageHeight = doc.internal.pageSize.getHeight();
     const pageWidth = doc.internal.pageSize.getWidth();
     
