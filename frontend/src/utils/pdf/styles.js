@@ -53,9 +53,20 @@ export function cssColorToRgb(value) {
   return null;
 }
 
+function luminance(color) {
+  return (0.2126 * color.r) + (0.7152 * color.g) + (0.0722 * color.b);
+}
+
 export function isDarkColor(color) {
   if (!color) return false;
-  return (0.2126 * color.r) + (0.7152 * color.g) + (0.0722 * color.b) < 140;
+  return luminance(color) < 140;
+}
+
+// Un color "personalizado" casi blanco (pensado para fondos oscuros de tarjeta)
+// se volvería invisible sobre la página blanca del documento de contenido.
+function isReadableOnWhite(color) {
+  if (!color) return false;
+  return luminance(color) < 235;
 }
 
 export function toPdfFontSize(pxSize, fallback = 11) {
@@ -71,6 +82,12 @@ export function getFontStyle({ bold, italic }) {
   return 'normal';
 }
 
+// ============================================================
+// Estilos para TARJETAS IMPRIMIBLES (printableCardsRenderer.js)
+// Aquí sí importa el fondo de cada tarjeta: el texto blanco por
+// defecto tiene sentido porque se dibuja sobre el fondo oscuro
+// de esa misma tarjeta.
+// ============================================================
 export function resolveCardPdfStyles(card) {
   const styles = parseCardStyles(String(card?.fontSize || ''));
   const background = cssColorToRgb(styles.bgColor);
@@ -94,6 +111,34 @@ export function resolveCardPdfStyles(card) {
       hasCustomColor: Boolean(answerColor),
     },
     textAlign: ['left', 'center', 'right'].includes(card?.textAlign) ? card.textAlign : 'left',
+  };
+}
+
+// ============================================================
+// Estilos para el DOCUMENTO DE CONTENIDO (Guía / Banco de
+// Preguntas / Banco de Respuestas — contentRenderer.js).
+//
+// A propósito NO se hereda tamaño/negrita/cursiva por tarjeta:
+// cada tarjeta puede tener un estilo distinto pensado para su
+// propia vista de tarjeta individual, y mezclarlos todos en un
+// documento tipo examen es lo que producía el desorden visual.
+// El documento impone su propia tipografía consistente.
+//
+// Sí se respeta un color de texto personalizado, PERO solo si es
+// legible sobre blanco — si el usuario puso un color casi blanco
+// pensado para una tarjeta de fondo oscuro, se ignora y se usa el
+// color por defecto para evitar texto invisible.
+// ============================================================
+export function resolveContentTextStyle(card, section, fallbackSize) {
+  const styles = parseCardStyles(String(card?.fontSize || ''));
+  const isQuestion = section === 'question';
+  const customColor = cssColorToRgb(isQuestion ? styles.qColor : styles.aColor);
+  const defaultColor = isQuestion ? DEFAULT_QUESTION_COLOR : DEFAULT_ANSWER_COLOR;
+
+  return {
+    size: fallbackSize,
+    style: isQuestion ? 'bold' : 'normal',
+    color: (customColor && isReadableOnWhite(customColor)) ? customColor : defaultColor,
   };
 }
 
