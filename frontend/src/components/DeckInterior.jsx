@@ -6,20 +6,10 @@ import FlashcardCreator from './FlashcardCreator';
 import FlashcardCollection from './FlashcardCollection'; 
 import FastDeleteMode from './FastDeleteMode'; 
 import SessionPlayer from './SessionPlayer'; 
+import usePdfExport from '../hooks/usePdfExport';
+import PdfExportOverlay from './PdfExportOverlay';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
-let pdfExporterPromise = null;
-
-const loadPdfExporter = async () => {
-  if (!pdfExporterPromise) {
-    pdfExporterPromise = import('../utils/pdfExporter').catch((error) => {
-      pdfExporterPromise = null;
-      throw error;
-    });
-  }
-
-  return pdfExporterPromise;
-};
 
 // Modos que corresponden a una sesión de estudio activa (SessionPlayer).
 // Centralizado acá para no tener que acordarse de actualizar cada `mode !== '...'`
@@ -51,6 +41,7 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
   const [editingId, setEditingId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const pdfExport = usePdfExport();
 
   useEffect(() => { 
     if (initialMode) {
@@ -104,20 +95,12 @@ export default function DeckInterior({ deck, userId, onBack, initialMode = 'edit
   };
 
   const handleExportPDF = async (type = 'guide') => {
-    if (cards.length === 0) {
-      setError('No hay tarjetas en este mazo para exportar a PDF.');
+    if (loading) {
+      setError('Espera a que terminen de cargarse las tarjetas antes de exportar.');
       return;
     }
 
-    setError('');
-
-    try {
-      const { exportDeckToPDF } = await loadPdfExporter();
-      exportDeckToPDF(deck.title, cards, type);
-    } catch (err) {
-      console.error('[DeckInterior] Error loading PDF exporter:', err);
-      setError('No se pudo cargar el exportador PDF. Inténtalo de nuevo.');
-    }
+    await pdfExport.exportPdf({ deck, cards, type });
   };
 
   const handleImportJSON = async (file) => {
@@ -299,6 +282,11 @@ console.log('DEBUG mode actual:', mode, '| isSessionMode:', isSessionMode);
   
   return (
     <div data-testid="deck-interior">
+      <PdfExportOverlay
+        isOpen={pdfExport.isExporting}
+        progress={pdfExport.progress}
+        onCancel={pdfExport.cancel}
+      />
       {/* Ocultamos el header nativo durante cualquier sesión activa (continuo o normal) para máxima inmersión */}
       {!isSessionMode && (
         <DeckHeader 
@@ -308,6 +296,11 @@ console.log('DEBUG mode actual:', mode, '| isSessionMode:', isSessionMode);
           onBack={onBack} 
           onExport={handleExport} 
           onExportPDF={handleExportPDF} 
+          isExportingPdf={pdfExport.isExporting}
+          pdfProgress={pdfExport.progress}
+          pdfError={pdfExport.error}
+          pdfWarnings={pdfExport.warnings}
+          onCancelPdfExport={pdfExport.cancel}
           onImport={canEdit ? handleImportJSON : undefined} 
         />
       )}

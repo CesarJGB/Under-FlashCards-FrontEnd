@@ -6,6 +6,8 @@ import DailyChallengeCard from './study/DailyChallengeCard';
 import StudyDeckSelector from './study/StudyDeckSelector';
 import StudyFeaturesList from './study/StudyFeaturesList';
 import StudyModesList from './study/StudyModesList';
+import usePdfExport from '../hooks/usePdfExport';
+import PdfExportOverlay from './PdfExportOverlay';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
@@ -13,8 +15,7 @@ export default function StudySection({ decks, materias, userId, userEmail, onOpe
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [selectedMethod, setSelectedMethod] = useState(null);
   const [selectedFeature, setSelectedFeature] = useState(null);
-  const [isExportingPdf, setIsExportingPdf] = useState(false);
-  const [pdfExportError, setPdfExportError] = useState('');
+  const pdfExport = usePdfExport();
 
   const methods = [
     {
@@ -79,28 +80,17 @@ export default function StudySection({ decks, materias, userId, userEmail, onOpe
   const currentMethodObj = methods.find(m => m.id === selectedMethod);
 
   const handlePdfExport = async (deck) => {
-    if (!selectedFeature || isExportingPdf) return;
+    if (!selectedFeature) return;
 
-    setIsExportingPdf(true);
-    setPdfExportError('');
-
-    try {
-      const response = await fetch(`${BACKEND_URL}/api/flashcards/deck/${deck.id}`);
-      if (!response.ok) throw new Error('No se pudieron cargar las tarjetas del mazo.');
-
-      const cards = await response.json();
-      if (!Array.isArray(cards) || cards.length === 0) {
-        throw new Error('No hay tarjetas en este mazo para exportar a PDF.');
-      }
-
-      const { exportDeckToPDF } = await import('../utils/pdfExporter');
-      exportDeckToPDF(deck.title, cards, selectedFeature.id);
-    } catch (error) {
-      console.error('[StudySection] Error exporting PDF:', error);
-      setPdfExportError(error.message || 'No se pudo generar el PDF. Inténtalo de nuevo.');
-    } finally {
-      setIsExportingPdf(false);
-    }
+    await pdfExport.exportPdf({
+      deck,
+      type: selectedFeature.id,
+      loadCards: async (signal) => {
+        const response = await fetch(`${BACKEND_URL}/api/flashcards/deck/${deck.id}`, { signal });
+        if (!response.ok) throw new Error('No se pudieron cargar las tarjetas del mazo.');
+        return response.json();
+      },
+    });
   };
   if (!selectedCategory) {
     return (
@@ -123,7 +113,7 @@ export default function StudySection({ decks, materias, userId, userEmail, onOpe
           features={pdfFeatures}
           onBack={() => setSelectedCategory(null)}
           onSelectFeature={(feature) => {
-            setPdfExportError('');
+            pdfExport.reset();
             setSelectedFeature(feature);
           }}
         />
@@ -131,19 +121,27 @@ export default function StudySection({ decks, materias, userId, userEmail, onOpe
     }
 
     return (
-      <StudyDeckSelector
-        decks={decks}
-        materias={materias}
-        modeLabel={selectedFeature.title}
-        onBack={() => {
-          setPdfExportError('');
-          setSelectedFeature(null);
-        }}
-        onSelectDeck={handlePdfExport}
-        isProcessing={isExportingPdf}
-        processingMessage="Generando tu PDF..."
-        errorMessage={pdfExportError}
-      />
+      <>
+        <StudyDeckSelector
+          decks={decks}
+          materias={materias}
+          modeLabel={selectedFeature.title}
+          onBack={() => {
+            pdfExport.reset();
+            setSelectedFeature(null);
+          }}
+          onSelectDeck={handlePdfExport}
+          isProcessing={pdfExport.isExporting}
+          processingMessage={pdfExport.progress.message}
+          errorMessage={pdfExport.error}
+          warnings={pdfExport.warnings}
+        />
+        <PdfExportOverlay
+          isOpen={pdfExport.isExporting}
+          progress={pdfExport.progress}
+          onCancel={pdfExport.cancel}
+        />
+      </>
     );
   }
 
