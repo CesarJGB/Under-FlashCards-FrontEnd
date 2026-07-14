@@ -1,8 +1,7 @@
 import { resolveCardPdfStyles, setPdfTextStyle } from '../styles';
 
 /**
- * Renderiza el contenido en formato de examen limpio.
- * Previene que las preguntas, respuestas e imágenes se separen incorrectamente entre páginas.
+ * Renderiza el contenido en formato de examen limpio utilizando el contrato de constantes.
  */
 export function renderContentDocument(doc, items, options) {
     const pageHeight = doc.internal.pageSize.getHeight();
@@ -13,129 +12,115 @@ export function renderContentDocument(doc, items, options) {
     const marginY = 20;
     const contentWidth = pageWidth - (marginX * 2);
     
-    // Posición Y inicial
-    let currentY = marginY + 15; 
+    let currentY = marginY; 
 
+    // ==========================================
+    // RENDER DEL TÍTULO PRINCIPAL (Desde las constantes)
+    // ==========================================
+    if (options && options.title) {
+        doc.setFont('Helvetica', 'bold');
+        doc.setFontSize(20);
+        doc.setTextColor(15, 23, 42); // Slate 900
+        
+        // Si el contexto inyecta el nombre del mazo, lo concatena; si no, usa el título base
+        const mainTitle = options.deckName ? `${options.title}: ${options.deckName}` : options.title;
+        doc.text(mainTitle, marginX, currentY + 6);
+        currentY += 12;
+        
+        // Línea divisoria sutil estilo examen
+        doc.setDrawColor(226, 232, 240); // #E2E8F0
+        doc.setLineWidth(0.5);
+        doc.line(marginX, currentY, pageWidth - marginX, currentY);
+        currentY += 12;
+    }
+
+    // ==========================================
+    // RENDER DEL LISTADO DE PREGUNTAS / RESPUESTAS
+    // ==========================================
     items.forEach((item, index) => {
-        // 1. Resolver los estilos específicos de esta tarjeta (fuentes, tamaños, colores)
         const cardStyle = resolveCardPdfStyles(item);
         
-        // ==========================================
-        // 2. PRE-CÁLCULO DE ALTURAS EN MILÍMETROS
-        // ==========================================
+        // Extracción estricta basada en el contrato de constantes
+        const textQuestion = item.question || '';
+        const textAnswer = item.answer || '';
+        
+        const qImage = item.questionImage || null;
+        const aImage = item.answerImage || null;
+
+        // --- 1. PRE-CÁLCULO DE ALTURAS ---
         let questionLines = [];
         let questionHeight = 0;
+        const fontHeightMmQ = cardStyle.question.size * 0.352778; // pt a mm
+        const lineHeightQ = fontHeightMmQ * 1.35; 
         
         if (options.sections.includes('question')) {
-            // Aplicamos el estilo temporalmente para calcular el ajuste de líneas real
             setPdfTextStyle(doc, cardStyle.question);
+            const fullQuestionText = `${index + 1}. ${textQuestion}`;
+            questionLines = doc.splitTextToSize(fullQuestionText, contentWidth);
+            questionHeight = questionLines.length * lineHeightQ;
             
-            const questionText = `${index + 1}. ${item.questionText || ''}`;
-            questionLines = doc.splitTextToSize(questionText, contentWidth);
-            
-            // Convertimos los puntos (pt) de la fuente a milímetros (mm) para jsPDF
-            const fontHeightMm = cardStyle.question.size * 0.352778;
-            const lineHeight = fontHeightMm * 1.35; // Interlineado del 35%
-            
-            questionHeight = questionLines.length * lineHeight;
-            
-            if (item.questionImage && item.questionImage.height) {
-                questionHeight += item.questionImage.height + 6; 
+            if (qImage && qImage.height) {
+                questionHeight += qImage.height + 6; 
             }
         }
         
         let answerLines = [];
         let answerHeight = 0;
+        const fontHeightMmA = cardStyle.answer.size * 0.352778;
+        const lineHeightA = fontHeightMmA * 1.35;
         
         if (options.sections.includes('answer')) {
             setPdfTextStyle(doc, cardStyle.answer);
+            const fullAnswerText = `R: ${textAnswer}`;
+            answerLines = doc.splitTextToSize(fullAnswerText, contentWidth - 6);
+            answerHeight = answerLines.length * lineHeightA;
             
-            const answerText = `R: ${item.answerText || ''}`;
-            // Las respuestas llevan una sangría de 6mm a la derecha
-            answerLines = doc.splitTextToSize(answerText, contentWidth - 6);
-            
-            const fontHeightMm = cardStyle.answer.size * 0.352778;
-            const lineHeight = fontHeightMm * 1.35;
-            
-            answerHeight = answerLines.length * lineHeight;
-            
-            if (item.answerImage && item.answerImage.height) {
-                answerHeight += item.answerImage.height + 6;
+            if (aImage && aImage.height) {
+                answerHeight += aImage.height + 6;
             }
         }
         
-        // Altura total requerida para mantener el bloque unido (Pregunta + Respuesta + Imágenes)
-        const totalBlockHeight = questionHeight + answerHeight + 10;
+        const totalBlockHeight = questionHeight + answerHeight + 8;
 
-        // ==========================================
-        // 3. CONTROL DE PAGINACIÓN (Keep Together)
-        // ==========================================
-        // Si el bloque completo con sus imágenes NO cabe, se pasa entero a la siguiente página
+        // --- 2. CONTROL DE PAGINACIÓN (Keep Together) ---
         if (currentY + totalBlockHeight > pageHeight - marginY) {
             doc.addPage();
-            currentY = marginY + 10; 
+            currentY = marginY + 5; 
         }
 
-        // ==========================================
-        // 4. RENDERIZACIÓN REAL
-        // ==========================================
-        
-        // --- Render de la Pregunta ---
-        if (options.sections.includes('question')) {
+        // --- 3. RENDERIZACIÓN DE LA PREGUNTA e IMAGEN ---
+        if (options.sections.includes('question') && questionLines.length > 0) {
             setPdfTextStyle(doc, cardStyle.question);
             
-            const fontHeightMm = cardStyle.question.size * 0.352778;
-            const lineHeight = fontHeightMm * 1.35;
-
-            // Dibujamos línea por línea para controlar el Y exacto junto con las imágenes
             questionLines.forEach((line) => {
-                doc.text(line, marginX, currentY + fontHeightMm);
-                currentY += lineHeight;
+                doc.text(line, marginX, currentY + fontHeightMmQ);
+                currentY += lineHeightQ;
             });
             
-            if (item.questionImage && item.questionImage.src) {
-                currentY += 2; 
-                doc.addImage(
-                    item.questionImage.src, 
-                    'PNG', 
-                    marginX, 
-                    currentY, 
-                    item.questionImage.width, 
-                    item.questionImage.height
-                );
-                currentY += item.questionImage.height + 4;
+            if (qImage && qImage.src) {
+                currentY += 2;
+                doc.addImage(qImage.src, 'PNG', marginX, currentY, qImage.width, qImage.height);
+                currentY += qImage.height + 4;
             }
         }
         
-        // --- Render de la Respuesta ---
-        if (options.sections.includes('answer')) {
-            currentY += 1.5; // Pequeño espacio de separación con la pregunta
+        // --- 4. RENDERIZACIÓN DE LA RESPUESTA e IMAGEN ---
+        if (options.sections.includes('answer') && answerLines.length > 0) {
+            currentY += 1.5; 
             setPdfTextStyle(doc, cardStyle.answer);
             
-            const fontHeightMm = cardStyle.answer.size * 0.352778;
-            const lineHeight = fontHeightMm * 1.35;
-            
             answerLines.forEach((line) => {
-                // Aplicamos la sangría horizontal sumando 6 al margen izquierdo
-                doc.text(line, marginX + 6, currentY + fontHeightMm);
-                currentY += lineHeight;
+                doc.text(line, marginX + 6, currentY + fontHeightMmA);
+                currentY += lineHeightA;
             });
             
-            if (item.answerImage && item.answerImage.src) {
+            if (aImage && aImage.src) {
                 currentY += 2;
-                doc.addImage(
-                    item.answerImage.src, 
-                    'PNG', 
-                    marginX + 6, 
-                    currentY, 
-                    item.answerImage.width, 
-                    item.answerImage.height
-                );
-                currentY += item.answerImage.height + 4;
+                doc.addImage(aImage.src, 'PNG', marginX + 6, currentY, aImage.width, aImage.height);
+                currentY += aImage.height + 4;
             }
         }
         
-        // Espaciado de separación limpio e invisible antes de la siguiente pregunta
-        currentY += 8; 
+        currentY += 6; // Separación limpia entre bloques
     });
 }
