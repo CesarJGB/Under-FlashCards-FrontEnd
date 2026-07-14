@@ -1,10 +1,10 @@
 // FILE: frontend/src/components/SettingsSection.jsx
 import { useState, useEffect, useCallback } from 'react';
-import { KeyRound, Loader2, Check, Wallet, RefreshCw, Layout, Eye, EyeOff, BarChart3 } from 'lucide-react';
+import { ArrowLeft, KeyRound, Loader2, Check, Wallet, RefreshCw, Layout, Eye, EyeOff, BarChart3 } from 'lucide-react';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
-export default function SettingsSection({ userId, section }) {
+export default function SettingsSection({ userId, section, onBack }) {
   const showHomeSettings = section !== 'ai';
   const showAiSettings = section !== 'home';
   const [apiKey, setApiKey] = useState('');
@@ -144,18 +144,13 @@ export default function SettingsSection({ userId, section }) {
 
   return (
     <div data-testid="settings-section" className="animate-[fadeIn_0.15s_ease] max-w-xl space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-slate-900">
-          {showHomeSettings && showAiSettings ? 'Ajustes' : showHomeSettings ? 'Ajustes del Home' : 'API de IA y saldo'}
-        </h2>
-        <p className="text-slate-500 mt-1">
-          {showHomeSettings && showAiSettings
-            ? 'Administra tu clave de API de IA, visibilidad del Home y verifica tu consumo.'
-            : showHomeSettings
-              ? 'Controla las secciones que se muestran en tu pantalla de inicio.'
-              : 'Administra tu clave de API de IA y verifica tu consumo.'}
-        </p>
-      </div>
+      <button
+        type="button"
+        onClick={onBack}
+        className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900"
+      >
+        <ArrowLeft className="w-4 h-4" /> Volver al perfil
+      </button>
 
       {/* 👁️ SECCIÓN DE VISIBILIDAD DEL HOME */}
       {showHomeSettings && (

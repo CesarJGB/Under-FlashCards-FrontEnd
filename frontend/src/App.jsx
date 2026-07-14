@@ -210,8 +210,8 @@ function DashboardScreen({ user, onLogout }) {
       </aside>
 
       <main ref={contentScrollRef} className="relative flex-1 min-h-0 min-w-0 overflow-y-auto overscroll-contain md:min-h-[100dvh] md:overflow-visible">
-        {/* Header móvil: el perfil muestra su título dentro de su propio contenido. */}
-        {tab !== 'home' && tab !== 'study' && tab !== 'usuario' && (
+        {/* Home, perfil y sus ajustes gestionan sus controles dentro de su contenido. */}
+        {tab !== 'home' && tab !== 'study' && tab !== 'usuario' && tab !== 'home-settings' && tab !== 'ai-settings' && (
           <div className="md:hidden sticky top-0 z-30 bg-white border-b border-slate-200 px-4 py-3.5 flex items-center justify-between shadow-xs">
             <span className="min-w-0 max-w-[80%]">
               {currentDeck && tab === 'library' ? (
@@ -280,9 +280,13 @@ function DashboardScreen({ user, onLogout }) {
             />
           )}
 
-          {tab === 'home-settings' && <SettingsSection userId={user.id} section="home" />}
+          {tab === 'home-settings' && (
+            <SettingsSection userId={user.id} section="home" onBack={() => handleTabChange('usuario')} />
+          )}
 
-          {tab === 'ai-settings' && <SettingsSection userId={user.id} section="ai" />}
+          {tab === 'ai-settings' && (
+            <SettingsSection userId={user.id} section="ai" onBack={() => handleTabChange('usuario')} />
+          )}
 
           {tab === 'chat' && <ChatSection userId={user.id} />}
 
