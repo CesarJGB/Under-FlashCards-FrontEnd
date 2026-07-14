@@ -1,4 +1,4 @@
-import { prepareImageAsset, fitContain } from '../images';
+import { prepareImageAsset } from '../images';
 import { resolveContentTextStyle, setPdfTextStyle } from '../styles';
 
 const APP_NAME = 'UnderFlashCards';
@@ -12,11 +12,12 @@ const ITEM_GAP = 4.5;
 const IMAGE_GAP = 1.8;
 
 // Marco de imagen: mismo tamaño para TODAS las imágenes, sin importar su
-// proporción original — así el documento mantiene un ritmo visual uniforme
-// (como pidió Cesar: "el mismo tamaño que tiene el mapa").
+// proporción original. La imagen se recorta (modo "cover", igual que el
+// fondo de las Tarjetas Imprimibles) para llenar el marco por completo,
+// así el mat interno queda parejo en los 4 lados siempre.
 const FRAME_HEIGHT = 26;
-const FRAME_PADDING = 1.6;
-const FRAME_BORDER_WIDTH = 0.35;
+const FRAME_PADDING = 2.2;
+const FRAME_BORDER_WIDTH = 0.8;
 
 const INK_COLOR = { r: 15, g: 23, b: 42 };
 const KICKER_COLOR = { r: 51, g: 65, b: 85 };
@@ -153,11 +154,16 @@ function drawFooters(doc, deckLabel) {
   }
 }
 
-async function prepareSectionImage(source, context, cardIndex, maxWidth, maxHeight) {
+// targetRatio = ancho/alto del hueco interior del marco donde va a vivir la
+// imagen. Con mode:'cover' + targetRatio, images.js recorta la imagen (canvas)
+// para que llene exactamente esa proporción, en vez de dejarla centrada con
+// espacios irregulares alrededor (que era el problema anterior).
+async function prepareSectionImage(source, context, cardIndex, targetRatio) {
   if (!source) return null;
 
   const result = await prepareImageAsset(source, {
-    mode: 'contain',
+    mode: 'cover',
+    targetRatio,
     signal: context.signal,
     assetCache: context.imageAssetCache,
     sourceBlobCache: context.sourceBlobCache,
@@ -170,17 +176,22 @@ async function prepareSectionImage(source, context, cardIndex, maxWidth, maxHeig
   }
 
   context.consumeImageAsset(result.asset);
-  const dimensions = fitContain(result.asset, maxWidth, maxHeight);
-  return { failed: false, asset: result.asset, dimensions };
+  return { failed: false, asset: result.asset };
 }
 
-// Dibuja el marco fijo (contorno + mat interno) y, dentro, la imagen
-// centrada y ajustada o el aviso de "no disponible" si falló la carga.
-// width/height son SIEMPRE los mismos para todas las imágenes del documento.
+// Dibuja el marco fijo (contorno + mat interno) y, dentro, la imagen ya
+// recortada (llena el hueco interior por completo) o el aviso de "no
+// disponible" si falló la carga. width/height son siempre los mismos para
+// todas las imágenes del documento.
 function drawImageFrame(doc, x, y, width, height, imageResult) {
   doc.setDrawColor(RULE_COLOR.r, RULE_COLOR.g, RULE_COLOR.b);
   doc.setLineWidth(FRAME_BORDER_WIDTH);
   doc.rect(x, y, width, height);
+
+  const innerX = x + FRAME_PADDING;
+  const innerY = y + FRAME_PADDING;
+  const innerWidth = width - (FRAME_PADDING * 2);
+  const innerHeight = height - (FRAME_PADDING * 2);
 
   if (!imageResult || imageResult.failed) {
     doc.setFont('Helvetica', 'italic');
@@ -190,15 +201,7 @@ function drawImageFrame(doc, x, y, width, height, imageResult) {
     return;
   }
 
-  const innerX = x + FRAME_PADDING;
-  const innerY = y + FRAME_PADDING;
-  const innerWidth = width - (FRAME_PADDING * 2);
-  const innerHeight = height - (FRAME_PADDING * 2);
-  const { width: imgW, height: imgH } = imageResult.dimensions;
-  const offsetX = innerX + ((innerWidth - imgW) / 2);
-  const offsetY = innerY + ((innerHeight - imgH) / 2);
-
-  doc.addImage(imageResult.asset.data, imageResult.asset.format, offsetX, offsetY, imgW, imgH, undefined, 'FAST');
+  doc.addImage(imageResult.asset.data, imageResult.asset.format, innerX, innerY, innerWidth, innerHeight, undefined, 'FAST');
 }
 
 /**
@@ -268,7 +271,8 @@ export async function renderContentDocument(doc, items, config, context) {
 
       if (showImageOnQuestion) {
         const innerWidth = geometry.columnWidth - (FRAME_PADDING * 2);
-        questionImage = await prepareSectionImage(item.contentImage, context, index, innerWidth, innerImageHeight);
+        const targetRatio = innerWidth / innerImageHeight;
+        questionImage = await prepareSectionImage(item.contentImage, context, index, targetRatio);
         questionHeight += FRAME_HEIGHT + IMAGE_GAP;
       }
     }
@@ -290,7 +294,8 @@ export async function renderContentDocument(doc, items, config, context) {
       if (showImageOnAnswer) {
         const answerFrameWidth = geometry.columnWidth - 3;
         const innerWidth = answerFrameWidth - (FRAME_PADDING * 2);
-        answerImage = await prepareSectionImage(item.contentImage, context, index, innerWidth, innerImageHeight);
+        const targetRatio = innerWidth / innerImageHeight;
+        answerImage = await prepareSectionImage(item.contentImage, context, index, targetRatio);
         answerHeight += FRAME_HEIGHT + IMAGE_GAP;
       }
     }
