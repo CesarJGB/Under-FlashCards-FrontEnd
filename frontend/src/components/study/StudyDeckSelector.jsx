@@ -48,7 +48,7 @@ function FolderCard({ title, detail, onClick, compact = false }) {
   );
 }
 
-function DeckGrid({ decks, emptyMessage, onSelectDeck }) {
+function DeckGrid({ decks, emptyMessage, onSelectDeck, isProcessing = false }) {
   if (decks.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center text-xs font-medium text-slate-400">
@@ -58,7 +58,7 @@ function DeckGrid({ decks, emptyMessage, onSelectDeck }) {
   }
 
   return (
-    <div className="grid grid-cols-2 gap-3 pb-12 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
+    <div className={`grid grid-cols-2 gap-3 pb-12 transition-opacity sm:gap-4 lg:grid-cols-3 xl:grid-cols-4 ${isProcessing ? 'pointer-events-none opacity-60' : ''}`}>
       {decks.map((deck) => (
         <DeckCard
           key={deck.id}
@@ -131,7 +131,16 @@ function SearchResults({ results, onSelect }) {
   );
 }
 
-export default function StudyDeckSelector({ decks, materias, modeLabel, onBack, onSelectDeck }) {
+export default function StudyDeckSelector({
+  decks,
+  materias,
+  modeLabel,
+  onBack,
+  onSelectDeck,
+  isProcessing = false,
+  processingMessage = '',
+  errorMessage = '',
+}) {
   const [currentPath, setCurrentPath] = useState({
     materiaId: null,
     parcialNumber: null,
@@ -353,22 +362,39 @@ export default function StudyDeckSelector({ decks, materias, modeLabel, onBack, 
   const overflowCount = Math.max(0, materias.length - maxVisibleMaterias);
 
   const renderHeader = () => (
-    <div className="flex items-center gap-3 border-b border-slate-200/60 pb-4">
-      <button
-        type="button"
-        onClick={handleBack}
-        className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-3xs transition-all hover:bg-slate-50 active:scale-95 cursor-pointer"
-        title="Volver"
-      >
-        <ArrowLeft className="h-4 w-4" />
-      </button>
-      <div className="min-w-0">
-        <span className="inline-block rounded-md bg-slate-900 px-2 py-0.5 text-xs font-extrabold uppercase tracking-wide text-white">
-          {modeLabel}
-        </span>
-        <h2 className="mt-1 truncate text-lg font-bold text-slate-900">{title}</h2>
+    <>
+      {isProcessing && <div className="fixed inset-0 z-20 cursor-wait" />}
+      <div className="flex items-center gap-3 border-b border-slate-200/60 pb-4">
+        <button
+          type="button"
+          onClick={handleBack}
+          disabled={isProcessing}
+          className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-3xs transition-all hover:bg-slate-50 active:scale-95 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+          title="Volver"
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </button>
+        <div className="min-w-0">
+          <span className="inline-block rounded-md bg-slate-900 px-2 py-0.5 text-xs font-extrabold uppercase tracking-wide text-white">
+            {modeLabel}
+          </span>
+          <h2 className="mt-1 truncate text-lg font-bold text-slate-900">{title}</h2>
+        </div>
       </div>
-    </div>
+
+      {isProcessing && (
+        <div className="flex items-center gap-2 rounded-xl border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          {processingMessage || 'Procesando el mazo...'}
+        </div>
+      )}
+
+      {errorMessage && (
+        <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">
+          {errorMessage}
+        </div>
+      )}
+    </>
   );
 
   if (!currentPath.materiaId) {
@@ -442,10 +468,11 @@ export default function StudyDeckSelector({ decks, materias, modeLabel, onBack, 
               <Bookmark className="h-3.5 w-3.5 text-slate-400" />
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Mazos sin clasificar</h3>
             </div>
-            <DeckGrid
-              decks={unclassifiedDecks}
-              emptyMessage="Todos tus mazos están organizados en materias."
-              onSelectDeck={onSelectDeck}
+          <DeckGrid
+            decks={unclassifiedDecks}
+            emptyMessage="Todos tus mazos están organizados en materias."
+            onSelectDeck={onSelectDeck}
+            isProcessing={isProcessing}
             />
           </section>
         )}
@@ -512,6 +539,7 @@ export default function StudyDeckSelector({ decks, materias, modeLabel, onBack, 
                 decks={partialDecks}
                 emptyMessage={partialTemas.length === 0 ? 'No hay temas ni mazos en este parcial.' : 'No hay mazos generales en este parcial.'}
                 onSelectDeck={onSelectDeck}
+                isProcessing={isProcessing}
               />
             </section>
           </>
@@ -533,7 +561,7 @@ export default function StudyDeckSelector({ decks, materias, modeLabel, onBack, 
           <>
             <section className="space-y-4">
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Mazos del tema</h3>
-              <DeckGrid decks={temaDecks} emptyMessage="No hay mazos directos en este tema." onSelectDeck={onSelectDeck} />
+              <DeckGrid decks={temaDecks} emptyMessage="No hay mazos directos en este tema." onSelectDeck={onSelectDeck} isProcessing={isProcessing} />
             </section>
 
             {subtemas.length > 0 && (
@@ -565,7 +593,7 @@ export default function StudyDeckSelector({ decks, materias, modeLabel, onBack, 
       {renderHeader()}
       <section className="space-y-4">
         <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Mazos del subtema</h3>
-        <DeckGrid decks={subtemaDecks} emptyMessage="No hay mazos en este subtema." onSelectDeck={onSelectDeck} />
+        <DeckGrid decks={subtemaDecks} emptyMessage="No hay mazos en este subtema." onSelectDeck={onSelectDeck} isProcessing={isProcessing} />
       </section>
     </div>
   );

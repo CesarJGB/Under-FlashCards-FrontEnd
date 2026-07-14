@@ -4,11 +4,17 @@ import BlankCategoryView from './study/BlankCategoryView';
 import CategoryGrid from './study/CategoryGrid';
 import DailyChallengeCard from './study/DailyChallengeCard';
 import StudyDeckSelector from './study/StudyDeckSelector';
+import StudyFeaturesList from './study/StudyFeaturesList';
 import StudyModesList from './study/StudyModesList';
+
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
 export default function StudySection({ decks, materias, userId, userEmail, onOpenReview }) {
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [selectedMethod, setSelectedMethod] = useState(null);
+  const [selectedFeature, setSelectedFeature] = useState(null);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [pdfExportError, setPdfExportError] = useState('');
 
   const methods = [
     {
@@ -43,7 +49,59 @@ export default function StudySection({ decks, materias, userId, userEmail, onOpe
     }
   ];
 
+  const pdfFeatures = [
+    {
+      id: 'guide',
+      title: 'Guía de estudio',
+      description: 'Descarga un PDF continuo con todas las preguntas y respuestas para lectura estática.',
+      color: 'from-indigo-500 to-violet-600',
+    },
+    {
+      id: 'cards',
+      title: 'Tarjetas imprimibles',
+      description: 'Genera cuadrículas listas para imprimir, recortar y estudiar fuera de pantalla.',
+      color: 'from-emerald-500 to-teal-600',
+    },
+    {
+      id: 'questions',
+      title: 'Banco de preguntas',
+      description: 'Exporta las preguntas numeradas con soporte para imágenes frontales.',
+      color: 'from-amber-500 to-orange-600',
+    },
+    {
+      id: 'answers',
+      title: 'Banco de respuestas',
+      description: 'Genera las respuestas numeradas para practicar tu autoevaluación.',
+      color: 'from-cyan-500 to-blue-600',
+    },
+  ];
+
   const currentMethodObj = methods.find(m => m.id === selectedMethod);
+
+  const handlePdfExport = async (deck) => {
+    if (!selectedFeature || isExportingPdf) return;
+
+    setIsExportingPdf(true);
+    setPdfExportError('');
+
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/flashcards/deck/${deck.id}`);
+      if (!response.ok) throw new Error('No se pudieron cargar las tarjetas del mazo.');
+
+      const cards = await response.json();
+      if (!Array.isArray(cards) || cards.length === 0) {
+        throw new Error('No hay tarjetas en este mazo para exportar a PDF.');
+      }
+
+      const { exportDeckToPDF } = await import('../utils/pdfExporter');
+      exportDeckToPDF(deck.title, cards, selectedFeature.id);
+    } catch (error) {
+      console.error('[StudySection] Error exporting PDF:', error);
+      setPdfExportError(error.message || 'No se pudo generar el PDF. Inténtalo de nuevo.');
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
   if (!selectedCategory) {
     return (
       <div className="space-y-5 animate-[fadeIn_0.15s_ease] pt-1 md:-mt-2">
@@ -59,7 +117,34 @@ export default function StudySection({ decks, materias, userId, userEmail, onOpe
   }
 
   if (selectedCategory === 'features') {
-    return <BlankCategoryView title="Funcionalidades" onBack={() => setSelectedCategory(null)} />;
+    if (!selectedFeature) {
+      return (
+        <StudyFeaturesList
+          features={pdfFeatures}
+          onBack={() => setSelectedCategory(null)}
+          onSelectFeature={(feature) => {
+            setPdfExportError('');
+            setSelectedFeature(feature);
+          }}
+        />
+      );
+    }
+
+    return (
+      <StudyDeckSelector
+        decks={decks}
+        materias={materias}
+        modeLabel={selectedFeature.title}
+        onBack={() => {
+          setPdfExportError('');
+          setSelectedFeature(null);
+        }}
+        onSelectDeck={handlePdfExport}
+        isProcessing={isExportingPdf}
+        processingMessage="Generando tu PDF..."
+        errorMessage={pdfExportError}
+      />
+    );
   }
 
   if (!selectedMethod) {
