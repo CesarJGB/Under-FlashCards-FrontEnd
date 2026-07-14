@@ -11,6 +11,13 @@ const COLUMN_GAP = 7;
 const ITEM_GAP = 4.5;
 const IMAGE_GAP = 1.8;
 
+// Marco de imagen: mismo tamaño para TODAS las imágenes, sin importar su
+// proporción original — así el documento mantiene un ritmo visual uniforme
+// (como pidió Cesar: "el mismo tamaño que tiene el mapa").
+const FRAME_HEIGHT = 26;
+const FRAME_PADDING = 1.6;
+const FRAME_BORDER_WIDTH = 0.35;
+
 const INK_COLOR = { r: 15, g: 23, b: 42 };
 const KICKER_COLOR = { r: 51, g: 65, b: 85 };
 const SUBTITLE_COLOR = { r: 71, g: 85, b: 105 };
@@ -18,8 +25,6 @@ const RUNNING_HEADER_COLOR = { r: 148, g: 163, b: 184 };
 const DIVIDER_COLOR = { r: 226, g: 232, b: 240 };
 const RULE_COLOR = { r: 30, g: 30, b: 30 };
 const PLACEHOLDER_COLOR = { r: 148, g: 163, b: 184 };
-const PLACEHOLDER_BORDER_COLOR = { r: 203, g: 213, b: 225 };
-const PLACEHOLDER_HEIGHT = 10;
 
 function mmFromPt(pt) {
   return pt * 0.352778;
@@ -148,19 +153,6 @@ function drawFooters(doc, deckLabel) {
   }
 }
 
-function drawImagePlaceholder(doc, x, y, width) {
-  doc.setDrawColor(PLACEHOLDER_BORDER_COLOR.r, PLACEHOLDER_BORDER_COLOR.g, PLACEHOLDER_BORDER_COLOR.b);
-  doc.setLineWidth(0.3);
-  doc.setLineDash([1, 1], 0);
-  doc.rect(x, y, width, PLACEHOLDER_HEIGHT);
-  doc.setLineDash([]);
-
-  doc.setFont('Helvetica', 'italic');
-  doc.setFontSize(6.5);
-  doc.setTextColor(PLACEHOLDER_COLOR.r, PLACEHOLDER_COLOR.g, PLACEHOLDER_COLOR.b);
-  doc.text('Imagen no disponible', x + (width / 2), y + (PLACEHOLDER_HEIGHT / 2) + 1, { align: 'center' });
-}
-
 async function prepareSectionImage(source, context, cardIndex, maxWidth, maxHeight) {
   if (!source) return null;
 
@@ -182,6 +174,33 @@ async function prepareSectionImage(source, context, cardIndex, maxWidth, maxHeig
   return { failed: false, asset: result.asset, dimensions };
 }
 
+// Dibuja el marco fijo (contorno + mat interno) y, dentro, la imagen
+// centrada y ajustada o el aviso de "no disponible" si falló la carga.
+// width/height son SIEMPRE los mismos para todas las imágenes del documento.
+function drawImageFrame(doc, x, y, width, height, imageResult) {
+  doc.setDrawColor(RULE_COLOR.r, RULE_COLOR.g, RULE_COLOR.b);
+  doc.setLineWidth(FRAME_BORDER_WIDTH);
+  doc.rect(x, y, width, height);
+
+  if (!imageResult || imageResult.failed) {
+    doc.setFont('Helvetica', 'italic');
+    doc.setFontSize(6.5);
+    doc.setTextColor(PLACEHOLDER_COLOR.r, PLACEHOLDER_COLOR.g, PLACEHOLDER_COLOR.b);
+    doc.text('Imagen no disponible', x + (width / 2), y + (height / 2) + 1, { align: 'center' });
+    return;
+  }
+
+  const innerX = x + FRAME_PADDING;
+  const innerY = y + FRAME_PADDING;
+  const innerWidth = width - (FRAME_PADDING * 2);
+  const innerHeight = height - (FRAME_PADDING * 2);
+  const { width: imgW, height: imgH } = imageResult.dimensions;
+  const offsetX = innerX + ((innerWidth - imgW) / 2);
+  const offsetY = innerY + ((innerHeight - imgH) / 2);
+
+  doc.addImage(imageResult.asset.data, imageResult.asset.format, offsetX, offsetY, imgW, imgH, undefined, 'FAST');
+}
+
 /**
  * Renderiza el documento de contenido (Guía de Estudio / Banco de Preguntas /
  * Banco de Respuestas): encabezado tipo diploma + columnas densas tipo examen.
@@ -194,7 +213,7 @@ export async function renderContentDocument(doc, items, config, context) {
   const pageHeight = doc.internal.pageSize.getHeight();
   const questionFallbackSize = columns >= 3 ? 8.5 : 10.5;
   const answerFallbackSize = columns >= 3 ? 8 : 10;
-  const maxImageHeight = Math.min(geometry.columnWidth * 0.7, 40);
+  const innerImageHeight = FRAME_HEIGHT - (FRAME_PADDING * 2);
 
   const deckTitle = context.deckTitle || 'Mazo';
   const itemLabel = getItemLabel(config, items.length);
@@ -247,11 +266,10 @@ export async function renderContentDocument(doc, items, config, context) {
       const lineHeight = mmFromPt(questionStyle.size) * 1.35;
       questionHeight = questionLines.length * lineHeight;
 
-      questionImage = showImageOnQuestion
-        ? await prepareSectionImage(item.contentImage, context, index, geometry.columnWidth, maxImageHeight)
-        : null;
-      if (questionImage) {
-        questionHeight += (questionImage.failed ? PLACEHOLDER_HEIGHT : questionImage.dimensions.height) + IMAGE_GAP;
+      if (showImageOnQuestion) {
+        const innerWidth = geometry.columnWidth - (FRAME_PADDING * 2);
+        questionImage = await prepareSectionImage(item.contentImage, context, index, innerWidth, innerImageHeight);
+        questionHeight += FRAME_HEIGHT + IMAGE_GAP;
       }
     }
 
@@ -269,11 +287,11 @@ export async function renderContentDocument(doc, items, config, context) {
       const lineHeight = mmFromPt(answerStyle.size) * 1.35;
       answerHeight = answerLines.length * lineHeight;
 
-      answerImage = showImageOnAnswer
-        ? await prepareSectionImage(item.contentImage, context, index, geometry.columnWidth - 3, maxImageHeight)
-        : null;
-      if (answerImage) {
-        answerHeight += (answerImage.failed ? PLACEHOLDER_HEIGHT : answerImage.dimensions.height) + IMAGE_GAP;
+      if (showImageOnAnswer) {
+        const answerFrameWidth = geometry.columnWidth - 3;
+        const innerWidth = answerFrameWidth - (FRAME_PADDING * 2);
+        answerImage = await prepareSectionImage(item.contentImage, context, index, innerWidth, innerImageHeight);
+        answerHeight += FRAME_HEIGHT + IMAGE_GAP;
       }
     }
 
@@ -298,22 +316,8 @@ export async function renderContentDocument(doc, items, config, context) {
 
       if (questionImage) {
         cursorY += IMAGE_GAP;
-        if (questionImage.failed) {
-          drawImagePlaceholder(doc, drawX, cursorY, geometry.columnWidth);
-          cursorY += PLACEHOLDER_HEIGHT;
-        } else {
-          doc.addImage(
-            questionImage.asset.data,
-            questionImage.asset.format,
-            drawX,
-            cursorY,
-            questionImage.dimensions.width,
-            questionImage.dimensions.height,
-            undefined,
-            'FAST'
-          );
-          cursorY += questionImage.dimensions.height;
-        }
+        drawImageFrame(doc, drawX, cursorY, geometry.columnWidth, FRAME_HEIGHT, questionImage);
+        cursorY += FRAME_HEIGHT;
       }
     }
 
@@ -329,22 +333,8 @@ export async function renderContentDocument(doc, items, config, context) {
 
       if (answerImage) {
         cursorY += IMAGE_GAP;
-        if (answerImage.failed) {
-          drawImagePlaceholder(doc, drawX + 3, cursorY, geometry.columnWidth - 3);
-          cursorY += PLACEHOLDER_HEIGHT;
-        } else {
-          doc.addImage(
-            answerImage.asset.data,
-            answerImage.asset.format,
-            drawX + 3,
-            cursorY,
-            answerImage.dimensions.width,
-            answerImage.dimensions.height,
-            undefined,
-            'FAST'
-          );
-          cursorY += answerImage.dimensions.height;
-        }
+        drawImageFrame(doc, drawX + 3, cursorY, geometry.columnWidth - 3, FRAME_HEIGHT, answerImage);
+        cursorY += FRAME_HEIGHT;
       }
     }
 
