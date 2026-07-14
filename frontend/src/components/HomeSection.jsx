@@ -740,13 +740,13 @@ export default function HomeSection({
   const { gap: bottomGap, isReady: isBottomGapReady } = useBottomGap({
     contentEndRef,
     navRef: bottomNavRef,
-    isPaused: showWidgetLibrary || !hasLoadedPreferences
+    isPaused: showWidgetLibrary
   });
 
   const adaptivePreviewVariant = isBottomGapReady
     ? resolveAdaptivePreviewVariant(bottomGap, adaptivePreviewHeights)
     : 'none';
-  const showAdaptivePreview = adaptivePreviewVariant !== 'none' && areAdaptivePreviewMeasurementsReady && hasLoadedPreferences && !showWidgetLibrary;
+  const showAdaptivePreview = adaptivePreviewVariant !== 'none' && areAdaptivePreviewMeasurementsReady && !showWidgetLibrary;
   const adaptivePreviewSlotPadding = getAdaptivePreviewSlotPadding(adaptivePreviewVariant);
 
   const widgetContext = useMemo(() => ({
