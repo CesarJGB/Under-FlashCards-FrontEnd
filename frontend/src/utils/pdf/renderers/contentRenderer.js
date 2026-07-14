@@ -1,20 +1,22 @@
 import { prepareImageAsset, fitContain } from '../images';
 import { resolveContentTextStyle, setPdfTextStyle } from '../styles';
 
+const APP_NAME = 'UnderFlashCards';
+
 const PAGE_MARGIN_X = 15;
-const HEADER_BAR_HEIGHT = 22;
-const HEADER_DIVIDER_Y = 24;
-const BODY_TOP_FIRST_PAGE = 28;
+const BODY_TOP_FIRST_PAGE = 46;
 const BODY_TOP_OTHER_PAGES = 16;
 const BODY_BOTTOM_MARGIN = 16;
 const COLUMN_GAP = 7;
 const ITEM_GAP = 4.5;
 const IMAGE_GAP = 1.8;
 
-const HEADER_BAR_COLOR = { r: 15, g: 23, b: 42 };
-const HEADER_META_COLOR = { r: 203, g: 213, b: 225 };
+const INK_COLOR = { r: 15, g: 23, b: 42 };
+const KICKER_COLOR = { r: 51, g: 65, b: 85 };
+const SUBTITLE_COLOR = { r: 71, g: 85, b: 105 };
 const RUNNING_HEADER_COLOR = { r: 148, g: 163, b: 184 };
 const DIVIDER_COLOR = { r: 226, g: 232, b: 240 };
+const RULE_COLOR = { r: 30, g: 30, b: 30 };
 
 function mmFromPt(pt) {
   return pt * 0.352778;
@@ -22,8 +24,8 @@ function mmFromPt(pt) {
 
 function getItemLabel(config, count) {
   const noun = config.sections.length > 1
-    ? 'tarjetas'
-    : (config.sections[0] === 'question' ? 'preguntas' : 'respuestas');
+    ? 'Tarjetas'
+    : (config.sections[0] === 'question' ? 'Preguntas' : 'Respuestas');
   return `${count} ${noun}`;
 }
 
@@ -35,35 +37,78 @@ function getColumnGeometry(doc, columns) {
   return { pageWidth, columnWidth, columnsX };
 }
 
-function drawHeaderBar(doc, title, meta) {
-  const pageWidth = doc.internal.pageSize.getWidth();
-  doc.setFillColor(HEADER_BAR_COLOR.r, HEADER_BAR_COLOR.g, HEADER_BAR_COLOR.b);
-  doc.rect(0, 0, pageWidth, HEADER_BAR_HEIGHT, 'F');
-
-  doc.setFont('Helvetica', 'bold');
-  doc.setFontSize(15);
-  doc.setTextColor(255, 255, 255);
-  doc.text(title.toUpperCase(), PAGE_MARGIN_X, 11);
-
-  doc.setFont('Helvetica', 'normal');
-  doc.setFontSize(7.5);
-  doc.setTextColor(HEADER_META_COLOR.r, HEADER_META_COLOR.g, HEADER_META_COLOR.b);
-  if (meta.left) doc.text(meta.left.toUpperCase(), PAGE_MARGIN_X, 17.5);
-  if (meta.right) doc.text(meta.right.toUpperCase(), pageWidth - PAGE_MARGIN_X, 17.5, { align: 'right' });
-
-  doc.setDrawColor(HEADER_BAR_COLOR.r, HEADER_BAR_COLOR.g, HEADER_BAR_COLOR.b);
-  doc.setLineWidth(0.5);
-  doc.setLineDash([1, 1], 0);
-  doc.line(PAGE_MARGIN_X, HEADER_DIVIDER_Y, pageWidth - PAGE_MARGIN_X, HEADER_DIVIDER_Y);
-  doc.setLineDash([]);
+// Reduce el tamaño de fuente hasta que el texto quepa en maxWidth (para
+// nombres de materia largos), sin bajar de minSize.
+function fitTextSize(doc, text, maxWidth, startSize, minSize, font, style) {
+  let size = startSize;
+  doc.setFont(font, style);
+  doc.setFontSize(size);
+  while (doc.getTextWidth(text) > maxWidth && size > minSize) {
+    size -= 1;
+    doc.setFontSize(size);
+  }
+  return size;
 }
 
-function drawRunningHeader(doc, label) {
+// Dibuja una línea de texto centrada flanqueada por una o dos reglas
+// horizontales delgadas (el "───  TEXTO  ───" del diseño de diploma).
+function drawFlankedLine(doc, text, y, doubleRule) {
   const pageWidth = doc.internal.pageSize.getWidth();
-  doc.setFont('Helvetica', 'normal');
-  doc.setFontSize(8.5);
+  const centerX = pageWidth / 2;
+  const textWidth = doc.getTextWidth(text);
+  const gap = 4;
+  const ruleStartRight = centerX + (textWidth / 2) + gap;
+  const ruleEndLeft = centerX - (textWidth / 2) - gap;
+
+  doc.text(text, centerX, y, { align: 'center' });
+
+  doc.setDrawColor(RULE_COLOR.r, RULE_COLOR.g, RULE_COLOR.b);
+  const ruleYOffsets = doubleRule ? [-1.6, -0.8] : [-1.2];
+  ruleYOffsets.forEach((offset) => {
+    const ruleY = y + offset;
+    doc.line(PAGE_MARGIN_X, ruleY, ruleEndLeft, ruleY);
+    doc.line(ruleStartRight, ruleY, pageWidth - PAGE_MARGIN_X, ruleY);
+  });
+}
+
+/**
+ * Encabezado tipo "diploma": kicker pequeño (GUÍA DE ESTUDIO), título grande
+ * con el nombre del mazo, y firma de la app — inspirado en la referencia que
+ * Cesar aprobó.
+ */
+function drawTitleBlock(doc, kickerLabel, deckTitle, subtitleLabel) {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const centerX = pageWidth / 2;
+  const maxTextWidth = pageWidth - (PAGE_MARGIN_X * 2) - 20;
+
+  // Kicker: "GUÍA DE ESTUDIO"
+  doc.setLineWidth(0.35);
+  doc.setFont('times', 'normal');
+  doc.setFontSize(10);
+  doc.setTextColor(KICKER_COLOR.r, KICKER_COLOR.g, KICKER_COLOR.b);
+  drawFlankedLine(doc, kickerLabel.toUpperCase(), 13, false);
+
+  // Título grande: nombre del mazo
+  const titleSize = fitTextSize(doc, deckTitle.toUpperCase(), maxTextWidth, 30, 16, 'times', 'bold');
+  doc.setFont('times', 'bold');
+  doc.setFontSize(titleSize);
+  doc.setTextColor(INK_COLOR.r, INK_COLOR.g, INK_COLOR.b);
+  doc.text(deckTitle.toUpperCase(), centerX, 26, { align: 'center' });
+
+  // Firma: "N Tarjetas - UnderFlashCards"
+  doc.setLineWidth(0.6);
+  doc.setFont('times', 'italic');
+  doc.setFontSize(11);
+  doc.setTextColor(SUBTITLE_COLOR.r, SUBTITLE_COLOR.g, SUBTITLE_COLOR.b);
+  drawFlankedLine(doc, subtitleLabel, 35, true);
+}
+
+function drawRunningHeader(doc, deckTitle, exportTitle) {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  doc.setFont('times', 'italic');
+  doc.setFontSize(9.5);
   doc.setTextColor(RUNNING_HEADER_COLOR.r, RUNNING_HEADER_COLOR.g, RUNNING_HEADER_COLOR.b);
-  doc.text(label, PAGE_MARGIN_X, 10);
+  doc.text(`${deckTitle} — ${exportTitle}`, PAGE_MARGIN_X, 10);
 
   doc.setDrawColor(DIVIDER_COLOR.r, DIVIDER_COLOR.g, DIVIDER_COLOR.b);
   doc.setLineWidth(0.3);
@@ -120,7 +165,7 @@ async function prepareSectionImage(source, context, cardIndex, maxWidth, maxHeig
 
 /**
  * Renderiza el documento de contenido (Guía de Estudio / Banco de Preguntas /
- * Banco de Respuestas) en un layout tipo examen con columnas densas.
+ * Banco de Respuestas): encabezado tipo diploma + columnas densas tipo examen.
  */
 export async function renderContentDocument(doc, items, config, context) {
   context.throwIfCancelled();
@@ -134,9 +179,9 @@ export async function renderContentDocument(doc, items, config, context) {
 
   const deckTitle = context.deckTitle || 'Mazo';
   const itemLabel = getItemLabel(config, items.length);
-  const runningLabel = `${deckTitle} — ${config.title}`;
+  const subtitleLabel = `${itemLabel} - ${APP_NAME}`;
 
-  drawHeaderBar(doc, config.title, { left: deckTitle, right: itemLabel });
+  drawTitleBlock(doc, config.title, deckTitle, subtitleLabel);
   let pageBodyTop = BODY_TOP_FIRST_PAGE;
   drawColumnDividers(doc, columns, geometry, pageBodyTop, pageHeight - BODY_BOTTOM_MARGIN);
 
@@ -148,7 +193,7 @@ export async function renderContentDocument(doc, items, config, context) {
       columnIndex += 1;
     } else {
       doc.addPage();
-      drawRunningHeader(doc, runningLabel);
+      drawRunningHeader(doc, deckTitle, config.title);
       pageBodyTop = BODY_TOP_OTHER_PAGES;
       drawColumnDividers(doc, columns, geometry, pageBodyTop, pageHeight - BODY_BOTTOM_MARGIN);
       columnIndex = 0;
