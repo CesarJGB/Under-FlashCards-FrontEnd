@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Bookmark, ChevronRight, Folder, Loader2 } from 'lucide-react';
+import { ArrowLeft, Bookmark, BookOpen, ChevronRight, Folder, Loader2, Search } from 'lucide-react';
 import DeckCard from '../DeckCard';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
@@ -72,6 +72,65 @@ function DeckGrid({ decks, emptyMessage, onSelectDeck }) {
   );
 }
 
+function SearchResults({ results, onSelect }) {
+  if (results.length === 0) {
+    return (
+      <div className="mt-6 rounded-2xl border border-dashed border-slate-200 bg-white py-12 text-center text-xs font-medium text-slate-400">
+        No se encontraron resultados.
+      </div>
+    );
+  }
+
+  const iconMap = {
+    materia: Folder,
+    tema: Folder,
+    subtema: Folder,
+    deck: BookOpen,
+  };
+  const labelMap = {
+    materia: 'Materia',
+    tema: 'Tema',
+    subtema: 'Subtema',
+    deck: 'Mazo',
+  };
+
+  return (
+    <div className="mt-6 space-y-2">
+      <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-400">
+        Resultados ({results.length})
+      </h3>
+      <div className="space-y-1.5">
+        {results.map((result) => {
+          const Icon = iconMap[result.type];
+
+          return (
+            <button
+              key={`${result.type}-${getId(result.item)}`}
+              type="button"
+              onClick={() => onSelect(result)}
+              className="group flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-white p-3.5 text-left transition-all hover:border-indigo-200 hover:shadow-xs active:scale-[0.99] cursor-pointer"
+            >
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-100 bg-slate-50 transition-all group-hover:border-indigo-100/50 group-hover:bg-indigo-50">
+                <Icon className="h-4 w-4 text-slate-400 group-hover:text-indigo-500" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-bold text-slate-800">
+                  {result.item.name || result.item.title}
+                </span>
+                <span className="block truncate text-[11px] text-slate-400">{result.path}</span>
+              </span>
+              <span className="shrink-0 text-[10px] font-bold uppercase tracking-wider text-slate-300">
+                {labelMap[result.type]}
+              </span>
+              <ChevronRight className="h-4 w-4 shrink-0 text-slate-300 group-hover:text-indigo-500" />
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function StudyDeckSelector({ decks, materias, modeLabel, onBack, onSelectDeck }) {
   const [currentPath, setCurrentPath] = useState({
     materiaId: null,
@@ -80,6 +139,7 @@ export default function StudyDeckSelector({ decks, materias, modeLabel, onBack, 
     subtemaId: null,
   });
   const [showAllMaterias, setShowAllMaterias] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [temasByMateria, setTemasByMateria] = useState({});
   const [subtemasByTema, setSubtemasByTema] = useState({});
   const [academicLoading, setAcademicLoading] = useState(false);
@@ -93,6 +153,74 @@ export default function StudyDeckSelector({ decks, materias, modeLabel, onBack, 
   const subtemas = subtemasByTema[currentPath.temaId] || [];
   const selectedTema = temas.find((tema) => isSameId(getId(tema), currentPath.temaId));
   const selectedSubtema = subtemas.find((subtema) => isSameId(getId(subtema), currentPath.subtemaId));
+  const loadedTemas = useMemo(() => Object.values(temasByMateria).flat(), [temasByMateria]);
+  const loadedSubtemas = useMemo(() => Object.values(subtemasByTema).flat(), [subtemasByTema]);
+
+  const searchResults = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return null;
+
+    const matches = (value) => String(value || '').toLowerCase().includes(query);
+    const findMateria = (id) => materias.find((materia) => isSameId(getId(materia), id));
+    const findTema = (id) => loadedTemas.find((tema) => isSameId(getId(tema), id));
+    const findSubtema = (id) => loadedSubtemas.find((subtema) => isSameId(getId(subtema), id));
+    const folderPath = (materia, parcialNumber, tema, subtema) => {
+      const parts = [materia?.name || 'Mazos sin clasificar'];
+      if (parcialNumber) parts.push(`P${parcialNumber}`);
+      if (tema) parts.push(tema.name);
+      if (subtema) parts.push(subtema.name);
+      return parts.join(' > ');
+    };
+
+    const materiaResults = materias
+      .filter((materia) => matches(materia.name))
+      .map((materia) => ({ type: 'materia', item: materia, path: materia.name }));
+
+    const temaResults = loadedTemas
+      .filter((tema) => matches(tema.name))
+      .map((tema) => {
+        const materia = findMateria(tema.materiaId);
+        return {
+          type: 'tema',
+          item: tema,
+          path: folderPath(materia, tema.parcialNumber, tema),
+          nav: { materiaId: getId(materia), parcialNumber: tema.parcialNumber, temaId: getId(tema), subtemaId: null },
+        };
+      });
+
+    const subtemaResults = loadedSubtemas
+      .filter((subtema) => matches(subtema.name))
+      .map((subtema) => {
+        const tema = findTema(subtema.temaId);
+        const materia = findMateria(tema?.materiaId);
+        return {
+          type: 'subtema',
+          item: subtema,
+          path: folderPath(materia, tema?.parcialNumber, tema, subtema),
+          nav: {
+            materiaId: getId(materia),
+            parcialNumber: tema?.parcialNumber,
+            temaId: getId(tema),
+            subtemaId: getId(subtema),
+          },
+        };
+      });
+
+    const deckResults = decks
+      .filter((deck) => matches(deck.title))
+      .map((deck) => {
+        const materia = findMateria(deck.materiaId);
+        const tema = findTema(deck.temaId);
+        const subtema = findSubtema(deck.subtemaId);
+        return {
+          type: 'deck',
+          item: deck,
+          path: folderPath(materia, deck.parcialNumber, tema, subtema),
+        };
+      });
+
+    return [...materiaResults, ...temaResults, ...subtemaResults, ...deckResults];
+  }, [decks, loadedSubtemas, loadedTemas, materias, searchQuery]);
 
   useEffect(() => {
     if (!currentPath.materiaId || temasByMateria[currentPath.materiaId]) return;
@@ -170,6 +298,22 @@ export default function StudyDeckSelector({ decks, materias, modeLabel, onBack, 
     });
   };
 
+  const handleSearchSelect = (result) => {
+    if (result.type === 'deck') {
+      setSearchQuery('');
+      onSelectDeck(result.item);
+      return;
+    }
+
+    if (result.type === 'materia') {
+      selectMateria(result.item);
+    } else if (result.nav) {
+      setCurrentPath(result.nav);
+    }
+
+    setSearchQuery('');
+  };
+
   const handleBack = () => {
     if (currentPath.subtemaId) {
       setCurrentPath((path) => ({ ...path, subtemaId: null }));
@@ -232,7 +376,20 @@ export default function StudyDeckSelector({ decks, materias, modeLabel, onBack, 
       <div className="space-y-6 animate-[fadeIn_0.15s_ease]">
         {renderHeader()}
 
-        {materias.length === 0 ? (
+        <div className="relative flex-1">
+          <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder="Buscar materias, temas o mazos..."
+            className="h-10 w-full rounded-xl border border-slate-200 bg-white py-0 pl-10 pr-4 text-xs font-medium text-slate-700 shadow-3xs outline-none transition-all placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-900/10"
+          />
+        </div>
+
+        {searchResults ? (
+          <SearchResults results={searchResults} onSelect={handleSearchSelect} />
+        ) : materias.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center">
             <Folder className="mx-auto mb-3 h-8 w-8 text-slate-400" />
             <p className="text-sm font-bold text-slate-800">No hay materias configuradas</p>
@@ -279,17 +436,19 @@ export default function StudyDeckSelector({ decks, materias, modeLabel, onBack, 
           </section>
         )}
 
-        <section className="space-y-4 border-t border-slate-200/60 pt-6">
-          <div className="flex items-center gap-1.5">
-            <Bookmark className="h-3.5 w-3.5 text-slate-400" />
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Mazos sin clasificar</h3>
-          </div>
-          <DeckGrid
-            decks={unclassifiedDecks}
-            emptyMessage="Todos tus mazos están organizados en materias."
-            onSelectDeck={onSelectDeck}
-          />
-        </section>
+        {!searchResults && (
+          <section className="space-y-4 border-t border-slate-200/60 pt-6">
+            <div className="flex items-center gap-1.5">
+              <Bookmark className="h-3.5 w-3.5 text-slate-400" />
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Mazos sin clasificar</h3>
+            </div>
+            <DeckGrid
+              decks={unclassifiedDecks}
+              emptyMessage="Todos tus mazos están organizados en materias."
+              onSelectDeck={onSelectDeck}
+            />
+          </section>
+        )}
       </div>
     );
   }
