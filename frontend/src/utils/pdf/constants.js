@@ -5,6 +5,7 @@ export const PDF_EXPORTS = Object.freeze({
     fileSuffix: 'guia',
     kind: 'content',
     sections: ['question', 'answer'],
+    columns: 2,
   },
   cards: {
     id: 'cards',
@@ -18,6 +19,7 @@ export const PDF_EXPORTS = Object.freeze({
     fileSuffix: 'banco-preguntas',
     kind: 'content',
     sections: ['question'],
+    columns: 3,
   },
   answers: {
     id: 'answers',
@@ -25,6 +27,7 @@ export const PDF_EXPORTS = Object.freeze({
     fileSuffix: 'banco-respuestas',
     kind: 'content',
     sections: ['answer'],
+    columns: 3,
   },
 });
 
