@@ -46,6 +46,7 @@ const ADAPTIVE_PREVIEW_CLEARANCE = {
   comfortable: { top: 8, bottom: 14 },
   expanded: { top: 12, bottom: 26 }
 };
+const ADAPTIVE_PREVIEW_GEOMETRY_TOLERANCE_PX = 4;
 
 function getAdaptivePreviewSlotPadding(variant) {
   return ADAPTIVE_PREVIEW_CLEARANCE[variant] || { top: 0, bottom: 0 };
@@ -65,6 +66,50 @@ function resolveAdaptivePreviewVariant(gap, previewHeights) {
   }
 
   return 'none';
+}
+
+function getAdaptivePreviewViewport() {
+  const viewport = window.visualViewport;
+
+  return {
+    width: Math.round(viewport?.width || window.innerWidth),
+    height: Math.round(viewport?.height || window.innerHeight),
+    scale: viewport?.scale || 1
+  };
+}
+
+function getVisibleNavRect(navRef) {
+  const navNode = navRef?.current;
+  if (!navNode) return null;
+
+  const rect = navNode.getBoundingClientRect();
+  const styles = window.getComputedStyle(navNode);
+
+  if (rect.width <= 0 || rect.height <= 0 || styles.display === 'none' || styles.visibility === 'hidden') {
+    return null;
+  }
+
+  return rect;
+}
+
+function isValidAdaptivePreviewBootstrap(bootstrap, navRef) {
+  if (!bootstrap || !ADAPTIVE_PREVIEW_CLEARANCE[bootstrap.variant] || bootstrap.gap <= 0) {
+    return false;
+  }
+
+  const navRect = getVisibleNavRect(navRef);
+  if (!navRect) return false;
+
+  const viewport = getAdaptivePreviewViewport();
+
+  return (
+    Math.abs(viewport.width - bootstrap.viewport.width) <= ADAPTIVE_PREVIEW_GEOMETRY_TOLERANCE_PX &&
+    Math.abs(viewport.height - bootstrap.viewport.height) <= ADAPTIVE_PREVIEW_GEOMETRY_TOLERANCE_PX &&
+    viewport.scale === bootstrap.viewport.scale &&
+    Math.abs(navRect.top - bootstrap.nav.top) <= ADAPTIVE_PREVIEW_GEOMETRY_TOLERANCE_PX &&
+    Math.abs(navRect.width - bootstrap.nav.width) <= ADAPTIVE_PREVIEW_GEOMETRY_TOLERANCE_PX &&
+    Math.abs(navRect.height - bootstrap.nav.height) <= ADAPTIVE_PREVIEW_GEOMETRY_TOLERANCE_PX
+  );
 }
 
 function HomeAdaptiveCompactPreview() {
@@ -217,7 +262,9 @@ export default function HomeSection({
   loadDecks,     
   loadMaterias,
   onOpenProfile,
-  bottomNavRef
+  bottomNavRef,
+  adaptivePreviewBootstrap,
+  onStableAdaptivePreview
 }) {
   const [homeVisibility, setHomeVisibility] = useState({
     globalStats: false,
@@ -244,6 +291,7 @@ export default function HomeSection({
   const expandedPreviewMeasureRef = useRef(null);
   const [adaptivePreviewHeights, setAdaptivePreviewHeights] = useState(ADAPTIVE_PREVIEW_FALLBACK_HEIGHTS);
   const [areAdaptivePreviewMeasurementsReady, setAreAdaptivePreviewMeasurementsReady] = useState(false);
+  const [isAdaptivePreviewBootstrapValid, setIsAdaptivePreviewBootstrapValid] = useState(() => Boolean(adaptivePreviewBootstrap));
 
   useImmersiveScrollGuard(!showWidgetLibrary, 'home-section');
 
@@ -319,6 +367,52 @@ export default function HomeSection({
       viewport?.removeEventListener('resize', measure);
     };
   }, []);
+
+  useLayoutEffect(() => {
+    if (!isAdaptivePreviewBootstrapValid || !isValidAdaptivePreviewBootstrap(adaptivePreviewBootstrap, bottomNavRef)) {
+      setIsAdaptivePreviewBootstrapValid(false);
+      return undefined;
+    }
+
+    const invalidateBootstrap = () => {
+      setIsAdaptivePreviewBootstrapValid(false);
+      onStableAdaptivePreview?.(null);
+    };
+
+    const validateContentGap = () => {
+      const navRect = getVisibleNavRect(bottomNavRef);
+      const contentRect = contentEndRef.current?.getBoundingClientRect();
+
+      if (
+        !isValidAdaptivePreviewBootstrap(adaptivePreviewBootstrap, bottomNavRef) ||
+        !contentRect ||
+        navRect.top - contentRect.bottom < adaptivePreviewBootstrap.gap - ADAPTIVE_PREVIEW_GEOMETRY_TOLERANCE_PX
+      ) {
+        invalidateBootstrap();
+      }
+    };
+
+    validateContentGap();
+
+    const contentContainer = contentEndRef.current?.previousElementSibling;
+    const observer = typeof ResizeObserver !== 'undefined' && contentContainer
+      ? new ResizeObserver(validateContentGap)
+      : null;
+
+    observer?.observe(contentContainer);
+
+    const viewport = window.visualViewport;
+    viewport?.addEventListener('resize', validateContentGap);
+    window.addEventListener('resize', validateContentGap);
+    window.addEventListener('orientationchange', validateContentGap);
+
+    return () => {
+      observer?.disconnect();
+      viewport?.removeEventListener('resize', validateContentGap);
+      window.removeEventListener('resize', validateContentGap);
+      window.removeEventListener('orientationchange', validateContentGap);
+    };
+  }, [adaptivePreviewBootstrap, bottomNavRef, isAdaptivePreviewBootstrapValid, onStableAdaptivePreview]);
 
   // Escuchar actualizaciones/invalidation disparadas por otras secciones (Library) para evitar parpadeos
   useEffect(() => {
@@ -746,8 +840,59 @@ export default function HomeSection({
   const adaptivePreviewVariant = isBottomGapReady
     ? resolveAdaptivePreviewVariant(bottomGap, adaptivePreviewHeights)
     : 'none';
-  const showAdaptivePreview = adaptivePreviewVariant !== 'none' && areAdaptivePreviewMeasurementsReady && !showWidgetLibrary;
-  const adaptivePreviewSlotPadding = getAdaptivePreviewSlotPadding(adaptivePreviewVariant);
+  const isLiveAdaptivePreviewReady = isBottomGapReady && areAdaptivePreviewMeasurementsReady;
+  const canUseAdaptivePreviewBootstrap = !isLiveAdaptivePreviewReady && isAdaptivePreviewBootstrapValid && !showWidgetLibrary;
+  const displayedAdaptivePreviewVariant = isLiveAdaptivePreviewReady
+    ? adaptivePreviewVariant
+    : canUseAdaptivePreviewBootstrap
+      ? adaptivePreviewBootstrap.variant
+      : 'none';
+  const displayedBottomGap = isLiveAdaptivePreviewReady
+    ? bottomGap
+    : canUseAdaptivePreviewBootstrap
+      ? adaptivePreviewBootstrap.gap
+      : 0;
+  const showAdaptivePreview = displayedAdaptivePreviewVariant !== 'none' && !showWidgetLibrary;
+  const adaptivePreviewSlotPadding = getAdaptivePreviewSlotPadding(displayedAdaptivePreviewVariant);
+
+  useLayoutEffect(() => {
+    if (isLiveAdaptivePreviewReady) {
+      setIsAdaptivePreviewBootstrapValid(false);
+    }
+  }, [isLiveAdaptivePreviewReady]);
+
+  useLayoutEffect(() => {
+    if (!isLiveAdaptivePreviewReady || showWidgetLibrary) return;
+
+    if (adaptivePreviewVariant === 'none') {
+      onStableAdaptivePreview?.(null);
+      return;
+    }
+
+    const navRect = getVisibleNavRect(bottomNavRef);
+    if (!navRect) {
+      onStableAdaptivePreview?.(null);
+      return;
+    }
+
+    onStableAdaptivePreview?.({
+      gap: bottomGap,
+      variant: adaptivePreviewVariant,
+      viewport: getAdaptivePreviewViewport(),
+      nav: {
+        top: navRect.top,
+        width: navRect.width,
+        height: navRect.height
+      }
+    });
+  }, [
+    adaptivePreviewVariant,
+    bottomGap,
+    bottomNavRef,
+    isLiveAdaptivePreviewReady,
+    onStableAdaptivePreview,
+    showWidgetLibrary
+  ]);
 
   const widgetContext = useMemo(() => ({
     user,
@@ -775,10 +920,10 @@ export default function HomeSection({
     <>
       <div
         className="relative w-full animate-[fadeIn_0.15s_ease]"
-        data-bottom-gap={bottomGap}
+        data-bottom-gap={displayedBottomGap}
         data-bottom-gap-ready={isBottomGapReady ? 'true' : 'false'}
-        data-bottom-gap-tier={adaptivePreviewVariant}
-        style={{ '--home-bottom-gap': `${bottomGap}px` }}
+        data-bottom-gap-tier={displayedAdaptivePreviewVariant}
+        style={{ '--home-bottom-gap': `${displayedBottomGap}px` }}
       >
 
         <div className="space-y-8">
@@ -852,13 +997,13 @@ export default function HomeSection({
           <div
             className="w-full flex items-center justify-center"
             style={{
-              height: bottomGap,
+              height: displayedBottomGap,
               boxSizing: 'border-box',
               paddingTop: adaptivePreviewSlotPadding.top,
               paddingBottom: adaptivePreviewSlotPadding.bottom
             }}
           >
-            <HomeAdaptivePreview variant={adaptivePreviewVariant} gap={bottomGap} />
+            <HomeAdaptivePreview variant={displayedAdaptivePreviewVariant} gap={displayedBottomGap} />
           </div>
         )}
 

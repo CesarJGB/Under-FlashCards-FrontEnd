@@ -27,6 +27,7 @@ function DashboardScreen({ user, onLogout }) {
   const [studyKey, setStudyKey] = useState(0);
   const mobileNavRef = useRef(null);
   const contentScrollRef = useRef(null);
+  const homeAdaptivePreviewRef = useRef(null);
   const [dashboardShell, setDashboardShell] = useState(null);
   
   // Estado puente para navegación Home → Library
@@ -101,6 +102,10 @@ function DashboardScreen({ user, onLogout }) {
     setCurrentDeck(null);
     setInitialMode('edit');
     setTab('library');
+  }, []);
+
+  const handleStableHomeAdaptivePreview = useCallback((snapshot) => {
+    homeAdaptivePreviewRef.current = snapshot;
   }, []);
 
   const handleTabChange = (id) => {
@@ -243,6 +248,8 @@ function DashboardScreen({ user, onLogout }) {
               loadMaterias={loadMaterias}
               onOpenProfile={() => handleTabChange('usuario')}
               bottomNavRef={mobileNavRef}
+              adaptivePreviewBootstrap={homeAdaptivePreviewRef.current}
+              onStableAdaptivePreview={handleStableHomeAdaptivePreview}
             />
           )}
 
