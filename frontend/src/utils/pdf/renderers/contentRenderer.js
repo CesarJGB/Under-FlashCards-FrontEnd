@@ -17,6 +17,9 @@ const SUBTITLE_COLOR = { r: 71, g: 85, b: 105 };
 const RUNNING_HEADER_COLOR = { r: 148, g: 163, b: 184 };
 const DIVIDER_COLOR = { r: 226, g: 232, b: 240 };
 const RULE_COLOR = { r: 30, g: 30, b: 30 };
+const PLACEHOLDER_COLOR = { r: 148, g: 163, b: 184 };
+const PLACEHOLDER_BORDER_COLOR = { r: 203, g: 213, b: 225 };
+const PLACEHOLDER_HEIGHT = 10;
 
 function mmFromPt(pt) {
   return pt * 0.352778;
@@ -145,6 +148,19 @@ function drawFooters(doc, deckLabel) {
   }
 }
 
+function drawImagePlaceholder(doc, x, y, width) {
+  doc.setDrawColor(PLACEHOLDER_BORDER_COLOR.r, PLACEHOLDER_BORDER_COLOR.g, PLACEHOLDER_BORDER_COLOR.b);
+  doc.setLineWidth(0.3);
+  doc.setLineDash([1, 1], 0);
+  doc.rect(x, y, width, PLACEHOLDER_HEIGHT);
+  doc.setLineDash([]);
+
+  doc.setFont('Helvetica', 'italic');
+  doc.setFontSize(6.5);
+  doc.setTextColor(PLACEHOLDER_COLOR.r, PLACEHOLDER_COLOR.g, PLACEHOLDER_COLOR.b);
+  doc.text('Imagen no disponible', x + (width / 2), y + (PLACEHOLDER_HEIGHT / 2) + 1, { align: 'center' });
+}
+
 async function prepareSectionImage(source, context, cardIndex, maxWidth, maxHeight) {
   if (!source) return null;
 
@@ -156,11 +172,14 @@ async function prepareSectionImage(source, context, cardIndex, maxWidth, maxHeig
   });
 
   if (result.warning) context.warn(result.warning, cardIndex);
-  if (!result.asset) return null;
+
+  if (!result.asset) {
+    return { failed: true };
+  }
 
   context.consumeImageAsset(result.asset);
   const dimensions = fitContain(result.asset, maxWidth, maxHeight);
-  return { asset: result.asset, dimensions };
+  return { failed: false, asset: result.asset, dimensions };
 }
 
 /**
@@ -206,6 +225,14 @@ export async function renderContentDocument(doc, items, config, context) {
     const item = items[index];
     const bottomLimit = pageHeight - BODY_BOTTOM_MARGIN;
 
+    // El modelo de datos guarda una sola imagen por card (item.contentImage)
+    // más item.imageSide indicando a cuál sección pertenece — igual que en
+    // printableCardsRenderer.js. No hay campos separados de pregunta/respuesta.
+    const showImageOnQuestion = config.sections.includes('question')
+      && Boolean(item.contentImage) && item.imageSide === 'question';
+    const showImageOnAnswer = config.sections.includes('answer')
+      && Boolean(item.contentImage) && item.imageSide === 'answer';
+
     // --- 1. Pre-cálculo de alturas (pregunta) ---
     let questionLines = [];
     let questionStyle = null;
@@ -220,14 +247,12 @@ export async function renderContentDocument(doc, items, config, context) {
       const lineHeight = mmFromPt(questionStyle.size) * 1.35;
       questionHeight = questionLines.length * lineHeight;
 
-      questionImage = await prepareSectionImage(
-        item.questionImage,
-        context,
-        index,
-        geometry.columnWidth,
-        maxImageHeight
-      );
-      if (questionImage) questionHeight += questionImage.dimensions.height + IMAGE_GAP;
+      questionImage = showImageOnQuestion
+        ? await prepareSectionImage(item.contentImage, context, index, geometry.columnWidth, maxImageHeight)
+        : null;
+      if (questionImage) {
+        questionHeight += (questionImage.failed ? PLACEHOLDER_HEIGHT : questionImage.dimensions.height) + IMAGE_GAP;
+      }
     }
 
     // --- 2. Pre-cálculo de alturas (respuesta) ---
@@ -244,14 +269,12 @@ export async function renderContentDocument(doc, items, config, context) {
       const lineHeight = mmFromPt(answerStyle.size) * 1.35;
       answerHeight = answerLines.length * lineHeight;
 
-      answerImage = await prepareSectionImage(
-        item.answerImage,
-        context,
-        index,
-        geometry.columnWidth - 3,
-        maxImageHeight
-      );
-      if (answerImage) answerHeight += answerImage.dimensions.height + IMAGE_GAP;
+      answerImage = showImageOnAnswer
+        ? await prepareSectionImage(item.contentImage, context, index, geometry.columnWidth - 3, maxImageHeight)
+        : null;
+      if (answerImage) {
+        answerHeight += (answerImage.failed ? PLACEHOLDER_HEIGHT : answerImage.dimensions.height) + IMAGE_GAP;
+      }
     }
 
     const gapBetweenSections = (questionHeight > 0 && answerHeight > 0) ? 2 : 0;
@@ -275,17 +298,22 @@ export async function renderContentDocument(doc, items, config, context) {
 
       if (questionImage) {
         cursorY += IMAGE_GAP;
-        doc.addImage(
-          questionImage.asset.data,
-          questionImage.asset.format,
-          drawX,
-          cursorY,
-          questionImage.dimensions.width,
-          questionImage.dimensions.height,
-          undefined,
-          'FAST'
-        );
-        cursorY += questionImage.dimensions.height;
+        if (questionImage.failed) {
+          drawImagePlaceholder(doc, drawX, cursorY, geometry.columnWidth);
+          cursorY += PLACEHOLDER_HEIGHT;
+        } else {
+          doc.addImage(
+            questionImage.asset.data,
+            questionImage.asset.format,
+            drawX,
+            cursorY,
+            questionImage.dimensions.width,
+            questionImage.dimensions.height,
+            undefined,
+            'FAST'
+          );
+          cursorY += questionImage.dimensions.height;
+        }
       }
     }
 
@@ -301,17 +329,22 @@ export async function renderContentDocument(doc, items, config, context) {
 
       if (answerImage) {
         cursorY += IMAGE_GAP;
-        doc.addImage(
-          answerImage.asset.data,
-          answerImage.asset.format,
-          drawX + 3,
-          cursorY,
-          answerImage.dimensions.width,
-          answerImage.dimensions.height,
-          undefined,
-          'FAST'
-        );
-        cursorY += answerImage.dimensions.height;
+        if (answerImage.failed) {
+          drawImagePlaceholder(doc, drawX + 3, cursorY, geometry.columnWidth - 3);
+          cursorY += PLACEHOLDER_HEIGHT;
+        } else {
+          doc.addImage(
+            answerImage.asset.data,
+            answerImage.asset.format,
+            drawX + 3,
+            cursorY,
+            answerImage.dimensions.width,
+            answerImage.dimensions.height,
+            undefined,
+            'FAST'
+          );
+          cursorY += answerImage.dimensions.height;
+        }
       }
     }
 
