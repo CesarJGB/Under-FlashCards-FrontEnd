@@ -4,7 +4,9 @@ import { KeyRound, Loader2, Check, Wallet, RefreshCw, Layout, Eye, EyeOff, BarCh
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
-export default function SettingsSection({ userId }) {
+export default function SettingsSection({ userId, section }) {
+  const showHomeSettings = section !== 'ai';
+  const showAiSettings = section !== 'home';
   const [apiKey, setApiKey] = useState('');
   const [masked, setMasked] = useState('');
   const [hasKey, setHasKey] = useState(false);
@@ -62,26 +64,27 @@ export default function SettingsSection({ userId }) {
   }, [userId]);
 
   useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch(`${BACKEND_URL}/api/user/${userId}`);
-        if (res.ok) {
-          const data = await res.json();
-          setHasKey(data.hasApiKey);
-          setMasked(data.apiKeyMasked || '');
-          
-          if (data.hasApiKey) {
-            loadBalance();
+    if (showAiSettings) {
+      (async () => {
+        try {
+          const res = await fetch(`${BACKEND_URL}/api/user/${userId}`);
+          if (res.ok) {
+            const data = await res.json();
+            setHasKey(data.hasApiKey);
+            setMasked(data.apiKeyMasked || '');
+
+            if (data.hasApiKey) {
+              loadBalance();
+            }
           }
+        } catch {
+          /* ignore */
         }
-      } catch {
-        /* ignore */
-      }
-    })();
-    
-    // Cargar visibilidad del home
-    loadHomeVisibility();
-  }, [userId, loadBalance, loadHomeVisibility]);
+      })();
+    }
+
+    if (showHomeSettings) loadHomeVisibility();
+  }, [userId, loadBalance, loadHomeVisibility, showAiSettings, showHomeSettings]);
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -142,11 +145,20 @@ export default function SettingsSection({ userId }) {
   return (
     <div data-testid="settings-section" className="animate-[fadeIn_0.15s_ease] max-w-xl space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-slate-900">Ajustes</h2>
-        <p className="text-slate-500 mt-1">Administra tu clave de API de IA, visibilidad del Home y verifica tu consumo.</p>
+        <h2 className="text-2xl font-bold text-slate-900">
+          {showHomeSettings && showAiSettings ? 'Ajustes' : showHomeSettings ? 'Ajustes del Home' : 'API de IA y saldo'}
+        </h2>
+        <p className="text-slate-500 mt-1">
+          {showHomeSettings && showAiSettings
+            ? 'Administra tu clave de API de IA, visibilidad del Home y verifica tu consumo.'
+            : showHomeSettings
+              ? 'Controla las secciones que se muestran en tu pantalla de inicio.'
+              : 'Administra tu clave de API de IA y verifica tu consumo.'}
+        </p>
       </div>
 
       {/* 👁️ SECCIÓN DE VISIBILIDAD DEL HOME */}
+      {showHomeSettings && (
       <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
         <div className="flex items-center gap-3 mb-4">
           <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 flex items-center justify-center">
@@ -278,9 +290,10 @@ export default function SettingsSection({ userId }) {
           </p>
         )}
       </div>
+      )}
 
       {/* 🪙 TARJETA DE PRESUPUESTO DE DEEPSEEK */}
-      {hasKey && (
+      {showAiSettings && hasKey && (
         <div className="bg-slate-900 text-white rounded-2xl p-5 shadow-sm border border-slate-950 flex flex-col gap-3 relative overflow-hidden">
           <div className="absolute right-0 top-0 translate-x-4 -translate-y-4 w-24 h-24 bg-white/5 rounded-full blur-xl pointer-events-none" />
           
@@ -337,6 +350,7 @@ export default function SettingsSection({ userId }) {
       )}
 
       {/* FORMULARIO CLÁSICO DE LLAVE */}
+      {showAiSettings && (
       <form
         onSubmit={handleSave}
         className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm"
@@ -371,6 +385,7 @@ export default function SettingsSection({ userId }) {
         {saved && <p className="mt-3 text-xs font-semibold text-green-600 bg-green-50 border border-green-100 px-3 py-1.5 rounded-xl animate-[fadeIn_0.1s_ease]" data-testid="settings-saved">Clave guardada.</p>}
         {error && <p className="mt-3 text-xs font-semibold text-red-600 bg-red-50 border border-red-100 px-3 py-1.5 rounded-xl animate-[fadeIn_0.1s_ease]" data-testid="settings-error">{error}</p>}
       </form>
+      )}
     </div>
   );
 }

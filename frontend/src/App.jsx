@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react'
 import { getJSON, setJSON } from './lib/safeLocalStorage';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
-import { LogOut, Sparkles, Library, Settings, Home, BookOpen, User, MessageSquare } from 'lucide-react';
+import { Sparkles, Library, Home, BookOpen, User, MessageSquare } from 'lucide-react';
 
 import LoginScreen from './components/LoginScreen';
 import usePendingReviewsFlush from './hooks/usePendingReviewsFlush';
@@ -210,8 +210,8 @@ function DashboardScreen({ user, onLogout }) {
       </aside>
 
       <main ref={contentScrollRef} className="relative flex-1 min-h-0 min-w-0 overflow-y-auto overscroll-contain md:min-h-[100dvh] md:overflow-visible">
-        {/* Header móvil: oculto donde la sección gestiona su propio encabezado. */}
-        {tab !== 'home' && tab !== 'study' && (
+        {/* Header móvil: el perfil muestra su título dentro de su propio contenido. */}
+        {tab !== 'home' && tab !== 'study' && tab !== 'usuario' && (
           <div className="md:hidden sticky top-0 z-30 bg-white border-b border-slate-200 px-4 py-3.5 flex items-center justify-between shadow-xs">
             <span className="min-w-0 max-w-[80%]">
               {currentDeck && tab === 'library' ? (
@@ -220,21 +220,11 @@ function DashboardScreen({ user, onLogout }) {
                 </span>
                 ) : (
                 <span className="font-black text-slate-900 tracking-tight text-base block animate-[fadeIn_0.1s_ease]">
-                  {tab === 'library' ? 'Biblioteca' : tab === 'study' ? 'Modo de Estudio' : tab === 'usuario' ? 'Perfil' : tab === 'chat' ? 'Chat' : 'Ajustes'}
+                  {tab === 'library' ? 'Biblioteca' : tab === 'study' ? 'Modo de Estudio' : tab === 'chat' ? 'Chat' : 'Ajustes'}
                 </span>
               )}
             </span>
 
-            {tab === 'usuario' && (
-              <button
-                type="button"
-                onClick={() => handleTabChange('settings')}
-                className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg transition-colors shrink-0 animate-[fadeIn_0.12s_ease] cursor-pointer"
-                title="Ajustes"
-              >
-                <Settings className="w-4 h-4" />
-              </button>
-            )}
           </div>
         )}
 
@@ -290,7 +280,9 @@ function DashboardScreen({ user, onLogout }) {
             />
           )}
 
-          {tab === 'settings' && <SettingsSection userId={user.id} />}
+          {tab === 'home-settings' && <SettingsSection userId={user.id} section="home" />}
+
+          {tab === 'ai-settings' && <SettingsSection userId={user.id} section="ai" />}
 
           {tab === 'chat' && <ChatSection userId={user.id} />}
 
@@ -298,7 +290,8 @@ function DashboardScreen({ user, onLogout }) {
             <UserSection 
               user={user} 
               onLogout={onLogout} 
-              onOpenSettings={() => handleTabChange('settings')}
+              onOpenAiSettings={() => handleTabChange('ai-settings')}
+              onOpenHomeSettings={() => handleTabChange('home-settings')}
             />
           )}
         </div>
