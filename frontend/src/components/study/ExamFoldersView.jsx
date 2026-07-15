@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, ChevronRight, Folder, Loader2, MoreHorizontal, Pencil } from 'lucide-react';
 import { getJSON, setJSON } from '../../lib/safeLocalStorage';
 import AcademicFolderModal from '../library/AcademicFolderModal';
@@ -6,20 +6,27 @@ import ExamFAB from './ExamFAB';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
+function normalizeId(value) {
+  if (value == null) return null;
+  const id = typeof value === 'object' ? value._id ?? value.id ?? value : value;
+  return id == null ? null : String(id);
+}
+
 function getFolderId(folder) {
-  return folder ? String(folder._id || folder.id) : null;
+  return normalizeId(folder?._id ?? folder?.id);
 }
 
 function getParentId(folder) {
-  if (!folder?.parentId) return null;
-  if (typeof folder.parentId === 'object') {
-    return String(folder.parentId._id || folder.parentId.id);
-  }
-  return String(folder.parentId);
+  return normalizeId(folder?.parentId);
 }
 
 function sortFolders(folders) {
   return [...folders].sort((first, second) => first.name.localeCompare(second.name));
+}
+
+function upsertFolder(folders, nextFolder) {
+  const nextFolderId = getFolderId(nextFolder);
+  return [...folders.filter((folder) => getFolderId(folder) !== nextFolderId), nextFolder];
 }
 
 async function getErrorMessage(response, fallback) {
@@ -35,6 +42,8 @@ export default function ExamFoldersView({ userId, onBack, dashboardShell }) {
   const cacheKey = `examFolders_${userId}`;
   const cachedFolders = getJSON(cacheKey);
   const [folders, setFolders] = useState(() => Array.isArray(cachedFolders) ? sortFolders(cachedFolders) : []);
+  const foldersRef = useRef(folders);
+  const loadVersionRef = useRef(0);
   const [loading, setLoading] = useState(() => !Array.isArray(cachedFolders));
   const [currentFolderId, setCurrentFolderId] = useState(null);
   const [activeMenuId, setActiveMenuId] = useState(null);
@@ -65,12 +74,14 @@ export default function ExamFoldersView({ userId, onBack, dashboardShell }) {
 
   const saveFolders = (nextFolders) => {
     const sortedFolders = sortFolders(nextFolders);
+    foldersRef.current = sortedFolders;
     setFolders(sortedFolders);
     setJSON(cacheKey, sortedFolders);
   };
 
   useEffect(() => {
     const controller = new AbortController();
+    const loadVersion = ++loadVersionRef.current;
 
     const loadFolders = async () => {
       setLoading(true);
@@ -83,13 +94,14 @@ export default function ExamFoldersView({ userId, onBack, dashboardShell }) {
 
         const data = await response.json();
         if (!Array.isArray(data)) throw new Error();
+        if (controller.signal.aborted || loadVersion !== loadVersionRef.current) return;
         saveFolders(data);
       } catch (error) {
         if (error.name !== 'AbortError') {
           // Keep the last safe cache when the server cannot be reached.
         }
       } finally {
-        if (!controller.signal.aborted) setLoading(false);
+        if (!controller.signal.aborted && loadVersion === loadVersionRef.current) setLoading(false);
       }
     };
 
@@ -129,10 +141,11 @@ export default function ExamFoldersView({ userId, onBack, dashboardShell }) {
       }
 
       const savedFolder = await response.json();
-      saveFolders([...folders, savedFolder]);
+      loadVersionRef.current += 1;
+      saveFolders(upsertFolder(foldersRef.current, savedFolder));
+      setLoading(false);
       setFolderInput('');
       setFolderModal(null);
-      setCurrentFolderId(getFolderId(savedFolder));
     } catch {
       alert('Error de conexión al crear la carpeta.');
     }
@@ -156,9 +169,9 @@ export default function ExamFoldersView({ userId, onBack, dashboardShell }) {
       }
 
       const updatedFolder = await response.json();
-      saveFolders(folders.map((folder) => (
-        getFolderId(folder) === getFolderId(updatedFolder) ? updatedFolder : folder
-      )));
+      loadVersionRef.current += 1;
+      saveFolders(upsertFolder(foldersRef.current, updatedFolder));
+      setLoading(false);
       setFolderInput('');
       setFolderModal(null);
     } catch {
