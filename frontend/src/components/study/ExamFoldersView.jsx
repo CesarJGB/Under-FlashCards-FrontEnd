@@ -155,6 +155,7 @@ export default function ExamFoldersView({ userId, onBack, dashboardShell, decks 
 
     return trail;
   }, [currentFolder, folders]);
+  const canCreateFolder = !currentFolder || getParentId(currentFolder) === null;
 
   const saveFolders = useCallback((nextFolders) => {
     const sortedFolders = sortFolders(nextFolders);
@@ -247,6 +248,7 @@ export default function ExamFoldersView({ userId, onBack, dashboardShell, decks 
   };
 
   const openCreateFolder = () => {
+    if (!canCreateFolder) return;
     setFolderInput('');
     setFolderModal({ type: 'exam-folder' });
   };
@@ -259,6 +261,12 @@ export default function ExamFoldersView({ userId, onBack, dashboardShell, decks 
 
   const handleCreateFolder = async (event) => {
     event.preventDefault();
+    if (!canCreateFolder) {
+      setFolderInput('');
+      setFolderModal(null);
+      setFeedback('No se pueden crear subcarpetas dentro de otra subcarpeta.');
+      return;
+    }
     const name = folderInput.trim();
     if (!name) return;
 
@@ -733,6 +741,7 @@ export default function ExamFoldersView({ userId, onBack, dashboardShell, decks 
 
       <ExamFAB
         isInsideFolder={Boolean(currentFolder)}
+        canCreateFolder={canCreateFolder}
         onCreateFolder={openCreateFolder}
         onCreateScratch={() => setCreationSourceType('scratch')}
         onCreateFromDecks={() => setCreationSourceType('from_deck')}

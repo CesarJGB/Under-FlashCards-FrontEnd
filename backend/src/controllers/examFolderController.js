@@ -37,6 +37,9 @@ exports.createExamFolder = async (req, res) => {
       if (!parent) {
         return res.status(404).json({ error: 'La carpeta padre no existe.' });
       }
+      if (parent.parentId) {
+        return res.status(400).json({ error: 'No se pueden crear subcarpetas dentro de otra subcarpeta.' });
+      }
       resolvedParentId = parent._id;
     }
 

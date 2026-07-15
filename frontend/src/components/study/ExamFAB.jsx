@@ -4,6 +4,7 @@ import { FilePlus, FolderPlus, Layers, Plus } from 'lucide-react';
 
 export default function ExamFAB({
   isInsideFolder,
+  canCreateFolder,
   onCreateFolder,
   onCreateScratch,
   onCreateFromDecks,
@@ -41,22 +42,24 @@ export default function ExamFAB({
           </div>
 
           <div className="px-4 pb-8 flex flex-col gap-3">
-            <button
-              type="button"
-              onClick={() => { setOpen(false); onCreateFolder(); }}
-              className="w-full bg-gradient-to-br from-indigo-100 to-violet-100 border-2 border-indigo-200 rounded-3xl p-5 text-left shadow-lg shadow-indigo-200/50 hover:shadow-xl active:scale-[0.98] transition-all duration-200"
-              style={{ animation: 'cardIn 0.35s cubic-bezier(0.32, 0.72, 0, 1) 0.08s both' }}
-            >
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm">
-                  <FolderPlus className="w-6 h-6 text-indigo-600" />
+            {canCreateFolder && (
+              <button
+                type="button"
+                onClick={() => { setOpen(false); onCreateFolder(); }}
+                className="w-full bg-gradient-to-br from-indigo-100 to-violet-100 border-2 border-indigo-200 rounded-3xl p-5 text-left shadow-lg shadow-indigo-200/50 hover:shadow-xl active:scale-[0.98] transition-all duration-200"
+                style={{ animation: 'cardIn 0.35s cubic-bezier(0.32, 0.72, 0, 1) 0.08s both' }}
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm">
+                    <FolderPlus className="w-6 h-6 text-indigo-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-lg font-bold text-slate-900 leading-tight mb-1">{folderLabel}</h3>
+                    <p className="text-sm text-slate-700 leading-snug">Organiza tus exámenes en carpetas.</p>
+                  </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-lg font-bold text-slate-900 leading-tight mb-1">{folderLabel}</h3>
-                  <p className="text-sm text-slate-700 leading-snug">Organiza tus exámenes en carpetas.</p>
-                </div>
-              </div>
-            </button>
+              </button>
+            )}
 
             <button
               type="button"
