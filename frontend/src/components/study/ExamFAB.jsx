@@ -10,7 +10,7 @@ export default function ExamFAB({
   dashboardShell,
 }) {
   const [open, setOpen] = useState(false);
-  const folderLabel = isInsideFolder ? 'Crear su carpeta' : 'Crear carpeta';
+  const folderLabel = isInsideFolder ? 'Crear subcarpeta' : 'Crear carpeta';
 
   const fabButton = !open && (
     <button

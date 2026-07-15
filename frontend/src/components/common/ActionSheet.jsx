@@ -1,6 +1,5 @@
 import { isValidElement, useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { X } from 'lucide-react';
 import { useBodyScrollLock } from '../../lib/scrollLock';
 
 export default function ActionSheet({ open, title, options, onClose }) {
@@ -41,11 +40,11 @@ export default function ActionSheet({ open, title, options, onClose }) {
   const actionOptions = Array.isArray(options) ? options : [];
 
   return createPortal(
-    <div className="fixed inset-0 z-[90] flex items-end justify-center sm:items-center sm:p-4">
+    <>
       <button
         type="button"
         onClick={() => onClose?.()}
-        className="absolute inset-0 cursor-default bg-slate-950/40 backdrop-blur-[1px] animate-[fadeIn_0.15s_ease]"
+        className="fixed inset-0 z-[90] cursor-default bg-slate-900/40 animate-[fadeIn_0.25s_ease-out]"
         aria-label="Cerrar acciones"
       />
 
@@ -56,29 +55,21 @@ export default function ActionSheet({ open, title, options, onClose }) {
         aria-labelledby={title ? titleId : undefined}
         aria-label={title ? undefined : 'Acciones'}
         tabIndex={-1}
-        className="relative z-10 w-full max-w-lg overflow-hidden rounded-t-3xl border border-slate-200 bg-white shadow-2xl outline-none animate-[slideUp_0.2s_ease-out] sm:rounded-2xl"
+        className="fixed inset-x-0 bottom-0 z-[100] bg-white rounded-t-3xl shadow-2xl outline-none"
+        style={{ animation: 'slideUp 0.4s cubic-bezier(0.32, 0.72, 0, 1) forwards' }}
       >
-        <div className="flex justify-center pb-2 pt-3 sm:hidden" aria-hidden="true">
-          <span className="h-1 w-10 rounded-full bg-slate-300" />
+        <div className="flex justify-center pt-3 pb-4" aria-hidden="true">
+          <div className="w-10 h-1 bg-slate-300 rounded-full" />
         </div>
 
-        <div className={`flex items-center gap-3 px-5 ${title ? 'pb-3 pt-1' : 'pb-1 pt-0'}`}>
-          {title && <h2 id={titleId} className="text-base font-bold text-slate-900">{title}</h2>}
-          <button
-            type="button"
-            onClick={() => onClose?.()}
-            className="ml-auto flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20"
-            aria-label="Cerrar acciones"
-          >
-            <X className="h-4 w-4" aria-hidden="true" />
-          </button>
-        </div>
+        {title && <h2 id={titleId} className="sr-only">{title}</h2>}
 
-        <div className="max-h-[70dvh] space-y-1 overflow-y-auto px-3 pb-[calc(env(safe-area-inset-bottom)+1rem)] sm:pb-3">
-          {actionOptions.map((option) => {
+        <div className="px-4 pb-8 flex flex-col gap-3">
+          {actionOptions.map((option, index) => {
             if (!option) return null;
 
             const Icon = option.icon;
+            const isPrimary = index === 0;
 
             return (
               <button
@@ -90,25 +81,36 @@ export default function ActionSheet({ open, title, options, onClose }) {
                   option.onSelect?.();
                   onClose?.();
                 }}
-                className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/15 disabled:cursor-not-allowed disabled:opacity-45"
+                className={`w-full rounded-3xl p-5 text-left active:scale-[0.98] transition-all duration-200 disabled:opacity-50 ${
+                  isPrimary
+                    ? 'bg-gradient-to-br from-indigo-100 to-violet-100 border-2 border-indigo-200 shadow-lg shadow-indigo-200/50 hover:shadow-xl'
+                    : 'bg-slate-50 border border-slate-200 hover:shadow-md'
+                }`}
+                style={{
+                  animation: `cardIn 0.35s cubic-bezier(0.32, 0.72, 0, 1) ${0.08 + index * 0.06}s both`,
+                }}
               >
-                {Icon && (
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600">
-                    {isValidElement(Icon) ? Icon : <Icon className="h-4 w-4" aria-hidden="true" />}
-                  </span>
-                )}
-                <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-semibold text-slate-800">{option.label}</span>
-                  {option.description && (
-                    <span className="mt-0.5 block text-xs font-medium leading-snug text-slate-500">{option.description}</span>
+                <div className="flex items-center gap-4">
+                  {Icon && (
+                    <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm">
+                      {isValidElement(Icon)
+                        ? Icon
+                        : <Icon className={`w-6 h-6 ${isPrimary ? 'text-indigo-600' : 'text-slate-700'}`} aria-hidden="true" />}
+                    </div>
                   )}
-                </span>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-lg font-bold text-slate-900 leading-tight mb-1">{option.label}</h3>
+                    {option.description && (
+                      <p className={`text-sm leading-snug ${isPrimary ? 'text-slate-700' : 'text-slate-600'}`}>{option.description}</p>
+                    )}
+                  </div>
+                </div>
               </button>
             );
           })}
         </div>
       </section>
-    </div>,
+    </>,
     document.body
   );
 }
