@@ -6,12 +6,13 @@ import DailyChallengeCard from './study/DailyChallengeCard';
 import StudyDeckSelector from './study/StudyDeckSelector';
 import StudyFeaturesList from './study/StudyFeaturesList';
 import StudyModesList from './study/StudyModesList';
+import ExamFoldersView from './study/ExamFoldersView';
 import usePdfExport from '../hooks/usePdfExport';
 import PdfExportOverlay from './PdfExportOverlay';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
-export default function StudySection({ decks, materias, userId, userEmail, onOpenReview }) {
+export default function StudySection({ decks, materias, userId, userEmail, onOpenReview, dashboardShell }) {
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [selectedMethod, setSelectedMethod] = useState(null);
   const [selectedFeature, setSelectedFeature] = useState(null);
@@ -107,7 +108,13 @@ export default function StudySection({ decks, materias, userId, userEmail, onOpe
   }
 
   if (selectedCategory === 'exams') {
-    return <BlankCategoryView title="Exámenes" onBack={() => setSelectedCategory(null)} />;
+    return (
+      <ExamFoldersView
+        userId={userId}
+        onBack={() => setSelectedCategory(null)}
+        dashboardShell={dashboardShell}
+      />
+    );
   }
 
   if (selectedCategory === 'features') {

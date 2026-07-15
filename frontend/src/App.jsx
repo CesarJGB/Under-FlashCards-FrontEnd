@@ -255,6 +255,7 @@ function DashboardScreen({ user, onLogout }) {
               userId={user.id}
               userEmail={user.email}
               onOpenReview={handleOpenReviewFromStudy}
+              dashboardShell={dashboardShell}
             />
           )}
 
