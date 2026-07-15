@@ -1,4 +1,4 @@
-import { prepareImageAsset } from '../images';
+import { prepareImageAsset, fitContain } from '../images';
 import { resolveContentTextStyle, setPdfTextStyle } from '../styles';
 
 const APP_NAME = 'UnderFlashCards';
@@ -11,13 +11,14 @@ const COLUMN_GAP = 7;
 const ITEM_GAP = 4.5;
 const IMAGE_GAP = 1.8;
 
-// Marco de imagen: mismo tamaño para TODAS las imágenes, sin importar su
-// proporción original. La imagen se recorta (modo "cover", igual que el
-// fondo de las Tarjetas Imprimibles) para llenar el marco por completo,
-// así el mat interno queda parejo en los 4 lados siempre.
-const FRAME_HEIGHT = 26;
+// Marco de imagen: MISMO estilo (contorno + mat) para todas, pero el tamaño
+// de la caja se ajusta al de cada imagen ya escalada — nunca se recorta
+// contenido. Es la prioridad frente a la uniformidad exacta de tamaño:
+// perder info de un mapa/diagrama es peor que una caja un poco más chica.
 const FRAME_PADDING = 2.2;
-const FRAME_BORDER_WIDTH = 0.8;
+const FRAME_BORDER_WIDTH = 0.7;
+const MAX_IMAGE_HEIGHT = 34; // tope para que una imagen no domine la columna
+const PLACEHOLDER_INNER_HEIGHT = 18;
 
 const INK_COLOR = { r: 15, g: 23, b: 42 };
 const KICKER_COLOR = { r: 51, g: 65, b: 85 };
@@ -154,16 +155,13 @@ function drawFooters(doc, deckLabel) {
   }
 }
 
-// targetRatio = ancho/alto del hueco interior del marco donde va a vivir la
-// imagen. Con mode:'cover' + targetRatio, images.js recorta la imagen (canvas)
-// para que llene exactamente esa proporción, en vez de dejarla centrada con
-// espacios irregulares alrededor (que era el problema anterior).
-async function prepareSectionImage(source, context, cardIndex, targetRatio) {
+// mode:'contain' preserva la imagen COMPLETA (nunca recorta), ajustándola
+// dentro de maxWidth x maxHeight conservando su proporción original.
+async function prepareSectionImage(source, context, cardIndex, maxWidth, maxHeight) {
   if (!source) return null;
 
   const result = await prepareImageAsset(source, {
-    mode: 'cover',
-    targetRatio,
+    mode: 'contain',
     signal: context.signal,
     assetCache: context.imageAssetCache,
     sourceBlobCache: context.sourceBlobCache,
@@ -172,36 +170,48 @@ async function prepareSectionImage(source, context, cardIndex, targetRatio) {
   if (result.warning) context.warn(result.warning, cardIndex);
 
   if (!result.asset) {
-    return { failed: true };
+    return { failed: true, frameWidth: maxWidth + (FRAME_PADDING * 2), frameHeight: PLACEHOLDER_INNER_HEIGHT + (FRAME_PADDING * 2) };
   }
 
   context.consumeImageAsset(result.asset);
-  return { failed: false, asset: result.asset };
+  const dimensions = fitContain(result.asset, maxWidth, maxHeight);
+  return {
+    failed: false,
+    asset: result.asset,
+    dimensions,
+    frameWidth: dimensions.width + (FRAME_PADDING * 2),
+    frameHeight: dimensions.height + (FRAME_PADDING * 2),
+  };
 }
 
-// Dibuja el marco fijo (contorno + mat interno) y, dentro, la imagen ya
-// recortada (llena el hueco interior por completo) o el aviso de "no
-// disponible" si falló la carga. width/height son siempre los mismos para
-// todas las imágenes del documento.
-function drawImageFrame(doc, x, y, width, height, imageResult) {
+// Dibuja el marco (contorno + mat) ajustado EXACTAMENTE al tamaño ya
+// resuelto de la imagen (imageResult.frameWidth/frameHeight) — nunca fuerza
+// una caja más grande que deje huecos, ni recorta para llenarla.
+function drawImageFrame(doc, x, y, imageResult) {
+  const { frameWidth, frameHeight } = imageResult;
+
   doc.setDrawColor(RULE_COLOR.r, RULE_COLOR.g, RULE_COLOR.b);
   doc.setLineWidth(FRAME_BORDER_WIDTH);
-  doc.rect(x, y, width, height);
+  doc.rect(x, y, frameWidth, frameHeight);
 
-  const innerX = x + FRAME_PADDING;
-  const innerY = y + FRAME_PADDING;
-  const innerWidth = width - (FRAME_PADDING * 2);
-  const innerHeight = height - (FRAME_PADDING * 2);
-
-  if (!imageResult || imageResult.failed) {
+  if (imageResult.failed) {
     doc.setFont('Helvetica', 'italic');
     doc.setFontSize(6.5);
     doc.setTextColor(PLACEHOLDER_COLOR.r, PLACEHOLDER_COLOR.g, PLACEHOLDER_COLOR.b);
-    doc.text('Imagen no disponible', x + (width / 2), y + (height / 2) + 1, { align: 'center' });
+    doc.text('Imagen no disponible', x + (frameWidth / 2), y + (frameHeight / 2) + 1, { align: 'center' });
     return;
   }
 
-  doc.addImage(imageResult.asset.data, imageResult.asset.format, innerX, innerY, innerWidth, innerHeight, undefined, 'FAST');
+  doc.addImage(
+    imageResult.asset.data,
+    imageResult.asset.format,
+    x + FRAME_PADDING,
+    y + FRAME_PADDING,
+    imageResult.dimensions.width,
+    imageResult.dimensions.height,
+    undefined,
+    'FAST'
+  );
 }
 
 /**
@@ -216,7 +226,6 @@ export async function renderContentDocument(doc, items, config, context) {
   const pageHeight = doc.internal.pageSize.getHeight();
   const questionFallbackSize = columns >= 3 ? 8.5 : 10.5;
   const answerFallbackSize = columns >= 3 ? 8 : 10;
-  const innerImageHeight = FRAME_HEIGHT - (FRAME_PADDING * 2);
 
   const deckTitle = context.deckTitle || 'Mazo';
   const itemLabel = getItemLabel(config, items.length);
@@ -270,10 +279,9 @@ export async function renderContentDocument(doc, items, config, context) {
       questionHeight = questionLines.length * lineHeight;
 
       if (showImageOnQuestion) {
-        const innerWidth = geometry.columnWidth - (FRAME_PADDING * 2);
-        const targetRatio = innerWidth / innerImageHeight;
-        questionImage = await prepareSectionImage(item.contentImage, context, index, targetRatio);
-        questionHeight += FRAME_HEIGHT + IMAGE_GAP;
+        const maxWidth = geometry.columnWidth - (FRAME_PADDING * 2);
+        questionImage = await prepareSectionImage(item.contentImage, context, index, maxWidth, MAX_IMAGE_HEIGHT);
+        questionHeight += questionImage.frameHeight + IMAGE_GAP;
       }
     }
 
@@ -292,11 +300,9 @@ export async function renderContentDocument(doc, items, config, context) {
       answerHeight = answerLines.length * lineHeight;
 
       if (showImageOnAnswer) {
-        const answerFrameWidth = geometry.columnWidth - 3;
-        const innerWidth = answerFrameWidth - (FRAME_PADDING * 2);
-        const targetRatio = innerWidth / innerImageHeight;
-        answerImage = await prepareSectionImage(item.contentImage, context, index, targetRatio);
-        answerHeight += FRAME_HEIGHT + IMAGE_GAP;
+        const maxWidth = (geometry.columnWidth - 3) - (FRAME_PADDING * 2);
+        answerImage = await prepareSectionImage(item.contentImage, context, index, maxWidth, MAX_IMAGE_HEIGHT);
+        answerHeight += answerImage.frameHeight + IMAGE_GAP;
       }
     }
 
@@ -321,8 +327,8 @@ export async function renderContentDocument(doc, items, config, context) {
 
       if (questionImage) {
         cursorY += IMAGE_GAP;
-        drawImageFrame(doc, drawX, cursorY, geometry.columnWidth, FRAME_HEIGHT, questionImage);
-        cursorY += FRAME_HEIGHT;
+        drawImageFrame(doc, drawX, cursorY, questionImage);
+        cursorY += questionImage.frameHeight;
       }
     }
 
@@ -338,8 +344,8 @@ export async function renderContentDocument(doc, items, config, context) {
 
       if (answerImage) {
         cursorY += IMAGE_GAP;
-        drawImageFrame(doc, drawX + 3, cursorY, geometry.columnWidth - 3, FRAME_HEIGHT, answerImage);
-        cursorY += FRAME_HEIGHT;
+        drawImageFrame(doc, drawX + 3, cursorY, answerImage);
+        cursorY += answerImage.frameHeight;
       }
     }
 
