@@ -111,6 +111,8 @@ export default function StudySection({ decks, materias, userId, userEmail, onOpe
     return (
       <ExamFoldersView
         userId={userId}
+        decks={decks}
+        materias={materias}
         onBack={() => setSelectedCategory(null)}
         dashboardShell={dashboardShell}
       />

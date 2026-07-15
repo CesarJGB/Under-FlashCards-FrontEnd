@@ -16,7 +16,7 @@ const fileToBase64 = (file) =>
     reader.readAsDataURL(file);
   });
 
-export default function DeckModal({ initial, onClose, onSave }) {
+export default function DeckModal({ initial, onClose, onSave, nameOnly = false, entityLabel = 'mazo' }) {
   const [title, setTitle] = useState(initial?.title || '');
   const [coverColor, setCoverColor] = useState(initial?.coverColor || '#ffffff');
   const [coverImage, setCoverImage] = useState(initial?.coverImage || '');
@@ -48,9 +48,9 @@ export default function DeckModal({ initial, onClose, onSave }) {
     setSaving(true);
     setError('');
     try {
-      await onSave({ title: title.trim(), coverColor, coverImage });
+      await onSave(nameOnly ? { title: title.trim() } : { title: title.trim(), coverColor, coverImage });
     } catch (err) {
-      setError(err.message || 'No se pudo guardar el mazo.');
+      setError(err.message || `No se pudo guardar el ${entityLabel}.`);
       setSaving(false);
     }
   };
@@ -87,10 +87,10 @@ export default function DeckModal({ initial, onClose, onSave }) {
                 <div className="flex items-start justify-between mb-5">
                   <div className="flex-1">
                     <h3 className="text-xl font-bold text-slate-900 mb-1">
-                      {initial ? 'Editar mazo' : 'Nuevo mazo'}
+                      {initial ? `Editar ${entityLabel}` : `Nuevo ${entityLabel}`}
                     </h3>
                     <p className="text-sm text-slate-600">
-                      {initial ? 'Modifica la información del mazo' : 'Crea un nuevo mazo de flashcards'}
+                      {initial ? `Modifica la información del ${entityLabel}` : `Crea un nuevo ${entityLabel}`}
                     </p>
                   </div>
                   <button
@@ -106,7 +106,7 @@ export default function DeckModal({ initial, onClose, onSave }) {
                   {/* Título */}
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-2">
-                      Título del mazo
+                      Título del {entityLabel}
                     </label>
                     <input
                       value={title}
@@ -121,27 +121,28 @@ export default function DeckModal({ initial, onClose, onSave }) {
                     />
                   </div>
 
-                  {/* Botón Personalización Avanzada */}
-                  <button
-                    type="button"
-                    onClick={() => setStep('customization')}
-                    className="w-full flex items-center justify-between p-4 border-2 border-slate-200 rounded-2xl hover:border-indigo-300 hover:bg-indigo-50/30 transition-all duration-200"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 bg-gradient-to-br from-indigo-100 to-violet-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                        <Sparkles className="w-5 h-5 text-indigo-600" />
+                  {!nameOnly && (
+                    <button
+                      type="button"
+                      onClick={() => setStep('customization')}
+                      className="w-full flex items-center justify-between p-4 border-2 border-slate-200 rounded-2xl hover:border-indigo-300 hover:bg-indigo-50/30 transition-all duration-200"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 bg-gradient-to-br from-indigo-100 to-violet-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                          <Sparkles className="w-5 h-5 text-indigo-600" />
+                        </div>
+                        <div className="text-left">
+                          <p className="text-sm font-semibold text-slate-900">Personalización avanzada</p>
+                          <p className="text-xs text-slate-500">
+                            {coverColor !== '#ffffff' || coverImage
+                              ? 'Color e imagen configurados'
+                              : 'Color y portada opcionales'}
+                          </p>
+                        </div>
                       </div>
-                      <div className="text-left">
-                        <p className="text-sm font-semibold text-slate-900">Personalización avanzada</p>
-                        <p className="text-xs text-slate-500">
-                          {coverColor !== '#ffffff' || coverImage
-                            ? 'Color e imagen configurados'
-                            : 'Color y portada opcionales'}
-                        </p>
-                      </div>
-                    </div>
-                    <ChevronLeft className="w-5 h-5 text-slate-400 rotate-180" />
-                  </button>
+                      <ChevronLeft className="w-5 h-5 text-slate-400 rotate-180" />
+                    </button>
+                  )}
 
                   {/* Error */}
                   {error && (
@@ -268,4 +269,3 @@ export default function DeckModal({ initial, onClose, onSave }) {
     </>
   );
 }
-

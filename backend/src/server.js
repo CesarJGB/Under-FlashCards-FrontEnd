@@ -29,6 +29,7 @@ const academicRoutes = require('./routes/academicRoutes');
 const reviewRoutes = require('./routes/reviewRoutes');
 const userRoutes = require('./routes/userRoutes'); // 👈 NUEVO: Rutas de usuario y preferencias
 const examFolderRoutes = require('./routes/examFolderRoutes');
+const examRoutes = require('./routes/examRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 8001;
@@ -78,6 +79,7 @@ app.use('/api', flashcardRoutes);
 app.use('/api', academicRoutes); 
 app.use('/api', reviewRoutes);
 app.use('/api', examFolderRoutes);
+app.use('/api', examRoutes);
 app.use('/api/users', userRoutes); // 👈 NUEVO: Rutas de usuario (incluye preferencias)
 
 // Encendido del servidor

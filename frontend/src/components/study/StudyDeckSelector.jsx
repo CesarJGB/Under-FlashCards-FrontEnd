@@ -17,6 +17,35 @@ function isEmptyId(value) {
   return value === null || value === undefined || value === '';
 }
 
+function hasSelectionValue(value) {
+  return value !== false && value !== null && value !== undefined;
+}
+
+function getDeckSelectionKeys(deck) {
+  return [getId(deck), deck?.id, deck?._id].filter((value) => !isEmptyId(value));
+}
+
+function isDeckSelected(selectedDecks, deck) {
+  const keys = getDeckSelectionKeys(deck);
+  if (!selectedDecks || keys.length === 0) return false;
+
+  if (selectedDecks instanceof Map) {
+    return keys.some((key) => selectedDecks.has(key) && hasSelectionValue(selectedDecks.get(key)));
+  }
+
+  if (typeof selectedDecks !== 'object') return false;
+  return keys.some((key) => hasSelectionValue(selectedDecks[key]));
+}
+
+function getSelectedDeckCount(selectedDecks) {
+  if (selectedDecks instanceof Map) {
+    return Array.from(selectedDecks.values()).filter(hasSelectionValue).length;
+  }
+
+  if (!selectedDecks || typeof selectedDecks !== 'object') return 0;
+  return Object.values(selectedDecks).filter(hasSelectionValue).length;
+}
+
 function getActiveParciales(materia) {
   return materia?.activeParciales?.length ? materia.activeParciales : ALL_PARTIALS;
 }
@@ -48,7 +77,15 @@ function FolderCard({ title, detail, onClick, compact = false }) {
   );
 }
 
-function DeckGrid({ decks, emptyMessage, onSelectDeck, isProcessing = false }) {
+function DeckGrid({
+  decks,
+  emptyMessage,
+  onSelectDeck,
+  isProcessing = false,
+  selectionMode = false,
+  selectedDecks,
+  onToggleDeck,
+}) {
   if (decks.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center text-xs font-medium text-slate-400">
@@ -65,7 +102,9 @@ function DeckGrid({ decks, emptyMessage, onSelectDeck, isProcessing = false }) {
           deck={deck}
           isList={false}
           readOnly
-          onOpen={onSelectDeck}
+          onOpen={selectionMode ? (selectedDeck) => onToggleDeck?.(selectedDeck) : onSelectDeck}
+          selectionMode={selectionMode}
+          isSelected={isDeckSelected(selectedDecks, deck)}
         />
       ))}
     </div>
@@ -141,6 +180,10 @@ export default function StudyDeckSelector({
   processingMessage = '',
   errorMessage = '',
   warnings = [],
+  selectionMode = false,
+  selectedDecks,
+  onToggleDeck,
+  onConfirmSelection,
 }) {
   const [currentPath, setCurrentPath] = useState({
     materiaId: null,
@@ -297,6 +340,7 @@ export default function StudyDeckSelector({
     isSameId(deck.temaId, currentPath.temaId) && isEmptyId(deck.subtemaId)
   ));
   const subtemaDecks = decks.filter((deck) => isSameId(deck.subtemaId, currentPath.subtemaId));
+  const selectedDeckCount = getSelectedDeckCount(selectedDecks);
 
   const selectMateria = (materia) => {
     const active = getActiveParciales(materia);
@@ -311,7 +355,11 @@ export default function StudyDeckSelector({
   const handleSearchSelect = (result) => {
     if (result.type === 'deck') {
       setSearchQuery('');
-      onSelectDeck(result.item);
+      if (selectionMode) {
+        onToggleDeck?.(result.item);
+      } else {
+        onSelectDeck(result.item);
+      }
       return;
     }
 
@@ -404,8 +452,10 @@ export default function StudyDeckSelector({
     </>
   );
 
+  let content;
+
   if (!currentPath.materiaId) {
-    return (
+    content = (
       <div className="space-y-6 animate-[fadeIn_0.15s_ease]">
         {renderHeader()}
 
@@ -480,15 +530,16 @@ export default function StudyDeckSelector({
             emptyMessage="Todos tus mazos están organizados en materias."
             onSelectDeck={onSelectDeck}
             isProcessing={isProcessing}
+            selectionMode={selectionMode}
+            selectedDecks={selectedDecks}
+            onToggleDeck={onToggleDeck}
             />
           </section>
         )}
       </div>
     );
-  }
-
-  if (currentPath.parcialNumber === null) {
-    return (
+  } else if (currentPath.parcialNumber === null) {
+    content = (
       <div className="space-y-6 animate-[fadeIn_0.15s_ease]">
         {renderHeader()}
         <div className={`grid gap-4 ${activeParciales.length === 3 ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-1 sm:grid-cols-2'}`}>
@@ -508,10 +559,8 @@ export default function StudyDeckSelector({
         </div>
       </div>
     );
-  }
-
-  if (currentPath.temaId === null) {
-    return (
+  } else if (currentPath.temaId === null) {
+    content = (
       <div className="space-y-6 animate-[fadeIn_0.15s_ease]">
         {renderHeader()}
         {academicLoading ? (
@@ -547,16 +596,17 @@ export default function StudyDeckSelector({
                 emptyMessage={partialTemas.length === 0 ? 'No hay temas ni mazos en este parcial.' : 'No hay mazos generales en este parcial.'}
                 onSelectDeck={onSelectDeck}
                 isProcessing={isProcessing}
+                selectionMode={selectionMode}
+                selectedDecks={selectedDecks}
+                onToggleDeck={onToggleDeck}
               />
             </section>
           </>
         )}
       </div>
     );
-  }
-
-  if (currentPath.subtemaId === null) {
-    return (
+  } else if (currentPath.subtemaId === null) {
+    content = (
       <div className="space-y-6 animate-[fadeIn_0.15s_ease]">
         {renderHeader()}
         {academicLoading ? (
@@ -568,7 +618,15 @@ export default function StudyDeckSelector({
           <>
             <section className="space-y-4">
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Mazos del tema</h3>
-              <DeckGrid decks={temaDecks} emptyMessage="No hay mazos directos en este tema." onSelectDeck={onSelectDeck} isProcessing={isProcessing} />
+              <DeckGrid
+                decks={temaDecks}
+                emptyMessage="No hay mazos directos en este tema."
+                onSelectDeck={onSelectDeck}
+                isProcessing={isProcessing}
+                selectionMode={selectionMode}
+                selectedDecks={selectedDecks}
+                onToggleDeck={onToggleDeck}
+              />
             </section>
 
             {subtemas.length > 0 && (
@@ -593,15 +651,45 @@ export default function StudyDeckSelector({
         )}
       </div>
     );
+  } else {
+    content = (
+      <div className="space-y-6 animate-[fadeIn_0.15s_ease]">
+        {renderHeader()}
+        <section className="space-y-4">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Mazos del subtema</h3>
+          <DeckGrid
+            decks={subtemaDecks}
+            emptyMessage="No hay mazos en este subtema."
+            onSelectDeck={onSelectDeck}
+            isProcessing={isProcessing}
+            selectionMode={selectionMode}
+            selectedDecks={selectedDecks}
+            onToggleDeck={onToggleDeck}
+          />
+        </section>
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-6 animate-[fadeIn_0.15s_ease]">
-      {renderHeader()}
-      <section className="space-y-4">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Mazos del subtema</h3>
-        <DeckGrid decks={subtemaDecks} emptyMessage="No hay mazos en este subtema." onSelectDeck={onSelectDeck} isProcessing={isProcessing} />
-      </section>
-    </div>
+    <>
+      <div className={selectionMode && selectedDeckCount > 0 ? 'pb-32 md:pb-24' : undefined}>
+        {content}
+      </div>
+
+      {selectionMode && selectedDeckCount > 0 && (
+        <div className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+5rem)] z-50 px-3 md:bottom-6 md:left-auto md:right-6 md:w-auto md:px-0">
+          <button
+            type="button"
+            onClick={() => onConfirmSelection?.()}
+            disabled={isProcessing || !onConfirmSelection}
+            className="mx-auto flex w-full max-w-md items-center justify-between gap-3 rounded-2xl border border-slate-700 bg-slate-900 px-4 py-3 text-left text-sm font-bold text-white shadow-xl shadow-slate-900/25 transition-all hover:bg-slate-800 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 md:w-auto"
+          >
+            <span>{selectedDeckCount} mazo(s) seleccionado(s) · Continuar</span>
+            <ChevronRight className="h-4 w-4 shrink-0" aria-hidden="true" />
+          </button>
+        </div>
+      )}
+    </>
   );
 }
