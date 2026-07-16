@@ -10,7 +10,7 @@ body,
 #root {
   height: 100%;
   /* CAMBIO: Ponemos el fondo claro por defecto de tu app (blanco o gris muy claro) */
-  background-color: #f8fafc; 
+  background-color: #ffffff;
 }
 
 body {

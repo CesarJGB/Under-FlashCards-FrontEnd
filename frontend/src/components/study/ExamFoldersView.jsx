@@ -227,29 +227,6 @@ export default function ExamFoldersView({ userId, onBack, dashboardShell, decks 
     if (currentFolderId && !currentFolder) setCurrentFolderId(null);
   }, [currentFolder, currentFolderId]);
 
-  useEffect(() => {
-    if (typeof document === 'undefined') return undefined;
-
-    const color = sessionConfig ? '#f8fafc' : '#ffffff';
-    const originalBodyBackground = document.body.style.backgroundColor;
-    const originalShellBackground = dashboardShell?.style.backgroundColor;
-    const themeColor = document.querySelector('meta[name="theme-color"]');
-    const originalThemeColor = themeColor?.getAttribute('content');
-
-    document.body.style.backgroundColor = color;
-    if (dashboardShell) dashboardShell.style.backgroundColor = color;
-    themeColor?.setAttribute('content', color);
-
-    return () => {
-      document.body.style.backgroundColor = originalBodyBackground;
-      if (dashboardShell) dashboardShell.style.backgroundColor = originalShellBackground || '';
-      if (themeColor) {
-        if (originalThemeColor) themeColor.setAttribute('content', originalThemeColor);
-        else themeColor.removeAttribute('content');
-      }
-    };
-  }, [dashboardShell, sessionConfig]);
-
   const updateExamInState = (nextExam) => {
     examsLoadVersionRef.current += 1;
     setExamsLoading(false);
