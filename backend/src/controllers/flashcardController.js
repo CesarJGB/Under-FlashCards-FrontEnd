@@ -200,7 +200,7 @@ exports.updateCard = async (req, res) => {
       update.bgImageIndex = await getOrCreateBgIndex(currentCard.deckId, bgImage);
     }
 
-    const card = await Flashcard.findByIdAndUpdate(id, { $set: update }, { new: true });
+    const card = await Flashcard.findByIdAndUpdate(id, { $set: update }, { returnDocument: 'after' });
     const deck = await Deck.findById(card.deckId);
     return res.json(card.serialize(deck ? deck.cardBackgrounds : []));
   } catch (err) {
@@ -363,7 +363,7 @@ exports.generateAiCards = async (req, res) => {
           },
         },
       },
-      { new: true }
+      { returnDocument: 'after' }
     );
     if (!lockedDeck) throw createRequestError(404, 'Mazo no encontrado en la base de datos.');
     aiRunLock = { deckId, userId: user._id, token: runId };
@@ -587,7 +587,7 @@ exports.generateAiCards = async (req, res) => {
       persistedDeck = await Deck.findOneAndUpdate(
         { _id: deckId, userId: user._id },
         { $addToSet: { cardBackgrounds: globalBg } },
-        { new: true }
+        { returnDocument: 'after' }
       );
     } else {
       persistedDeck = await Deck.findOne({ _id: deckId, userId: user._id });

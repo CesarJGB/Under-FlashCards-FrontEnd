@@ -401,7 +401,7 @@ exports.updateActiveParciales = async (req, res) => {
     const materia = await Materia.findByIdAndUpdate(
       id,
       { activeParciales },
-      { new: true }
+      { returnDocument: 'after' }
     );
     if (!materia) return res.status(404).json({ error: 'Materia no encontrada.' });
 

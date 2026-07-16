@@ -45,7 +45,7 @@ exports.registerReview = async (req, res) => {
           }
         }
       ],
-      { new: true, updatePipeline: true }
+      { returnDocument: 'after', updatePipeline: true }
     );
 
     if (!card) return res.status(404).json({ error: 'Flashcard no encontrada.' });
@@ -369,7 +369,7 @@ exports.closeSession = async (req, res) => {
     const session = await StudySession.findByIdAndUpdate(
       sessionId,
       { endedAt: new Date() },
-      { new: true }
+      { returnDocument: 'after' }
     );
 
     if (!session) {
@@ -397,7 +397,7 @@ exports.incrementSessionBatch = async (req, res) => {
     const session = await StudySession.findByIdAndUpdate(
       sessionId,
       { $inc: { batchesCompleted: 1 } },
-      { new: true }
+      { returnDocument: 'after' }
     );
 
     if (!session) {

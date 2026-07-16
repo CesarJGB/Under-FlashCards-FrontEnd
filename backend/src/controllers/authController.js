@@ -30,7 +30,7 @@ exports.googleAuth = async (req, res) => {
         $set: { email: payload.email, name: payload.name, picture: payload.picture },
         $setOnInsert: { googleId: payload.sub },
       },
-      { new: true, upsert: true, setDefaultsOnInsert: true }
+      { returnDocument: 'after', upsert: true, setDefaultsOnInsert: true }
     );
 
     return res.json({
@@ -79,7 +79,7 @@ exports.updateSettings = async (req, res) => {
     const user = await User.findByIdAndUpdate(
       userId,
       { $set: { aiApiKey: aiApiKey.trim() } },
-      { new: true }
+      { returnDocument: 'after' }
     );
     if (!user) return res.status(404).json({ error: 'User not found.' });
 

@@ -99,7 +99,7 @@ exports.updateDeck = async (req, res) => {
     if (temaId !== undefined) update.temaId = temaId;
     if (subtemaId !== undefined) update.subtemaId = subtemaId;
 
-    const deck = await Deck.findByIdAndUpdate(id, { $set: update }, { new: true });
+    const deck = await Deck.findByIdAndUpdate(id, { $set: update }, { returnDocument: 'after' });
     if (!deck) return res.status(404).json({ error: 'Deck not found.' });
     const cardCount = await Flashcard.countDocuments({ deckId: deck._id });
     return res.json(deck.serialize(cardCount));
@@ -118,7 +118,7 @@ exports.updateDefault = async (req, res) => {
       ...(isDefault ? { isPublicReadOnly: false } : {})
     };
 
-    const deck = await Deck.findByIdAndUpdate(id, { $set: update }, { new: true });
+    const deck = await Deck.findByIdAndUpdate(id, { $set: update }, { returnDocument: 'after' });
     if (!deck) return res.status(404).json({ error: 'Deck not found.' });
     const cardCount = await Flashcard.countDocuments({ deckId: deck._id });
     return res.json(deck.serialize(cardCount));
@@ -137,7 +137,7 @@ exports.updatePublicReadOnly = async (req, res) => {
       ...(isPublicReadOnly ? { isDefault: false } : {})
     };
 
-    const deck = await Deck.findByIdAndUpdate(id, { $set: update }, { new: true });
+    const deck = await Deck.findByIdAndUpdate(id, { $set: update }, { returnDocument: 'after' });
     if (!deck) return res.status(404).json({ error: 'Deck not found.' });
     const cardCount = await Flashcard.countDocuments({ deckId: deck._id });
     return res.json(deck.serialize(cardCount));

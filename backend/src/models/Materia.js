@@ -36,7 +36,14 @@ const materiaSchema = new mongoose.Schema(
 );
 
 materiaSchema.index({ name: 1, userId: 1 }, { unique: true });
-materiaSchema.index({ 'publicProfile.shareId': 1 }, { unique: true, sparse: true });
+materiaSchema.index(
+  { 'publicProfile.shareId': 1 },
+  {
+    unique: true,
+    // Un perfil no publicado usa null; solo los enlaces públicos deben ser únicos.
+    partialFilterExpression: { 'publicProfile.shareId': { $type: 'string' } }
+  }
+);
 
 materiaSchema.methods.serialize = function () {
   return {

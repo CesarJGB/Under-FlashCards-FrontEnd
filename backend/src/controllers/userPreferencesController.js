@@ -130,7 +130,7 @@ exports.updateUserPreferences = async (req, res) => {
     const user = await User.findByIdAndUpdate(
       req.params.userId,
       { $set: updateData },
-      { new: true, runValidators: true }
+      { returnDocument: 'after', runValidators: true }
     ).select('quickViewMaterias homeSectionVisibility studyMetricsFilters homeWidgetOrder');
 
     if (!user) {
