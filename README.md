@@ -113,8 +113,10 @@ these backend environment variables on the deployment platform when needed:
 - `AI_TARGET_PADDING_FACTOR`: proportional candidate margin before audit; default `0.30`, range `0.00-0.50`.
 - `AI_TARGET_PADDING_MAX`: maximum candidate margin from the padding policy; default `20`, range `0-500`.
 - `AI_TARGET_PADDING_PER_BATCH`: minimum candidate margin per padded batch; default `0`, range `0-10`.
+- `AI_BATCH_RECOVERY_ATTEMPTS`: full retry passes for temporarily failed batches when the valid-card target has not been reached; default `1`, range `0-2`.
 - `AI_REASONER_THRESHOLD`: raw-card count that selects `deepseek-reasoner` during audit; default `20`, range `1-20`.
-- `AI_REQUEST_TIMEOUT_MS`, `AI_MAX_RETRIES`, and `AI_RETRY_BASE_MS`: provider request resilience controls.
+- `AI_DECK_GENERATION_MAX_TOKENS` and `AI_DECK_AUDIT_MAX_TOKENS`: bounded DeepSeek output sizes for each generation or audit call; both default to `4096`, range `512-16384`.
+- `AI_REQUEST_TIMEOUT_MS`, `AI_MAX_RETRIES`, and `AI_RETRY_BASE_MS`: provider request resilience controls. `AI_MAX_RETRIES` defaults to `3` (range `0-4`).
 
 Set `VITE_MAX_AI_CARDS` to the same value as `AI_MAX_CARDS` in the frontend environment so the client selector matches the API limit.
 

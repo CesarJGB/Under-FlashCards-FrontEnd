@@ -37,11 +37,13 @@ const AI_GLOBAL_DECK_CONCURRENCY = readBoundedInteger(process.env.AI_GLOBAL_DECK
 const AI_DECK_LOCK_TTL_MS = readBoundedInteger(process.env.AI_DECK_LOCK_TTL_MS, 600000, 60000, 3600000);
 const AI_TARGET_PADDING_MAX = readBoundedInteger(process.env.AI_TARGET_PADDING_MAX, 20, 0, 500);
 const AI_TARGET_PADDING_PER_BATCH = readBoundedInteger(process.env.AI_TARGET_PADDING_PER_BATCH, 0, 0, 10);
+const AI_BATCH_RECOVERY_ATTEMPTS = readBoundedInteger(process.env.AI_BATCH_RECOVERY_ATTEMPTS, 1, 0, 2);
 const globalAiBatchLimiter = createConcurrencyLimiter(AI_GLOBAL_DECK_CONCURRENCY);
 
-function createRequestError(status, message) {
+function createRequestError(status, message, code = null) {
   const error = new Error(message);
   error.httpStatus = status;
+  error.code = code;
   return error;
 }
 
@@ -64,6 +66,26 @@ function addTokenUsage(total, usage) {
   for (const key of ['promptTokens', 'completionTokens', 'totalTokens']) {
     if (Number.isFinite(usage[key])) total[key] += usage[key];
   }
+}
+
+function isRecoverableAiError(error) {
+  return error instanceof aiService.AiServiceError && error.retryable === true;
+}
+
+function getBatchFailure(error, stage) {
+  const details = error?.details || {};
+  return {
+    stage,
+    code: error?.code ?? 'unknown',
+    providerStatus: error?.status ?? null,
+    requestId: error?.requestId ?? null,
+    attempts: error?.attempts ?? null,
+    validationReason: details.validationReason ?? null,
+    finishReason: details.finishReason ?? null,
+    responseContentType: details.responseContentType ?? null,
+    responseBytes: details.responseBytes ?? null,
+    emptyResponse: details.emptyResponse ?? null,
+  };
 }
 
 function summarizeBatches(batchStates, targetCount) {
@@ -114,6 +136,8 @@ function summarizeBatches(batchStates, targetCount) {
 
   const documents = selectDocumentsAcrossChunks(documentsByChunk, targetCount);
   metrics.accepted = documents.length;
+  metrics.failedBatches = batchStates.filter((state) => state.status === 'failed').length;
+  metrics.recoveredBatches = batchStates.filter((state) => state.recovered === true).length;
   return { documents, metrics };
 }
 
@@ -285,9 +309,11 @@ exports.generateAiCards = async (req, res) => {
   let stopEventStream = null;
   let runId = null;
   let failedBatch = null;
+  let primaryFailure = null;
   let generatedCount = 0;
   let auditedCount = 0;
   let acceptedCount = 0;
+  let targetCount = 1;
   let startedAt = null;
   let batchStates = [];
   let insertedFlashcards = null;
@@ -322,7 +348,7 @@ exports.generateAiCards = async (req, res) => {
     const currentDeck = await Deck.findOne({ _id: deckId, userId: user._id });
     if (!currentDeck) throw createRequestError(404, 'Mazo no encontrado en la base de datos.');
 
-    const targetCount = Math.min(MAX_AI_CARDS, Math.max(1, parseInt(count, 10) || 5));
+    targetCount = Math.min(MAX_AI_CARDS, Math.max(1, parseInt(count, 10) || 5));
     const paddingPlan = calculateTargetPadding(targetCount, AI_DECK_BATCH_SIZE, {
       factor: getPaddingFactor(),
       maximum: AI_TARGET_PADDING_MAX,
@@ -394,6 +420,10 @@ exports.generateAiCards = async (req, res) => {
       status: 'pending',
       rawCards: null,
       auditedCards: null,
+      stage: null,
+      failure: null,
+      recoveryAttempts: 0,
+      recovered: false,
       usage: createTokenUsage(),
     }));
 
@@ -407,8 +437,9 @@ exports.generateAiCards = async (req, res) => {
 
       const completedBatches = batchStates.filter((state) => state.status === 'completed').length;
       const activeBatches = batchStates.filter((state) => (
-        state.status === 'generating' || state.status === 'auditing'
+        state.status === 'generating' || state.status === 'auditing' || state.status === 'recovering'
       )).length;
+      const failedBatches = batchStates.filter((state) => state.status === 'failed').length;
       sendEvent(res, 'progress', {
         runId,
         stage,
@@ -421,6 +452,7 @@ exports.generateAiCards = async (req, res) => {
         totalBatches,
         completedBatches,
         activeBatches,
+        failedBatches,
         concurrency: AI_DECK_CONCURRENCY,
         globalConcurrency: AI_GLOBAL_DECK_CONCURRENCY,
         sourceChunks: sourcePlan.sourceChunks.length,
@@ -444,6 +476,7 @@ exports.generateAiCards = async (req, res) => {
       concurrency: AI_DECK_CONCURRENCY,
       globalConcurrency: AI_GLOBAL_DECK_CONCURRENCY,
       lockTtlMs: AI_DECK_LOCK_TTL_MS,
+      batchRecoveryAttempts: AI_BATCH_RECOVERY_ATTEMPTS,
     });
 
     if (streamProgress) {
@@ -452,17 +485,35 @@ exports.generateAiCards = async (req, res) => {
       reportProgress('preparing', 'Preparando la generación con IA...');
     }
 
-    await mapWithConcurrency(sourcePlan.batches, AI_DECK_CONCURRENCY, async (batch, index) => {
+    const processBatch = async (batch, index, recoveryAttempt = 0) => {
       const state = batchStates[index];
-      state.status = 'queued';
-      reportProgress('queued', `Esperando capacidad de IA para el lote ${batch.number}/${totalBatches}...`, batch);
+      state.status = recoveryAttempt > 0 ? 'recovering' : 'queued';
+      state.stage = null;
+      state.failure = null;
+      state.rawCards = null;
+      state.auditedCards = null;
+      state.recoveryAttempts = recoveryAttempt;
+      reportProgress(
+        recoveryAttempt > 0 ? 'recovering' : 'queued',
+        recoveryAttempt > 0
+          ? `Recuperando el lote ${batch.number}/${totalBatches}...`
+          : `Esperando capacidad de IA para el lote ${batch.number}/${totalBatches}...`,
+        batch
+      );
       let releaseGlobalSlot;
 
       try {
         releaseGlobalSlot = await globalAiBatchLimiter.acquire({ signal: runAbortController.signal });
         state.status = 'generating';
+        state.stage = 'deck_generate';
         state.startedAt = Date.now();
-        reportProgress('generating', `Generando tarjetas del lote ${batch.number}/${totalBatches}...`, batch);
+        reportProgress(
+          recoveryAttempt > 0 ? 'recovering' : 'generating',
+          recoveryAttempt > 0
+            ? `Regenerando tarjetas del lote ${batch.number}/${totalBatches}...`
+            : `Generando tarjetas del lote ${batch.number}/${totalBatches}...`,
+          batch
+        );
 
         const context = {
           runId,
@@ -476,7 +527,7 @@ exports.generateAiCards = async (req, res) => {
           signal: runAbortController.signal,
           onRetry: () => reportProgress(
             'retrying',
-            `La IA está ocupada. Reintentando el lote ${batch.number}/${totalBatches}...`,
+            `La IA devolvió una respuesta incompleta. Reintentando el lote ${batch.number}/${totalBatches}...`,
             batch
           ),
           onUsage: ({ usage }) => addTokenUsage(state.usage, usage),
@@ -491,6 +542,7 @@ exports.generateAiCards = async (req, res) => {
         );
         state.generateDurationMs = Date.now() - generateStartedAt;
         state.status = 'auditing';
+        state.stage = 'deck_audit';
         reportProgress('auditing', `Auditando tarjetas del lote ${batch.number}/${totalBatches}...`, batch);
 
         const auditStartedAt = Date.now();
@@ -503,13 +555,16 @@ exports.generateAiCards = async (req, res) => {
         state.auditDurationMs = Date.now() - auditStartedAt;
         state.durationMs = Date.now() - state.startedAt;
         state.status = 'completed';
+        state.recovered = recoveryAttempt > 0;
 
         const summary = reportProgress(
-          'completed_batch',
-          `Lote ${batch.number}/${totalBatches} completado.`,
+          recoveryAttempt > 0 ? 'recovered_batch' : 'completed_batch',
+          recoveryAttempt > 0
+            ? `Lote ${batch.number}/${totalBatches} recuperado.`
+            : `Lote ${batch.number}/${totalBatches} completado.`,
           batch
         );
-        aiService.logAiEvent('batch_completed', {
+        aiService.logAiEvent(recoveryAttempt > 0 ? 'batch_recovered' : 'batch_completed', {
           runId,
           flow: 'deck',
           deckId: String(currentDeck._id),
@@ -524,12 +579,39 @@ exports.generateAiCards = async (req, res) => {
           generateDurationMs: state.generateDurationMs,
           auditDurationMs: state.auditDurationMs,
           durationMs: state.durationMs,
+          recoveryAttempt,
           usage: state.usage,
         });
         return state;
       } catch (error) {
+        if (isRecoverableAiError(error) && !runAbortController.signal.aborted) {
+          state.status = 'failed';
+          state.failure = getBatchFailure(error, state.stage);
+          state.rawCards = null;
+          state.auditedCards = null;
+          state.durationMs = state.startedAt ? Date.now() - state.startedAt : null;
+          aiService.logAiEvent('batch_failed', {
+            runId,
+            flow: 'deck',
+            batch: batch.number,
+            totalBatches,
+            sourceChunk: batch.sourceChunkIndex,
+            sourceCharacters: batch.sourceCharCount,
+            recoverable: true,
+            recoveryAttempt,
+            ...state.failure,
+          });
+          reportProgress(
+            'batch_failed',
+            `El lote ${batch.number}/${totalBatches} falló temporalmente; se usará el margen disponible.`,
+            batch
+          );
+          return state;
+        }
+
         if (!runAbortController.signal.aborted) {
           failedBatch ??= batch.number;
+          primaryFailure ??= { error, batch: batch.number, stage: state.stage };
           aiService.logAiEvent('batch_failed', {
             runId,
             flow: 'deck',
@@ -539,16 +621,63 @@ exports.generateAiCards = async (req, res) => {
             sourceCharacters: batch.sourceCharCount,
             code: error.code ?? null,
             providerStatus: error.status ?? null,
+            stage: state.stage,
+            recoverable: false,
           });
           runAbortController.abort();
         }
-        throw error;
+        throw primaryFailure?.error || error;
       } finally {
         releaseGlobalSlot?.();
       }
-    }, { signal: runAbortController.signal });
+    };
 
-    const summary = summarizeBatches(batchStates, targetCount);
+    try {
+      await mapWithConcurrency(
+        sourcePlan.batches,
+        AI_DECK_CONCURRENCY,
+        (batch, index) => processBatch(batch, index),
+        { signal: runAbortController.signal }
+      );
+    } catch (error) {
+      throw primaryFailure?.error || error;
+    }
+
+    let summary = summarizeBatches(batchStates, targetCount);
+    for (
+      let recoveryAttempt = 1;
+      summary.documents.length < targetCount && recoveryAttempt <= AI_BATCH_RECOVERY_ATTEMPTS;
+      recoveryAttempt += 1
+    ) {
+      const failedStates = batchStates.filter((state) => state.status === 'failed');
+      if (failedStates.length === 0) break;
+
+      aiService.logAiEvent('recovery_started', {
+        runId,
+        flow: 'deck',
+        recoveryAttempt,
+        failedBatches: failedStates.map((state) => state.batch.number),
+        accepted: summary.metrics.accepted,
+        target: targetCount,
+      });
+      reportProgress(
+        'recovering',
+        `Recuperando ${failedStates.length} lote(s) para completar ${targetCount} tarjetas...`
+      );
+
+      try {
+        await mapWithConcurrency(
+          failedStates,
+          AI_DECK_CONCURRENCY,
+          (state) => processBatch(state.batch, batchStates.indexOf(state), recoveryAttempt),
+          { signal: runAbortController.signal }
+        );
+      } catch (error) {
+        throw primaryFailure?.error || error;
+      }
+      summary = summarizeBatches(batchStates, targetCount);
+    }
+
     generatedCount = summary.metrics.generated;
     auditedCount = summary.metrics.audited;
     acceptedCount = summary.metrics.accepted;
@@ -562,6 +691,7 @@ exports.generateAiCards = async (req, res) => {
       sourceChunks: sourcePlan.sourceChunks.length,
       concurrency: AI_DECK_CONCURRENCY,
       globalConcurrency: AI_GLOBAL_DECK_CONCURRENCY,
+      batchRecoveryAttempts: AI_BATCH_RECOVERY_ATTEMPTS,
       tokenUsage,
     };
     const documentsToInsert = summary.documents.map((document) => ({
@@ -577,7 +707,8 @@ exports.generateAiCards = async (req, res) => {
     if (documentsToInsert.length < targetCount) {
       throw createRequestError(
         422,
-        `La auditoría aceptó ${documentsToInsert.length} de ${targetCount} tarjetas. Aumenta el padding de IA e inténtalo de nuevo.`
+        `La IA aceptó ${documentsToInsert.length} de ${targetCount} tarjetas después de procesar los reintentos disponibles. Inténtalo de nuevo.`,
+        'insufficient_valid_cards'
       );
     }
 
@@ -640,19 +771,33 @@ exports.generateAiCards = async (req, res) => {
       }
     }
     if (runId) {
+      const failureSummary = summarizeBatches(batchStates, targetCount);
+      generatedCount = failureSummary.metrics.generated;
+      auditedCount = failureSummary.metrics.audited;
+      acceptedCount = failureSummary.metrics.accepted;
       const tokenUsage = batchStates.reduce((total, state) => {
         addTokenUsage(total, state.usage);
         return total;
       }, createTokenUsage());
+      const reportedError = primaryFailure?.error || err;
+      const failedState = batchStates.find((state) => state.status === 'failed');
       aiService.logAiEvent('run_failed', {
         runId,
         flow: 'deck',
-        batch: failedBatch ?? null,
+        batch: primaryFailure?.batch ?? failedBatch ?? failedState?.batch.number ?? null,
+        stage: primaryFailure?.stage ?? failedState?.failure?.stage ?? null,
         generated: generatedCount,
         audited: auditedCount,
         accepted: acceptedCount,
-        code: err.code ?? null,
-        providerStatus: err.status ?? null,
+        failedBatches: batchStates
+          .filter((state) => state.status === 'failed')
+          .map((state) => state.batch.number),
+        code: reportedError.code ?? null,
+        providerStatus: reportedError.status ?? null,
+        requestId: reportedError.requestId ?? null,
+        attempts: reportedError.attempts ?? null,
+        ...(reportedError.details ? { details: reportedError.details } : {}),
+        ...(failedState?.failure ? { batchFailure: failedState.failure } : {}),
         ...(startedAt ? { durationMs: Date.now() - startedAt, tokenUsage } : {}),
       });
     }

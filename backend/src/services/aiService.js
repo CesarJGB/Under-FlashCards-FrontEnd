@@ -11,8 +11,20 @@ function readBoundedInteger(value, fallback, minimum, maximum) {
 const REASONER_THRESHOLD = readBoundedInteger(process.env.AI_REASONER_THRESHOLD, 20, 1, 20);
 const AI_DEBUG_LOGS = process.env.AI_DEBUG_LOGS !== 'false';
 const AI_REQUEST_TIMEOUT_MS = readBoundedInteger(process.env.AI_REQUEST_TIMEOUT_MS, 90000, 10000, 180000);
-const AI_MAX_RETRIES = readBoundedInteger(process.env.AI_MAX_RETRIES, 2, 0, 4);
+const AI_MAX_RETRIES = readBoundedInteger(process.env.AI_MAX_RETRIES, 3, 0, 4);
 const AI_RETRY_BASE_MS = readBoundedInteger(process.env.AI_RETRY_BASE_MS, 1000, 250, 10000);
+const AI_DECK_GENERATION_MAX_TOKENS = readBoundedInteger(
+  process.env.AI_DECK_GENERATION_MAX_TOKENS,
+  4096,
+  512,
+  16384
+);
+const AI_DECK_AUDIT_MAX_TOKENS = readBoundedInteger(
+  process.env.AI_DECK_AUDIT_MAX_TOKENS,
+  4096,
+  512,
+  16384
+);
 
 class AiServiceError extends Error {
   constructor(code, message, options = {}) {
@@ -23,6 +35,16 @@ class AiServiceError extends Error {
     this.retryable = options.retryable === true;
     this.requestId = options.requestId ?? null;
     this.retryAfterMs = options.retryAfterMs ?? null;
+    this.details = options.details ?? null;
+    this.attempts = options.attempts ?? null;
+  }
+}
+
+class ModelOutputValidationError extends Error {
+  constructor(reason, message) {
+    super(message);
+    this.name = 'ModelOutputValidationError';
+    this.reason = reason;
   }
 }
 
@@ -92,12 +114,33 @@ function normalizeError(error, { abortedByCaller = false } = {}) {
 
 function getMessageContent(data) {
   const choice = data?.choices?.[0];
+  if (!choice) {
+    throw new AiServiceError('invalid_model_output', 'La IA no devolvió una opción.', {
+      retryable: true,
+      details: { validationReason: 'missing_choice' },
+    });
+  }
   if (choice?.finish_reason === 'length') {
-    throw new AiServiceError('truncated_output', 'La IA agotó el límite de respuesta.', { retryable: true });
+    throw new AiServiceError('truncated_output', 'La IA agotó el límite de respuesta.', {
+      retryable: true,
+      details: { finishReason: 'length' },
+    });
+  }
+  if (choice.finish_reason && choice.finish_reason !== 'stop') {
+    throw new AiServiceError('invalid_model_output', 'La IA terminó sin completar la respuesta.', {
+      retryable: true,
+      details: {
+        validationReason: 'unexpected_finish_reason',
+        finishReason: choice.finish_reason,
+      },
+    });
   }
   const content = choice?.message?.content?.trim();
   if (!content) {
-    throw new AiServiceError('invalid_model_output', 'La IA devolvió una respuesta vacía.', { retryable: true });
+    throw new AiServiceError('invalid_model_output', 'La IA devolvió una respuesta vacía.', {
+      retryable: true,
+      details: { validationReason: 'empty_content' },
+    });
   }
   return content;
 }
@@ -175,12 +218,19 @@ async function callDeepSeekJson({ apiKey, requestBody, context = {}, parseRespon
       }
 
       let data;
+      let body = '';
       try {
-        data = await response.json();
+        body = await response.text();
+        data = JSON.parse(body.replace(/^\uFEFF/, ''));
       } catch {
         throw new AiServiceError('invalid_provider_response', 'DeepSeek devolvió una respuesta no JSON.', {
           requestId,
           retryable: true,
+          details: {
+            responseContentType: response.headers.get('content-type') || null,
+            responseBytes: Buffer.byteLength(body),
+            emptyResponse: body.trim().length === 0,
+          },
         });
       }
 
@@ -189,10 +239,18 @@ async function callDeepSeekJson({ apiKey, requestBody, context = {}, parseRespon
         try {
           parsed = parseResponse(data);
         } catch (error) {
-          if (error instanceof AiServiceError) throw error;
+          if (error instanceof AiServiceError) {
+            error.requestId ??= requestId;
+            throw error;
+          }
           throw new AiServiceError('invalid_model_output', 'La IA devolvió un formato no válido.', {
             requestId,
             retryable: true,
+            details: {
+              validationReason: error instanceof ModelOutputValidationError
+                ? error.reason
+                : 'invalid_payload',
+            },
           });
         }
       }
@@ -217,6 +275,7 @@ async function callDeepSeekJson({ apiKey, requestBody, context = {}, parseRespon
       return parsed;
     } catch (error) {
       const aiError = normalizeError(error, { abortedByCaller: signal?.aborted });
+      aiError.attempts = attempt + 1;
       const canRetry = aiError.retryable && attempt < AI_MAX_RETRIES && !signal?.aborted;
       const delayMs = aiError.retryAfterMs
         ?? Math.min(30000, AI_RETRY_BASE_MS * (2 ** attempt) + Math.floor(Math.random() * 250));
@@ -230,6 +289,7 @@ async function callDeepSeekJson({ apiKey, requestBody, context = {}, parseRespon
         providerStatus: aiError.status,
         requestId: aiError.requestId,
         retryable: aiError.retryable,
+        ...(aiError.details ? { details: aiError.details } : {}),
         ...(canRetry ? { delayMs } : {}),
       });
 
@@ -250,31 +310,40 @@ async function callDeepSeekJson({ apiKey, requestBody, context = {}, parseRespon
 
 function parseJsonObject(content) {
   const fencedJson = content.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
-  const parsed = JSON.parse(fencedJson ? fencedJson[1] : content);
+  let parsed;
+  try {
+    parsed = JSON.parse(fencedJson ? fencedJson[1] : content);
+  } catch {
+    throw new ModelOutputValidationError('invalid_json', 'La respuesta no contiene JSON válido.');
+  }
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new Error('La respuesta no es un objeto JSON.');
+    throw new ModelOutputValidationError('invalid_json_object', 'La respuesta no es un objeto JSON.');
   }
   return parsed;
 }
 
 function validateCards(cards, maximumCount, { requireStatus = false, requireExactCount = false } = {}) {
   if (!Array.isArray(cards) || cards.length === 0) {
-    throw new Error('No se generaron tarjetas válidas.');
+    throw new ModelOutputValidationError('missing_cards', 'No se generaron tarjetas válidas.');
   }
   if (requireExactCount && cards.length !== maximumCount) {
-    throw new Error('La IA devolvió una cantidad de tarjetas inválida.');
+    throw new ModelOutputValidationError('wrong_card_count', 'La IA devolvió una cantidad de tarjetas inválida.');
   }
 
   const limitedCards = cards.slice(0, maximumCount);
   const validStatuses = new Set(['sin_cambios', 'corregida', 'fusionada', 'eliminada']);
+  const expectedFields = requireStatus
+    ? new Set(['question', 'answer', 'status'])
+    : new Set(['question', 'answer']);
   const hasInvalidCard = limitedCards.some((card) => {
-    if (!card || typeof card !== 'object') return true;
+    if (!card || typeof card !== 'object' || Array.isArray(card)) return true;
+    if (Object.keys(card).some((field) => !expectedFields.has(field))) return true;
     if (typeof card.question !== 'string' || !card.question.trim()) return true;
     if (typeof card.answer !== 'string' || !card.answer.trim()) return true;
     return requireStatus && !validStatuses.has(card.status);
   });
   if (hasInvalidCard) {
-    throw new Error('La IA devolvió una tarjeta con un formato inválido.');
+    throw new ModelOutputValidationError('invalid_card', 'La IA devolvió una tarjeta con un formato inválido.');
   }
 
   return limitedCards;
@@ -289,6 +358,7 @@ async function generateRawCards(text, targetCount, apiKey, context = {}) {
     requestBody: {
       model: 'deepseek-chat',
       response_format: { type: 'json_object' },
+      max_tokens: AI_DECK_GENERATION_MAX_TOKENS,
       temperature: 0.3,
       messages: [
         {
@@ -311,6 +381,7 @@ async function criticizeAndRefineCards(originalText, rawCards, apiKey, context =
   const requestBody = {
     model,
     response_format: { type: 'json_object' },
+    max_tokens: AI_DECK_AUDIT_MAX_TOKENS,
     messages: [
       {
         role: 'system',
