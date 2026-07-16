@@ -375,6 +375,93 @@ async function generateRawCards(text, targetCount, apiKey, context = {}) {
   });
 }
 
+/**
+ * Generates and audits a batch in one provider request.
+ *
+ * The model is asked to over-generate internally, but the only data returned
+ * to the pipeline is the exact number of validated cards requested by the
+ * caller. This keeps the controller contract compatible with the two-step
+ * pipeline while removing the second network round trip and source resend.
+ */
+async function generateAndAuditBatch(segment, targetCount, apiKey, context = {}) {
+  const normalizedTarget = Number.parseInt(targetCount, 10);
+  if (!Number.isInteger(normalizedTarget) || normalizedTarget < 1) {
+    throw new AiServiceError(
+      'invalid_target_count',
+      'La cantidad de tarjetas solicitada no es válida.',
+      { retryable: false }
+    );
+  }
+  if (typeof segment !== 'string' || !segment.trim()) {
+    throw new AiServiceError(
+      'invalid_source_segment',
+      'El segmento fuente no es válido.',
+      { retryable: false }
+    );
+  }
+  if (typeof apiKey !== 'string' || !apiKey.trim()) {
+    throw new AiServiceError(
+      'missing_api_key',
+      'No se configuró una clave de IA.',
+      { retryable: false }
+    );
+  }
+
+  const rawCount = Math.max(normalizedTarget, Math.ceil(normalizedTarget * 1.3));
+  const { signal, ...aiContext } = context;
+
+  try {
+    return await callDeepSeekJson({
+      apiKey,
+      context: {
+        ...aiContext,
+        stage: 'deck_generate_audit',
+        rawCardCount: rawCount,
+        targetCount: normalizedTarget,
+      },
+      signal,
+      requestBody: {
+        model: 'deepseek-chat',
+        response_format: { type: 'json_object' },
+        max_tokens: Math.max(AI_DECK_GENERATION_MAX_TOKENS, AI_DECK_AUDIT_MAX_TOKENS),
+        temperature: 0.3,
+        messages: [
+          {
+            role: 'system',
+            content: [
+              'Eres un creador de flashcards experto y un auditor académico implacable.',
+              `Genera internamente ${rawCount} tarjetas de estudio basadas EXCLUSIVAMENTE en el texto proporcionado y luego audítalas internamente para devolver solo las ${normalizedTarget} mejores.`,
+              'REGLAS: una idea por tarjeta, pregunta recuperable y respuesta autocontenida.',
+              'PROHIBIDO inventar información. PROHIBIDO usar Markdown.',
+              'PROCESO: genera candidatas de más, elimina redundantes o ambiguas, corrige la redacción y devuelve EXACTAMENTE la cantidad solicitada.',
+            ].join(' '),
+          },
+          {
+            role: 'user',
+            content: `Texto fuente:\n"""\n${segment}\n"""\n\nDevuelve un JSON válido con esta estructura exacta: {"cards": [{"question": "string", "answer": "string"}]}. El array debe tener exactamente ${normalizedTarget} elementos.`,
+          },
+        ],
+      },
+      parseResponse(data) {
+        const parsed = parseJsonObject(getMessageContent(data));
+        return validateCards(parsed.cards, normalizedTarget, { requireExactCount: true });
+      },
+    });
+  } catch (error) {
+    // callDeepSeekJson already classifies provider, timeout and parse errors.
+    // Preserve that metadata; normalize unexpected failures for the controller.
+    if (error instanceof AiServiceError) throw error;
+    throw new AiServiceError(
+      'combined_batch_failed',
+      'No se pudo generar y auditar el lote de tarjetas.',
+      {
+        retryable: true,
+        details: { validationReason: 'unexpected_combined_batch_error' },
+      }
+    );
+  }
+}
+
 async function criticizeAndRefineCards(originalText, rawCards, apiKey, context = {}) {
   const useReasoner = rawCards.length >= REASONER_THRESHOLD;
   const model = useReasoner ? 'deepseek-reasoner' : 'deepseek-chat';
@@ -421,6 +508,7 @@ module.exports = {
   callDeepSeekJson,
   createRunId,
   criticizeAndRefineCards,
+  generateAndAuditBatch,
   generateRawCards,
   getMessageContent,
   getSafeErrorMessage,

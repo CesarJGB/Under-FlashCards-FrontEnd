@@ -120,5 +120,9 @@ these backend environment variables on the deployment platform when needed:
 
 Set `VITE_MAX_AI_CARDS` to the same value as `AI_MAX_CARDS` in the frontend environment so the client selector matches the API limit.
 
+The frontend uses `/api/flashcards/generate-ai-v2` by default. Set
+`VITE_AI_GENERATION_MODE=v1` only to roll back temporarily to the original
+generation-plus-audit pipeline.
+
 Start with the defaults. Raise concurrency only after monitoring the emitted AI logs
 for `429` responses, retries, batch durations, and token usage.

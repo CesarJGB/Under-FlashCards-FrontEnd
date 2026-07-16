@@ -6,6 +6,7 @@ process.env.AI_RETRY_BASE_MS = '250';
 
 const {
   callDeepSeekJson,
+  generateAndAuditBatch,
   generateRawCards,
   getMessageContent,
   validateCards,
@@ -61,6 +62,44 @@ test('generateRawCards sets a bounded explicit output limit', async (t) => {
 
   assert.deepEqual(cards, [{ question: 'Pregunta', answer: 'Respuesta' }]);
   assert.equal(requestBody.max_tokens, 4096);
+});
+
+test('generateAndAuditBatch uses one combined request and validates the exact target', async (t) => {
+  const originalFetch = global.fetch;
+  let requestBody = null;
+  let calls = 0;
+  global.fetch = async (_url, options) => {
+    calls += 1;
+    requestBody = JSON.parse(options.body);
+    return providerResponse(JSON.stringify({
+      cards: [
+        { question: 'Pregunta uno', answer: 'Respuesta uno' },
+        { question: 'Pregunta dos', answer: 'Respuesta dos' },
+      ],
+    }), 'stop');
+  };
+  t.after(() => {
+    global.fetch = originalFetch;
+  });
+
+  const cards = await generateAndAuditBatch('Texto fuente verificable.', 2, 'test-key');
+
+  assert.equal(calls, 1);
+  assert.equal(cards.length, 2);
+  assert.deepEqual(cards[0], { question: 'Pregunta uno', answer: 'Respuesta uno' });
+  assert.equal(requestBody.model, 'deepseek-chat');
+  assert.deepEqual(requestBody.response_format, { type: 'json_object' });
+  assert.equal(requestBody.temperature, 0.3);
+  assert.match(requestBody.messages[0].content, /3 tarjetas/);
+  assert.match(requestBody.messages[0].content, /2 mejores/);
+  assert.match(requestBody.messages[1].content, /exactamente 2 elementos/);
+});
+
+test('generateAndAuditBatch rejects an invalid target before calling the provider', async () => {
+  await assert.rejects(
+    () => generateAndAuditBatch('Texto fuente.', 0, 'test-key'),
+    (error) => error.code === 'invalid_target_count' && error.retryable === false
+  );
 });
 
 test('model output validation exposes safe reasons and rejects unexpected fields', () => {

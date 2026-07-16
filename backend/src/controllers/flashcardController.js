@@ -303,7 +303,9 @@ exports.createBulkCards = async (req, res) => {
   }
 };
 
-exports.generateAiCards = async (req, res) => {
+async function generateAiCardsPipeline(req, res, { combinedBatch = false } = {}) {
+  const pipelineFlow = combinedBatch ? 'deck-v2' : 'deck';
+  const pipelineVersion = combinedBatch ? 'v2' : 'v1';
   const streamProgress = acceptsEventStream(req);
   let streamStarted = false;
   let stopEventStream = null;
@@ -403,7 +405,7 @@ exports.generateAiCards = async (req, res) => {
       } catch (error) {
         aiService.logAiEvent('run_lock_renewal_failed', {
           runId,
-          flow: 'deck',
+          flow: pipelineFlow,
           code: error.code ?? null,
         });
       }
@@ -463,7 +465,8 @@ exports.generateAiCards = async (req, res) => {
 
     aiService.logAiEvent('run_started', {
       runId,
-      flow: 'deck',
+      flow: pipelineFlow,
+      pipelineVersion,
       deckId: String(currentDeck._id),
       targetCount,
       phase1Target,
@@ -505,19 +508,21 @@ exports.generateAiCards = async (req, res) => {
       try {
         releaseGlobalSlot = await globalAiBatchLimiter.acquire({ signal: runAbortController.signal });
         state.status = 'generating';
-        state.stage = 'deck_generate';
+        state.stage = combinedBatch ? 'deck_generate_audit' : 'deck_generate';
         state.startedAt = Date.now();
         reportProgress(
           recoveryAttempt > 0 ? 'recovering' : 'generating',
           recoveryAttempt > 0
             ? `Regenerando tarjetas del lote ${batch.number}/${totalBatches}...`
-            : `Generando tarjetas del lote ${batch.number}/${totalBatches}...`,
+            : combinedBatch
+              ? `Generando y auditando el lote ${batch.number}/${totalBatches}...`
+              : `Generando tarjetas del lote ${batch.number}/${totalBatches}...`,
           batch
         );
 
         const context = {
           runId,
-          flow: 'deck',
+          flow: pipelineFlow,
           deckId: String(currentDeck._id),
           batch: batch.number,
           totalBatches,
@@ -534,25 +539,42 @@ exports.generateAiCards = async (req, res) => {
         };
 
         const generateStartedAt = Date.now();
-        state.rawCards = await aiService.generateRawCards(
-          batch.sourceChunk,
-          batch.targetCount,
-          user.aiApiKey,
-          context
-        );
-        state.generateDurationMs = Date.now() - generateStartedAt;
-        state.status = 'auditing';
-        state.stage = 'deck_audit';
-        reportProgress('auditing', `Auditando tarjetas del lote ${batch.number}/${totalBatches}...`, batch);
+        if (combinedBatch) {
+          state.rawCards = await aiService.generateAndAuditBatch(
+            batch.sourceChunk,
+            batch.targetCount,
+            user.aiApiKey,
+            context
+          );
+          // The combined service returns already audited cards. Add the
+          // legacy status expected by summarizeBatches without another model call.
+          state.auditedCards = state.rawCards.map((card) => ({
+            ...card,
+            status: 'sin_cambios',
+          }));
+          state.generateDurationMs = Date.now() - generateStartedAt;
+          state.auditDurationMs = 0;
+        } else {
+          state.rawCards = await aiService.generateRawCards(
+            batch.sourceChunk,
+            batch.targetCount,
+            user.aiApiKey,
+            context
+          );
+          state.generateDurationMs = Date.now() - generateStartedAt;
+          state.status = 'auditing';
+          state.stage = 'deck_audit';
+          reportProgress('auditing', `Auditando tarjetas del lote ${batch.number}/${totalBatches}...`, batch);
 
-        const auditStartedAt = Date.now();
-        state.auditedCards = await aiService.criticizeAndRefineCards(
-          batch.sourceChunk,
-          state.rawCards,
-          user.aiApiKey,
-          context
-        );
-        state.auditDurationMs = Date.now() - auditStartedAt;
+          const auditStartedAt = Date.now();
+          state.auditedCards = await aiService.criticizeAndRefineCards(
+            batch.sourceChunk,
+            state.rawCards,
+            user.aiApiKey,
+            context
+          );
+          state.auditDurationMs = Date.now() - auditStartedAt;
+        }
         state.durationMs = Date.now() - state.startedAt;
         state.status = 'completed';
         state.recovered = recoveryAttempt > 0;
@@ -561,12 +583,14 @@ exports.generateAiCards = async (req, res) => {
           recoveryAttempt > 0 ? 'recovered_batch' : 'completed_batch',
           recoveryAttempt > 0
             ? `Lote ${batch.number}/${totalBatches} recuperado.`
-            : `Lote ${batch.number}/${totalBatches} completado.`,
+            : combinedBatch
+              ? `Lote ${batch.number}/${totalBatches} generado y auditado.`
+              : `Lote ${batch.number}/${totalBatches} completado.`,
           batch
         );
         aiService.logAiEvent(recoveryAttempt > 0 ? 'batch_recovered' : 'batch_completed', {
           runId,
-          flow: 'deck',
+          flow: pipelineFlow,
           deckId: String(currentDeck._id),
           batch: batch.number,
           totalBatches,
@@ -592,7 +616,7 @@ exports.generateAiCards = async (req, res) => {
           state.durationMs = state.startedAt ? Date.now() - state.startedAt : null;
           aiService.logAiEvent('batch_failed', {
             runId,
-            flow: 'deck',
+            flow: pipelineFlow,
             batch: batch.number,
             totalBatches,
             sourceChunk: batch.sourceChunkIndex,
@@ -614,7 +638,7 @@ exports.generateAiCards = async (req, res) => {
           primaryFailure ??= { error, batch: batch.number, stage: state.stage };
           aiService.logAiEvent('batch_failed', {
             runId,
-            flow: 'deck',
+            flow: pipelineFlow,
             batch: batch.number,
             totalBatches,
             sourceChunk: batch.sourceChunkIndex,
@@ -654,7 +678,7 @@ exports.generateAiCards = async (req, res) => {
 
       aiService.logAiEvent('recovery_started', {
         runId,
-        flow: 'deck',
+        flow: pipelineFlow,
         recoveryAttempt,
         failedBatches: failedStates.map((state) => state.batch.number),
         accepted: summary.metrics.accepted,
@@ -736,7 +760,8 @@ exports.generateAiCards = async (req, res) => {
     const backgrounds = persistedDeck.cardBackgrounds || [];
     aiService.logAiEvent('run_completed', {
       runId,
-      flow: 'deck',
+      flow: pipelineFlow,
+      pipelineVersion,
       deckId: String(currentDeck._id),
       createdCount: insertedFlashcards.length,
       durationMs: Date.now() - startedAt,
@@ -765,7 +790,7 @@ exports.generateAiCards = async (req, res) => {
       } catch (cleanupError) {
         aiService.logAiEvent('card_cleanup_failed', {
           runId,
-          flow: 'deck',
+          flow: pipelineFlow,
           code: cleanupError.code ?? null,
         });
       }
@@ -783,7 +808,8 @@ exports.generateAiCards = async (req, res) => {
       const failedState = batchStates.find((state) => state.status === 'failed');
       aiService.logAiEvent('run_failed', {
         runId,
-        flow: 'deck',
+        flow: pipelineFlow,
+        pipelineVersion,
         batch: primaryFailure?.batch ?? failedBatch ?? failedState?.batch.number ?? null,
         stage: primaryFailure?.stage ?? failedState?.failure?.stage ?? null,
         generated: generatedCount,
@@ -822,7 +848,7 @@ exports.generateAiCards = async (req, res) => {
       } catch (releaseError) {
         aiService.logAiEvent('run_lock_release_failed', {
           runId,
-          flow: 'deck',
+          flow: pipelineFlow,
           code: releaseError.code ?? null,
         });
       }
@@ -831,4 +857,8 @@ exports.generateAiCards = async (req, res) => {
     req.off?.('aborted', abortRun);
     res.off?.('close', abortRun);
   }
-};
+}
+
+exports.generateAiCards = (req, res) => generateAiCardsPipeline(req, res);
+
+exports.generateAIV2 = (req, res) => generateAiCardsPipeline(req, res, { combinedBatch: true });

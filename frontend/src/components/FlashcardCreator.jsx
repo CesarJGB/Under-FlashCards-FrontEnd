@@ -29,6 +29,9 @@ const SWATCHES = [
 ];
 
 const PREVIEW_VISIBLE_KEY = 'ufc_preview_visible_v1';
+const AI_GENERATION_ENDPOINT = import.meta.env.VITE_AI_GENERATION_MODE === 'v1'
+  ? '/api/flashcards/generate-ai'
+  : '/api/flashcards/generate-ai-v2';
 
 export default function FlashcardCreator({
   question, setQuestion, answer, setAnswer, bgImage, setBgImage, textAlign, setTextAlign,
@@ -136,7 +139,7 @@ export default function FlashcardCreator({
 
       try {
         const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
-        const res = await fetch(`${BACKEND_URL}/api/flashcards/generate-ai`, {
+        const res = await fetch(`${BACKEND_URL}${AI_GENERATION_ENDPOINT}`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

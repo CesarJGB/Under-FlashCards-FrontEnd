@@ -12,5 +12,6 @@ router.get('/flashcards/deck/:deckId', flashcardController.getCardsByDeck);
 // Operaciones masivas e Inteligencia Artificial
 router.post('/flashcards/bulk', flashcardController.createBulkCards);
 router.post('/flashcards/generate-ai', protect, flashcardController.generateAiCards);
+router.post('/flashcards/generate-ai-v2', protect, flashcardController.generateAIV2);
 
 module.exports = router;

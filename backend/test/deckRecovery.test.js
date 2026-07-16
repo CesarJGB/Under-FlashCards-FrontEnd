@@ -5,7 +5,7 @@ const test = require('node:test');
 const Flashcard = require('../src/models/Flashcard');
 const Deck = require('../src/models/Deck');
 const aiService = require('../src/services/aiService');
-const { generateAiCards } = require('../src/controllers/flashcardController');
+const { generateAiCards, generateAIV2 } = require('../src/controllers/flashcardController');
 
 function createRequest() {
   const req = new EventEmitter();
@@ -35,7 +35,7 @@ function createResponse() {
   return res;
 }
 
-function installFakes(t, { generate }) {
+function installFakes(t, { generate, generateCombined }) {
   const originals = {
     findOne: Deck.findOne,
     findOneAndUpdate: Deck.findOneAndUpdate,
@@ -43,6 +43,7 @@ function installFakes(t, { generate }) {
     insertMany: Flashcard.insertMany,
     deleteMany: Flashcard.deleteMany,
     generateRawCards: aiService.generateRawCards,
+    generateAndAuditBatch: aiService.generateAndAuditBatch,
     criticizeAndRefineCards: aiService.criticizeAndRefineCards,
     createRunId: aiService.createRunId,
     logAiEvent: aiService.logAiEvent,
@@ -63,6 +64,7 @@ function installFakes(t, { generate }) {
   };
   Flashcard.deleteMany = async () => ({ deletedCount: 0 });
   aiService.generateRawCards = generate;
+  aiService.generateAndAuditBatch = generateCombined || originals.generateAndAuditBatch;
   aiService.criticizeAndRefineCards = async (_text, rawCards) => rawCards.map((card) => ({
     ...card,
     status: 'sin_cambios',
@@ -77,6 +79,7 @@ function installFakes(t, { generate }) {
     Flashcard.insertMany = originals.insertMany;
     Flashcard.deleteMany = originals.deleteMany;
     aiService.generateRawCards = originals.generateRawCards;
+    aiService.generateAndAuditBatch = originals.generateAndAuditBatch;
     aiService.criticizeAndRefineCards = originals.criticizeAndRefineCards;
     aiService.createRunId = originals.createRunId;
     aiService.logAiEvent = originals.logAiEvent;
@@ -127,4 +130,31 @@ test('does not persist cards when recovered batches still cannot meet the target
   assert.equal(res.statusCode, 422);
   assert.equal(inserted.length, 0);
   assert.match(res.payload.message, /La IA aceptó/i);
+});
+
+test('V2 uses the combined generation and audit call once per batch', async (t) => {
+  let combinedCalls = 0;
+  let legacyCalls = 0;
+  const { inserted } = installFakes(t, {
+    generate: async () => {
+      legacyCalls += 1;
+      throw new Error('El pipeline V2 no debe llamar al generador legado.');
+    },
+    generateCombined: async (_text, targetCount) => {
+      combinedCalls += 1;
+      return Array.from({ length: targetCount }, (_, index) => ({
+        question: `Pregunta combinada ${index + 1}`,
+        answer: `Respuesta combinada ${index + 1}`,
+      }));
+    },
+  });
+  const req = createRequest();
+  const res = createResponse();
+
+  await generateAIV2(req, res);
+
+  assert.equal(res.statusCode, 201);
+  assert.equal(inserted.length, 2);
+  assert.equal(combinedCalls, 1);
+  assert.equal(legacyCalls, 0);
 });
