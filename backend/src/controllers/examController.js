@@ -6,6 +6,8 @@ const ExamFolder = require('../models/ExamFolder');
 const Deck = require('../models/Deck');
 const Flashcard = require('../models/Flashcard');
 const User = require('../models/User');
+const aiService = require('../services/aiService');
+const { acceptsEventStream, sendEvent, startEventStream } = require('../utils/sse');
 
 const MAX_QUESTIONS = 100;
 const MAX_TEXT_LENGTH = 10000;
@@ -578,7 +580,15 @@ async function validateAiSourceCards(userId, cards) {
   await validateSourceCardReferences(userId, questions);
 }
 
-async function generateQuestionsWithAi(cards, type, apiKey) {
+function toAiApiError(error) {
+  if (error instanceof ApiError) return error;
+  const apiError = new ApiError(502, aiService.getSafeErrorMessage(error));
+  apiError.aiCode = error?.code ?? null;
+  apiError.providerStatus = error?.status ?? null;
+  return apiError;
+}
+
+async function generateQuestionsWithAi(cards, type, apiKey, context = {}) {
   const requestBody = {
     model: 'deepseek-chat',
     response_format: { type: 'json_object' },
@@ -602,29 +612,23 @@ No incluyas markdown, explicaciones ni claves adicionales.`,
 
   requestBody.temperature = 0.2;
 
-  const response = await fetch('https://api.deepseek.com/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify(requestBody),
-  });
-
-  if (!response.ok) {
-    throw new ApiError(502, 'El motor de IA no pudo generar las preguntas.');
+  const { signal, ...aiContext } = context;
+  try {
+    return await aiService.callDeepSeekJson({
+      apiKey,
+      requestBody,
+      context: { ...aiContext, stage: 'exam_generate' },
+      signal,
+      parseResponse(data) {
+        return parseAiQuestions(aiService.getMessageContent(data), cards.length, 'motor de IA');
+      },
+    });
+  } catch (error) {
+    throw toAiApiError(error);
   }
-
-  const data = await response.json();
-  const content = data.choices?.[0]?.message?.content?.trim();
-  if (!content) {
-    throw new ApiError(502, 'El motor de IA devolvió una respuesta vacía.');
-  }
-
-  return parseAiQuestions(content, cards.length, 'motor de IA');
 }
 
-async function auditQuestionsWithAi(cards, rawQuestions, type, apiKey) {
+async function auditQuestionsWithAi(cards, rawQuestions, type, apiKey, context = {}) {
   const useReasoner = rawQuestions.length > AI_REASONER_THRESHOLD;
   const requestBody = {
     model: useReasoner ? 'deepseek-reasoner' : 'deepseek-chat',
@@ -647,26 +651,20 @@ No elimines preguntas, no agregues explicaciones, no incluyas markdown ni claves
 
   if (!useReasoner) requestBody.temperature = 0.1;
 
-  const response = await fetch('https://api.deepseek.com/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify(requestBody),
-  });
-
-  if (!response.ok) {
-    throw new ApiError(502, 'El auditor de IA no pudo validar las preguntas.');
+  const { signal, ...aiContext } = context;
+  try {
+    return await aiService.callDeepSeekJson({
+      apiKey,
+      requestBody,
+      context: { ...aiContext, stage: 'exam_audit' },
+      signal,
+      parseResponse(data) {
+        return parseAiQuestions(aiService.getMessageContent(data), cards.length, 'auditor de IA');
+      },
+    });
+  } catch (error) {
+    throw toAiApiError(error);
   }
-
-  const data = await response.json();
-  const content = data.choices?.[0]?.message?.content?.trim();
-  if (!content) {
-    throw new ApiError(502, 'El auditor de IA devolvió una respuesta vacía.');
-  }
-
-  return parseAiQuestions(content, cards.length, 'auditor de IA');
 }
 
 function aiCandidateToQuestionInput(candidate, card, type, order) {
@@ -823,24 +821,6 @@ function sendError(scope, res, err) {
 
   console.error(`[${scope}] error:`, err.message);
   return res.status(500).json({ error: 'No se pudo completar la operación de exámenes.' });
-}
-
-function acceptsEventStream(req) {
-  return req.get?.('accept')?.includes('text/event-stream') || false;
-}
-
-function startEventStream(res) {
-  res.status(200).set({
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache, no-transform',
-    Connection: 'keep-alive',
-    'X-Accel-Buffering': 'no',
-  });
-  res.flushHeaders?.();
-}
-
-function sendEvent(res, event, payload) {
-  res.write(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`);
 }
 
 exports.listExams = async (req, res) => {
@@ -1161,6 +1141,11 @@ exports.generateFromDecks = async (req, res) => {
 exports.generateQuestionsAi = async (req, res) => {
   const streamProgress = acceptsEventStream(req);
   let streamStarted = false;
+  let stopEventStream = null;
+  let runId = null;
+  let currentBatch = 0;
+  let completed = 0;
+  let examId = null;
 
   try {
     const body = req.body || {};
@@ -1169,6 +1154,7 @@ exports.generateQuestionsAi = async (req, res) => {
       throw new ApiError(400, 'Examen inválido.');
     }
     const exam = await getOwnedExam(body.examId, userId);
+    examId = String(exam._id);
     const type = normalizeQuestionType(body.type ?? body.questionType ?? 'multiple_choice');
 
     let cards;
@@ -1190,65 +1176,135 @@ exports.generateQuestionsAi = async (req, res) => {
       throw new ApiError(400, 'No has configurado tu API Key en la sección de Ajustes.');
     }
 
+    runId = aiService.createRunId('exam');
+    const totalBatches = Math.ceil(cards.length / AI_BATCH_SIZE);
+    aiService.logAiEvent('run_started', {
+      runId,
+      flow: 'exam',
+      examId,
+      cards: cards.length,
+      totalBatches,
+    });
+
     if (streamProgress) {
-      startEventStream(res);
+      stopEventStream = startEventStream(res);
       streamStarted = true;
       sendEvent(res, 'progress', {
         completed: 0,
         total: cards.length,
         message: 'Preparando la generación con IA...',
+        runId,
       });
     }
 
-    const candidates = [];
+    const generatedQuestions = [];
+    const usedSourceIndexes = new Set();
+    let nextOrder = await getNextOrder(exam._id);
     for (let startIndex = 0; startIndex < cards.length; startIndex += AI_BATCH_SIZE) {
+      currentBatch += 1;
       const cardBatch = cards.slice(startIndex, startIndex + AI_BATCH_SIZE).map((card, batchIndex) => ({
         ...card,
         sourceIndex: startIndex + batchIndex,
       }));
-      const rawCandidates = await generateQuestionsWithAi(cardBatch, type, user.aiApiKey);
-      const auditedCandidates = await auditQuestionsWithAi(cardBatch, rawCandidates, type, user.aiApiKey);
-      candidates.push(...auditedCandidates);
+      const reportRetry = ({ delayMs }) => {
+        if (!streamProgress) return;
+        sendEvent(res, 'progress', {
+          completed,
+          total: cards.length,
+          message: `La IA está ocupada. Reintentando el lote ${currentBatch}/${totalBatches}...`,
+          runId,
+          retryInMs: delayMs,
+        });
+      };
 
       if (streamProgress) {
         sendEvent(res, 'progress', {
-          completed: candidates.length,
+          completed,
           total: cards.length,
-          message: 'Generando y revisando preguntas...',
+          message: `Generando el lote ${currentBatch}/${totalBatches}...`,
+          runId,
+        });
+      }
+      const context = {
+        runId,
+        flow: 'exam',
+        examId,
+        batch: currentBatch,
+        totalBatches,
+        onRetry: reportRetry,
+      };
+      const rawCandidates = await generateQuestionsWithAi(cardBatch, type, user.aiApiKey, context);
+      if (streamProgress) {
+        sendEvent(res, 'progress', {
+          completed,
+          total: cards.length,
+          message: `Auditando el lote ${currentBatch}/${totalBatches}...`,
+          runId,
+        });
+      }
+      const auditedCandidates = await auditQuestionsWithAi(cardBatch, rawCandidates, type, user.aiApiKey, context);
+      const questionData = auditedCandidates.map((candidate, index) => {
+        const sourceIndex = candidate?.sourceIndex === undefined ? startIndex + index : candidate.sourceIndex;
+        if (!Number.isInteger(sourceIndex) || !cards[sourceIndex] || usedSourceIndexes.has(sourceIndex)) {
+          throw new ApiError(502, 'El motor de IA devolvió referencias de tarjetas inválidas.');
+        }
+        usedSourceIndexes.add(sourceIndex);
+        return aiCandidateToQuestionInput(candidate, cards[sourceIndex], type, nextOrder + index);
+      });
+      const batchQuestions = await saveQuestionDocuments(questionData.map((question) => ({
+        ...question,
+        examId: exam._id,
+      })));
+      generatedQuestions.push(...batchQuestions);
+      nextOrder += batchQuestions.length;
+      completed += batchQuestions.length;
+      await synchronizeQuestionCount(exam);
+
+      if (streamProgress) {
+        sendEvent(res, 'progress', {
+          completed,
+          total: cards.length,
+          message: `Lote ${currentBatch}/${totalBatches} completado.`,
+          runId,
         });
       }
     }
-    const usedSourceIndexes = new Set();
-    const nextOrder = await getNextOrder(exam._id);
-    const questionData = candidates.map((candidate, index) => {
-      const sourceIndex = candidate?.sourceIndex === undefined ? index : candidate.sourceIndex;
-      if (!Number.isInteger(sourceIndex) || !cards[sourceIndex] || usedSourceIndexes.has(sourceIndex)) {
-        throw new ApiError(502, 'El motor de IA devolvió referencias de tarjetas inválidas.');
-      }
-      usedSourceIndexes.add(sourceIndex);
-      return aiCandidateToQuestionInput(candidate, cards[sourceIndex], type, nextOrder + index);
-    });
-
-    const questions = await saveQuestionDocuments(questionData.map((question) => ({
-      ...question,
-      examId: exam._id,
-    })));
     const questionCount = await synchronizeQuestionCount(exam);
     const payload = {
-      questions: questions.map((question) => question.serialize()),
+      questions: generatedQuestions.map((question) => question.serialize()),
       questionCount,
     };
+    aiService.logAiEvent('run_completed', {
+      runId,
+      flow: 'exam',
+      examId,
+      questionCount,
+      totalBatches,
+    });
     if (streamProgress) {
-      sendEvent(res, 'complete', { questionCount });
+      sendEvent(res, 'complete', { questionCount, runId });
+      stopEventStream?.();
       return res.end();
     }
     return res.status(201).json(payload);
   } catch (err) {
+    if (runId) {
+      aiService.logAiEvent('run_failed', {
+        runId,
+        flow: 'exam',
+        examId,
+        batch: currentBatch || null,
+        completed,
+        code: err.aiCode ?? err.code ?? null,
+        providerStatus: err.providerStatus ?? err.status ?? null,
+      });
+    }
     if (streamStarted) {
       const message = err instanceof ApiError
         ? err.message
-        : 'No se pudo completar la generación de preguntas con IA.';
-      sendEvent(res, 'error', { error: message });
+        : aiService.getSafeErrorMessage(err);
+      sendEvent(res, 'error', { error: message, runId, partialQuestionCount: completed });
+      stopEventStream?.();
       return res.end();
     }
     return sendError('exams:generate-ai', res, err);

@@ -108,7 +108,7 @@
 ##     implemented: true
 ##     working: true
 ##     file: "backend/src/controllers/examController.js"
-##     stuck_count: 1
+##     stuck_count: 2
 ##     priority: "high"
 ##     needs_retesting: false
 ##     status_history:
@@ -127,6 +127,15 @@
 ##         - working: true
 ##           agent: "main"
 ##           comment: "Prueba SSE real aprobada: eventos 0/1 y 1/1, finalización confirmada y pregunta persistida; el examen temporal se eliminó."
+##         - working: false
+##           agent: "user"
+##           comment: "Una generación real de 100 preguntas se detuvo cerca de 40 con un error genérico."
+##         - working: "NA"
+##           agent: "main"
+##           comment: "Se añadieron reintentos, timeout, heartbeats SSE y trazas correlacionadas por lote; pendiente de pruebas controladas."
+##         - working: true
+##           agent: "main"
+##           comment: "Se verificó un 429 simulado en el segundo lote: el primero quedó persistido, el SSE informó el avance parcial y la respuesta segura incluyó la referencia de ejecución."
 ## frontend:
 ##   - task: "Límite visible de preguntas por mazo"
 ##     implemented: true
@@ -159,18 +168,31 @@
 ##         - working: true
 ##           agent: "main"
 ##           comment: "La compilación de producción y la prueba SSE del backend finalizaron correctamente."
+##   - task: "Progreso y optimización de IA para mazos"
+##     implemented: true
+##     working: true
+##     file: "backend/src/controllers/flashcardController.js"
+##     stuck_count: 0
+##     priority: "high"
+##     needs_retesting: false
+##     status_history:
+##         - working: "NA"
+##           agent: "main"
+##           comment: "La generación de mazos ahora procesa lotes, emite SSE real y limita texto/sobreproducción; pendiente de verificación."
+##         - working: true
+##           agent: "main"
+##           comment: "Prueba real aprobada: cuatro eventos SSE, una tarjeta persistida y limpieza posterior del mazo temporal."
 ## metadata:
 ##   created_by: "main_agent"
 ##   version: "1.0"
-##   test_sequence: 3
+##   test_sequence: 5
 ##   run_ui: false
 ## test_plan:
 ##   current_focus:
-##     - "Generar 100 preguntas de opción múltiple con IA desde Esme Notas"
-##     - "Mostrar el avance por lotes de generación IA"
+##     - "Observar trazas temporales de IA en Render durante el siguiente intento de 100 preguntas"
 ##   stuck_tasks: []
 ##   test_all: false
 ##   test_priority: "high_first"
 ## agent_communication:
 ##   - agent: "main"
-##     message: "Progreso en tiempo real verificado mediante SSE; los exámenes temporales de prueba fueron eliminados."
+##     message: "Pruebas de reintento, recuperación parcial, stream de examen y stream de mazo aprobadas. Las trazas [ai] quedan activas temporalmente para el siguiente intento real."

@@ -354,9 +354,8 @@ console.log('DEBUG mode actual:', mode, '| isSessionMode:', isSessionMode);
               hasCards={(deck.cardCount ?? cards.length) > 0}
               userId={userId}
               deckId={deck.id}
-              onAiSuccess={(newCards) => {
-                setCards((prev) => [...newCards, ...prev]);
-                // 🚀 Sincronizar contadores globales tras inyectar tarjetas con IA
+              onAiSuccess={async () => {
+                await loadCards();
                 if (typeof onRefreshData === 'function') onRefreshData();
               }}
             />

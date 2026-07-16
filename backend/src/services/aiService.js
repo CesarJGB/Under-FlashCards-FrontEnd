@@ -1,150 +1,284 @@
-/**
- * backend/src/services/aiService.js
- * Servicio de Inteligencia Artificial optimizado para Under-FlashCards
- */
+const { randomUUID } = require('crypto');
 
-// Umbral a partir del cual Fase 2 usa el modelo razonador (mayor precisión, mayor latencia/costo).
+const DEEPSEEK_URL = 'https://api.deepseek.com/chat/completions';
 const REASONER_THRESHOLD = parseInt(process.env.AI_REASONER_THRESHOLD, 10) || 20;
+const AI_DEBUG_LOGS = process.env.AI_DEBUG_LOGS !== 'false';
 
-/**
- * FASE 1: Generador de Tarjetas Crudas
- */
-async function generateRawCards(text, targetCount, apiKey) {
-  const response = await fetch('https://api.deepseek.com/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`
-    },
-    body: JSON.stringify({
+function readBoundedInteger(value, fallback, minimum, maximum) {
+  const parsed = parseInt(value, 10);
+  if (!Number.isInteger(parsed)) return fallback;
+  return Math.min(maximum, Math.max(minimum, parsed));
+}
+
+const AI_REQUEST_TIMEOUT_MS = readBoundedInteger(process.env.AI_REQUEST_TIMEOUT_MS, 90000, 10000, 180000);
+const AI_MAX_RETRIES = readBoundedInteger(process.env.AI_MAX_RETRIES, 2, 0, 4);
+const AI_RETRY_BASE_MS = readBoundedInteger(process.env.AI_RETRY_BASE_MS, 1000, 250, 10000);
+
+class AiServiceError extends Error {
+  constructor(code, message, options = {}) {
+    super(message);
+    this.name = 'AiServiceError';
+    this.code = code;
+    this.status = options.status ?? null;
+    this.retryable = options.retryable === true;
+    this.requestId = options.requestId ?? null;
+    this.retryAfterMs = options.retryAfterMs ?? null;
+  }
+}
+
+function createRunId(prefix = 'ai') {
+  return `${prefix}-${randomUUID().slice(0, 8)}`;
+}
+
+function logAiEvent(event, details = {}) {
+  if (!AI_DEBUG_LOGS && event !== 'error' && event !== 'run_failed') return;
+  const payload = {
+    event,
+    at: new Date().toISOString(),
+    ...details,
+  };
+  const logger = event === 'error' || event === 'run_failed' ? console.error : console.info;
+  logger(`[ai] ${JSON.stringify(payload)}`);
+}
+
+function getResponseRequestId(response) {
+  return response.headers.get('x-request-id')
+    || response.headers.get('request-id')
+    || response.headers.get('x-correlation-id')
+    || null;
+}
+
+function getRetryAfterMs(value) {
+  if (!value) return null;
+  const seconds = Number(value);
+  if (Number.isFinite(seconds) && seconds >= 0) return seconds * 1000;
+  const timestamp = Date.parse(value);
+  return Number.isNaN(timestamp) ? null : Math.max(0, timestamp - Date.now());
+}
+
+function isRetryableStatus(status) {
+  return status === 408 || status === 429 || status >= 500;
+}
+
+function wait(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+function normalizeError(error) {
+  if (error instanceof AiServiceError) return error;
+  if (error?.name === 'AbortError') {
+    return new AiServiceError('timeout', 'La solicitud a la IA excedió el tiempo de espera.', { retryable: true });
+  }
+  return new AiServiceError('network', 'No se pudo conectar con el proveedor de IA.', { retryable: true });
+}
+
+function getMessageContent(data) {
+  const choice = data?.choices?.[0];
+  if (choice?.finish_reason === 'length') {
+    throw new AiServiceError('truncated_output', 'La IA agotó el límite de respuesta.', { retryable: true });
+  }
+  const content = choice?.message?.content?.trim();
+  if (!content) {
+    throw new AiServiceError('invalid_model_output', 'La IA devolvió una respuesta vacía.', { retryable: true });
+  }
+  return content;
+}
+
+function getSafeErrorMessage(error) {
+  if (error?.status === 401 || error?.status === 403) {
+    return 'La clave de IA fue rechazada. Revísala en Ajustes.';
+  }
+  if (error?.status === 402) {
+    return 'La cuenta de IA no tiene saldo disponible.';
+  }
+  if (error?.status === 429) {
+    return 'La IA está temporalmente ocupada. Espera un momento e inténtalo de nuevo.';
+  }
+  if (error?.code === 'timeout') {
+    return 'La IA tardó demasiado en responder. Inténtalo de nuevo.';
+  }
+  if (error?.code === 'truncated_output' || error?.code === 'invalid_model_output') {
+    return 'La IA devolvió una respuesta incompleta. Inténtalo de nuevo.';
+  }
+  return 'No se pudo completar la generación de preguntas con IA.';
+}
+
+async function callDeepSeekJson({ apiKey, requestBody, context = {}, parseResponse, signal }) {
+  const { onRetry, ...logContext } = context;
+  const model = requestBody.model || 'unknown';
+
+  for (let attempt = 0; attempt <= AI_MAX_RETRIES; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), AI_REQUEST_TIMEOUT_MS);
+    const abortFromCaller = () => controller.abort();
+    if (signal) {
+      if (signal.aborted) controller.abort();
+      else signal.addEventListener('abort', abortFromCaller, { once: true });
+    }
+
+    const startedAt = Date.now();
+    try {
+      logAiEvent('request_started', { ...logContext, model, attempt: attempt + 1 });
+      const response = await fetch(DEEPSEEK_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify(requestBody),
+        signal: controller.signal,
+      });
+      const requestId = getResponseRequestId(response);
+
+      if (!response.ok) {
+        await response.text().catch(() => '');
+        throw new AiServiceError('provider_http', `DeepSeek respondió con HTTP ${response.status}.`, {
+          status: response.status,
+          requestId,
+          retryAfterMs: getRetryAfterMs(response.headers.get('retry-after')),
+          retryable: isRetryableStatus(response.status),
+        });
+      }
+
+      let data;
+      try {
+        data = await response.json();
+      } catch {
+        throw new AiServiceError('invalid_provider_response', 'DeepSeek devolvió una respuesta no JSON.', {
+          requestId,
+          retryable: true,
+        });
+      }
+
+      let parsed = data;
+      if (parseResponse) {
+        try {
+          parsed = parseResponse(data);
+        } catch (error) {
+          if (error instanceof AiServiceError) throw error;
+          throw new AiServiceError('invalid_model_output', 'La IA devolvió un formato no válido.', {
+            requestId,
+            retryable: true,
+          });
+        }
+      }
+
+      logAiEvent('request_succeeded', {
+        ...logContext,
+        model,
+        attempt: attempt + 1,
+        durationMs: Date.now() - startedAt,
+        requestId,
+      });
+      return parsed;
+    } catch (error) {
+      const aiError = normalizeError(error);
+      const canRetry = aiError.retryable && attempt < AI_MAX_RETRIES && !signal?.aborted;
+      const delayMs = aiError.retryAfterMs
+        ?? Math.min(30000, AI_RETRY_BASE_MS * (2 ** attempt) + Math.floor(Math.random() * 250));
+
+      logAiEvent(canRetry ? 'request_retrying' : 'error', {
+        ...logContext,
+        model,
+        attempt: attempt + 1,
+        durationMs: Date.now() - startedAt,
+        code: aiError.code,
+        providerStatus: aiError.status,
+        requestId: aiError.requestId,
+        retryable: aiError.retryable,
+        ...(canRetry ? { delayMs } : {}),
+      });
+
+      if (!canRetry) throw aiError;
+      onRetry?.({ attempt: attempt + 1, delayMs, error: aiError });
+      await wait(delayMs);
+    } finally {
+      clearTimeout(timeout);
+      signal?.removeEventListener('abort', abortFromCaller);
+    }
+  }
+
+  throw new AiServiceError('unknown', 'La IA no devolvió una respuesta.', { retryable: false });
+}
+
+function parseJsonObject(content) {
+  const fencedJson = content.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  const parsed = JSON.parse(fencedJson ? fencedJson[1] : content);
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('La respuesta no es un objeto JSON.');
+  }
+  return parsed;
+}
+
+async function generateRawCards(text, targetCount, apiKey, context = {}) {
+  return callDeepSeekJson({
+    apiKey,
+    context: { ...context, stage: 'deck_generate' },
+    requestBody: {
       model: 'deepseek-chat',
-      response_format: { type: "json_object" },
-      temperature: 0.5,
+      response_format: { type: 'json_object' },
+      temperature: 0.3,
       messages: [
         {
           role: 'system',
-          content: `Eres un procesador educativo de alta precisión. Tu tarea es generar exactamente ${targetCount} flashcards en español basadas exclusivamente en el texto provesto por el usuario.
-          Debes responder ÚNICAMENTE con un objeto JSON válido que contenga la propiedad "cards" mapeada a un arreglo de objetos. Cada objeto debe contener de manera obligatoria y exclusiva las llaves "question" y "answer" en formato string de texto plano.`
+          content: `Eres un procesador educativo de alta precisión. Genera exactamente ${targetCount} flashcards en español basadas exclusivamente en el texto del usuario. Devuelve SOLO JSON válido con la forma {"cards":[...]}. Cada tarjeta debe tener únicamente "question" y "answer", ambos strings de texto plano. No incluyas markdown ni explicaciones.`,
         },
-        { role: 'user', content: text }
-      ]
-    })
+        { role: 'user', content: text },
+      ],
+    },
+    parseResponse(data) {
+      const parsed = parseJsonObject(getMessageContent(data));
+      if (!Array.isArray(parsed.cards) || parsed.cards.length === 0) {
+        throw new Error('No se generaron tarjetas válidas.');
+      }
+      return parsed.cards;
+    },
   });
-
-  if (!response.ok) {
-    const errorText = await response.text().catch(() => '');
-    throw new Error(`[DeepSeek Generator Error]: ${response.status} - ${errorText}`);
-  }
-
-  const data = await response.json();
-  const rawJson = data.choices?.[0]?.message?.content?.trim() || "{}";
-  const parsed = JSON.parse(rawJson);
-  const cards = parsed.cards || [];
-
-  console.log(`[Fase 1 Raw Output] ${cards.length} tarjetas generadas:`);
-  cards.forEach((c, i) => console.log(`  #${i}: ${c.question}`));
-
-  return cards;
 }
 
-/**
- * FASE 2: Auditor y Crítico Estricto.
- * Usa deepseek-reasoner (razonamiento extendido) para lotes grandes, donde la
- * probabilidad de redundancia conceptual es mayor y justifica la latencia extra.
- * Usa deepseek-chat (rápido, temperature baja) para lotes chicos.
- */
-async function criticizeAndRefineCards(originalText, rawCards, apiKey) {
+async function criticizeAndRefineCards(originalText, rawCards, apiKey, context = {}) {
   const useReasoner = rawCards.length > REASONER_THRESHOLD;
   const model = useReasoner ? 'deepseek-reasoner' : 'deepseek-chat';
-
-  console.log(`[Fase 2] Usando modelo "${model}" para lote de ${rawCards.length} tarjetas (umbral: ${REASONER_THRESHOLD}).`);
-
-  const baseBody = {
+  const requestBody = {
     model,
-    response_format: { type: "json_object" },
+    response_format: { type: 'json_object' },
     messages: [
       {
         role: 'system',
-        content: `Eres un Supervisor de Control de Calidad Académica de Inteligencia Artificial. Tu objetivo es auditar un mazo completo de flashcards preliminares comparándolas minuciosamente con el Texto Fuente Original.
+        content: `Eres un auditor académico de flashcards en español. Revisa cada tarjeta preliminar exclusivamente contra el texto fuente. Devuelve SOLO JSON válido con la forma {"cards":[...]}. Devuelve exactamente una salida por cada tarjeta preliminar y conserva una pregunta y respuesta por objeto.
 
-        Para evitar evaluaciones aisladas y asegurar la consistencia absoluta en el control de calidad, debes ejecutar obligatoriamente un proceso analítico de 4 pasos antes de rellenar el arreglo final.
-
-        Debes responder con un objeto JSON que tenga exactamente esta estructura de raíz:
-        {
-          "proceso_analisis_4_pasos": {
-            "paso_a_conceptos_clave": "Mapeo interno y breve de cada tarjeta preliminar con el núcleo de conocimiento exacto que evalúa",
-            "paso_b_comparacion_redundancias": "Análisis cruzado explícito buscando pares que apunten al mismo concepto subyacente o dato clave aunque estén redactadas de forma totalmente distinta",
-            "paso_c_verificacion_factual_esceptica": "Contraste duro con el Texto Fuente Original, partiendo de la premisa de que el lote preliminar tiene al menos un error factual o alucinación hasta confirmar lo contrario"
-          },
-          "cards": [
-            {
-              "question": "Texto de la pregunta (optimizado o el original)",
-              "answer": "Texto de la respuesta (optimizado o el original)",
-              "status": "sin_cambios" | "corregida" | "fusionada" | "eliminada",
-              "reason": "Justificación obligatoria y detallada de la auditoría efectuada para esta tarjeta"
-            }
-          ]
-        }
-
-        REGLAS CRÍTICAS DE ACCIÓN PARA EL PASO D (Asignación de propiedades en 'cards'):
-        1. CORREGIR ("status": "corregida"): Si la tarjeta presenta problemas de redacción, longitud excesiva, ambigüedad o falta de atomicidad (ej: preguntas demasiado abiertas o vagas), pero el dato central es verídico. Reescríbela para que sea directa, concisa y perfectamente atómica.
-        2. ELIMINAR ("status": "eliminada"): Si la tarjeta presenta un error factual, altera de raíz los datos del documento o inventa fórmulas/conceptos que NO están presentes de forma explícita en el Texto Fuente Original. Elimínala directamente, no intentes salvarla.
-        3. REDUNDANCIA CONCEPTUAL ("status": "fusionada"): Si en el 'paso_b' detectaste que dos tarjetas evalúan el mismo concepto básico subyacente, AUNQUE UNA LO PREGUNTE DESDE EL ÁNGULO OPUESTO O COMPLEMENTARIO (ej: "¿cuántos días tienes para hacer X a tiempo?" y "¿cuándo se considera X fuera de tiempo?" dependen del mismo dato numérico y son redundantes entre sí), mantén una sola tarjeta viva (como 'sin_cambios' o 'corregida') y marca la otra como 'fusionada', indicando con cuál colisionó.
-
-        REGLA DE OBLIGATORIEDAD ABSOLUTA PARA "reason":
-        La llave "reason" debe ser completada en TODOS los casos sin excepción. Si el estatus es "sin_cambios", debes explicar con precisión qué se verificó (ejemplo: 'Dato verificado en texto fuente, estructura perfectamente atómica y sin colisiones conceptuales detectadas tras el análisis cruzado con el lote').`
+Cada salida debe incluir question, answer y status. status debe ser uno de: sin_cambios, corregida, fusionada o eliminada. Corrige redacción ambigua o datos incompatibles con la fuente. Marca como fusionada una tarjeta redundante y como eliminada una tarjeta inventada o falsa. No incluyas razonamientos globales, markdown ni claves adicionales.`,
       },
       {
         role: 'user',
-        content: JSON.stringify({
-          textoFuenteOriginal: originalText,
-          tarjetasPreliminares: rawCards
-        })
-      }
-    ]
+        content: JSON.stringify({ textoFuenteOriginal: originalText, tarjetasPreliminares: rawCards }),
+      },
+    ],
   };
+  if (!useReasoner) requestBody.temperature = 0.1;
 
-  // deepseek-reasoner ignora `temperature`; solo se envía cuando usamos deepseek-chat.
-  if (!useReasoner) {
-    baseBody.temperature = 0.1;
-  }
-
-  const response = await fetch('https://api.deepseek.com/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`
+  return callDeepSeekJson({
+    apiKey,
+    context: { ...context, stage: 'deck_audit' },
+    requestBody,
+    parseResponse(data) {
+      const parsed = parseJsonObject(getMessageContent(data));
+      if (!Array.isArray(parsed.cards) || parsed.cards.length === 0) {
+        throw new Error('La auditoría no devolvió tarjetas válidas.');
+      }
+      return parsed.cards;
     },
-    body: JSON.stringify(baseBody)
   });
-
-  if (!response.ok) {
-    const errorText = await response.text().catch(() => '');
-    throw new Error(`[DeepSeek Critic Error]: ${response.status} - ${errorText}`);
-  }
-
-  const data = await response.json();
-  const message = data.choices?.[0]?.message;
-  const refinedJson = message?.content?.trim() || "{}";
-
-  if (message?.reasoning_content) {
-    console.log('[Fase 2 Reasoning]', message.reasoning_content.slice(0, 2000));
-  }
-
-  const parsed = JSON.parse(refinedJson);
-  const cards = parsed.cards || [];
-
-  const counts = { sin_cambios: 0, corregida: 0, fusionada: 0, eliminada: 0 };
-  cards.forEach((c, i) => {
-    counts[c.status] = (counts[c.status] || 0) + 1;
-    console.log(`[Fase 2 Audit] #${i} [${c.status?.toUpperCase()}] "${(c.question || '').slice(0, 60)}" → ${c.reason}`);
-  });
-  console.log('[Fase 2 Audit Summary]', counts);
-
-  return cards;
 }
 
 module.exports = {
+  AiServiceError,
+  callDeepSeekJson,
+  createRunId,
+  criticizeAndRefineCards,
   generateRawCards,
-  criticizeAndRefineCards
+  getMessageContent,
+  getSafeErrorMessage,
+  logAiEvent,
+  parseJsonObject,
 };

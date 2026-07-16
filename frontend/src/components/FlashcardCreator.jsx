@@ -9,6 +9,7 @@ import FloatingPreviewPanel, { getStoredPreviewPanelMode } from './creator/Float
 
 // Importamos la función de parseo unificada y centralizada
 import { parseCardStyles } from '../lib/utils';
+import { readAiGenerationProgress } from '../lib/aiProgressStream';
 import { getJSON, setJSON } from '../lib/safeLocalStorage';
 
 const ALIGNS = [
@@ -27,10 +28,6 @@ const SWATCHES = [
   { label: 'Azul', value: '#3b82f6' },
 ];
 
-// Umbral usado solo para decidir el mensaje de progreso en el frontend.
-// Debe ser coherent con AI_REASONER_THRESHOLD del backend (cantidad de tarjetas
-// CRUDAS, ya con padding aplicado) para avisar bien cuándo puede tardar más.
-const LIKELY_REASONER_INPUT_THRESHOLD = 15;
 const PREVIEW_VISIBLE_KEY = 'ufc_preview_visible_v1';
 
 export default function FlashcardCreator({
@@ -47,7 +44,7 @@ export default function FlashcardCreator({
   const [aiText, setAiText] = useState('');
   const [aiNumCards, setAiNumCards] = useState(5);
   const [aiSaving, setAiSaving] = useState(false);
-  const [aiStageMsg, setAiStageMsg] = useState('');
+  const [aiProgress, setAiProgress] = useState(null);
 
   const activeTab = editingId ? 'single' : (isAi ? 'ai' : (isBulk ? 'bulk' : 'single'));
 
@@ -128,24 +125,23 @@ export default function FlashcardCreator({
       if (!aiText.trim() || aiSaving) return;
       setAiSaving(true);
       setError('');
-      setAiStageMsg('Generando tarjetas...');
-
-      // Mensajes de progreso simulados. El backend no reporta estado en tiempo real
-      // (es una sola llamada request/response), así que avisamos por tiempo transcurrido
-      // para que la espera larga (especialmente con el modelo razonador) no se sienta colgada.
-      const isLikelyLargeBatch = aiNumCards > LIKELY_REASONER_INPUT_THRESHOLD;
-      const stageTimers = [
-        setTimeout(() => setAiStageMsg('Auditando calidad y verificando datos contra el texto fuente...'), 8000),
-        isLikelyLargeBatch
-          ? setTimeout(() => setAiStageMsg('Verificación profunda en curso (lote grande), esto puede tardar hasta 90 segundos...'), 20000)
-          : null,
-      ].filter(Boolean);
+      setAiProgress({
+        generated: 0,
+        audited: 0,
+        accepted: 0,
+        target: Number(aiNumCards) || 0,
+        total: Number(aiNumCards) || 0,
+        message: 'Preparando la generación con IA...',
+      });
 
       try {
         const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
         const res = await fetch(`${BACKEND_URL}/api/flashcards/generate-ai`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'text/event-stream',
+          },
           body: JSON.stringify({
             userId,
             deckId,
@@ -160,16 +156,15 @@ export default function FlashcardCreator({
           throw new Error(errData.message || 'El motor de IA experimentó una saturación o no configuraste tu API Key.');
         }
 
-        const newCards = await res.json();
-        if (onAiSuccess) onAiSuccess(newCards);
+        const result = await readAiGenerationProgress(res, setAiProgress);
+        await onAiSuccess?.(result);
         
         setAiText('');
         setIsAi(false); 
       } catch (err) {
         setError(err.message || 'Error de conexión con el nodo de Inteligencia Artificial.');
       } finally {
-        stageTimers.forEach(clearTimeout);
-        setAiStageMsg('');
+        setAiProgress(null);
         setAiSaving(false);
       }
     } else {
@@ -318,9 +313,24 @@ export default function FlashcardCreator({
         </button>
       </div>
 
-      {/* Mensaje de progreso durante la generación con IA (solo informativo, no bloquea nada) */}
-      {aiSaving && aiStageMsg && (
-        <p className="mt-2 text-xs text-slate-500 text-center animate-pulse">{aiStageMsg}</p>
+      {aiSaving && aiProgress && (
+        <section role="status" aria-live="polite" className="mt-3 rounded-xl border border-indigo-100 bg-indigo-50 p-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2">
+              <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-indigo-600" aria-hidden="true" />
+              <p className="truncate text-xs font-bold text-indigo-950">{aiProgress.message}</p>
+            </div>
+            <span className="shrink-0 text-xs font-black tabular-nums text-indigo-700">
+              {aiProgress.accepted || 0}/{aiProgress.target || 0}
+            </span>
+          </div>
+          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-indigo-200/70" role="progressbar" aria-valuemin={0} aria-valuemax={aiProgress.total || 1} aria-valuenow={Math.min(aiProgress.generated || 0, aiProgress.total || 0)} aria-label="Tarjetas generadas">
+            <div className="h-full rounded-full bg-indigo-600 transition-[width] duration-300" style={{ width: `${aiProgress.total ? Math.min(100, ((aiProgress.generated || 0) / aiProgress.total) * 100) : 0}%` }} />
+          </div>
+          <p className="mt-2 text-[11px] font-medium text-indigo-700">
+            {aiProgress.generated || 0} generadas · {aiProgress.audited || 0} auditadas · {aiProgress.accepted || 0} listas para guardar
+          </p>
+        </section>
       )}
 
       {error && <p className="mt-2 text-xs text-red-600 font-semibold bg-red-50 border border-red-100 px-3 py-1.5 rounded-xl animate-[fadeIn_0.1s_ease]">{error}</p>}

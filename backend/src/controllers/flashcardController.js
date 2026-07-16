@@ -3,6 +3,31 @@ const Flashcard = require('../models/Flashcard');
 const Deck = require('../models/Deck');
 const User = require('../models/User');
 const aiService = require('../services/aiService');
+const { acceptsEventStream, sendEvent, startEventStream } = require('../utils/sse');
+
+const MAX_AI_CARDS = 100;
+const MAX_RAW_AI_CARDS = 120;
+const MAX_AI_SOURCE_TEXT_LENGTH = 60000;
+const AI_DECK_BATCH_SIZE = Math.min(
+  20,
+  Math.max(1, parseInt(process.env.AI_DECK_BATCH_SIZE, 10) || 12)
+);
+
+function createRequestError(status, message) {
+  const error = new Error(message);
+  error.httpStatus = status;
+  return error;
+}
+
+function getPaddingFactor() {
+  const value = Number.parseFloat(process.env.AI_TARGET_PADDING_FACTOR);
+  if (!Number.isFinite(value)) return 0.30;
+  return Math.min(0.50, Math.max(0, value));
+}
+
+function normalizeCardKey(card) {
+  return `${String(card.question).trim().replace(/\s+/g, ' ').toLocaleLowerCase()}\n${String(card.answer).trim().replace(/\s+/g, ' ').toLocaleLowerCase()}`;
+}
 
 // Helper interno para resolver índices de fondo
 async function getOrCreateBgIndex(deckId, bgImageString) {
@@ -161,130 +186,210 @@ exports.createBulkCards = async (req, res) => {
 };
 
 exports.generateAiCards = async (req, res) => {
+  const streamProgress = acceptsEventStream(req);
+  let streamStarted = false;
+  let stopEventStream = null;
+  let runId = null;
+  let currentBatch = 0;
+  let generatedCount = 0;
+  let auditedCount = 0;
+  let acceptedCount = 0;
+
   try {
     const { userId, deckId, text, count, batchStyles } = req.body || {};
     if (!text?.trim()) {
-      return res.status(400).json({ message: 'Proporciona anotaciones o apuntes para procesar.' });
+      throw createRequestError(400, 'Proporciona anotaciones o apuntes para procesar.');
+    }
+    const sourceText = text.trim();
+    if (sourceText.length > MAX_AI_SOURCE_TEXT_LENGTH) {
+      throw createRequestError(400, `Los apuntes superan el límite de ${MAX_AI_SOURCE_TEXT_LENGTH.toLocaleString('es-MX')} caracteres para la generación con IA.`);
     }
 
-    const user = await User.findById(userId);
+    const user = await User.findById(userId).select('aiApiKey');
     if (!user || !user.aiApiKey) {
-      return res.status(400).json({ message: 'No has configurado tu API Key en la sección de Ajustes.' });
+      throw createRequestError(400, 'No has configurado tu API Key en la sección de Ajustes.');
     }
 
-    const currentDeck = await Deck.findById(deckId);
-    if (!currentDeck) return res.status(404).json({ message: 'Mazo no encontrado en la base de datos.' });
+    const currentDeck = await Deck.findOne({ _id: deckId, userId: user._id });
+    if (!currentDeck) throw createRequestError(404, 'Mazo no encontrado en la base de datos.');
 
-    // Tope de seguridad independiente del frontend: garantiza que targetCount
-    // siempre quede entre 1 y 100, sin importar de dónde venga la petición.
-    const targetCount = Math.min(100, Math.max(1, parseInt(count, 10) || 5));
+    const targetCount = Math.min(MAX_AI_CARDS, Math.max(1, parseInt(count, 10) || 5));
+    const padding = Math.min(20, Math.ceil(targetCount * getPaddingFactor()));
+    const phase1Target = Math.min(MAX_RAW_AI_CARDS, targetCount + padding);
+    const totalBatches = Math.ceil(phase1Target / AI_DECK_BATCH_SIZE);
+    const startedAt = Date.now();
+    runId = aiService.createRunId('deck');
 
-    // 🎯 PUNTO 3: Ajuste inflado dinámico (Padding factor configurable)
-    // Lee desde las variables de entorno (.env). Por ejemplo: AI_TARGET_PADDING_FACTOR=0.30
-    const paddingFactor = parseFloat(process.env.AI_TARGET_PADDING_FACTOR) || 0.30;
-    const phase1Target = Math.ceil(targetCount * (1 + paddingFactor));
-
-    // ─── PIPELINE FASE 1: GENERACIÓN CRUDA ───
-    const startTimePhase1 = Date.now();
-    console.log(`[AI Pipeline] Iniciando Fase 1 para usuario ${userId} (Target Solicitado: ${targetCount} | Inflado a: ${phase1Target})`);
-    
-    const rawCards = await aiService.generateRawCards(text, phase1Target, user.aiApiKey);
-    const durationPhase1 = Date.now() - startTimePhase1;
-    console.log(`[AI Pipeline] Fase 1 Terminar. Recibidas ${rawCards.length} tarjetas crudas en ${durationPhase1}ms.`);
-
-    // ─── PIPELINE FASE 2: AUDITORÍA ESTRICTA (BATCH) ───
-    const startTimePhase2 = Date.now();
-    console.log(`[AI Pipeline] Iniciando Fase 2 de Auditoría Conceptual y Factual...`);
-    
-    const auditedCards = await aiService.criticizeAndRefineCards(text, rawCards, user.aiApiKey);
-    const durationPhase2 = Date.now() - startTimePhase2;
-
-    // 📊 PUNTOS 4 Y 5: Métricas avanzadas de Logging y análisis de motivos
     const metrics = {
-      fase: 2,
-      recibidas: rawCards.length,
-      eliminadas: 0,
-      fusionadas: 0,
-      corregidas: 0,
-      sin_cambios: 0,
-      tiempo_ms: durationPhase2
+      generated: 0,
+      audited: 0,
+      accepted: 0,
+      eliminated: 0,
+      merged: 0,
+      corrected: 0,
+      duplicates: 0,
     };
-
     const documentsToInsert = [];
+    const seenCards = new Set();
     const globalBg = batchStyles?.bgImage || '';
     const globalAlign = batchStyles?.textAlign || 'center';
     const globalSize = batchStyles?.fontSize || 'text-base';
 
-    for (const card of auditedCards) {
-      if (!card || !card.status) continue;
+    aiService.logAiEvent('run_started', {
+      runId,
+      flow: 'deck',
+      deckId: String(currentDeck._id),
+      targetCount,
+      phase1Target,
+      totalBatches,
+    });
 
-      // Acumular contadores de métricas según la respuesta estructurada de DeepSeek.
-      // Nota: se usa un mapa explícito en vez de `${card.status}s` para evitar el bug
-      // de pluralización ("sin_cambios" + "s" = "sin_cambioss", clave inexistente).
-      const metricKey = {
-        sin_cambios: 'sin_cambios',
-        corregida: 'corregidas',
-        fusionada: 'fusionadas',
-        eliminada: 'eliminadas'
-      }[card.status];
-      if (metricKey) metrics[metricKey]++;
-
-      // Loggear en consola los motivos específicos de depuración (Solo visualización interna)
-      if (['corregida', 'fusionada', 'eliminada'].includes(card.status)) {
-        console.log(`   [Quality Alert] Tarjeta marcada como [${card.status.toUpperCase()}]. Motivo: "${card.reason || 'No especificado'}"`);
-        console.log(`   └─ Q: "${card.question}"`);
-      }
-
-      // Filtrar: Solo guardamos las tarjetas que pasaron limpias o que fueron optimizadas estéticamente
-      if (card.status === 'eliminada' || card.status === 'fusionada') {
-        continue; 
-      }
-
-      if (!card.question?.trim() || !card.answer?.trim()) continue;
-
-      let bgImageIndex = -1;
-      if (globalBg) {
-        let idx = currentDeck.cardBackgrounds.indexOf(globalBg);
-        if (idx === -1) {
-          currentDeck.cardBackgrounds.push(globalBg);
-          idx = currentDeck.cardBackgrounds.length - 1;
-        }
-        bgImageIndex = idx;
-      }
-
-      // Empaquetar para MongoDB limpia de metadatos de IA
-      documentsToInsert.push({
-        userId,
-        deckId,
-        question: String(card.question).trim(),
-        answer: String(card.answer).trim(),
-        bgImageIndex,
-        textAlign: ['left', 'center', 'right'].includes(globalAlign) ? globalAlign : 'center',
-        fontSize: globalSize,
-        contentImage: '',
-        imageSide: ''
+    if (streamProgress) {
+      stopEventStream = startEventStream(res);
+      streamStarted = true;
+      sendEvent(res, 'progress', {
+        runId,
+        stage: 'preparing',
+        generated: 0,
+        audited: 0,
+        accepted: 0,
+        target: targetCount,
+        total: phase1Target,
+        message: 'Preparando la generación con IA...',
       });
     }
 
-    // Imprimir el objeto de log estructurado final requerido
-    console.log(`[AI Pipeline Metrics]:`, JSON.stringify(metrics));
+    for (let requestedCount = 0; requestedCount < phase1Target && documentsToInsert.length < targetCount; requestedCount += AI_DECK_BATCH_SIZE) {
+      currentBatch += 1;
+      const batchTarget = Math.min(AI_DECK_BATCH_SIZE, phase1Target - requestedCount);
+      const reportProgress = (stage, message) => {
+        if (!streamProgress) return;
+        sendEvent(res, 'progress', {
+          runId,
+          stage,
+          generated: generatedCount,
+          audited: auditedCount,
+          accepted: acceptedCount,
+          target: targetCount,
+          total: phase1Target,
+          batch: currentBatch,
+          totalBatches,
+          message,
+        });
+      };
+      const context = {
+        runId,
+        flow: 'deck',
+        deckId: String(currentDeck._id),
+        batch: currentBatch,
+        totalBatches,
+        onRetry: () => reportProgress('retrying', `La IA está ocupada. Reintentando el lote ${currentBatch}/${totalBatches}...`),
+      };
 
-    if (documentsToInsert.length === 0) {
-      return res.status(422).json({ message: 'La auditoría determinó que ninguna tarjeta generada cumplía con los estándares de veracidad del documento.' });
+      reportProgress('generating', `Generando tarjetas del lote ${currentBatch}/${totalBatches}...`);
+      const rawCards = await aiService.generateRawCards(sourceText, batchTarget, user.aiApiKey, context);
+      generatedCount += rawCards.length;
+      metrics.generated = generatedCount;
+
+      reportProgress('auditing', `Auditando tarjetas del lote ${currentBatch}/${totalBatches}...`);
+      const auditedCards = await aiService.criticizeAndRefineCards(sourceText, rawCards, user.aiApiKey, context);
+      auditedCount += auditedCards.length;
+      metrics.audited = auditedCount;
+
+      for (const card of auditedCards) {
+        const status = card?.status;
+        if (status === 'eliminada') {
+          metrics.eliminated += 1;
+          continue;
+        }
+        if (status === 'fusionada') {
+          metrics.merged += 1;
+          continue;
+        }
+        if (status === 'corregida') metrics.corrected += 1;
+        if (!['sin_cambios', 'corregida'].includes(status) || !card.question?.trim() || !card.answer?.trim()) continue;
+
+        const key = normalizeCardKey(card);
+        if (seenCards.has(key)) {
+          metrics.duplicates += 1;
+          continue;
+        }
+        seenCards.add(key);
+        documentsToInsert.push({
+          userId,
+          deckId,
+          question: String(card.question).trim(),
+          answer: String(card.answer).trim(),
+          textAlign: ['left', 'center', 'right'].includes(globalAlign) ? globalAlign : 'center',
+          fontSize: globalSize,
+          contentImage: '',
+          imageSide: '',
+        });
+      }
+      acceptedCount = Math.min(targetCount, documentsToInsert.length);
+      metrics.accepted = acceptedCount;
+      reportProgress('completed_batch', `Lote ${currentBatch}/${totalBatches} completado.`);
     }
 
-    // Persistir mazo refinado
-    await currentDeck.save();
-    const insertedFlashcards = await Flashcard.insertMany(documentsToInsert);
-    const backgrounds = currentDeck.cardBackgrounds || [];
+    if (documentsToInsert.length === 0) {
+      throw createRequestError(422, 'La auditoría determinó que ninguna tarjeta generada cumplía con los estándares de veracidad del documento.');
+    }
 
+    let bgImageIndex = -1;
+    if (globalBg) {
+      let index = currentDeck.cardBackgrounds.indexOf(globalBg);
+      if (index === -1) {
+        currentDeck.cardBackgrounds.push(globalBg);
+        index = currentDeck.cardBackgrounds.length - 1;
+      }
+      bgImageIndex = index;
+    }
+    const finalDocuments = documentsToInsert.slice(0, targetCount).map((document) => ({
+      ...document,
+      bgImageIndex,
+    }));
+    await currentDeck.save();
+    const insertedFlashcards = await Flashcard.insertMany(finalDocuments);
+    const backgrounds = currentDeck.cardBackgrounds || [];
+    aiService.logAiEvent('run_completed', {
+      runId,
+      flow: 'deck',
+      deckId: String(currentDeck._id),
+      createdCount: insertedFlashcards.length,
+      durationMs: Date.now() - startedAt,
+      metrics,
+    });
+
+    if (streamProgress) {
+      sendEvent(res, 'complete', {
+        runId,
+        createdCount: insertedFlashcards.length,
+        target: targetCount,
+      });
+      stopEventStream?.();
+      return res.end();
+    }
     return res.status(201).json(insertedFlashcards.map((c) => c.serialize(backgrounds)));
 
   } catch (err) {
-    console.error('[flashcards:generate-ai] fatal error:', err.message);
-    if (err.message.includes('DeepSeek')) {
-      return res.status(502).json({ message: 'El motor de DeepSeek rechazó la solicitud. Revisa el saldo o vigencia de tu clave.' });
+    if (runId) {
+      aiService.logAiEvent('run_failed', {
+        runId,
+        flow: 'deck',
+        batch: currentBatch || null,
+        generated: generatedCount,
+        audited: auditedCount,
+        accepted: acceptedCount,
+        code: err.code ?? null,
+        providerStatus: err.status ?? null,
+      });
     }
-    return res.status(500).json({ message: 'Ocurrió un error al fabricar y auditar las tarjetas artificiales.' });
+    const message = err.httpStatus ? err.message : aiService.getSafeErrorMessage(err);
+    if (streamStarted) {
+      sendEvent(res, 'error', { error: message, runId });
+      stopEventStream?.();
+      return res.end();
+    }
+    return res.status(err.httpStatus || 502).json({ message });
   }
 };

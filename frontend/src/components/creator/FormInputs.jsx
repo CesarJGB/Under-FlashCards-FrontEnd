@@ -2,6 +2,7 @@ import { lazy, Suspense, startTransition } from 'react';
 import { ImagePlus, X, FileText, Layers } from 'lucide-react';
 
 const PdfExtractor = lazy(() => import('./PdfExtractor'));
+const MAX_AI_SOURCE_TEXT_LENGTH = 60000;
 
 export default function FormInputs({
   isBulk, isAi, question, setQuestion, answer, setAnswer, bulkText, setBulkText,
@@ -41,11 +42,15 @@ export default function FormInputs({
           <textarea
             value={aiText}
             onChange={(e) => setAiText(e.target.value)}
+            maxLength={MAX_AI_SOURCE_TEXT_LENGTH}
             placeholder={
               "Pega tu información aquí o usa el extractor de PDF de arriba para rellenar este campo de forma automática."
             }
             className="min-h-[160px] w-full text-xs rounded-xl border border-slate-200 px-3 py-2.5 outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 placeholder:text-slate-300 leading-relaxed font-medium"
           />
+          <p className="mt-1 text-right text-[10px] font-medium text-slate-400">
+            {aiText.length.toLocaleString('es-MX')} / {MAX_AI_SOURCE_TEXT_LENGTH.toLocaleString('es-MX')} caracteres
+          </p>
         </div>
 
         {/* Selector de cantidad estimada / Sistema Híbrido Dinámico */}
