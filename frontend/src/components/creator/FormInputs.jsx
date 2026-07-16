@@ -1,18 +1,19 @@
-import { lazy, Suspense, startTransition } from 'react';
+import { lazy, Suspense, startTransition, useState } from 'react';
 import { ImagePlus, X, FileText, Layers } from 'lucide-react';
 
 const PdfExtractor = lazy(() => import('./PdfExtractor'));
 const MAX_AI_DOCUMENT_TEXT_LENGTH = 600000;
 const configuredMaxAiCards = Number.parseInt(import.meta.env.VITE_MAX_AI_CARDS, 10);
-const MAX_AI_CARDS = Number.isInteger(configuredMaxAiCards)
-  ? Math.min(1000, Math.max(1, configuredMaxAiCards))
-  : 100;
+const MAX_AI_CARDS = Number.isInteger(configuredMaxAiCards) && configuredMaxAiCards > 0
+  ? configuredMaxAiCards
+  : 500;
 
 export default function FormInputs({
   isBulk, isAi, question, setQuestion, answer, setAnswer, bulkText, setBulkText,
   contentImage, imageSide, handleContentImageFile, removeContentImage,
   aiText, setAiText, aiNumCards, setAiNumCards
 }) {
+  const [customCardCount, setCustomCardCount] = useState('');
   
   // 1. MODO IA: Panel de procesamiento inteligente integrado con PdfExtractor
   if (isAi) {
@@ -69,12 +70,15 @@ export default function FormInputs({
           
           <div className="grid grid-cols-3 sm:flex bg-white p-1 rounded-xl border border-slate-200 items-center gap-1 shrink-0 w-full sm:w-auto">
             {[5, 10, 15].map((num) => {
-              const isSelected = aiNumCards === num;
+              const isSelected = customCardCount === '' && aiNumCards === num;
               return (
                 <button
                   key={num}
                   type="button"
-                  onClick={() => setAiNumCards(num)}
+                  onClick={() => {
+                    setCustomCardCount('');
+                    setAiNumCards(num);
+                  }}
                   className={`px-2 sm:px-3 py-2 sm:py-1.5 text-[11px] font-bold rounded-lg transition-all cursor-pointer text-center ${
                     isSelected 
                       ? 'bg-slate-900 text-white shadow-3xs' 
@@ -93,18 +97,21 @@ export default function FormInputs({
               min="1"
               max={MAX_AI_CARDS}
               placeholder="Cantidad libre (ej. 8)"
-              value={[5, 10, 15].includes(aiNumCards) ? '' : aiNumCards}
+              value={customCardCount}
               onChange={(e) => {
                 const rawVal = e.target.value;
                 if (rawVal === '') {
-                  setAiNumCards(''); 
+                  setCustomCardCount('');
+                  setAiNumCards('');
                 } else {
                   const parsed = parseInt(rawVal, 10);
-                  setAiNumCards(isNaN(parsed) ? '' : Math.min(MAX_AI_CARDS, Math.max(1, parsed)));
+                  const nextValue = isNaN(parsed) ? '' : Math.min(MAX_AI_CARDS, Math.max(1, parsed));
+                  setCustomCardCount(nextValue === '' ? '' : String(nextValue));
+                  setAiNumCards(nextValue);
                 }
               }}
               className={`col-span-3 w-full sm:w-36 text-center text-[11px] font-bold rounded-lg py-2 sm:py-1.5 border transition-all outline-none ${
-                ![5, 10, 15].includes(aiNumCards) && aiNumCards !== ''
+                customCardCount !== ''
                   ? 'bg-slate-900 text-white border-slate-900 shadow-3xs placeholder:text-slate-400' 
                   : 'bg-slate-50 text-slate-600 border-slate-200 placeholder:text-slate-400 focus:bg-white focus:border-slate-300'
               }`}
