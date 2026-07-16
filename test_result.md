@@ -101,3 +101,76 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+## user_problem_statement: "La creación de un examen con IA falla para el mazo Esme Notas de 114 tarjetas al seleccionar 100 preguntas."
+## backend:
+##   - task: "Generación de 100 preguntas con IA desde un mazo"
+##     implemented: true
+##     working: true
+##     file: "backend/src/controllers/examController.js"
+##     stuck_count: 1
+##     priority: "high"
+##     needs_retesting: false
+##     status_history:
+##         - working: false
+##           agent: "user"
+##           comment: "El usuario reportó una cantidad o formato inválido al generar desde Esme Notas."
+##         - working: "NA"
+##           agent: "main"
+##           comment: "El mazo 6a5835f1e15fd1e9f56b320b se verificó con 114 tarjetas completas. La generación ahora procesa lotes de 10 y conserva sourceIndex global."
+##         - working: true
+##           agent: "main"
+##           comment: "Prueba real completada: HTTP 201, 100 preguntas generadas y 100 persistidas; el examen temporal se eliminó al finalizar."
+##         - working: "NA"
+##           agent: "main"
+##           comment: "Se añadió emisión de progreso por lotes para la generación con IA; pendiente de verificación."
+##         - working: true
+##           agent: "main"
+##           comment: "Prueba SSE real aprobada: eventos 0/1 y 1/1, finalización confirmada y pregunta persistida; el examen temporal se eliminó."
+## frontend:
+##   - task: "Límite visible de preguntas por mazo"
+##     implemented: true
+##     working: true
+##     file: "frontend/src/components/exams/ExamCreationWizard.jsx"
+##     stuck_count: 1
+##     priority: "high"
+##     needs_retesting: false
+##     status_history:
+##         - working: false
+##           agent: "user"
+##           comment: "El usuario reportó que 100 preguntas se marcaba como inválido."
+##         - working: "NA"
+##           agent: "main"
+##           comment: "El campo numérico ahora no permite exceder el límite total de 100 preguntas."
+##         - working: true
+##           agent: "main"
+##           comment: "La compilación de producción de Vite terminó correctamente."
+##   - task: "Indicador de progreso de generación con IA"
+##     implemented: true
+##     working: true
+##     file: "frontend/src/components/exams/ExamCreationWizard.jsx"
+##     stuck_count: 0
+##     priority: "high"
+##     needs_retesting: false
+##     status_history:
+##         - working: "NA"
+##           agent: "main"
+##           comment: "La pantalla consume eventos SSE y muestra preguntas completadas sobre el total."
+##         - working: true
+##           agent: "main"
+##           comment: "La compilación de producción y la prueba SSE del backend finalizaron correctamente."
+## metadata:
+##   created_by: "main_agent"
+##   version: "1.0"
+##   test_sequence: 3
+##   run_ui: false
+## test_plan:
+##   current_focus:
+##     - "Generar 100 preguntas de opción múltiple con IA desde Esme Notas"
+##     - "Mostrar el avance por lotes de generación IA"
+##   stuck_tasks: []
+##   test_all: false
+##   test_priority: "high_first"
+## agent_communication:
+##   - agent: "main"
+##     message: "Progreso en tiempo real verificado mediante SSE; los exámenes temporales de prueba fueron eliminados."

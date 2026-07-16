@@ -11,6 +11,7 @@ const MAX_QUESTIONS = 100;
 const MAX_TEXT_LENGTH = 10000;
 const MAX_OPEN_ANSWER_LENGTH = 5000;
 const AI_REASONER_THRESHOLD = parseInt(process.env.AI_REASONER_THRESHOLD, 10) || 20;
+const AI_BATCH_SIZE = Math.min(MAX_QUESTIONS, Math.max(1, parseInt(process.env.AI_BATCH_SIZE, 10) || 10));
 
 const QUESTION_TYPES = ['multiple_choice', 'true_false', 'open'];
 const QUESTION_TYPE_ALIASES = {
@@ -556,6 +557,22 @@ function normalizeAiCards(rawCards) {
   });
 }
 
+function parseAiQuestions(content, expectedCount, source) {
+  const fencedJson = content.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  let parsed;
+  try {
+    parsed = JSON.parse(fencedJson ? fencedJson[1] : content);
+  } catch {
+    throw new ApiError(502, `El ${source} devolvió un formato inválido.`);
+  }
+
+  if (!isPlainObject(parsed) || !Array.isArray(parsed.questions) || parsed.questions.length !== expectedCount) {
+    throw new ApiError(502, `El ${source} devolvió una cantidad inválida de preguntas.`);
+  }
+
+  return parsed.questions;
+}
+
 async function validateAiSourceCards(userId, cards) {
   const questions = cards.map((card) => ({ sourceCardId: card.sourceCardId }));
   await validateSourceCardReferences(userId, questions);
@@ -568,7 +585,7 @@ async function generateQuestionsWithAi(cards, type, apiKey) {
     messages: [
       {
         role: 'system',
-        content: `Eres un generador de preguntas de examen en español. Devuelve SOLO JSON válido con esta forma exacta: {"questions":[...]}. Genera exactamente una pregunta por tarjeta de entrada y conserva su sourceIndex (entero de base cero). El tipo pedido es "${type}".
+        content: `Eres un generador de preguntas de examen en español. Devuelve SOLO JSON válido con esta forma exacta: {"questions":[...]}. Genera exactamente una pregunta por tarjeta de entrada y conserva el sourceIndex entero que recibe cada tarjeta. El tipo pedido es "${type}".
 
 Para "multiple_choice", cada objeto debe contener sourceIndex, prompt, options (arreglo de {id,text}) y correctOptionId. Incluye la respuesta correcta y distractores plausibles, distintos y académicamente razonables. Debe haber entre 2 y 4 opciones.
 Para "true_false", cada objeto debe contener sourceIndex, prompt y correctBoolean booleano. El prompt debe ser una afirmación clara; aproximadamente la mitad de las afirmaciones deben ser falsas, sin inventar hechos fuera de las tarjetas.
@@ -604,18 +621,7 @@ No incluyas markdown, explicaciones ni claves adicionales.`,
     throw new ApiError(502, 'El motor de IA devolvió una respuesta vacía.');
   }
 
-  let parsed;
-  try {
-    parsed = JSON.parse(content);
-  } catch {
-    throw new ApiError(502, 'El motor de IA devolvió un formato inválido.');
-  }
-
-  if (!isPlainObject(parsed) || !Array.isArray(parsed.questions) || parsed.questions.length !== cards.length) {
-    throw new ApiError(502, 'El motor de IA devolvió una cantidad inválida de preguntas.');
-  }
-
-  return parsed.questions;
+  return parseAiQuestions(content, cards.length, 'motor de IA');
 }
 
 async function auditQuestionsWithAi(cards, rawQuestions, type, apiKey) {
@@ -660,18 +666,7 @@ No elimines preguntas, no agregues explicaciones, no incluyas markdown ni claves
     throw new ApiError(502, 'El auditor de IA devolvió una respuesta vacía.');
   }
 
-  let parsed;
-  try {
-    parsed = JSON.parse(content);
-  } catch {
-    throw new ApiError(502, 'El auditor de IA devolvió un formato inválido.');
-  }
-
-  if (!isPlainObject(parsed) || !Array.isArray(parsed.questions) || parsed.questions.length !== cards.length) {
-    throw new ApiError(502, 'El auditor de IA devolvió una cantidad inválida de preguntas.');
-  }
-
-  return parsed.questions;
+  return parseAiQuestions(content, cards.length, 'auditor de IA');
 }
 
 function aiCandidateToQuestionInput(candidate, card, type, order) {
@@ -828,6 +823,24 @@ function sendError(scope, res, err) {
 
   console.error(`[${scope}] error:`, err.message);
   return res.status(500).json({ error: 'No se pudo completar la operación de exámenes.' });
+}
+
+function acceptsEventStream(req) {
+  return req.get?.('accept')?.includes('text/event-stream') || false;
+}
+
+function startEventStream(res) {
+  res.status(200).set({
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+  res.flushHeaders?.();
+}
+
+function sendEvent(res, event, payload) {
+  res.write(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`);
 }
 
 exports.listExams = async (req, res) => {
@@ -1146,6 +1159,9 @@ exports.generateFromDecks = async (req, res) => {
 };
 
 exports.generateQuestionsAi = async (req, res) => {
+  const streamProgress = acceptsEventStream(req);
+  let streamStarted = false;
+
   try {
     const body = req.body || {};
     const userId = requireUserId(req);
@@ -1174,8 +1190,34 @@ exports.generateQuestionsAi = async (req, res) => {
       throw new ApiError(400, 'No has configurado tu API Key en la sección de Ajustes.');
     }
 
-    const rawCandidates = await generateQuestionsWithAi(cards, type, user.aiApiKey);
-    const candidates = await auditQuestionsWithAi(cards, rawCandidates, type, user.aiApiKey);
+    if (streamProgress) {
+      startEventStream(res);
+      streamStarted = true;
+      sendEvent(res, 'progress', {
+        completed: 0,
+        total: cards.length,
+        message: 'Preparando la generación con IA...',
+      });
+    }
+
+    const candidates = [];
+    for (let startIndex = 0; startIndex < cards.length; startIndex += AI_BATCH_SIZE) {
+      const cardBatch = cards.slice(startIndex, startIndex + AI_BATCH_SIZE).map((card, batchIndex) => ({
+        ...card,
+        sourceIndex: startIndex + batchIndex,
+      }));
+      const rawCandidates = await generateQuestionsWithAi(cardBatch, type, user.aiApiKey);
+      const auditedCandidates = await auditQuestionsWithAi(cardBatch, rawCandidates, type, user.aiApiKey);
+      candidates.push(...auditedCandidates);
+
+      if (streamProgress) {
+        sendEvent(res, 'progress', {
+          completed: candidates.length,
+          total: cards.length,
+          message: 'Generando y revisando preguntas...',
+        });
+      }
+    }
     const usedSourceIndexes = new Set();
     const nextOrder = await getNextOrder(exam._id);
     const questionData = candidates.map((candidate, index) => {
@@ -1192,11 +1234,23 @@ exports.generateQuestionsAi = async (req, res) => {
       examId: exam._id,
     })));
     const questionCount = await synchronizeQuestionCount(exam);
-    return res.status(201).json({
+    const payload = {
       questions: questions.map((question) => question.serialize()),
       questionCount,
-    });
+    };
+    if (streamProgress) {
+      sendEvent(res, 'complete', { questionCount });
+      return res.end();
+    }
+    return res.status(201).json(payload);
   } catch (err) {
+    if (streamStarted) {
+      const message = err instanceof ApiError
+        ? err.message
+        : 'No se pudo completar la generación de preguntas con IA.';
+      sendEvent(res, 'error', { error: message });
+      return res.end();
+    }
     return sendError('exams:generate-ai', res, err);
   }
 };

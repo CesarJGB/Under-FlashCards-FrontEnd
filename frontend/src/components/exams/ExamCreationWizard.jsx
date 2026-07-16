@@ -45,6 +45,57 @@ async function readError(response, fallback) {
   return payload?.error || payload?.message || fallback;
 }
 
+async function readAiGenerationProgress(response, onProgress) {
+  if (!response.body) {
+    throw new Error('No se pudo recibir el progreso de la generación con IA.');
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let completion = null;
+
+  const processEvent = (rawEvent) => {
+    const eventType = rawEvent.match(/^event:\s*(.+)$/m)?.[1]?.trim();
+    const data = rawEvent.match(/^data:\s*(.+)$/m)?.[1];
+    if (!eventType || !data) return;
+
+    let payload;
+    try {
+      payload = JSON.parse(data);
+    } catch {
+      throw new Error('La generación con IA devolvió un progreso inválido.');
+    }
+
+    if (eventType === 'progress') {
+      onProgress(payload);
+    } else if (eventType === 'complete') {
+      completion = payload;
+    } else if (eventType === 'error') {
+      throw new Error(payload?.error || 'La IA no pudo generar las preguntas.');
+    }
+  };
+
+  while (true) {
+    const { done, value } = await reader.read();
+    buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
+
+    let separatorIndex = buffer.indexOf('\n\n');
+    while (separatorIndex !== -1) {
+      processEvent(buffer.slice(0, separatorIndex));
+      buffer = buffer.slice(separatorIndex + 2);
+      separatorIndex = buffer.indexOf('\n\n');
+    }
+
+    if (done) break;
+  }
+
+  if (!completion) {
+    throw new Error('La generación con IA terminó sin confirmar las preguntas creadas.');
+  }
+  return completion;
+}
+
 export default function ExamCreationWizard({
   userId,
   folderId = null,
@@ -60,6 +111,7 @@ export default function ExamCreationWizard({
   const [selectedDecks, setSelectedDecks] = useState(() => draft?.selectedDecks || new Map());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [generationProgress, setGenerationProgress] = useState(null);
 
   const selectedEntries = useMemo(() => Array.from(selectedDecks.values()), [selectedDecks]);
   const totalQuestions = useMemo(
@@ -168,6 +220,9 @@ export default function ExamCreationWizard({
 
     setSaving(true);
     setError('');
+    setGenerationProgress(generation === 'ai'
+      ? { completed: 0, total: totalQuestions, message: 'Preparando la generación con IA...' }
+      : null);
     let createdExam = null;
     let generationWarning = '';
     try {
@@ -207,11 +262,14 @@ export default function ExamCreationWizard({
       if (generation === 'ai') {
         const generatedResponse = await fetch(`${BACKEND_URL}/api/exams/generate-questions-ai`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'text/event-stream',
+          },
           body: JSON.stringify({ userId, examId: getExamId(exam), type: 'multiple_choice' }),
         });
         if (!generatedResponse.ok) throw new Error(await readError(generatedResponse, 'La IA no pudo generar las preguntas.'));
-        const generated = await generatedResponse.json();
+        const generated = await readAiGenerationProgress(generatedResponse, setGenerationProgress);
         exam = { ...exam, questionCount: generated.questionCount ?? exam.questionCount };
       }
 
@@ -232,6 +290,7 @@ export default function ExamCreationWizard({
       setError(createError.message || 'No se pudo crear el examen.');
     } finally {
       setSaving(false);
+      setGenerationProgress(null);
     }
   };
 
@@ -290,6 +349,40 @@ export default function ExamCreationWizard({
         </div>
       </header>
 
+      {saving && generationProgress && (
+        <section
+          role="status"
+          aria-live="polite"
+          className="rounded-2xl border border-indigo-100 bg-indigo-50 p-4 shadow-sm"
+        >
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <Loader2 className="h-4 w-4 shrink-0 animate-spin text-indigo-600" aria-hidden="true" />
+              <p className="truncate text-sm font-bold text-indigo-950">{generationProgress.message}</p>
+            </div>
+            <span className="shrink-0 text-sm font-black tabular-nums text-indigo-700">
+              {generationProgress.completed}/{generationProgress.total}
+            </span>
+          </div>
+          <div
+            className="mt-3 h-2 overflow-hidden rounded-full bg-indigo-200/70"
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={generationProgress.total}
+            aria-valuenow={generationProgress.completed}
+            aria-label="Preguntas generadas"
+          >
+            <div
+              className="h-full rounded-full bg-indigo-600 transition-[width] duration-300"
+              style={{ width: `${generationProgress.total ? (generationProgress.completed / generationProgress.total) * 100 : 0}%` }}
+            />
+          </div>
+          <p className="mt-2 text-xs font-medium text-indigo-700">
+            Puedes mantener esta pantalla abierta mientras terminamos cada lote.
+          </p>
+        </section>
+      )}
+
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
         <div className="mb-4 flex items-end justify-between gap-3">
           <div>
@@ -314,7 +407,7 @@ export default function ExamCreationWizard({
                 <input
                   type="number"
                   min="1"
-                  max={cardCount}
+                  max={Math.min(cardCount, 100)}
                   value={entry.questionCount}
                   onChange={(event) => updateQuestionCount(deckId, event.target.value)}
                   disabled={saving}
@@ -342,7 +435,7 @@ export default function ExamCreationWizard({
           className="mt-5 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 text-xs font-bold text-white shadow-sm transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-          Continuar
+          {saving && generationProgress ? 'Generando preguntas...' : 'Continuar'}
         </button>
       </section>
 
