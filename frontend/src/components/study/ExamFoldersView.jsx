@@ -80,20 +80,34 @@ function getPayloadErrorMessage(payload, fallback) {
   return payload?.error || payload?.message || fallback;
 }
 
-function formatQuestionForExport(question, index) {
-  const number = index + 1;
+function shuffle(items) {
+  const shuffled = [...items];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+  }
+  return shuffled;
+}
+
+function optionLabel(index) {
+  return String.fromCharCode(65 + index);
+}
+
+function formatQuestionForExport(question) {
   if (question.type === 'multiple_choice') {
     const choices = (question.options || [])
-      .map((option, optionIndex) => `${String.fromCharCode(65 + optionIndex)}. ${option.text}`)
+      .map((option, optionIndex) => `${optionLabel(optionIndex)}. ${option.text}`)
       .join('\n');
-    return `${number}. ${question.prompt}${choices ? `\n\n${choices}` : ''}`;
+    return `${question.prompt}${choices ? `\n\n${choices}` : ''}`;
   }
-  return `${number}. ${question.prompt}`;
+  return question.prompt;
 }
 
 function formatAnswerForExport(question) {
   if (question.type === 'multiple_choice') {
-    return question.options?.find((option) => option.id === question.correctOptionId)?.text || 'Sin respuesta configurada';
+    const correctIndex = question.options?.findIndex((option) => option.id === question.correctOptionId);
+    if (!Number.isInteger(correctIndex) || correctIndex < 0) return 'Sin respuesta configurada';
+    return `${optionLabel(correctIndex)}. ${question.options[correctIndex].text}`;
   }
   if (question.type === 'true_false') return question.correctBoolean ? 'Verdadero' : 'Falso';
   return question.expectedAnswer || 'Sin respuesta configurada';
@@ -402,12 +416,18 @@ export default function ExamFoldersView({ userId, onBack, dashboardShell, decks 
 
       await pdfExport.exportPdf({
         deck: { title: exam.title },
-        type: 'questions',
-        cards: payload.map((question, index) => ({
-          id: getExamId(question),
-          question: formatQuestionForExport(question, index),
-          answer: formatAnswerForExport(question),
-        })),
+        type: 'exam_questions',
+        cards: payload.map((question) => {
+          const options = question.type === 'multiple_choice'
+            ? shuffle(question.options || [])
+            : question.options;
+          const exportQuestion = { ...question, options };
+          return {
+            id: getExamId(question),
+            question: formatQuestionForExport(exportQuestion),
+            answer: formatAnswerForExport(exportQuestion),
+          };
+        }),
       });
     } catch (downloadError) {
       setFeedback(downloadError.message || 'No se pudo descargar el examen.');

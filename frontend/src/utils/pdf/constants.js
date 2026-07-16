@@ -21,6 +21,15 @@ export const PDF_EXPORTS = Object.freeze({
     sections: ['question'],
     columns: 3,
   },
+  exam_questions: {
+    id: 'exam_questions',
+    title: 'Examen',
+    fileSuffix: 'examen',
+    kind: 'content',
+    sections: ['question'],
+    columns: 2,
+    answerKeyAtEnd: true,
+  },
   answers: {
     id: 'answers',
     title: 'Banco de Respuestas',

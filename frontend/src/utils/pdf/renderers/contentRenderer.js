@@ -125,6 +125,56 @@ function drawRunningHeader(doc, deckTitle, exportTitle) {
   doc.line(PAGE_MARGIN_X, 12.5, pageWidth - PAGE_MARGIN_X, 12.5);
 }
 
+async function renderAnswerKey(doc, items, config, context, deckTitle, geometry, pageHeight, answerFallbackSize) {
+  const title = 'Respuestas';
+  const columns = config.columns || 1;
+  const bottomLimit = pageHeight - BODY_BOTTOM_MARGIN;
+  let pageBodyTop = BODY_TOP_FIRST_PAGE;
+  let columnIndex = 0;
+  let cursorY = pageBodyTop;
+
+  doc.addPage();
+  drawTitleBlock(doc, title, deckTitle, `${items.length} Respuestas - ${APP_NAME}`);
+  drawColumnDividers(doc, columns, geometry, pageBodyTop, bottomLimit);
+
+  const moveToNextColumnOrPage = () => {
+    if (columnIndex < columns - 1) {
+      columnIndex += 1;
+    } else {
+      doc.addPage();
+      drawRunningHeader(doc, deckTitle, title);
+      pageBodyTop = BODY_TOP_OTHER_PAGES;
+      drawColumnDividers(doc, columns, geometry, pageBodyTop, bottomLimit);
+      columnIndex = 0;
+    }
+    cursorY = pageBodyTop;
+  };
+
+  for (let index = 0; index < items.length; index += 1) {
+    context.throwIfCancelled();
+    const item = items[index];
+    const answerStyle = resolveContentTextStyle(item, 'answer', answerFallbackSize);
+    setPdfTextStyle(doc, answerStyle);
+    const lines = doc.splitTextToSize(`${index + 1}) ${item.answer || 'Sin respuesta configurada'}`, geometry.columnWidth);
+    const lineHeight = mmFromPt(answerStyle.size) * 1.35;
+    const height = lines.length * lineHeight;
+
+    if (cursorY + height > bottomLimit && cursorY > pageBodyTop) {
+      moveToNextColumnOrPage();
+    }
+
+    setPdfTextStyle(doc, answerStyle);
+    const drawX = geometry.columnsX[columnIndex];
+    lines.forEach((line) => {
+      doc.text(line, drawX, cursorY + mmFromPt(answerStyle.size));
+      cursorY += lineHeight;
+    });
+    cursorY += ITEM_GAP;
+
+    await context.yield();
+  }
+}
+
 function drawColumnDividers(doc, columns, geometry, top, bottom) {
   if (columns <= 1) return;
   doc.setDrawColor(DIVIDER_COLOR.r, DIVIDER_COLOR.g, DIVIDER_COLOR.b);
@@ -353,6 +403,11 @@ export async function renderContentDocument(doc, items, config, context) {
 
     context.reportProgress(index + 1, items.length, `Procesando elemento ${index + 1} de ${items.length}`);
     await context.yield();
+  }
+
+  if (config.answerKeyAtEnd) {
+    context.reportProgress(items.length, items.length, 'Preparando clave de respuestas...');
+    await renderAnswerKey(doc, items, config, context, deckTitle, geometry, pageHeight, answerFallbackSize);
   }
 
   drawFooters(doc, deckTitle);

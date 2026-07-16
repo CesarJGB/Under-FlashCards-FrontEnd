@@ -95,7 +95,11 @@ export default function ExamSessionPlayer({
       const filtered = questionTypeFilter
         ? payload.filter((question) => question.type === questionTypeFilter)
         : payload;
-      const shuffled = shuffle(filtered);
+      const shuffled = shuffle(filtered).map((question) => (
+        question.type === 'multiple_choice'
+          ? { ...question, options: shuffle(question.options || []) }
+          : question
+      ));
       setQuestions(shuffled);
       setCurrentIndex(0);
       setAnswers({});
@@ -313,7 +317,7 @@ export default function ExamSessionPlayer({
 
         {currentQuestion.type === 'multiple_choice' && (
           <div className="mt-6 space-y-2.5">
-            {currentQuestion.options.map((option) => {
+            {currentQuestion.options.map((option, optionIndex) => {
               const selected = currentAnswer?.answer === option.id;
               return (
                 <button
@@ -325,7 +329,7 @@ export default function ExamSessionPlayer({
                   }`}
                 >
                   <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-xs font-black ${selected ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-300 text-slate-400'}`}>
-                    {selected ? <Check className="h-3.5 w-3.5 stroke-[3]" /> : option.id.replace('option-', '')}
+                    {selected ? <Check className="h-3.5 w-3.5 stroke-[3]" /> : String.fromCharCode(65 + optionIndex)}
                   </span>
                   {option.text}
                 </button>

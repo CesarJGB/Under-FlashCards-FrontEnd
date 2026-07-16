@@ -49,6 +49,22 @@ function optionText(question) {
   return question.options?.find((option) => option.id === question.correctOptionId)?.text || 'Sin opción correcta';
 }
 
+function optionOrder(option) {
+  const match = /^option-(\d+)$/.exec(option?.id || '');
+  return match ? Number(match[1]) : Number.MAX_SAFE_INTEGER;
+}
+
+function sortOptionsForEditing(options) {
+  return [...options].sort((first, second) => (
+    optionOrder(first) - optionOrder(second)
+    || String(first.id || '').localeCompare(String(second.id || ''))
+  ));
+}
+
+function optionLabel(index) {
+  return String.fromCharCode(65 + index);
+}
+
 function questionSummary(question) {
   if (question.type === 'multiple_choice') return `Correcta: ${optionText(question)}`;
   if (question.type === 'true_false') return `Respuesta: ${question.correctBoolean ? 'Verdadero' : 'Falso'}`;
@@ -230,7 +246,7 @@ export default function ExamQuestionEditor({ exam, userId, onBack, onExamChange,
       type,
       prompt: question.prompt || '',
       options: question.options?.length
-        ? question.options.map((option) => ({ id: option.id, text: option.text || '' }))
+        ? sortOptionsForEditing(question.options).map((option) => ({ id: option.id, text: option.text || '' }))
         : emptyForm('multiple_choice').options,
       correctOptionId: question.correctOptionId || question.options?.[0]?.id || 'option-1',
       correctBoolean: typeof question.correctBoolean === 'boolean' ? question.correctBoolean : true,
@@ -335,8 +351,9 @@ export default function ExamQuestionEditor({ exam, userId, onBack, onExamChange,
             <div className="space-y-2.5">
               <div className="flex items-center justify-between gap-3">
                 <span className="text-xs font-bold text-slate-700">Opciones</span>
-                <span className="text-[11px] font-medium text-slate-400">Marca la correcta</span>
+                <span className="text-[11px] font-medium text-slate-400">Orden fijo para edición</span>
               </div>
+              <p className="text-[11px] font-medium text-slate-500">Aquí las opciones se mantienen en orden A, B, C...; se mezclan únicamente al repasar o descargar.</p>
               {form.options.map((option, index) => (
                 <div key={option.id} className="flex items-center gap-2">
                   <button
@@ -352,12 +369,18 @@ export default function ExamQuestionEditor({ exam, userId, onBack, onExamChange,
                   >
                     {form.correctOptionId === option.id ? <Check className="h-4 w-4 stroke-[3]" /> : <Circle className="h-4 w-4" />}
                   </button>
+                  <span className="flex h-9 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-xs font-black text-slate-500" aria-hidden="true">
+                    {optionLabel(index)}
+                  </span>
                   <input
                     value={option.text}
                     onChange={(event) => updateOption(option.id, event.target.value)}
                     placeholder={`Opción ${index + 1}`}
                     className="h-10 min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-medium text-slate-800 outline-none transition-all placeholder:text-slate-400 focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-500/10"
                   />
+                  {form.correctOptionId === option.id && (
+                    <span className="hidden shrink-0 rounded-lg bg-indigo-50 px-2 py-1 text-[10px] font-bold text-indigo-700 sm:inline">Correcta</span>
+                  )}
                   <button
                     type="button"
                     onClick={() => removeOption(option.id)}

@@ -702,7 +702,7 @@ function aiCandidateToQuestionInput(candidate, card, type, order) {
       }
     }
 
-    return normalizeQuestionInput({ ...base, options, correctOptionId }, order);
+    return normalizeQuestionInput({ ...base, options: shuffle(options), correctOptionId }, order);
   }
 
   if (type === 'true_false') {

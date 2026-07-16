@@ -182,10 +182,41 @@
 ##         - working: true
 ##           agent: "main"
 ##           comment: "Prueba real aprobada: cuatro eventos SSE, una tarjeta persistida y limpieza posterior del mazo temporal."
+##   - task: "PDF y aleatorización de opciones de examen"
+##     implemented: true
+##     working: true
+##     file: "frontend/src/components/study/ExamFoldersView.jsx"
+##     stuck_count: 1
+##     priority: "high"
+##     needs_retesting: false
+##     status_history:
+##         - working: false
+##           agent: "user"
+##           comment: "El PDF duplicaba la numeración, no incluía una clave final y las respuestas correctas aparecían siempre como A."
+##         - working: "NA"
+##           agent: "main"
+##           comment: "Se añadieron clave final de respuestas, dos columnas y mezcla de opciones para generación, repaso y PDF; pendiente de verificación."
+##         - working: true
+##           agent: "main"
+##           comment: "Configuración PDF validada, compilación completada y prueba aislada confirmó que la respuesta correcta no queda fija en la primera posición."
+##   - task: "Orden fijo de opciones en el editor de examen"
+##     implemented: true
+##     working: true
+##     file: "frontend/src/components/exams/ExamQuestionEditor.jsx"
+##     stuck_count: 0
+##     priority: "medium"
+##     needs_retesting: false
+##     status_history:
+##         - working: "NA"
+##           agent: "main"
+##           comment: "El editor ordena opciones de forma canónica y etiqueta visualmente la correcta; pendiente de compilación."
+##         - working: true
+##           agent: "main"
+##           comment: "La compilación de producción terminó correctamente y el orden de edición quedó separado de la mezcla de repaso/PDF."
 ## metadata:
 ##   created_by: "main_agent"
 ##   version: "1.0"
-##   test_sequence: 5
+##   test_sequence: 9
 ##   run_ui: false
 ## test_plan:
 ##   current_focus:
@@ -195,4 +226,4 @@
 ##   test_priority: "high_first"
 ## agent_communication:
 ##   - agent: "main"
-##     message: "Pruebas de reintento, recuperación parcial, stream de examen y stream de mazo aprobadas. Las trazas [ai] quedan activas temporalmente para el siguiente intento real."
+##     message: "El editor conserva orden fijo y marca la correcta; repaso y PDF siguen mezclando las opciones."
