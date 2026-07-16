@@ -134,6 +134,10 @@ export default function ExamFoldersView({ userId, onBack, dashboardShell, decks 
     () => folders.find((folder) => getFolderId(folder) === currentFolderId) || null,
     [folders, currentFolderId]
   );
+  const activeFolderMenu = useMemo(
+    () => folders.find((folder) => getFolderId(folder) === activeMenuId) || null,
+    [activeMenuId, folders]
+  );
   const visibleFolders = useMemo(
     () => folders.filter((folder) => getParentId(folder) === currentFolderId),
     [folders, currentFolderId]
@@ -525,7 +529,6 @@ export default function ExamFoldersView({ userId, onBack, dashboardShell, decks 
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4">
             {visibleFolders.map((folder) => {
               const folderId = getFolderId(folder);
-              const isMenuOpen = activeMenuId === folderId;
               return (
                 <div key={folderId} className="group relative">
                   <button
@@ -540,28 +543,12 @@ export default function ExamFoldersView({ userId, onBack, dashboardShell, decks 
                   </button>
                   <button
                     type="button"
-                    onClick={() => setActiveMenuId(isMenuOpen ? null : folderId)}
-                    className={`absolute right-2.5 top-2.5 z-30 flex h-7 w-7 items-center justify-center rounded-lg shadow-xs transition-all ${
-                      isMenuOpen ? 'bg-zinc-200 text-zinc-900' : 'bg-zinc-100/80 text-zinc-600 hover:bg-zinc-200'
-                    }`}
-                    aria-label={`Editar ${folder.name}`}
+                    onClick={() => setActiveMenuId(folderId)}
+                    className="absolute right-2.5 top-2.5 z-30 flex h-7 w-7 items-center justify-center rounded-lg bg-zinc-100/80 text-zinc-600 shadow-xs transition-all hover:bg-zinc-200"
+                    aria-label={`Abrir acciones de ${folder.name}`}
                   >
                     <MoreHorizontal className="h-3.5 w-3.5" />
                   </button>
-                  {isMenuOpen && (
-                    <>
-                      <div className="fixed inset-0 z-20 bg-transparent" onClick={() => setActiveMenuId(null)} />
-                      <div className="absolute right-2 top-10 z-50 w-44 rounded-xl border border-zinc-200 bg-white p-1 shadow-xl animate-[slideUp_0.1s_ease-out]">
-                        <button
-                          type="button"
-                          onClick={() => openRenameFolder(folder)}
-                          className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[11px] font-bold text-zinc-700 transition-colors hover:bg-zinc-50"
-                        >
-                          <Pencil className="h-3.5 w-3.5 text-zinc-400" /> Editar nombre
-                        </button>
-                      </div>
-                    </>
-                  )}
                 </div>
               );
             })}
@@ -600,6 +587,18 @@ export default function ExamFoldersView({ userId, onBack, dashboardShell, decks 
           </div>
         )}
       </section>
+
+      <ActionSheet
+        open={Boolean(activeFolderMenu)}
+        title={activeFolderMenu ? `Acciones de ${activeFolderMenu.name}` : 'Acciones de carpeta'}
+        options={activeFolderMenu ? [{
+          id: 'edit',
+          label: 'Editar nombre',
+          icon: Pencil,
+          onSelect: () => openRenameFolder(activeFolderMenu),
+        }] : []}
+        onClose={() => setActiveMenuId(null)}
+      />
 
       {folderModal && (
         <AcademicFolderModal

@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Loader2, Folder, Bookmark, ChevronUp, MoreHorizontal, Pencil } from 'lucide-react';
 import DeckCard from '../DeckCard';
+import ActionSheet from '../common/ActionSheet';
 
 export default function MateriasLevel({
   materias, processedDecks, loading, userId, isAdmin, viewMode, currentPath, setCurrentPath,
@@ -35,11 +36,11 @@ export default function MateriasLevel({
   const isList = viewMode === 'list';
 
   // Handler para editar nombre (abre modal de carpeta académica en modo edición)
-  const handleEditMateriaName = (materia, e) => {
-    e.stopPropagation();
+  const handleEditMateriaName = (materia) => {
     setActiveMenuId(null);
     setAcademicModal({ type: 'materia', editing: materia });
   };
+  const activeMateria = materias.find((materia) => materia._id === activeMenuId);
 
   // =======================================================================
   // 🎴 RENDERIZADO TIPO DECKCARD CON SOPORTE DARK/LIGHT + MENÚ
@@ -79,21 +80,6 @@ export default function MateriasLevel({
             </div>
           </button>
 
-          {isMenuOpen && (
-            <>
-              <div className="fixed inset-0 z-20 bg-transparent" onClick={() => setActiveMenuId(null)} />
-              <div className="absolute right-0 top-full mt-1 w-44 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl shadow-xl p-1 z-50 animate-[slideUp_0.1s_ease-out]">
-                <button
-                  type="button"
-                  onClick={(e) => handleEditMateriaName(m, e)}
-                  className="w-full text-left px-2.5 py-1.5 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-xs font-semibold rounded-lg flex items-center gap-2 cursor-pointer transition-colors"
-                >
-                  <Pencil className="w-3.5 h-3.5 text-zinc-400" />
-                  Editar nombre
-                </button>
-              </div>
-            </>
-          )}
         </div>
       );
     }
@@ -139,22 +125,6 @@ export default function MateriasLevel({
           </div>
         </button>
 
-        {/* Dropdown grid */}
-        {isMenuOpen && (
-          <>
-            <div className="fixed inset-0 z-20 bg-transparent" onClick={() => setActiveMenuId(null)} />
-            <div className="absolute right-2 top-10 w-44 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl shadow-xl p-1 z-50 animate-[slideUp_0.1s_ease-out]">
-              <button
-                type="button"
-                onClick={(e) => handleEditMateriaName(m, e)}
-                className="w-full text-left px-2 py-1.5 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-[11px] font-bold rounded-lg flex items-center gap-2 cursor-pointer transition-colors"
-              >
-                <Pencil className="w-3.5 h-3.5 text-zinc-400" />
-                Editar nombre
-              </button>
-            </div>
-          </>
-        )}
       </div>
     );
   };
@@ -223,6 +193,18 @@ export default function MateriasLevel({
           )}
         </>
       )}
+
+      <ActionSheet
+        open={Boolean(activeMateria)}
+        title={activeMateria ? `Acciones de ${activeMateria.name}` : 'Acciones de materia'}
+        options={activeMateria ? [{
+          id: 'edit',
+          label: 'Editar nombre',
+          icon: Pencil,
+          onSelect: () => handleEditMateriaName(activeMateria),
+        }] : []}
+        onClose={() => setActiveMenuId(null)}
+      />
 
       {/* MAZOS SIN CLASIFICAR */}
       <div className="pt-6 border-t border-zinc-200/60 dark:border-zinc-700/50">
