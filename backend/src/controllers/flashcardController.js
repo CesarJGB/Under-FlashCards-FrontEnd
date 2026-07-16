@@ -32,7 +32,7 @@ const AI_SOURCE_CHUNK_MAX_LENGTH = readBoundedInteger(
   60000
 );
 const AI_DECK_BATCH_SIZE = readBoundedInteger(process.env.AI_DECK_BATCH_SIZE, 12, 1, 20);
-const AI_DECK_CONCURRENCY = readBoundedInteger(process.env.AI_DECK_CONCURRENCY, 3, 1, 4);
+const AI_DECK_CONCURRENCY = readBoundedInteger(process.env.AI_DECK_CONCURRENCY, 4, 1, 4);
 const AI_GLOBAL_DECK_CONCURRENCY = readBoundedInteger(process.env.AI_GLOBAL_DECK_CONCURRENCY, 4, 1, 8);
 const AI_DECK_LOCK_TTL_MS = readBoundedInteger(process.env.AI_DECK_LOCK_TTL_MS, 600000, 60000, 3600000);
 const AI_TARGET_PADDING_MAX = readBoundedInteger(process.env.AI_TARGET_PADDING_MAX, 20, 0, 500);

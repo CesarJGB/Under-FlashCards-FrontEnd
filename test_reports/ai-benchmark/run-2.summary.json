@@ -1,0 +1,33 @@
+{
+  "runName": "run-2",
+  "pdfPath": "/home/ubuntu/test-fixtures/Farma EsmeNotas Act20Ene26.pdf",
+  "targetCount": 520,
+  "sourceCharacters": 340340,
+  "pages": 78,
+  "pagesWithText": 78,
+  "persistedCount": 520,
+  "completion": {
+    "runId": "deck-833c2afa",
+    "createdCount": 520,
+    "target": 520,
+    "metrics": {
+      "generated": 600,
+      "audited": 600,
+      "accepted": 520,
+      "eliminated": 9,
+      "merged": 0,
+      "corrected": 15,
+      "duplicates": 0,
+      "sourceCharacters": 340340,
+      "sourceChunks": 52,
+      "concurrency": 4,
+      "globalConcurrency": 4,
+      "tokenUsage": {
+        "promptTokens": 275323,
+        "completionTokens": 67159,
+        "totalTokens": 342482
+      }
+    }
+  },
+  "runCompletedEvents": 1
+}

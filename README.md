@@ -103,7 +103,7 @@ The flashcard pipeline divides source documents into structured text segments an
 processes independent generation/audit batches with bounded concurrency. Configure
 these backend environment variables on the deployment platform when needed:
 
-- `AI_DECK_CONCURRENCY`: simultaneous generation/audit pipelines; default `3`, range `1-4`.
+- `AI_DECK_CONCURRENCY`: simultaneous generation/audit pipelines; default `4`, range `1-4`.
 - `AI_GLOBAL_DECK_CONCURRENCY`: generation/audit pipelines allowed across all active requests in one server process; default `4`, range `1-8`.
 - `AI_DECK_LOCK_TTL_MS`: renewable lease that protects a deck from deletion while AI generation is active; default `600000`, range `60000-3600000`.
 - `AI_MAX_CARDS`: maximum final cards allowed in one request; default `100`, range `1-1000`.
