@@ -12,6 +12,10 @@ const deckSchema = new mongoose.Schema(
     isStarred: { type: Boolean, default: false },
     isDefault: { type: Boolean, default: false },
     isPublicReadOnly: { type: Boolean, default: false },
+    aiGenerationLocks: {
+      type: [{ token: { type: String, required: true }, expiresAt: { type: Date, required: true } }],
+      default: [],
+    },
 
     materiaId: { type: mongoose.Schema.Types.ObjectId, ref: 'Materia', default: null, index: true },
     parcialNumber: { type: Number, enum: [1, 2, 3], default: null, index: true },

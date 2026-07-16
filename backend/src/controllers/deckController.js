@@ -150,8 +150,18 @@ exports.updatePublicReadOnly = async (req, res) => {
 exports.deleteDeck = async (req, res) => {
   try {
     const { id } = req.params;
-    const deck = await Deck.findByIdAndDelete(id);
-    if (!deck) return res.status(404).json({ error: 'Deck not found.' });
+    const userId = req.user?._id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized.' });
+    const deck = await Deck.findOneAndDelete({
+      _id: id,
+      userId,
+      $nor: [{ aiGenerationLocks: { $elemMatch: { expiresAt: { $gt: new Date() } } } }],
+    });
+    if (!deck) {
+      const exists = await Deck.exists({ _id: id, userId });
+      if (!exists) return res.status(404).json({ error: 'Deck not found.' });
+      return res.status(409).json({ error: 'El mazo tiene una generación con IA en proceso. Inténtalo de nuevo cuando termine.' });
+    }
     await Flashcard.deleteMany({ deckId: id });
     return res.json({ success: true, id });
   } catch (err) {

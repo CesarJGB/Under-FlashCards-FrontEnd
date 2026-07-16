@@ -2,7 +2,11 @@ import { lazy, Suspense, startTransition } from 'react';
 import { ImagePlus, X, FileText, Layers } from 'lucide-react';
 
 const PdfExtractor = lazy(() => import('./PdfExtractor'));
-const MAX_AI_SOURCE_TEXT_LENGTH = 60000;
+const MAX_AI_DOCUMENT_TEXT_LENGTH = 600000;
+const configuredMaxAiCards = Number.parseInt(import.meta.env.VITE_MAX_AI_CARDS, 10);
+const MAX_AI_CARDS = Number.isInteger(configuredMaxAiCards)
+  ? Math.min(1000, Math.max(1, configuredMaxAiCards))
+  : 100;
 
 export default function FormInputs({
   isBulk, isAi, question, setQuestion, answer, setAnswer, bulkText, setBulkText,
@@ -27,7 +31,7 @@ export default function FormInputs({
           <PdfExtractor
             onTextExtracted={(extractedText) => {
               startTransition(() => {
-                setAiText((prev) => (prev ? prev + "\n" : "") + extractedText);
+                setAiText((previousText) => (previousText ? `${previousText}\n${extractedText}` : extractedText));
               });
             }}
           />
@@ -42,14 +46,14 @@ export default function FormInputs({
           <textarea
             value={aiText}
             onChange={(e) => setAiText(e.target.value)}
-            maxLength={MAX_AI_SOURCE_TEXT_LENGTH}
+            maxLength={MAX_AI_DOCUMENT_TEXT_LENGTH}
             placeholder={
               "Pega tu información aquí o usa el extractor de PDF de arriba para rellenar este campo de forma automática."
             }
             className="min-h-[160px] w-full text-xs rounded-xl border border-slate-200 px-3 py-2.5 outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 placeholder:text-slate-300 leading-relaxed font-medium"
           />
           <p className="mt-1 text-right text-[10px] font-medium text-slate-400">
-            {aiText.length.toLocaleString('es-MX')} / {MAX_AI_SOURCE_TEXT_LENGTH.toLocaleString('es-MX')} caracteres
+            {aiText.length.toLocaleString('es-MX')} / {MAX_AI_DOCUMENT_TEXT_LENGTH.toLocaleString('es-MX')} caracteres
           </p>
         </div>
 
@@ -87,7 +91,7 @@ export default function FormInputs({
             <input
               type="number"
               min="1"
-              max="100"
+              max={MAX_AI_CARDS}
               placeholder="Cantidad libre (ej. 8)"
               value={[5, 10, 15].includes(aiNumCards) ? '' : aiNumCards}
               onChange={(e) => {
@@ -96,7 +100,7 @@ export default function FormInputs({
                   setAiNumCards(''); 
                 } else {
                   const parsed = parseInt(rawVal, 10);
-                  setAiNumCards(isNaN(parsed) ? '' : Math.min(100, Math.max(1, parsed)));
+                  setAiNumCards(isNaN(parsed) ? '' : Math.min(MAX_AI_CARDS, Math.max(1, parsed)));
                 }
               }}
               className={`col-span-3 w-full sm:w-36 text-center text-[11px] font-bold rounded-lg py-2 sm:py-1.5 border transition-all outline-none ${

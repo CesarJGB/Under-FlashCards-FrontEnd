@@ -20,7 +20,7 @@ const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 const ADMIN_EMAIL = "cesarjaviervebe@gmail.com"; 
 
 export default function LibrarySection({
-  userId, userEmail, decks, materias, loading,
+  userId, userEmail, authToken, decks, materias, loading,
   setDecks, setMaterias, loadDecks, loadMaterias,
   currentDeck, setCurrentDeck, initialMode, setInitialMode,
   onExitToStudy,
@@ -216,11 +216,25 @@ export default function LibrarySection({
   const handleDeleteDeck = async (deck) => {
     if (!window.confirm(`¿Eliminar "${deck.title}"?`)) return;
     try {
-      await fetch(`${BACKEND_URL}/api/decks/${deck.id}`, { method: 'DELETE' });
+      const response = await fetch(`${BACKEND_URL}/api/decks/${deck.id}`, {
+        method: 'DELETE',
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        const message = response.status === 401
+          ? 'Tu sesión expiró. Cierra sesión e inicia sesión de nuevo para eliminar mazos.'
+          : (payload.error || 'No se pudo eliminar el mazo.');
+        window.alert(message);
+        await loadDecks(true);
+        return;
+      }
       const nextDecks = decks.filter((d) => d.id !== deck.id);
       setDecks(nextDecks);
       setJSON(`decks_${userId}`, nextDecks);
-    } catch {}
+    } catch {
+      await loadDecks(true);
+    }
   };
 
   const handleImport = async (e) => {
@@ -248,6 +262,7 @@ export default function LibrarySection({
       <DeckInterior 
         deck={currentDeck} 
         userId={userId} 
+        authToken={authToken}
         initialMode={initialMode} 
         onBack={() => { 
           setCurrentDeck(null); 

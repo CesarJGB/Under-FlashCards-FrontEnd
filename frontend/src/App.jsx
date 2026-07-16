@@ -263,6 +263,7 @@ function DashboardScreen({ user, onLogout }) {
             <LibrarySection
               userId={user.id}
               userEmail={user.email}
+              authToken={user.authToken}
               decks={decks}
               materias={materias}
               loading={loading}
@@ -364,7 +365,7 @@ function FlashcardsApp() {
       });
       if (!res.ok) throw new Error();
       const data = await res.json();
-      setUser(data.user);
+      setUser({ ...data.user, authToken: credential });
     } catch {
       setError('Falló la verificación en el servidor.');
     }

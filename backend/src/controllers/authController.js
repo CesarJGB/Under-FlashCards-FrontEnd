@@ -134,7 +134,7 @@ exports.getAiBalance = async (req, res) => {
 };
 
 // Middleware de protección (protect)
-// Verifica un token de Google ID (Bearer <idToken>) o acepta X-User-Id en entornos de desarrollo.
+// Verifica un token de Google ID (Bearer <idToken>) con un bypass de desarrollo explícito.
 exports.protect = async (req, res, next) => {
   try {
     // Intentar extraer token desde Authorization Bearer, x-access-token o body.token
@@ -143,9 +143,9 @@ exports.protect = async (req, res, next) => {
     if (authHeader) token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader;
     if (!token && req.body?.token) token = req.body.token;
 
-    // Dev fallback: permitir pasar X-User-Id para facilitar pruebas locales (no recomendado en prod)
+    // The development bypass is opt-in so an arbitrary body.userId is never trusted by default.
     const devUserId = req.headers['x-user-id'] || req.body?.userId;
-    if (!token && devUserId) {
+    if (!token && devUserId && process.env.ALLOW_DEV_USER_ID === 'true') {
       const user = await User.findById(devUserId);
       if (!user) return res.status(401).json({ error: 'Usuario no encontrado (x-user-id).' });
       req.user = user;

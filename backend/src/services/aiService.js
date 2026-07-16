@@ -1,8 +1,6 @@
 const { randomUUID } = require('crypto');
 
 const DEEPSEEK_URL = 'https://api.deepseek.com/chat/completions';
-const REASONER_THRESHOLD = parseInt(process.env.AI_REASONER_THRESHOLD, 10) || 20;
-const AI_DEBUG_LOGS = process.env.AI_DEBUG_LOGS !== 'false';
 
 function readBoundedInteger(value, fallback, minimum, maximum) {
   const parsed = parseInt(value, 10);
@@ -10,6 +8,8 @@ function readBoundedInteger(value, fallback, minimum, maximum) {
   return Math.min(maximum, Math.max(minimum, parsed));
 }
 
+const REASONER_THRESHOLD = readBoundedInteger(process.env.AI_REASONER_THRESHOLD, 20, 1, 20);
+const AI_DEBUG_LOGS = process.env.AI_DEBUG_LOGS !== 'false';
 const AI_REQUEST_TIMEOUT_MS = readBoundedInteger(process.env.AI_REQUEST_TIMEOUT_MS, 90000, 10000, 180000);
 const AI_MAX_RETRIES = readBoundedInteger(process.env.AI_MAX_RETRIES, 2, 0, 4);
 const AI_RETRY_BASE_MS = readBoundedInteger(process.env.AI_RETRY_BASE_MS, 1000, 250, 10000);
@@ -60,13 +60,31 @@ function isRetryableStatus(status) {
   return status === 408 || status === 429 || status >= 500;
 }
 
-function wait(milliseconds) {
-  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+function wait(milliseconds, signal) {
+  return new Promise((resolve) => {
+    let timeout;
+    const finish = () => {
+      clearTimeout(timeout);
+      signal?.removeEventListener('abort', finish);
+      resolve();
+    };
+
+    if (signal?.aborted) {
+      finish();
+      return;
+    }
+
+    timeout = setTimeout(finish, milliseconds);
+    signal?.addEventListener('abort', finish, { once: true });
+  });
 }
 
-function normalizeError(error) {
+function normalizeError(error, { abortedByCaller = false } = {}) {
   if (error instanceof AiServiceError) return error;
   if (error?.name === 'AbortError') {
+    if (abortedByCaller) {
+      return new AiServiceError('aborted', 'La solicitud a la IA fue cancelada.', { retryable: false });
+    }
     return new AiServiceError('timeout', 'La solicitud a la IA excedió el tiempo de espera.', { retryable: true });
   }
   return new AiServiceError('network', 'No se pudo conectar con el proveedor de IA.', { retryable: true });
@@ -82,6 +100,22 @@ function getMessageContent(data) {
     throw new AiServiceError('invalid_model_output', 'La IA devolvió una respuesta vacía.', { retryable: true });
   }
   return content;
+}
+
+function getTokenUsage(data) {
+  const usage = data?.usage;
+  if (!usage || typeof usage !== 'object') return null;
+
+  const promptTokens = Number(usage.prompt_tokens);
+  const completionTokens = Number(usage.completion_tokens);
+  const totalTokens = Number(usage.total_tokens);
+  if (![promptTokens, completionTokens, totalTokens].some(Number.isFinite)) return null;
+
+  return {
+    ...(Number.isFinite(promptTokens) ? { promptTokens } : {}),
+    ...(Number.isFinite(completionTokens) ? { completionTokens } : {}),
+    ...(Number.isFinite(totalTokens) ? { totalTokens } : {}),
+  };
 }
 
 function getSafeErrorMessage(error) {
@@ -104,7 +138,7 @@ function getSafeErrorMessage(error) {
 }
 
 async function callDeepSeekJson({ apiKey, requestBody, context = {}, parseResponse, signal }) {
-  const { onRetry, ...logContext } = context;
+  const { onRetry, onUsage, ...logContext } = context;
   const model = requestBody.model || 'unknown';
 
   for (let attempt = 0; attempt <= AI_MAX_RETRIES; attempt += 1) {
@@ -163,16 +197,26 @@ async function callDeepSeekJson({ apiKey, requestBody, context = {}, parseRespon
         }
       }
 
+      const usage = getTokenUsage(data);
+      onUsage?.({
+        ...logContext,
+        model,
+        attempt: attempt + 1,
+        requestId,
+        usage,
+      });
+
       logAiEvent('request_succeeded', {
         ...logContext,
         model,
         attempt: attempt + 1,
         durationMs: Date.now() - startedAt,
         requestId,
+        ...(usage ? { usage } : {}),
       });
       return parsed;
     } catch (error) {
-      const aiError = normalizeError(error);
+      const aiError = normalizeError(error, { abortedByCaller: signal?.aborted });
       const canRetry = aiError.retryable && attempt < AI_MAX_RETRIES && !signal?.aborted;
       const delayMs = aiError.retryAfterMs
         ?? Math.min(30000, AI_RETRY_BASE_MS * (2 ** attempt) + Math.floor(Math.random() * 250));
@@ -191,7 +235,10 @@ async function callDeepSeekJson({ apiKey, requestBody, context = {}, parseRespon
 
       if (!canRetry) throw aiError;
       onRetry?.({ attempt: attempt + 1, delayMs, error: aiError });
-      await wait(delayMs);
+      await wait(delayMs, signal);
+      if (signal?.aborted) {
+        throw new AiServiceError('aborted', 'La solicitud a la IA fue cancelada.', { retryable: false });
+      }
     } finally {
       clearTimeout(timeout);
       signal?.removeEventListener('abort', abortFromCaller);
@@ -210,10 +257,35 @@ function parseJsonObject(content) {
   return parsed;
 }
 
+function validateCards(cards, maximumCount, { requireStatus = false, requireExactCount = false } = {}) {
+  if (!Array.isArray(cards) || cards.length === 0) {
+    throw new Error('No se generaron tarjetas válidas.');
+  }
+  if (requireExactCount && cards.length !== maximumCount) {
+    throw new Error('La IA devolvió una cantidad de tarjetas inválida.');
+  }
+
+  const limitedCards = cards.slice(0, maximumCount);
+  const validStatuses = new Set(['sin_cambios', 'corregida', 'fusionada', 'eliminada']);
+  const hasInvalidCard = limitedCards.some((card) => {
+    if (!card || typeof card !== 'object') return true;
+    if (typeof card.question !== 'string' || !card.question.trim()) return true;
+    if (typeof card.answer !== 'string' || !card.answer.trim()) return true;
+    return requireStatus && !validStatuses.has(card.status);
+  });
+  if (hasInvalidCard) {
+    throw new Error('La IA devolvió una tarjeta con un formato inválido.');
+  }
+
+  return limitedCards;
+}
+
 async function generateRawCards(text, targetCount, apiKey, context = {}) {
+  const { signal, ...aiContext } = context;
   return callDeepSeekJson({
     apiKey,
-    context: { ...context, stage: 'deck_generate' },
+    context: { ...aiContext, stage: 'deck_generate' },
+    signal,
     requestBody: {
       model: 'deepseek-chat',
       response_format: { type: 'json_object' },
@@ -221,23 +293,20 @@ async function generateRawCards(text, targetCount, apiKey, context = {}) {
       messages: [
         {
           role: 'system',
-          content: `Eres un procesador educativo de alta precisión. Genera exactamente ${targetCount} flashcards en español basadas exclusivamente en el texto del usuario. Devuelve SOLO JSON válido con la forma {"cards":[...]}. Cada tarjeta debe tener únicamente "question" y "answer", ambos strings de texto plano. No incluyas markdown ni explicaciones.`,
+          content: `Eres un procesador educativo de alta precisión. El texto del usuario puede ser un segmento de un documento mayor. Genera exactamente ${targetCount} flashcards en español basadas exclusivamente en este segmento y cubre sus ideas concretas sin inventar información. Devuelve SOLO JSON válido con la forma {"cards":[...]}. Cada tarjeta debe tener únicamente "question" y "answer", ambos strings de texto plano. No incluyas markdown ni explicaciones.`,
         },
         { role: 'user', content: text },
       ],
     },
     parseResponse(data) {
       const parsed = parseJsonObject(getMessageContent(data));
-      if (!Array.isArray(parsed.cards) || parsed.cards.length === 0) {
-        throw new Error('No se generaron tarjetas válidas.');
-      }
-      return parsed.cards;
+      return validateCards(parsed.cards, targetCount, { requireExactCount: true });
     },
   });
 }
 
 async function criticizeAndRefineCards(originalText, rawCards, apiKey, context = {}) {
-  const useReasoner = rawCards.length > REASONER_THRESHOLD;
+  const useReasoner = rawCards.length >= REASONER_THRESHOLD;
   const model = useReasoner ? 'deepseek-reasoner' : 'deepseek-chat';
   const requestBody = {
     model,
@@ -245,28 +314,33 @@ async function criticizeAndRefineCards(originalText, rawCards, apiKey, context =
     messages: [
       {
         role: 'system',
-        content: `Eres un auditor académico de flashcards en español. Revisa cada tarjeta preliminar exclusivamente contra el texto fuente. Devuelve SOLO JSON válido con la forma {"cards":[...]}. Devuelve exactamente una salida por cada tarjeta preliminar y conserva una pregunta y respuesta por objeto.
+        content: `Eres un auditor académico de flashcards en español. Revisa cada tarjeta preliminar exclusivamente contra el segmento fuente recibido. Devuelve SOLO JSON válido con la forma {"cards":[...]}. Devuelve exactamente una salida por cada tarjeta preliminar y conserva una pregunta y respuesta por objeto.
 
 Cada salida debe incluir question, answer y status. status debe ser uno de: sin_cambios, corregida, fusionada o eliminada. Corrige redacción ambigua o datos incompatibles con la fuente. Marca como fusionada una tarjeta redundante y como eliminada una tarjeta inventada o falsa. No incluyas razonamientos globales, markdown ni claves adicionales.`,
       },
       {
         role: 'user',
-        content: JSON.stringify({ textoFuenteOriginal: originalText, tarjetasPreliminares: rawCards }),
+        content: JSON.stringify({ textoFuenteSegmento: originalText, tarjetasPreliminares: rawCards }),
       },
     ],
   };
   if (!useReasoner) requestBody.temperature = 0.1;
 
+  const { signal, ...aiContext } = context;
   return callDeepSeekJson({
     apiKey,
-    context: { ...context, stage: 'deck_audit' },
+    context: {
+      ...aiContext,
+      stage: 'deck_audit',
+      rawCardCount: rawCards.length,
+      reasonerThreshold: REASONER_THRESHOLD,
+      useReasoner,
+    },
+    signal,
     requestBody,
     parseResponse(data) {
       const parsed = parseJsonObject(getMessageContent(data));
-      if (!Array.isArray(parsed.cards) || parsed.cards.length === 0) {
-        throw new Error('La auditoría no devolvió tarjetas válidas.');
-      }
-      return parsed.cards;
+      return validateCards(parsed.cards, rawCards.length, { requireStatus: true, requireExactCount: true });
     },
   });
 }
@@ -279,6 +353,8 @@ module.exports = {
   generateRawCards,
   getMessageContent,
   getSafeErrorMessage,
+  getTokenUsage,
   logAiEvent,
   parseJsonObject,
+  validateCards,
 };

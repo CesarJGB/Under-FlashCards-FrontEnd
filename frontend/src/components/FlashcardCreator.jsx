@@ -35,7 +35,7 @@ export default function FlashcardCreator({
   fontSize, setFontSize, showStyles, setShowStyles, isBulk, setIsBulk, bulkText, setBulkText,
   editingId, saving, error, setError, onSubmit, onCancel, contentImage, setContentImage,
   imageSide, setImageSide, onFastDelete, hasCards,
-  userId, deckId, onAiSuccess
+  userId, deckId, authToken, onAiSuccess
 }) {
   const [showPreview, setShowPreview] = useState(() => Boolean(getJSON(PREVIEW_VISIBLE_KEY)));
   const [previewMode, setPreviewMode] = useState(() => getStoredPreviewPanelMode());
@@ -141,6 +141,7 @@ export default function FlashcardCreator({
           headers: {
             'Content-Type': 'application/json',
             Accept: 'text/event-stream',
+            ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
           },
           body: JSON.stringify({
             userId,
@@ -153,7 +154,10 @@ export default function FlashcardCreator({
 
         if (!res.ok) {
           const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.message || 'El motor de IA experimentó una saturación o no configuraste tu API Key.');
+          if (res.status === 401) {
+            throw new Error('Tu sesión expiró. Cierra sesión e inicia sesión de nuevo para generar con IA.');
+          }
+          throw new Error(errData.message || errData.error || 'El motor de IA experimentó una saturación o no configuraste tu API Key.');
         }
 
         const result = await readAiGenerationProgress(res, setAiProgress);

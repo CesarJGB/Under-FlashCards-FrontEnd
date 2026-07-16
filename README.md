@@ -96,3 +96,27 @@ Add to **Authorized JavaScript origins**:
 > Security notes: the idToken is verified server-side on every login, the audience
 > is asserted against `GOOGLE_CLIENT_ID`, unverified emails are rejected, `helmet`
 > sets safe HTTP headers, and no secrets are hardcoded — everything comes from env.
+
+## AI generation tuning
+
+The flashcard pipeline divides source documents into structured text segments and
+processes independent generation/audit batches with bounded concurrency. Configure
+these backend environment variables on the deployment platform when needed:
+
+- `AI_DECK_CONCURRENCY`: simultaneous generation/audit pipelines; default `3`, range `1-4`.
+- `AI_GLOBAL_DECK_CONCURRENCY`: generation/audit pipelines allowed across all active requests in one server process; default `4`, range `1-8`.
+- `AI_DECK_LOCK_TTL_MS`: renewable lease that protects a deck from deletion while AI generation is active; default `600000`, range `60000-3600000`.
+- `AI_MAX_CARDS`: maximum final cards allowed in one request; default `100`, range `1-1000`.
+- `AI_MAX_RAW_CARDS`: maximum pre-audit candidates allowed in one request; defaults to the final-card maximum plus `20`, with a floor of `120`.
+- `AI_SOURCE_CHUNK_MAX_CHARS`: maximum characters sent for one source segment; default `60000`, range `8000-60000`.
+- `AI_DECK_BATCH_SIZE`: maximum raw cards requested by a generation task; default `12`, range `1-20`.
+- `AI_TARGET_PADDING_FACTOR`: proportional candidate margin before audit; default `0.30`, range `0.00-0.50`.
+- `AI_TARGET_PADDING_MAX`: maximum candidate margin from the padding policy; default `20`, range `0-500`.
+- `AI_TARGET_PADDING_PER_BATCH`: minimum candidate margin per padded batch; default `0`, range `0-10`.
+- `AI_REASONER_THRESHOLD`: raw-card count that selects `deepseek-reasoner` during audit; default `20`, range `1-20`.
+- `AI_REQUEST_TIMEOUT_MS`, `AI_MAX_RETRIES`, and `AI_RETRY_BASE_MS`: provider request resilience controls.
+
+Set `VITE_MAX_AI_CARDS` to the same value as `AI_MAX_CARDS` in the frontend environment so the client selector matches the API limit.
+
+Start with the defaults. Raise concurrency only after monitoring the emitted AI logs
+for `429` responses, retries, batch durations, and token usage.

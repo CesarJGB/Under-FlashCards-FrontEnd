@@ -2,6 +2,10 @@ function acceptsEventStream(req) {
   return req.get?.('accept')?.includes('text/event-stream') || false;
 }
 
+function canWrite(res) {
+  return !res.writableEnded && !res.destroyed;
+}
+
 function startEventStream(res) {
   res.status(200).set({
     'Content-Type': 'text/event-stream',
@@ -12,7 +16,7 @@ function startEventStream(res) {
   res.flushHeaders?.();
 
   const heartbeat = setInterval(() => {
-    if (!res.writableEnded) {
+    if (canWrite(res)) {
       res.write(': keepalive\n\n');
       res.flush?.();
     }
@@ -25,8 +29,10 @@ function startEventStream(res) {
 }
 
 function sendEvent(res, event, payload) {
+  if (!canWrite(res)) return false;
   res.write(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`);
   res.flush?.();
+  return true;
 }
 
 module.exports = { acceptsEventStream, startEventStream, sendEvent };

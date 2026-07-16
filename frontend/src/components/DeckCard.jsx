@@ -22,7 +22,8 @@ export default function DeckCard({
   const [showMenu, setShowMenu] = useState(false);
   
   // REGLA DE MODIFICACIÓN: Editable si eres dueño o si es una plantilla editable global
-  const canModify = deck.userId === currentUserId || deck.isDefault === true;
+  const isOwner = deck.userId === currentUserId;
+  const canModify = isOwner || deck.isDefault === true;
 
   const bgStyle = deck.coverImage
     ? { backgroundImage: `url(${deck.coverImage})`, backgroundSize: 'cover', backgroundPosition: 'center' }
@@ -68,7 +69,7 @@ export default function DeckCard({
       icon: Pencil,
       onSelect: () => onEdit(deck),
     },
-    canModify && onDelete && {
+    isOwner && onDelete && {
       id: 'delete',
       label: 'Eliminar',
       icon: Trash2,
