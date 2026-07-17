@@ -25,6 +25,7 @@ const AI_DECK_AUDIT_MAX_TOKENS = readBoundedInteger(
   512,
   16384
 );
+const AI_COMBINED_OVERGENERATION_FACTOR = 1.5;
 
 class AiServiceError extends Error {
   constructor(code, message, options = {}) {
@@ -322,7 +323,11 @@ function parseJsonObject(content) {
   return parsed;
 }
 
-function validateCards(cards, maximumCount, { requireStatus = false, requireExactCount = false } = {}) {
+function validateCards(
+  cards,
+  maximumCount,
+  { requireStatus = false, requireExactCount = false, requireSourceEvidence = false } = {}
+) {
   if (!Array.isArray(cards) || cards.length === 0) {
     throw new ModelOutputValidationError('missing_cards', 'No se generaron tarjetas válidas.');
   }
@@ -335,11 +340,13 @@ function validateCards(cards, maximumCount, { requireStatus = false, requireExac
   const expectedFields = requireStatus
     ? new Set(['question', 'answer', 'status'])
     : new Set(['question', 'answer']);
+  if (requireSourceEvidence) expectedFields.add('sourceEvidence');
   const hasInvalidCard = limitedCards.some((card) => {
     if (!card || typeof card !== 'object' || Array.isArray(card)) return true;
     if (Object.keys(card).some((field) => !expectedFields.has(field))) return true;
     if (typeof card.question !== 'string' || !card.question.trim()) return true;
     if (typeof card.answer !== 'string' || !card.answer.trim()) return true;
+    if (requireSourceEvidence && (typeof card.sourceEvidence !== 'string' || !card.sourceEvidence.trim())) return true;
     return requireStatus && !validStatuses.has(card.status);
   });
   if (hasInvalidCard) {
@@ -347,6 +354,81 @@ function validateCards(cards, maximumCount, { requireStatus = false, requireExac
   }
 
   return limitedCards;
+}
+
+function normalizeEvidenceText(value) {
+  return String(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLocaleLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function validateSourceEvidence(cards, sourceText, { strict = false } = {}) {
+  const normalizedSource = normalizeEvidenceText(sourceText);
+  const sourceTokens = new Set(normalizedSource.split(/\s+/).filter(Boolean));
+  const invalidIndexes = cards.reduce((indexes, card, index) => {
+    const evidence = normalizeEvidenceText(card.sourceEvidence);
+    const evidenceTokens = evidence ? evidence.split(/\s+/).filter(Boolean) : [];
+    const matchingTokens = evidenceTokens.filter((token) => sourceTokens.has(token)).length;
+    const sourceCoverage = evidenceTokens.length > 0
+      ? matchingTokens / evidenceTokens.length
+      : 0;
+    if (evidenceTokens.length < 3 || sourceCoverage < 0.75) indexes.push(index + 1);
+    return indexes;
+  }, []);
+
+  if (invalidIndexes.length > 0) {
+    if (strict) {
+      throw new ModelOutputValidationError(
+        'unsupported_evidence',
+        `La IA devolvió evidencia insuficientemente respaldada por el segmento para las tarjetas: ${invalidIndexes.join(', ')}.`
+      );
+    }
+    logAiEvent('source_evidence_warning', { invalidCards: invalidIndexes });
+  }
+  return cards;
+}
+
+function hasNonAtomicQuestion(question) {
+  const normalized = question.toLocaleLowerCase();
+  if (/\bdiferencia entre\b/.test(normalized)) return true;
+  if (/\b(?:y|e)\s+(?:cómo|qué|cuál|cuáles|por qué|para qué|tiene|indica|se evita|se calcula)\b/.test(normalized)) {
+    return true;
+  }
+  return false;
+}
+
+function hasNonAtomicClinicalQuestion(question) {
+  const normalized = question.toLocaleLowerCase();
+  return /(?:tratamiento|profilaxis|indicación).*(?:,|\s(?:y|e)\s)/.test(normalized);
+}
+
+function validatePedagogicalCards(cards, { strict = false } = {}) {
+  const hardInvalidIndexes = [];
+  const clinicalListIndexes = [];
+  for (let index = 0; index < cards.length; index += 1) {
+    const card = cards[index];
+    const answer = card.answer.trim();
+    if (hasNonAtomicQuestion(card.question)
+      || /\betc\.?\b/i.test(answer)
+      || answer.split(/\s+/).filter(Boolean).length > 60) hardInvalidIndexes.push(index + 1);
+    else if (hasNonAtomicClinicalQuestion(card.question)) clinicalListIndexes.push(index + 1);
+  }
+
+  const clinicalListThreshold = Math.ceil(cards.length / 2);
+  if (hardInvalidIndexes.length > 0 || clinicalListIndexes.length >= clinicalListThreshold) {
+    const invalidIndexes = [...hardInvalidIndexes, ...clinicalListIndexes];
+    if (strict) {
+      throw new ModelOutputValidationError(
+        'non_atomic_card',
+        `La IA devolvió tarjetas pedagógicamente no atómicas: ${invalidIndexes.join(', ')}.`
+      );
+    }
+    logAiEvent('pedagogy_warning', { invalidCards: invalidIndexes });
+  }
+  return cards;
 }
 
 async function generateRawCards(text, targetCount, apiKey, context = {}) {
@@ -407,7 +489,10 @@ async function generateAndAuditBatch(segment, targetCount, apiKey, context = {})
     );
   }
 
-  const rawCount = Math.max(normalizedTarget, Math.ceil(normalizedTarget * 1.3));
+  const rawCount = Math.max(
+    normalizedTarget,
+    Math.ceil(normalizedTarget * AI_COMBINED_OVERGENERATION_FACTOR)
+  );
   const { signal, ...aiContext } = context;
 
   try {
@@ -431,20 +516,43 @@ async function generateAndAuditBatch(segment, targetCount, apiKey, context = {})
             content: [
               'Eres un creador de flashcards experto y un auditor académico implacable.',
               `Genera internamente ${rawCount} tarjetas de estudio basadas EXCLUSIVAMENTE en el texto proporcionado y luego audítalas internamente para devolver solo las ${normalizedTarget} mejores.`,
-              'REGLAS: una idea por tarjeta, pregunta recuperable y respuesta autocontenida.',
+              'REGLA CENTRAL DE ATOMICIDAD: cada tarjeta debe evaluar una sola relación o afirmación recuperable.',
+              'Divide una candidata si combina dos definiciones, pide qué es algo y además cómo se calcula o evita, compara tres o más entidades, o contiene mecanismos independientes.',
+              'No agrupes conceptos independientes mediante conjunciones. No agrupes distintas enfermedades, fármacos, indicaciones clínicas o escenarios en una misma pregunta: crea una tarjeta por indicación.',
+              'Una lista solo es válida cuando la enumeración es el concepto explícito solicitado, como las reacciones de una fase; no es válida para ocultar varias indicaciones o definiciones.',
+              'Cuando dos definiciones puedan estudiarse por separado, crea tarjetas separadas en vez de una pregunta de diferencia.',
+              'La pregunta debe ser una sola pregunta, recuperar una respuesta breve y poder entenderse sin consultar el texto fuente.',
+              'La respuesta debe ser autocontenida, preferiblemente de una o dos frases y aproximadamente de 40 palabras o menos. No uses "etc." para ocultar información relevante.',
+              'DIFICULTAD ÚTIL: en lotes de cinco o más tarjetas, evita llenar el lote con respuestas que sean solo nombres. Cuando el segmento lo permita, prioriza mecanismos, efectos adversos, seguridad, indicaciones o relaciones causales, sin inventar detalles.',
+              'FIDELIDAD: cada tarjeta debe incluir una cita textual breve de 3 a 12 palabras tomada del segmento en sourceEvidence. Verifica especialmente que cada par indicación-tratamiento aparezca asociado en el texto; no transfieras un fármaco desde una indicación cercana.',
               'PROHIBIDO inventar información. PROHIBIDO usar Markdown.',
-              'PROCESO: genera candidatas de más, elimina redundantes o ambiguas, corrige la redacción y devuelve EXACTAMENTE la cantidad solicitada.',
+              'EJEMPLOS: cambia "¿Qué ocurre en fase 1 y fase 2?" por "¿Qué reacciones caracterizan la fase 1?" y "¿Qué objetivo tiene la fase 2?".',
+              'EJEMPLOS: cambia "¿Qué son los inductores e inhibidores del CYP450?" por una tarjeta para inductores y otra para inhibidores.',
+              'EJEMPLOS: cambia "¿Cuál es la diferencia entre agonista completo, parcial e inverso?" por una tarjeta independiente para cada tipo.',
+              'EJEMPLO: cambia "¿Cuál es el tratamiento para helmintos, quistes hidatídicos y neurocisticercosis?" por tarjetas separadas para cada indicación clínica.',
+              'CHECKLIST FINAL PARA CADA TARJETA: una sola idea, pregunta recuperable, respuesta autocontenida, respaldo explícito en el segmento, dificultad útil y ausencia de redundancia o ambigüedad.',
+              'PROCESO: genera candidatas de más, aplica el checklist a cada una, divide o elimina las que fallen, corrige la redacción y devuelve EXACTAMENTE la cantidad solicitada.',
             ].join(' '),
           },
           {
             role: 'user',
-            content: `Texto fuente:\n"""\n${segment}\n"""\n\nDevuelve un JSON válido con esta estructura exacta: {"cards": [{"question": "string", "answer": "string"}]}. El array debe tener exactamente ${normalizedTarget} elementos.`,
+            content: `Texto fuente:\n"""\n${segment}\n"""\n\nDevuelve un JSON válido con esta estructura exacta: {"cards": [{"question": "string", "answer": "string", "sourceEvidence": "cita textual de 3 a 12 palabras"}]}. El array debe tener exactamente ${normalizedTarget} elementos. sourceEvidence debe copiar palabras consecutivas del texto fuente, sin inventarlas.`,
           },
         ],
       },
       parseResponse(data) {
         const parsed = parseJsonObject(getMessageContent(data));
-        return validateCards(parsed.cards, normalizedTarget, { requireExactCount: true });
+        const cardsWithEvidence = validateCards(parsed.cards, normalizedTarget, {
+          requireExactCount: true,
+          requireSourceEvidence: true,
+        });
+        validateSourceEvidence(cardsWithEvidence, segment, {
+          strict: process.env.AI_STRICT_SOURCE_EVIDENCE === 'true',
+        });
+        const cards = cardsWithEvidence.map(({ question, answer }) => ({ question, answer }));
+        return validatePedagogicalCards(cards, {
+          strict: process.env.AI_STRICT_PEDAGOGY === 'true',
+        });
       },
     });
   } catch (error) {
@@ -515,5 +623,7 @@ module.exports = {
   getTokenUsage,
   logAiEvent,
   parseJsonObject,
+  validateSourceEvidence,
+  validatePedagogicalCards,
   validateCards,
 };

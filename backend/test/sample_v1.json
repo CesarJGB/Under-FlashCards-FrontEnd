@@ -1,0 +1,58 @@
+{
+  "pipeline": "v1",
+  "requestedCount": 10,
+  "cards": [
+    {
+      "question": "¿Qué es un fármaco?",
+      "answer": "Sustancia química que modifica el protoplasma vivo y NO tiene indicación terapéutica."
+    },
+    {
+      "question": "¿Qué es un medicamento?",
+      "answer": "Agente químico que modifica el proteoplasma vivo y tiene indicación terapéutica."
+    },
+    {
+      "question": "¿Cuál es la diferencia entre tóxico y veneno?",
+      "answer": "Tóxico es artificial y depende de la dosis; veneno es natural y causa daño en cualquier dosis."
+    },
+    {
+      "question": "¿Qué indica el índice terapéutico?",
+      "answer": "Relación DL50/DT50; a mayor índice, más seguro es el fármaco."
+    },
+    {
+      "question": "¿Qué es la farmacocinética?",
+      "answer": "Es lo que el cuerpo le hace al fármaco: absorción, distribución, metabolismo y eliminación (ADME)."
+    },
+    {
+      "question": "¿Qué es la biodisponibilidad?",
+      "answer": "Cantidad de un fármaco absorbido de la dosis administrada que llega a su sitio de acción."
+    },
+    {
+      "question": "¿Qué es el volumen de distribución (VD)?",
+      "answer": "Volumen de agua necesario para que exista una concentración equivalente del fármaco en todos los compartimentos."
+    },
+    {
+      "question": "¿Qué es la farmacodinamia?",
+      "answer": "Conjunto de acciones, mecanismos y efectos que el fármaco le hace al cuerpo."
+    },
+    {
+      "question": "¿Qué es un agonista completo?",
+      "answer": "Fármaco que se une al mismo sitio de acción de una sustancia endógena y provoca efectos similares."
+    },
+    {
+      "question": "¿Cuál es la vía de administración con biodisponibilidad del 100%?",
+      "answer": "La vía intravenosa (IV)."
+    }
+  ],
+  "audit": {
+    "generatedCount": 10,
+    "auditedCount": 10,
+    "acceptedCount": 10,
+    "statuses": {
+      "sin_cambios": 10
+    }
+  },
+  "source": {
+    "pdf": "Farma EsmeNotas Act20Ene26.pdf",
+    "segmentCharacters": 15000
+  }
+}

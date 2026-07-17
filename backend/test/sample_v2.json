@@ -1,0 +1,50 @@
+{
+  "pipeline": "v2",
+  "requestedCount": 10,
+  "cards": [
+    {
+      "question": "¿Qué es un fármaco?",
+      "answer": "Sustancia química que modifica el protoplasma vivo y NO tiene indicación terapéutica."
+    },
+    {
+      "question": "¿Qué indica un índice terapéutico alto?",
+      "answer": "El fármaco es más seguro, como la penicilina."
+    },
+    {
+      "question": "¿Qué es la farmacocinética?",
+      "answer": "Es lo que el cuerpo le hace al fármaco: absorción, distribución, metabolismo y excreción (ADME)."
+    },
+    {
+      "question": "¿Qué fracción del fármaco se absorbe?",
+      "answer": "La fracción no ionizada, que es liposoluble y atraviesa la membrana."
+    },
+    {
+      "question": "¿Qué ocurre en una hipoalbuminemia con los fármacos?",
+      "answer": "La fracción libre aumenta, por lo que el efecto del fármaco aumenta."
+    },
+    {
+      "question": "¿Qué es el volumen de distribución (VD)?",
+      "answer": "Es el volumen de agua necesario para que exista en todos los compartimentos una concentración equivalente del fármaco."
+    },
+    {
+      "question": "¿Qué enzima metaboliza el 70% de los medicamentos en fase 1?",
+      "answer": "El CYP3A4."
+    },
+    {
+      "question": "¿Qué efecto tienen los inductores enzimáticos del CYP sobre la concentración plasmática?",
+      "answer": "Disminuyen la concentración plasmática del fármaco, causando pérdida de efecto terapéutico."
+    },
+    {
+      "question": "¿Qué es un agonista completo?",
+      "answer": "Fármaco que se une al mismo sitio de acción de una sustancia endógena y provoca efectos similares."
+    },
+    {
+      "question": "¿Cuál es la vía de administración con biodisponibilidad del 100%?",
+      "answer": "La vía intravenosa (IV)."
+    }
+  ],
+  "source": {
+    "pdf": "Farma EsmeNotas Act20Ene26.pdf",
+    "segmentCharacters": 15000
+  }
+}

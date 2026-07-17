@@ -1,0 +1,382 @@
+{
+  "pdf": "Farma EsmeNotas Act20Ene26.pdf",
+  "segmentLength": 15000,
+  "targetCount": 10,
+  "segments": [
+    {
+      "label": "inicio",
+      "start": 0,
+      "characters": 15000,
+      "legacy": {
+        "cards": [
+          {
+            "question": "¿Cuál es la diferencia entre fármaco y medicamento?",
+            "answer": "Fármaco es una sustancia química que modifica el protoplasma vivo y NO tiene indicación terapéutica. Medicamento es un agente químico que modifica el protoplasma vivo y SÍ tiene indicación terapéutica."
+          },
+          {
+            "question": "¿Qué es el índice terapéutico y qué indica?",
+            "answer": "Es la relación DL50/DT50 o margen de seguridad que indica un estado de equilibrio entre eficacia terapéutica y toxicidad mínima. A mayor índice, el fármaco es más seguro (ej. penicilina); a menor índice, es menos seguro (ej. digoxina, warfarina)."
+          },
+          {
+            "question": "¿Qué factores alteran la absorción de un fármaco?",
+            "answer": "Factores del medicamento (tamaño, solubilidad, ionización), del medio (proteínas, glucoproteína P, vómito, diarrea) y de la membrana (grosor, integridad, cargas, tipo de epitelio). La fracción no ionizada es la que se absorbe."
+          },
+          {
+            "question": "¿Qué es el volumen de distribución (VD) y qué indica?",
+            "answer": "Es el volumen de agua necesario para que exista en todos los compartimentos una concentración equivalente del fármaco. VD = dosis / concentración plasmática. A mayor VD, mayor concentración en tejidos; a menor VD, mayor concentración en plasma."
+          },
+          {
+            "question": "¿Qué ocurre en el metabolismo de fase 1 y fase 2 en el hígado?",
+            "answer": "Fase 1: reacciones de oxidación, reducción e hidrólisis mediante CYP450 para aumentar polaridad. Fase 2: reacciones sintéticas (glucuronidación, acetilación, etc.) para hacer el fármaco más hidrosoluble y excretarlo fácilmente."
+          },
+          {
+            "question": "¿Qué es el fenómeno de primer paso y cómo se evita?",
+            "answer": "Es cuando un fármaco administrado por vía oral se absorbe en intestino, pasa a circulación portal y se metaboliza en hígado antes de llegar a circulación sistémica. Se evita aumentando la dosis o usando otra vía de administración."
+          },
+          {
+            "question": "¿Cómo afectan los inhibidores e inductores enzimáticos del CYP a la concentración plasmática?",
+            "answer": "Los inhibidores (ej. ritonavir, eritromicina, jugo de toronja) aumentan la concentración plasmática del fármaco, pudiendo causar toxicidad. Los inductores (ej. anticonvulsivantes, rifampicina, alcohol) disminuyen la concentración, perdiendo efecto terapéutico."
+          },
+          {
+            "question": "¿Cuál es la diferencia entre agonista completo, parcial e inverso?",
+            "answer": "Agonista completo: se une al mismo sitio que la sustancia endógena y provoca efectos similares. Parcial: acción similar pero con eficacia parcial. Inverso: produce efecto contrario al de la sustancia endógena."
+          },
+          {
+            "question": "¿Qué es la biodisponibilidad y qué vía tiene el 100%?",
+            "answer": "Es la cantidad de fármaco absorbido de la dosis administrada que llega a su sitio de acción. La vía intravenosa (IV) tiene biodisponibilidad del 100%."
+          },
+          {
+            "question": "¿Qué factores modifican la eliminación renal de un fármaco?",
+            "answer": "Patología renal o hepática, interacciones medicamentosas, edad y pH de la orina. Las bases débiles se eliminan más fácil en pH ácido; los ácidos débiles se eliminan más fácil en pH alcalino."
+          }
+        ],
+        "metrics": {
+          "cards": 10,
+          "averageAnswerWords": 32.3,
+          "answersOver40Words": 0,
+          "questionsWithIndependentConjunction": 8,
+          "questionsWithMultipleItems": 8,
+          "answersWithEtc": 1,
+          "answersWithMultipleClauses": 8
+        },
+        "durationSeconds": 7.484083685000001,
+        "tokenUsage": {
+          "promptTokens": 4711,
+          "completionTokens": 925,
+          "totalTokens": 5636
+        },
+        "retries": 0
+      },
+      "current": {
+        "cards": [
+          {
+            "question": "¿Qué es un fármaco?",
+            "answer": "Sustancia química que modifica el protoplasma vivo y NO tiene indicación terapéutica."
+          },
+          {
+            "question": "¿Qué es un medicamento?",
+            "answer": "Agente químico que modifica el proteoplasma vivo y tiene indicación terapéutica."
+          },
+          {
+            "question": "¿Qué indica un índice terapéutico alto?",
+            "answer": "Que el fármaco es más seguro, como la penicilina."
+          },
+          {
+            "question": "¿Qué es la difusión simple?",
+            "answer": "Mecanismo que no requiere energía y depende del gradiente de concentración."
+          },
+          {
+            "question": "¿Qué fracción de un fármaco se absorbe?",
+            "answer": "La fracción no ionizada, que es liposoluble y libre."
+          },
+          {
+            "question": "¿Qué ocurre en una hipoalbuminemia con la fracción libre de un fármaco?",
+            "answer": "La fracción libre aumenta, por lo que el efecto del fármaco aumenta."
+          },
+          {
+            "question": "¿Qué es el volumen de distribución?",
+            "answer": "Volumen de agua necesario para que exista en todos los compartimentos una concentración equivalente del fármaco."
+          },
+          {
+            "question": "¿Qué vía de administración tiene biodisponibilidad del 100%?",
+            "answer": "La vía intravenosa (IV)."
+          },
+          {
+            "question": "¿Qué es un agonista completo?",
+            "answer": "Fármaco que se une al mismo sitio de acción de una sustancia endógena y provoca efectos similares."
+          },
+          {
+            "question": "¿Qué es un antagonista competitivo?",
+            "answer": "Fármaco que compite con el agonista por el mismo sitio de acción; al ganar, bloquea la unión del agonista."
+          }
+        ],
+        "metrics": {
+          "cards": 10,
+          "averageAnswerWords": 12,
+          "answersOver40Words": 0,
+          "questionsWithIndependentConjunction": 0,
+          "questionsWithMultipleItems": 0,
+          "answersWithEtc": 0,
+          "answersWithMultipleClauses": 6
+        },
+        "durationSeconds": 5.261923644,
+        "tokenUsage": {
+          "promptTokens": 5322,
+          "completionTokens": 718,
+          "totalTokens": 6040
+        },
+        "retries": 0
+      }
+    },
+    {
+      "label": "mitad",
+      "start": 160813,
+      "characters": 15000,
+      "legacy": {
+        "cards": [
+          {
+            "question": "¿Cuál es el mecanismo de acción de las heparinas?",
+            "answer": "Son inhibidores indirectos que se unen a antitrombina 3, acelerando la inhibición de los factores IIa (trombina) y Xa."
+          },
+          {
+            "question": "¿Cuál es el antídoto para las heparinas en caso de hemorragia?",
+            "answer": "Sulfato de protamina (vía IV)."
+          },
+          {
+            "question": "¿Qué anticoagulante es el de primera elección en el embarazo?",
+            "answer": "Las heparinas (son seguras en embarazo)."
+          },
+          {
+            "question": "¿Cuál es el mecanismo de acción de la warfarina?",
+            "answer": "Inhibe los factores II, VII, IX y X (dependientes de vitamina K), así como las proteínas C, S y osteocalcina. Prolonga el TP (vía extrínseca)."
+          },
+          {
+            "question": "¿Cuál es el antídoto para la warfarina?",
+            "answer": "Vitamina K y plasma fresco o concentrado de factores."
+          },
+          {
+            "question": "¿Qué anticoagulante oral directo inhibe al factor Xa y tiene como antídoto Andexanet alfa?",
+            "answer": "Rivaroxaban, Apixaban y Edoxaban (inhibidores directos del factor Xa)."
+          },
+          {
+            "question": "¿Cuál es el antídoto para el Dabigatrán?",
+            "answer": "Idarucizumab."
+          },
+          {
+            "question": "¿Qué efecto adverso característico tienen los fibrinolíticos (terminados en -plasa)?",
+            "answer": "Hemorragia intracraneal."
+          },
+          {
+            "question": "¿Cuál es el mecanismo de acción del ácido tranexámico?",
+            "answer": "Inhibe la unión del plasminógeno a la fibrina, compitiendo por los sitios de lisina."
+          },
+          {
+            "question": "¿Cuál es el antiagregante plaquetario de primera elección y su mecanismo?",
+            "answer": "Clopidogrel: profármaco que inhibe irreversiblemente los receptores P2Y12, impidiendo la activación del complejo glucoproteína IIb-IIIa."
+          }
+        ],
+        "metrics": {
+          "cards": 10,
+          "averageAnswerWords": 10.5,
+          "answersOver40Words": 0,
+          "questionsWithIndependentConjunction": 2,
+          "questionsWithMultipleItems": 2,
+          "answersWithEtc": 0,
+          "answersWithMultipleClauses": 5
+        },
+        "durationSeconds": 4.911621703999999,
+        "tokenUsage": {
+          "promptTokens": 5414,
+          "completionTokens": 562,
+          "totalTokens": 5976
+        },
+        "retries": 0
+      },
+      "current": {
+        "cards": [
+          {
+            "question": "¿Cuál es el mecanismo de acción de las heparinas?",
+            "answer": "Son inhibidores indirectos uniéndose a antitrombina 3 acelerando la inhibición de los factores IIa y Xa."
+          },
+          {
+            "question": "¿Cuál es el antídoto para las heparinas en caso de hemorragia?",
+            "answer": "Sulfato de protamina (vía IV)."
+          },
+          {
+            "question": "¿Qué efecto adverso característico tienen las heparinas?",
+            "answer": "Trombocitopenia y osteoporosis."
+          },
+          {
+            "question": "¿Cuál es el mecanismo de acción de los anticoagulantes cumarínicos como la warfarina?",
+            "answer": "Inhibe factores II, VII, IX y X (dependientes de vitamina K), también proteína C, S y osteocalcina."
+          },
+          {
+            "question": "¿Cuál es el antídoto para la warfarina?",
+            "answer": "Vitamina K y plasma fresco/concentrado de factores."
+          },
+          {
+            "question": "¿Cuál es el mecanismo de acción de los inhibidores directos de la trombina como el dabigatrán?",
+            "answer": "Profármaco que se une a trombina (IIa) y aumenta TTPa."
+          },
+          {
+            "question": "¿Cuál es el antídoto para el dabigatrán?",
+            "answer": "Idarucizumab."
+          },
+          {
+            "question": "¿Cuál es el mecanismo de acción de los inhibidores directos del factor Xa como rivaroxabán?",
+            "answer": "Inhibe directamente el factor Xa y prolonga TP y TTPa."
+          },
+          {
+            "question": "¿Cuál es el antídoto para rivaroxabán y apixabán?",
+            "answer": "Andexanet alfa (vía IV)."
+          },
+          {
+            "question": "¿Cuál es el mecanismo de acción de los fibrinolíticos (terminados en -plasa)?",
+            "answer": "Son activadores de plasminógeno que causan un efecto anticoagulante y prolongan TP y TTPa."
+          }
+        ],
+        "metrics": {
+          "cards": 10,
+          "averageAnswerWords": 8.7,
+          "answersOver40Words": 0,
+          "questionsWithIndependentConjunction": 1,
+          "questionsWithMultipleItems": 1,
+          "answersWithEtc": 0,
+          "answersWithMultipleClauses": 7
+        },
+        "durationSeconds": 5.660572656999997,
+        "tokenUsage": {
+          "promptTokens": 6025,
+          "completionTokens": 713,
+          "totalTokens": 6738
+        },
+        "retries": 0
+      }
+    },
+    {
+      "label": "final",
+      "start": 321627,
+      "characters": 15000,
+      "legacy": {
+        "cards": [
+          {
+            "question": "¿Cuál es el tratamiento de primera línea para leishmaniasis y cuáles son sus efectos adversos y contraindicaciones?",
+            "answer": "El tratamiento de primera línea para leishmaniasis es un fármaco (no especificado en el texto) que se administra por vía IV o IM. Sus efectos adversos incluyen teratogenicidad y está contraindicado en embarazo y mujeres fértiles."
+          },
+          {
+            "question": "¿Cuál es el tratamiento de primera línea para helmintos, quistes hidatídicos y neurocisticercosis por tenia?",
+            "answer": "El tratamiento de primera línea es albendazol, que se administra por vía oral. Para neurocisticercosis se combina con prazicuantel."
+          },
+          {
+            "question": "¿Cuál es el tratamiento de primera línea para oncocercosis, estrongiloidiasis y larva cutánea migrans?",
+            "answer": "El tratamiento de primera línea es ivermectina, que se administra por vía oral y tópica. También se usa para pediculosis (piojos)."
+          },
+          {
+            "question": "¿Qué es la reacción de Mazzotti y cómo se previene?",
+            "answer": "La reacción de Mazzotti ocurre al tratar microfilarias: el parásito muere pero queda incrustado en tejido, causando inflamación y anafilaxia. Se previene administrando ivermectina junto con un glucocorticoide."
+          },
+          {
+            "question": "¿Cuál es el tratamiento de primera línea para tenias y cuáles son sus efectos adversos?",
+            "answer": "El tratamiento de primera línea para tenias es prazicuantel, que se administra por vía oral. Cruza la BHE e induce parálisis espástica. Efectos adversos: gastrointestinales y somnolencia. Se usa junto con laxantes salinos (sales de magnesio)."
+          },
+          {
+            "question": "¿Cuál es la profilaxis de primera línea para reducir la transmisión materno-fetal de ciertas infecciones?",
+            "answer": "La profilaxis de primera línea es espiramicina, que es segura en embarazo y se administra por vía oral."
+          },
+          {
+            "question": "¿Cuál es el tratamiento de primera línea para amebiasis hepática?",
+            "answer": "El tratamiento de primera línea para amebiasis hepática es cloroquina, que también se usa para profilaxis y tratamiento de paludismo."
+          },
+          {
+            "question": "¿Cuál es el tratamiento de primera línea para amebiasis y giardiasis en el embarazo?",
+            "answer": "El tratamiento de primera línea es paromomicina, que se administra por vía oral. Inhibe la síntesis proteica uniéndose a la subunidad ribosómica 30s."
+          },
+          {
+            "question": "¿Cuál es el tratamiento de primera línea para tricomoniasis y giardiasis, y cuáles son sus efectos adversos?",
+            "answer": "El tratamiento de primera línea es metronidazol, que se administra por vía oral, IV, intravaginal o tópica. Altera el ADN con radicales tóxicos. Efectos adversos: efecto disulfiram, orina marrón y neuropatía."
+          },
+          {
+            "question": "¿Cuál es el tratamiento de primera línea para candidiasis vulvovaginal?",
+            "answer": "El tratamiento de primera línea para candidiasis vulvovaginal es clotrimazol (Lomecan o Canesten V), de uso tópico o vaginal."
+          }
+        ],
+        "metrics": {
+          "cards": 10,
+          "averageAnswerWords": 25.1,
+          "answersOver40Words": 0,
+          "questionsWithIndependentConjunction": 7,
+          "questionsWithMultipleItems": 7,
+          "answersWithEtc": 0,
+          "answersWithMultipleClauses": 7
+        },
+        "durationSeconds": 7.027229197999997,
+        "tokenUsage": {
+          "promptTokens": 5558,
+          "completionTokens": 848,
+          "totalTokens": 6406
+        },
+        "retries": 0
+      },
+      "current": {
+        "cards": [
+          {
+            "question": "¿Cuál es el tratamiento de primera línea para leishmaniasis?",
+            "answer": "Antimoniato de meglumina (Glucantime) por vía IV o IM."
+          },
+          {
+            "question": "¿Cuál es el efecto adverso del antimoniato de meglumina?",
+            "answer": "Pancreatitis."
+          },
+          {
+            "question": "¿Cuál es el tratamiento de primera línea para helmintos, quistes hidatídicos y neurocisticercosis por tenia?",
+            "answer": "Albendazol más prazicuantel."
+          },
+          {
+            "question": "¿Cuál es el tratamiento de primera línea para oncocercosis, estrongiloidiasis y larva cutánea migrans?",
+            "answer": "Ivermectina."
+          },
+          {
+            "question": "¿Cuál es el efecto adverso de la ivermectina?",
+            "answer": "Reacción de Mazzotti (anafilaxia por muerte del parásito)."
+          },
+          {
+            "question": "¿Cuál es el tratamiento de primera línea para tenias?",
+            "answer": "Prazicuantel más albendazol."
+          },
+          {
+            "question": "¿Cuál es el antídoto para la intoxicación por paracetamol?",
+            "answer": "N-acetilcisteína (NAC)."
+          },
+          {
+            "question": "¿Cuál es el anticoagulante de primera línea en el embarazo?",
+            "answer": "Heparina no fraccionada."
+          },
+          {
+            "question": "¿Cuál es el tratamiento de primera línea para la diabetes tipo 2?",
+            "answer": "Metformina."
+          },
+          {
+            "question": "¿Cuál es el tratamiento de primera línea para la vulvovaginitis por cándida?",
+            "answer": "Clotrimazol (Lomecan o Canesten V)."
+          }
+        ],
+        "metrics": {
+          "cards": 10,
+          "averageAnswerWords": 3.6,
+          "answersOver40Words": 0,
+          "questionsWithIndependentConjunction": 2,
+          "questionsWithMultipleItems": 2,
+          "answersWithEtc": 0,
+          "answersWithMultipleClauses": 0
+        },
+        "durationSeconds": 5.0445257820000045,
+        "tokenUsage": {
+          "promptTokens": 6169,
+          "completionTokens": 644,
+          "totalTokens": 6813
+        },
+        "retries": 0
+      }
+    }
+  ]
+}

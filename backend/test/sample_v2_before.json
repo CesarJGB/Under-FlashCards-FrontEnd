@@ -1,0 +1,50 @@
+{
+  "pipeline": "v2",
+  "requestedCount": 10,
+  "cards": [
+    {
+      "question": "¿Cuál es la diferencia entre fármaco y medicamento?",
+      "answer": "Fármaco es una sustancia química que modifica el protoplasma vivo y NO tiene indicación terapéutica. Medicamento es un agente químico que modifica el protoplasma vivo y SÍ tiene indicación terapéutica."
+    },
+    {
+      "question": "¿Qué es el índice terapéutico y cómo se interpreta?",
+      "answer": "Es la relación DL50/DT50, o margen de seguridad que indica equilibrio entre eficacia terapéutica y toxicidad mínima. A mayor índice, el fármaco es más seguro (ej. penicilina). A menor índice, es menos seguro (ej. digoxina, warfarina)."
+    },
+    {
+      "question": "¿Qué factores alteran la absorción de un fármaco?",
+      "answer": "Factores del medicamento: tamaño de partícula, solubilidad y estado de ionización. Factores del medio: proteínas, glucoproteína P, vómito, diarrea, estreñimiento. Factores de la membrana: grosor, integridad, cargas y tipo de epitelio."
+    },
+    {
+      "question": "¿Qué es el volumen de distribución (VD) y qué indica?",
+      "answer": "Es el volumen de agua necesario para que exista en todos los compartimentos una concentración equivalente del fármaco. Se calcula como dosis/concentración plasmática. A mayor VD, mayor concentración en tejidos; a menor VD, mayor concentración en plasma."
+    },
+    {
+      "question": "¿Qué ocurre en el metabolismo de fase 1 y fase 2 en el hígado?",
+      "answer": "Fase 1: reacciones de oxidación, reducción e hidrólisis mediante CYP450 para aumentar polaridad. Fase 2: reacciones sintéticas (glucuronidación, acetilación, etc.) para hacer el fármaco más hidrosoluble y excretable."
+    },
+    {
+      "question": "¿Qué son los inductores e inhibidores enzimáticos del CYP450?",
+      "answer": "Inductores: aumentan el metabolismo, disminuyen la concentración del fármaco y pueden perder efecto terapéutico (ej. anticonvulsivantes, rifampicina). Inhibidores: disminuyen el metabolismo, aumentan la concentración y pueden causar toxicidad (ej. ritonavir, eritromicina, jugo de toronja)."
+    },
+    {
+      "question": "¿Cómo se eliminan los fármacos según el pH de la orina?",
+      "answer": "Las bases débiles se eliminan más fácil en pH ácido. Los ácidos débiles se eliminan más fácil en pH alcalino."
+    },
+    {
+      "question": "¿Cuál es la diferencia entre agonista completo, parcial e inverso?",
+      "answer": "Agonista completo: se une al mismo sitio que la sustancia endógena y provoca efectos similares. Agonista parcial: acción similar pero con eficacia parcial. Agonista inverso: produce efecto contrario al endógeno."
+    },
+    {
+      "question": "¿Qué es el fenómeno de primer paso y cómo se evita?",
+      "answer": "Es cuando un fármaco administrado por vía oral se absorbe en intestino, pasa a circulación portal y se metaboliza en hígado antes de llegar a circulación sistémica. Se evita aumentando la dosis o usando otra vía (sublingual, IV, etc.)."
+    },
+    {
+      "question": "¿Cuáles son los tipos de antagonistas farmacológicos?",
+      "answer": "Competitivo: compite con el agonista por el mismo sitio. No competitivo: bloquea el efecto por otro medio. Químico: se combina con el agonista y lo neutraliza."
+    }
+  ],
+  "source": {
+    "pdf": "Farma EsmeNotas Act20Ene26.pdf",
+    "segmentCharacters": 15000
+  }
+}

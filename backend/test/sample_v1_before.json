@@ -1,0 +1,58 @@
+{
+  "pipeline": "v1",
+  "requestedCount": 10,
+  "cards": [
+    {
+      "question": "¿Qué es un fármaco?",
+      "answer": "Sustancia química que modifica el protoplasma vivo y NO tiene indicación terapéutica."
+    },
+    {
+      "question": "¿Qué es el índice terapéutico?",
+      "answer": "Relación DL50/DT50 que indica el margen de seguridad de un fármaco."
+    },
+    {
+      "question": "¿Qué es la farmacocinética?",
+      "answer": "Es lo que el cuerpo le hace al fármaco: absorción, distribución, metabolismo y eliminación (ADME)."
+    },
+    {
+      "question": "¿Qué factores alteran la absorción de un fármaco?",
+      "answer": "Tamaño de partícula, solubilidad, estado de ionización, pH, medio, membrana, etc."
+    },
+    {
+      "question": "¿Qué es el volumen de distribución (VD)?",
+      "answer": "Volumen de agua necesario para que exista una concentración equivalente del fármaco en todos los compartimentos."
+    },
+    {
+      "question": "¿Qué es la biodisponibilidad?",
+      "answer": "Cantidad de fármaco absorbido de la dosis administrada que llega a su sitio de acción."
+    },
+    {
+      "question": "¿Qué es el metabolismo de fase 1?",
+      "answer": "Reacciones de oxidación, reducción e hidrólisis mediante el CYP450 para aumentar la polaridad del fármaco."
+    },
+    {
+      "question": "¿Qué es el fenómeno de primer paso?",
+      "answer": "Metabolización del fármaco en el hígado tras absorción oral, reduciendo su biodisponibilidad."
+    },
+    {
+      "question": "¿Qué es un agonista completo?",
+      "answer": "Fármaco que se une al mismo sitio de acción de una sustancia endógena y provoca efectos similares."
+    },
+    {
+      "question": "¿Qué vía de administración tiene biodisponibilidad del 100%?",
+      "answer": "La vía intravenosa (IV)."
+    }
+  ],
+  "audit": {
+    "generatedCount": 10,
+    "auditedCount": 10,
+    "acceptedCount": 10,
+    "statuses": {
+      "sin_cambios": 10
+    }
+  },
+  "source": {
+    "pdf": "Farma EsmeNotas Act20Ene26.pdf",
+    "segmentCharacters": 15000
+  }
+}
