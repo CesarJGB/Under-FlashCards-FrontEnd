@@ -2,14 +2,14 @@ const express = require('express');
 const router = express.Router();
 const deckController = require('../controllers/deckController');
 const reviewController = require('../controllers/reviewController'); // 🚀 Inyectado para telemetría y colas
-const { protect } = require('../controllers/authController');
+const { protect, requireAdmin } = require('../controllers/authController');
 
 // CRUD y herramientas de mazos
 router.get('/decks/:userId', deckController.getDecks);
 router.post('/decks', deckController.createDeck);
 router.put('/decks/:id', deckController.updateDeck);
-router.put('/decks/:id/default', deckController.updateDefault);
-router.put('/decks/:id/public-readonly', deckController.updatePublicReadOnly);
+router.put('/decks/:id/default', protect, requireAdmin, deckController.updateDefault);
+router.put('/decks/:id/public-readonly', protect, requireAdmin, deckController.updatePublicReadOnly);
 router.delete('/decks/:id', protect, deckController.deleteDeck);
 
 // Exportación e Importación

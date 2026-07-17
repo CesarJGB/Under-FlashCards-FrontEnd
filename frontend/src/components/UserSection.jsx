@@ -1,10 +1,18 @@
 import React from 'react';
-import { ArrowLeft, KeyRound, LayoutPanelTop, LogOut } from 'lucide-react';
+import { ArrowLeft, KeyRound, LayoutPanelTop, LogOut, Ticket } from 'lucide-react';
 
-export default function UserSection({ user, onLogout, onOpenAiSettings, onOpenHomeSettings, onBackHome }) {
+export default function UserSection({
+  user,
+  onLogout,
+  onOpenAiSettings,
+  onOpenHomeSettings,
+  onOpenInviteCodes,
+  onBackHome,
+}) {
   const name = user?.name || user?.given_name || '';
   const email = user?.email || '';
   const picture = user?.picture || '';
+  const isAdmin = Boolean(user?.isAdmin);
 
   return (
     <div className="w-full">
@@ -51,6 +59,16 @@ export default function UserSection({ user, onLogout, onOpenAiSettings, onOpenHo
           >
             <LayoutPanelTop className="w-4 h-4" /> Ajustes del Home
           </button>
+
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={onOpenInviteCodes}
+              className="w-full bg-slate-900 hover:bg-slate-800 text-white font-medium py-2.5 rounded-xl transition-colors flex items-center justify-center gap-2"
+            >
+              <Ticket className="w-4 h-4" /> Códigos de invitación
+            </button>
+          )}
 
           <button
             type="button"

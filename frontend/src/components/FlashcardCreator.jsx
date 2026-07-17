@@ -38,7 +38,7 @@ export default function FlashcardCreator({
   fontSize, setFontSize, showStyles, setShowStyles, isBulk, setIsBulk, bulkText, setBulkText,
   editingId, saving, error, setError, onSubmit, onCancel, contentImage, setContentImage,
   imageSide, setImageSide, onFastDelete, hasCards,
-  userId, deckId, authToken, onAiSuccess
+  userId, deckId, authToken, onAiSuccess, onInviteRequired
 }) {
   const [showPreview, setShowPreview] = useState(() => Boolean(getJSON(PREVIEW_VISIBLE_KEY)));
   const [previewMode, setPreviewMode] = useState(() => getStoredPreviewPanelMode());
@@ -157,6 +157,10 @@ export default function FlashcardCreator({
 
         if (!res.ok) {
           const errData = await res.json().catch(() => ({}));
+          if (res.status === 403 && errData.code === 'INVITE_REQUIRED') {
+            onInviteRequired?.();
+            return;
+          }
           if (res.status === 401) {
             throw new Error('Tu sesión expiró. Cierra sesión e inicia sesión de nuevo para generar con IA.');
           }

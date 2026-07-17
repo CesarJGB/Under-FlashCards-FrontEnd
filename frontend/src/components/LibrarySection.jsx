@@ -17,13 +17,12 @@ import SearchResults from './library/SearchResults';
 import { getJSON, setJSON, remove } from '../lib/safeLocalStorage';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
-const ADMIN_EMAIL = "cesarjaviervebe@gmail.com"; 
-
 export default function LibrarySection({
-  userId, userEmail, authToken, decks, materias, loading,
+  userId, isAdmin: adminAccess, authToken, decks, materias, loading,
   setDecks, setMaterias, loadDecks, loadMaterias,
   currentDeck, setCurrentDeck, initialMode, setInitialMode,
   onExitToStudy,
+  onInviteRequired,
   pendingNav,       
   clearPendingNav,
   dashboardShell
@@ -67,7 +66,7 @@ export default function LibrarySection({
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef(null);
 
-  const isAdmin = userEmail === ADMIN_EMAIL;
+  const isAdmin = Boolean(adminAccess);
 
   const activeMateriaName = useMemo(() => materias.find(m => m._id === currentPath.materiaId)?.name, [materias, currentPath.materiaId]);
   const activeTemaName = useMemo(() => temas.find(t => t._id === currentPath.temaId)?.name, [temas, currentPath.temaId]);
@@ -179,11 +178,22 @@ export default function LibrarySection({
     setDecks(updatedDecks);
     setJSON(`decks_${userId}`, updatedDecks);
     try {
-      await fetch(`${BACKEND_URL}/api/decks/${deckId}/${endpoint}`, {
+      const response = await fetch(`${BACKEND_URL}/api/decks/${deckId}/${endpoint}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+        },
         body: JSON.stringify(bodyPayload),
       });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        if (response.status === 403 && payload.code === 'INVITE_REQUIRED') {
+          onInviteRequired?.();
+          return;
+        }
+        throw new Error(payload.error || 'No se pudo actualizar el mazo.');
+      }
     } catch { await loadDecks(); }
   };
 
@@ -222,6 +232,10 @@ export default function LibrarySection({
       });
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
+        if (response.status === 403 && payload.code === 'INVITE_REQUIRED') {
+          onInviteRequired?.();
+          return;
+        }
         const message = response.status === 401
           ? 'Tu sesión expiró. Cierra sesión e inicia sesión de nuevo para eliminar mazos.'
           : (payload.error || 'No se pudo eliminar el mazo.');
@@ -263,6 +277,7 @@ export default function LibrarySection({
         deck={currentDeck} 
         userId={userId} 
         authToken={authToken}
+        onInviteRequired={onInviteRequired}
         initialMode={initialMode} 
         onBack={() => { 
           setCurrentDeck(null); 

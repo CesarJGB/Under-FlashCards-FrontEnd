@@ -13,6 +13,8 @@ import LibrarySection from './components/LibrarySection';
 import SettingsSection from './components/SettingsSection';
 import UserSection from './components/UserSection';
 import ChatSection from './components/ChatSection';
+import InviteCodeManager from './components/InviteCodeManager';
+import InviteGateScreen from './components/InviteGateScreen';
 import PublicMateriaPage from './components/PublicMateriaPage';
 import { getPublicMateriaShareId } from './lib/publicMateria';
 
@@ -38,7 +40,7 @@ function AppLoadingScreen() {
   );
 }
 
-function DashboardScreen({ user, onLogout }) {
+function DashboardScreen({ user, onLogout, onInviteRequired }) {
   const [tab, setTab] = useState('home');
   const [homeKey, setHomeKey] = useState(0);
   const [studyKey, setStudyKey] = useState(0);
@@ -228,7 +230,7 @@ function DashboardScreen({ user, onLogout }) {
 
       <main ref={contentScrollRef} className="relative flex-1 min-h-0 min-w-0 overflow-y-auto overscroll-contain md:min-h-[100dvh] md:overflow-visible">
         {/* Home, biblioteca, perfil y sus ajustes gestionan sus controles dentro de su contenido. */}
-        {tab !== 'home' && tab !== 'study' && tab !== 'library' && tab !== 'usuario' && tab !== 'home-settings' && tab !== 'ai-settings' && (
+        {tab !== 'home' && tab !== 'study' && tab !== 'library' && tab !== 'usuario' && tab !== 'home-settings' && tab !== 'ai-settings' && tab !== 'invite-codes' && (
           <div className="md:hidden sticky top-0 z-30 bg-white border-b border-slate-200 px-4 py-3.5 flex items-center justify-between shadow-xs">
             <span className="min-w-0 max-w-[80%]">
               {currentDeck && tab === 'library' ? (
@@ -279,7 +281,7 @@ function DashboardScreen({ user, onLogout }) {
           {tab === 'library' && (
             <LibrarySection
               userId={user.id}
-              userEmail={user.email}
+              isAdmin={user.isAdmin}
               authToken={user.authToken}
               decks={decks}
               materias={materias}
@@ -293,6 +295,7 @@ function DashboardScreen({ user, onLogout }) {
               initialMode={initialMode}
               setInitialMode={setInitialMode}
               onExitToStudy={handleExitToStudy}
+              onInviteRequired={onInviteRequired}
               pendingNav={pendingLibraryNav}
               clearPendingNav={() => setPendingLibraryNav(null)}
               dashboardShell={dashboardShell}
@@ -309,12 +312,20 @@ function DashboardScreen({ user, onLogout }) {
 
           {tab === 'chat' && <ChatSection userId={user.id} />}
 
+          {tab === 'invite-codes' && (
+            <InviteCodeManager
+              authToken={user.authToken}
+              onBack={() => handleTabChange('usuario')}
+            />
+          )}
+
           {tab === 'usuario' && (
             <UserSection 
               user={user} 
               onLogout={onLogout} 
               onOpenAiSettings={() => handleTabChange('ai-settings')}
               onOpenHomeSettings={() => handleTabChange('home-settings')}
+              onOpenInviteCodes={() => handleTabChange('invite-codes')}
               onBackHome={() => handleTabChange('home')}
             />
           )}
@@ -367,6 +378,7 @@ function FlashcardsApp() {
   const [user, setUser] = useState(null);
   const [error, setError] = useState('');
   const [isAppLoading, setIsAppLoading] = useState(false);
+  const [pendingInvite, setPendingInvite] = useState(null);
 
   useEffect(() => {
     if (!isAppLoading) return undefined;
@@ -393,12 +405,53 @@ function FlashcardsApp() {
       });
       if (!res.ok) throw new Error();
       const data = await res.json();
+
+      if (data.needsInvite) {
+        setPendingInvite({ credential, user: data.user });
+        return;
+      }
+
       setUser({ ...data.user, authToken: credential });
       setIsAppLoading(true);
     } catch {
       setError('Falló la verificación en el servidor.');
     }
   };
+
+  const handleInviteRedeemed = () => {
+    if (!pendingInvite) return;
+
+    setUser({
+      ...pendingInvite.user,
+      hasAccess: true,
+      needsInvite: false,
+      authToken: pendingInvite.credential,
+    });
+    setPendingInvite(null);
+    setIsAppLoading(true);
+  };
+
+  const handleInviteRequired = () => {
+    if (!user?.authToken) return;
+
+    setPendingInvite({
+      credential: user.authToken,
+      user: { ...user, hasAccess: false, needsInvite: true },
+    });
+    setIsAppLoading(false);
+    setUser(null);
+  };
+
+  if (pendingInvite) {
+    return (
+      <InviteGateScreen
+        credential={pendingInvite.credential}
+        userEmail={pendingInvite.user.email}
+        onRedeemed={handleInviteRedeemed}
+        onCancel={() => setPendingInvite(null)}
+      />
+    );
+  }
 
   if (user) {
     const handleLogout = () => {
@@ -408,7 +461,11 @@ function FlashcardsApp() {
 
     return (
       <>
-        <DashboardScreen user={user} onLogout={handleLogout} />
+        <DashboardScreen
+          user={user}
+          onLogout={handleLogout}
+          onInviteRequired={handleInviteRequired}
+        />
         {isAppLoading && <AppLoadingScreen />}
       </>
     );
