@@ -20,6 +20,23 @@ const DebugPanel = lazy(() => import('./components/DebugPanel'));
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+const INITIAL_APP_LOADING_DURATION = 2500;
+
+function AppLoadingScreen() {
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-white"
+      role="status"
+      aria-live="polite"
+      data-testid="app-loading-screen"
+    >
+      <div className="flex flex-col items-center gap-4 text-slate-700">
+        <Sparkles className="h-8 w-8 animate-pulse text-slate-900" aria-hidden="true" />
+        <p className="text-sm font-medium">Preparando tu espacio...</p>
+      </div>
+    </div>
+  );
+}
 
 function DashboardScreen({ user, onLogout }) {
   const [tab, setTab] = useState('home');
@@ -349,6 +366,17 @@ function DashboardScreen({ user, onLogout }) {
 function FlashcardsApp() {
   const [user, setUser] = useState(null);
   const [error, setError] = useState('');
+  const [isAppLoading, setIsAppLoading] = useState(false);
+
+  useEffect(() => {
+    if (!isAppLoading) return undefined;
+
+    const timeoutId = window.setTimeout(() => {
+      setIsAppLoading(false);
+    }, INITIAL_APP_LOADING_DURATION);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [isAppLoading]);
 
   usePendingReviewsFlush(user?.id);
 
@@ -366,12 +394,25 @@ function FlashcardsApp() {
       if (!res.ok) throw new Error();
       const data = await res.json();
       setUser({ ...data.user, authToken: credential });
+      setIsAppLoading(true);
     } catch {
       setError('Falló la verificación en el servidor.');
     }
   };
 
-  if (user) return <DashboardScreen user={user} onLogout={() => setUser(null)} />;
+  if (user) {
+    const handleLogout = () => {
+      setIsAppLoading(false);
+      setUser(null);
+    };
+
+    return (
+      <>
+        <DashboardScreen user={user} onLogout={handleLogout} />
+        {isAppLoading && <AppLoadingScreen />}
+      </>
+    );
+  }
   return <LoginScreen onSuccess={handleSuccess} onError={() => setError('Falló el inicio de sesión.')} error={error} />;
 }
 
