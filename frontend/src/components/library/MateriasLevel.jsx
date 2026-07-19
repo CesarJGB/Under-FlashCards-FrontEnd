@@ -1,7 +1,35 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Loader2, Folder, Bookmark, ChevronUp, MoreHorizontal, Pencil } from 'lucide-react';
+import { Loader2, Bookmark, ChevronUp, MoreHorizontal, Pencil, ArrowRight } from 'lucide-react';
 import DeckCard from '../DeckCard';
 import ActionSheet from '../common/ActionSheet';
+
+// =========================================================================
+// 🎨 PALETA DE ACENTOS POR MATERIA (determinística vía hash del _id/nombre)
+// =========================================================================
+const MATERIA_PALETTE = [
+  '#6366F1', // indigo
+  '#EC4899', // rose
+  '#10B981', // emerald
+  '#F59E0B', // amber
+  '#3B82F6', // blue
+  '#8B5CF6', // violet
+  '#EF4444', // coral
+  '#14B8A6'  // teal
+];
+
+function getMateriaColor(materia) {
+  const key = String(materia?._id || materia?.name || '');
+  let hash = 0;
+  for (let i = 0; i < key.length; i++) {
+    hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
+  }
+  return MATERIA_PALETTE[hash % MATERIA_PALETTE.length];
+}
+
+function getMateriaInitial(materia) {
+  const name = (materia?.name || '').trim();
+  return name ? name.charAt(0).toUpperCase() : '?';
+}
 
 export default function MateriasLevel({
   materias, processedDecks, loading, userId, isAdmin, viewMode, currentPath, setCurrentPath,
@@ -47,6 +75,8 @@ export default function MateriasLevel({
   // =======================================================================
   const renderMateriaCard = (m) => {
     const isMenuOpen = activeMenuId === m._id;
+    const accent = getMateriaColor(m);
+    const initial = getMateriaInitial(m);
 
     if (isList) {
       return (
@@ -54,11 +84,14 @@ export default function MateriasLevel({
           <button
             type="button"
             onClick={() => setCurrentPath({ ...currentPath, materiaId: m._id })}
-            className="w-full text-left flex items-center justify-between p-4 min-h-[64px] rounded-2xl border border-zinc-200 bg-white hover:bg-zinc-50 dark:bg-zinc-900 dark:border-zinc-800 dark:hover:bg-zinc-800 shadow-xs transition-all cursor-pointer"
+            className="w-full text-left flex items-center justify-between p-4 min-h-[64px] rounded-2xl border border-zinc-200 bg-white hover:bg-zinc-50 dark:bg-zinc-900 dark:border-zinc-800 dark:hover:bg-zinc-800 shadow-xs transition-all duration-150 active:scale-[0.985] cursor-pointer"
           >
             <div className="flex items-center gap-3.5 min-w-0 flex-1 pr-2">
-              <div className="w-10 h-10 rounded-xl shrink-0 bg-zinc-800 dark:bg-zinc-700 flex items-center justify-center shadow-xs">
-                <Folder className="w-4.5 h-4.5 text-white/90 stroke-[2]" />
+              <div
+                className="w-10 h-10 rounded-xl shrink-0 flex items-center justify-center shadow-xs"
+                style={{ backgroundColor: accent }}
+              >
+                <span className="text-white font-black text-sm">{initial}</span>
               </div>
               <p className="font-bold text-zinc-800 dark:text-zinc-100 text-sm truncate leading-snug">
                 {m.name}
@@ -90,20 +123,26 @@ export default function MateriasLevel({
         <button
           type="button"
           onClick={() => setCurrentPath({ ...currentPath, materiaId: m._id })}
-          className="w-full text-left h-28 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col justify-end overflow-hidden bg-white dark:bg-zinc-800 relative"
+          className="w-full text-left h-28 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm hover:shadow-md transition-all duration-150 active:scale-[0.98] cursor-pointer flex flex-col justify-end overflow-hidden bg-white dark:bg-zinc-800 relative"
         >
+          {/* Barra de acento superior por materia */}
+          <div className="absolute top-0 left-0 right-0 h-[3px] z-10" style={{ backgroundColor: accent }} />
+
           {/* Gradiente overlay SOLO modo oscuro */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent pointer-events-none z-0 dark:block hidden rounded-b-2xl" />
 
-          {/* Icono decorativo superior izquierdo */}
-          <div className="absolute top-3 left-3 z-10">
-            <div className="w-8 h-8 rounded-lg bg-zinc-100/80 dark:bg-white/15 backdrop-blur-sm flex items-center justify-center">
-              <Folder className="w-4 h-4 text-zinc-600 dark:text-white/90 stroke-[2]" />
+          {/* Icono decorativo superior izquierdo: inicial de la materia con acento de color */}
+          <div className="absolute top-3.5 left-3 z-10">
+            <div
+              className="w-8 h-8 rounded-lg flex items-center justify-center shadow-xs"
+              style={{ backgroundColor: accent }}
+            >
+              <span className="text-white font-black text-xs">{initial}</span>
             </div>
           </div>
 
           {/* Botón menú grid */}
-          <div className="absolute top-2.5 right-2.5 z-30" onClick={(e) => e.stopPropagation()}>
+          <div className="absolute top-3 right-2.5 z-30" onClick={(e) => e.stopPropagation()}>
             <button
               type="button"
               onClick={() => setActiveMenuId(isMenuOpen ? null : m._id)}
@@ -129,16 +168,17 @@ export default function MateriasLevel({
     );
   };
 
-  // Celda overflow "+N" - NUEVO DISEÑO INTEGRADO Y ADAPTATIVO
+  // Celda overflow "+N" - tarjeta sólida con degradado (antes: borde punteado)
   const renderOverflowCell = () => (
     <button
       type="button"
       onClick={() => setShowAll(true)}
-      className="h-28 rounded-2xl border-2 border-dashed border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 flex flex-col items-center justify-center gap-1.5 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800 active:scale-[0.98] transition-all duration-200 w-full"
+      className="h-28 rounded-2xl bg-gradient-to-br from-zinc-900 to-zinc-700 dark:from-zinc-700 dark:to-zinc-600 flex flex-col items-center justify-center gap-1 cursor-pointer shadow-sm hover:shadow-md active:scale-[0.98] transition-all duration-200 w-full"
     >
-      <span className="text-2xl font-black text-zinc-900 dark:text-white">+{overflowCount}</span>
-      <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 dark:text-white/85">
+      <span className="text-2xl font-black text-white">+{overflowCount}</span>
+      <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-white/80">
         Ver todas
+        <ArrowRight className="w-3 h-3" />
       </span>
     </button>
   );
