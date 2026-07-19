@@ -9,6 +9,10 @@ const materiaSchema = new mongoose.Schema(
     
     activeParciales: { type: [Number], default: [1, 2, 3] },
 
+    // Color de acento elegido a mano por el usuario para la tarjeta/ícono.
+    // null = usar el color automático (hash) que calcula el frontend.
+    color: { type: String, default: null },
+
     // Inyección del Radar de Conocimiento (Nivel Asignatura Global)
   knowledgeMetrics: {
       type: knowledgeMetricsSchema,
@@ -52,6 +56,7 @@ materiaSchema.methods.serialize = function () {
     name: this.name,
     userId: this.userId,
     activeParciales: this.activeParciales,
+    color: this.color || null,
     analytics: {
       masteryPercentage: this.knowledgeMetrics?.mastery ?? 0,
       avgResponseTime: this.knowledgeMetrics?.speed ?? 0,
