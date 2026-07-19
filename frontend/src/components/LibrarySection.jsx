@@ -70,6 +70,7 @@ export default function LibrarySection({
   // =========================================================================
   const [academicModal, setAcademicModal] = useState(null); 
   const [academicInput, setAcademicInput] = useState('');
+  const [academicColor, setAcademicColor] = useState(null);
   const [modal, setModal] = useState(null);
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef(null);
@@ -87,7 +88,10 @@ export default function LibrarySection({
     let url = `${BACKEND_URL}/api/academic/`;
     let body = { userId, name: academicInput.trim() };
 
-    if (academicModal.type === 'materia') url += 'materias';
+    if (academicModal.type === 'materia') {
+      url += 'materias';
+      body.color = academicColor || null;
+    }
     else if (academicModal.type === 'tema') {
       url += 'temas';
       body.materiaId = currentPath.materiaId;
@@ -117,6 +121,7 @@ export default function LibrarySection({
         refreshTemas();
       }
       setAcademicInput('');
+      setAcademicColor(null);
       setAcademicModal(null);
     } catch { alert('Error de conexión.'); }
   };
@@ -127,12 +132,14 @@ export default function LibrarySection({
 
     const { type, editing } = academicModal;
     const url = `${BACKEND_URL}/api/academic/${type}s/${editing._id}`;
+    const body = { name: academicInput.trim() };
+    if (type === 'materia') body.color = academicColor || null;
 
     try {
       const res = await fetch(url, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: academicInput.trim() })
+        body: JSON.stringify(body)
       });
       if (!res.ok) throw new Error((await res.json()).error || 'Error al actualizar');
       
@@ -154,6 +161,7 @@ export default function LibrarySection({
       }
 
       setAcademicInput('');
+      setAcademicColor(null);
       setAcademicModal(null);
     } catch (err) {
       alert(err.message || 'Error de conexión al actualizar.');
@@ -508,6 +516,8 @@ export default function LibrarySection({
               academicModal={academicModal}
               academicInput={academicInput}
               setAcademicInput={setAcademicInput}
+              academicColor={academicColor}
+              setAcademicColor={setAcademicColor}
               setAcademicModal={setAcademicModal}
               handleCreateAcademicFolder={handleCreateAcademicFolder}
               handleUpdateAcademicFolder={handleUpdateAcademicFolder}
