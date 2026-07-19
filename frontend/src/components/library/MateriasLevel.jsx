@@ -8,68 +8,60 @@ import { getMateriaColor, getMateriaInitial, lightenColor, darkenColor, hexToRgb
 const OVERFLOW_ACCENT = '#64748B';
 
 // =========================================================================
-// 🗂️ CARCASA DE "CARPETA" — silueta real (pestaña + cuerpo fusionados en una
-// sola forma, mismo color), con una capa trasera más clara asomando detrás.
-// Solo se usa en modo grid — el modo lista no lleva este tratamiento.
+// 🗂️ CARCASA DE "CARPETA" PREMIUM (Estilo Semi-Esqueumórfico / Apple)
 // =========================================================================
 function FolderCardShell({ accent, onClick, cornerBadge, children }) {
-  const middleColor = lightenColor(accent, 0.25);  // Capa del medio - LA MÁS CLARA
+  // Degradado premium para el frente de la carpeta
+  const folderGradient = `linear-gradient(135deg, ${lightenColor(accent, 0.15)} 0%, ${accent} 55%, ${darkenColor(accent, 0.1)} 100%)`;
   
-  const folderGradient = `linear-gradient(155deg, ${lightenColor(accent, 0.1)} 0%, ${accent} 60%, ${darkenColor(accent, 0.08)} 100%)`;
-  const glow = `0 12px 26px -8px ${hexToRgba(accent, 0.55)}, 0 2px 6px -2px rgba(0,0,0,0.12)`;
+  // Brillo exterior (Outer Glow) suave y expandido del color de la materia
+  const glow = `0 20px 32px -10px ${hexToRgba(accent, 0.45)}, 0 4px 12px -4px ${hexToRgba(accent, 0.22)}`;
 
   return (
-    <div className="relative h-36">
-      {/* CAPA 1: FONDO - Color base */}
+    <button
+      type="button"
+      onClick={onClick}
+      style={{ boxShadow: glow }}
+      className="relative w-full h-36 rounded-2xl text-left transition-all duration-200 active:scale-[0.97] hover:scale-[1.01] group cursor-pointer overflow-visible select-none border border-black/5 dark:border-white/5"
+    >
+      {/* CAPA 1: TRASERA (Fondo base oscuro de la carpeta) */}
       <div
-        className="absolute inset-0 rounded-2xl"
-        style={{ 
-          backgroundColor: accent,
-          boxShadow: glow
-        }}
+        className="absolute inset-0 rounded-2xl opacity-95 transition-colors"
+        style={{ backgroundColor: darkenColor(accent, 0.15) }}
       />
 
-      {/* CAPA 2: MEDIO - La más clara, asoma entre fondo y frente */}
+      {/* CAPA 2: HOJA INTERIOR (Se asoma por detrás del frente) */}
       <div
-        className="absolute left-2 right-2 top-2 bottom-2 rounded-2xl"
-        style={{ 
-          backgroundColor: middleColor,
-        }}
+        className="absolute top-2.5 left-2.5 right-2.5 h-24 rounded-xl bg-white/85 dark:bg-zinc-900/50 backdrop-blur-xs shadow-xs transform translate-y-0 transition-transform duration-300 group-hover:-translate-y-1"
       />
 
-      {/* CAPA 3: FRENTE - Color base con forma de carpeta */}
-      <button
-        type="button"
-        onClick={onClick}
-        className="absolute left-3.5 right-3.5 top-3.5 bottom-3.5 cursor-pointer active:scale-[0.98] transition-all duration-150"
+      {/* CAPA 3: SOLAPA DELANTERA (Cuerpo principal con corte asimétrico) */}
+      <div
+        className="absolute bottom-0 inset-x-0 top-8 rounded-b-2xl rounded-tr-xl z-10"
+        style={{ background: folderGradient }}
       >
-        {/* Pestaña de carpeta - forma característica */}
+        {/* Pestaña izquierda de la carpeta (Fusionada perfectamente con el cuerpo) */}
         <div
-          className="absolute top-0 left-0 rounded-t-xl"
-          style={{ 
-            width: '48%', 
-            height: 26,
-            background: folderGradient,
-            borderBottomRightRadius: 10
-          }}
+          className="absolute bottom-full left-0 h-5 w-[50%] rounded-t-xl"
+          style={{ background: folderGradient }}
         />
         
-        {/* Cuerpo de la carpeta */}
-        <div
-          className="absolute inset-0 rounded-2xl overflow-hidden"
-          style={{ 
-            top: 18,
-            background: folderGradient
-          }}
-        >
-          {/* Contenido */}
-          <div className="relative h-full flex flex-col justify-end p-3.5 pt-7">
-            {cornerBadge}
-            {children}
-          </div>
+        {/* Micro-borde superior para simular relieve/luz en el plástico */}
+        <div className="absolute top-0 inset-x-0 h-px bg-white/25 rounded-t-full" />
+
+        {/* Contenedor del Texto (Alineado abajo a la izquierda sin colisiones) */}
+        <div className="relative h-full w-full p-4 flex flex-col justify-end">
+          {children}
         </div>
-      </button>
-    </div>
+      </div>
+
+      {/* CAPA 4: BADGES Y BOTONES (Flotando por encima de todo) */}
+      <div className="absolute inset-0 z-20 pointer-events-none">
+        <div className="relative w-full h-full pointer-events-auto">
+          {cornerBadge}
+        </div>
+      </div>
+    </button>
   );
 }
 
@@ -81,7 +73,6 @@ export default function MateriasLevel({
   const [showAll, setShowAll] = useState(false);
   const [activeMenuId, setActiveMenuId] = useState(null);
 
-  // Umbral responsive: 5 en móvil/tablet, 7 en laptop+
   const [maxVisible, setMaxVisible] = useState(
     typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches ? 7 : 5
   );
@@ -105,7 +96,6 @@ export default function MateriasLevel({
 
   const isList = viewMode === 'list';
 
-  // Handler para editar nombre (abre modal de carpeta académica en modo edición)
   const handleEditMateriaName = (materia) => {
     setActiveMenuId(null);
     setAcademicModal({ type: 'materia', editing: materia });
@@ -154,35 +144,34 @@ export default function MateriasLevel({
               </button>
             </div>
           </button>
-
         </div>
       );
     }
 
-    // MODO GRID — carpeta apilada (tab + cuerpo con degradado + glow)
+    // MODO GRID MODERNO REFORMADO
     return (
-      <div key={m._id} className="relative group">
+      <div key={m._id} className="relative">
         <FolderCardShell
           accent={accent}
           onClick={() => setCurrentPath({ ...currentPath, materiaId: m._id })}
           cornerBadge={
             <>
-              {/* Badge blanco con la inicial, coloreada con el acento */}
-              <div className="absolute top-3 left-3 z-10">
-                <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm">
-                  <span className="font-black text-xs" style={{ color: accent }}>{initial}</span>
+              {/* Icono/Inicial: Estilo cristal translúcido en la pestaña izquierda */}
+              <div className="absolute top-2 left-2">
+                <div className="w-7 h-7 rounded-lg bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/20 shadow-inner">
+                  <span className="font-black text-[11px] text-white tracking-wide">{initial}</span>
                 </div>
               </div>
 
-              {/* Botón menú */}
-              <div className="absolute top-2.5 right-2.5 z-30" onClick={(e) => e.stopPropagation()}>
+              {/* Botón de opciones: Sutil e integrado a la derecha */}
+              <div className="absolute top-2 right-2" onClick={(e) => e.stopPropagation()}>
                 <button
                   type="button"
                   onClick={() => setActiveMenuId(isMenuOpen ? null : m._id)}
                   className={`p-1.5 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
                     isMenuOpen
-                      ? 'bg-white text-zinc-900 shadow-sm'
-                      : 'bg-white/25 backdrop-blur-sm text-white hover:bg-white/40'
+                      ? 'bg-white text-zinc-950 shadow-md scale-100'
+                      : 'bg-white/10 hover:bg-white/20 text-white/90 backdrop-blur-xs'
                   }`}
                 >
                   <MoreHorizontal className="w-3.5 h-3.5" />
@@ -191,8 +180,12 @@ export default function MateriasLevel({
             </>
           }
         >
-          <div className="p-3.5 pt-8 w-full z-10 min-w-0 relative">
-            <p className="font-bold text-sm leading-snug line-clamp-2 text-white drop-shadow-sm">
+          {/* Contenido inferior */}
+          <div className="min-w-0 text-left select-none pointer-events-none">
+            <span className="text-[10px] font-bold tracking-wider text-white/60 uppercase block mb-0.5">
+              Materia
+            </span>
+            <p className="font-bold text-sm leading-tight text-white line-clamp-2 drop-shadow-xs">
               {m.name}
             </p>
           </div>
@@ -201,24 +194,26 @@ export default function MateriasLevel({
     );
   };
 
-  // Celda overflow "+N" — misma carcasa de carpeta, tono neutro
+  // Celda overflow "+N" adaptada al nuevo diseño
   const renderOverflowCell = () => (
-    <div className="relative group">
+    <div className="relative">
       <FolderCardShell
         accent={OVERFLOW_ACCENT}
         onClick={() => setShowAll(true)}
         cornerBadge={
-          <div className="absolute top-3 left-3 z-10">
-            <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm">
-              <ArrowRight className="w-4 h-4" style={{ color: OVERFLOW_ACCENT }} />
+          <div className="absolute top-2 left-2">
+            <div className="w-7 h-7 rounded-lg bg-white/25 backdrop-blur-md flex items-center justify-center border border-white/10">
+              <ArrowRight className="w-3.5 h-3.5 text-white" />
             </div>
           </div>
         }
       >
-        <div className="p-3.5 pt-8 w-full z-10 min-w-0 relative">
-          <p className="font-black text-lg leading-none text-white">+{overflowCount}</p>
-          <p className="text-[10px] font-bold uppercase tracking-wider text-white/80 mt-1.5">
-            Ver todas
+        <div className="min-w-0 text-left select-none pointer-events-none">
+          <span className="text-[10px] font-bold tracking-wider text-white/60 uppercase block mb-0.5">
+            Colección
+          </span>
+          <p className="font-black text-sm leading-tight text-white uppercase tracking-wide">
+            +{overflowCount} Ver todas
           </p>
         </div>
       </FolderCardShell>
@@ -269,7 +264,7 @@ export default function MateriasLevel({
             <div className="space-y-1.5">{visibleMaterias.map(renderMateriaCard)}</div>
           ) : (
             <>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
                 {visibleMaterias.map(renderMateriaCard)}
                 {!showAll && overflowCount > 0 && renderOverflowCell()}
               </div>
