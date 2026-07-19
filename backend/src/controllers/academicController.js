@@ -11,6 +11,11 @@ const { randomUUID } = require('crypto');
 
 const ALLOWED_PARCIALES = [1, 2, 3];
 const ALLOWED_HISTORY_WINDOWS = [7, 14, 30];
+const HEX_COLOR_REGEX = /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/;
+
+function isValidHexColor(value) {
+  return typeof value === 'string' && HEX_COLOR_REGEX.test(value.trim());
+}
 
 function normalizeParcialesInput(rawParciales) {
   const source = Array.isArray(rawParciales) ? rawParciales : String(rawParciales || '').split(',');
@@ -207,11 +212,11 @@ exports.getPublicMateriaProfile = async (req, res) => {
   }
 };
 
-// ✅ MODIFICADO: Soporte para metaCalificacion por defecto
+// ✅ MODIFICADO: Soporte para metaCalificacion por defecto + color de acento
 exports.createMateria = async (req, res) => {
   try {
-    // 1. Extraemos metaCalificacion (si el usuario la define desde el inicio)
-    const { userId, name, metaCalificacion } = req.body || {};
+    // 1. Extraemos metaCalificacion y color (si el usuario los define desde el inicio)
+    const { userId, name, metaCalificacion, color } = req.body || {};
     if (!name?.trim()) return res.status(400).json({ error: 'El nombre de la materia es requerido.' });
 
     const existe = await Materia.findOne({ name: name.trim(), userId });
@@ -220,10 +225,16 @@ exports.createMateria = async (req, res) => {
     // 2. Si no mandan una meta, le asignamos 70 por defecto
     const meta = metaCalificacion !== undefined ? Number(metaCalificacion) : 70;
 
+    // 3. Color es opcional; si viene, debe ser un hexadecimal válido
+    if (color !== undefined && color !== null && !isValidHexColor(color)) {
+      return res.status(400).json({ error: 'El color debe ser un código hexadecimal válido (ej: #6366F1).' });
+    }
+
     const materia = await Materia.create({ 
       userId, 
       name: name.trim(),
-      metaCalificacion: meta 
+      metaCalificacion: meta,
+      color: color || null
     });
     
     return res.status(201).json(materia.serialize());
@@ -568,15 +579,15 @@ exports.getMetricsHistory = async (req, res) => {
 };
 
 // =========================================================================
-// 5. EDICIÓN DE NOMBRE Y META (Renombrar carpetas académicas + Meta)
+// 5. EDICIÓN DE NOMBRE, META Y COLOR (Renombrar carpetas académicas + extras)
 // =========================================================================
 
-// ✅ MODIFICADO: Soporte para actualizar metaCalificacion y validación parcial
+// ✅ MODIFICADO: Soporte para actualizar metaCalificacion, color y validación parcial
 exports.updateMateria = async (req, res) => {
   try {
     const { id } = req.params;
-    // 1. Aceptamos tanto el 'name' como la 'metaCalificacion' en el cuerpo del request
-    const { name, metaCalificacion } = req.body || {};
+    // 1. Aceptamos 'name', 'metaCalificacion' y 'color' en el cuerpo del request
+    const { name, metaCalificacion, color } = req.body || {};
 
     const materia = await Materia.findById(id);
     if (!materia) return res.status(404).json({ error: 'Materia no encontrada.' });
@@ -602,6 +613,14 @@ exports.updateMateria = async (req, res) => {
         return res.status(400).json({ error: 'La meta de calificación debe ser un número entre 0 y 100.' });
       }
       materia.metaCalificacion = parsedMeta;
+    }
+
+    // 4. Color de acento: null limpia el override y regresa al color automático
+    if (color !== undefined) {
+      if (color !== null && !isValidHexColor(color)) {
+        return res.status(400).json({ error: 'El color debe ser un código hexadecimal válido (ej: #6366F1).' });
+      }
+      materia.color = color;
     }
 
     await materia.save();
