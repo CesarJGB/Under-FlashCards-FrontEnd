@@ -13,62 +13,65 @@ const OVERFLOW_ACCENT = '#64748B';
 // Solo se usa en modo grid — el modo lista no lleva este tratamiento.
 // =========================================================================
 function FolderCardShell({ accent, onClick, cornerBadge, children }) {
-  // Tres capas de color
-  const backColor = lightenColor(accent, 0.25);      // Capa trasera (más clara)
-  const middleColor = lightenColor(accent, 0.12);    // Capa del medio (ligeramente clara)
-  const frontColor = accent;                          // Capa frontal (color base)
+  const middleColor = lightenColor(accent, 0.25);  // Capa del medio - LA MÁS CLARA
   
-  const bodyGradient = `linear-gradient(155deg, ${middleColor} 0%, ${frontColor} 55%, ${darkenColor(accent, 0.08)} 100%)`;
-  const glow = `0 12px 26px -8px ${hexToRgba(accent, 0.45)}, 0 2px 6px -2px rgba(0,0,0,0.12)`;
+  const folderGradient = `linear-gradient(155deg, ${lightenColor(accent, 0.1)} 0%, ${accent} 60%, ${darkenColor(accent, 0.08)} 100%)`;
+  const glow = `0 12px 26px -8px ${hexToRgba(accent, 0.55)}, 0 2px 6px -2px rgba(0,0,0,0.12)`;
 
   return (
     <div className="relative h-36">
-      {/* CAPA 1: Trasera - más clara, asoma por detrás */}
+      {/* CAPA 1: FONDO - Color base */}
       <div
         className="absolute inset-0 rounded-2xl"
         style={{ 
-          backgroundColor: backColor,
-          transform: 'translateY(4px) translateX(4px)',
+          backgroundColor: accent,
           boxShadow: glow
         }}
       />
 
-      {/* CAPA 2: Intermedia - ligeramente más clara */}
+      {/* CAPA 2: MEDIO - La más clara, asoma entre fondo y frente */}
       <div
-        className="absolute left-1 right-3.5 top-3.5 bottom-1 rounded-2xl"
+        className="absolute left-2 right-2 top-2 bottom-2 rounded-2xl"
         style={{ 
           backgroundColor: middleColor,
         }}
       />
 
-      {/* CAPA 3: Frontal - carpeta completa (pestaña + cuerpo) */}
+      {/* CAPA 3: FRENTE - Color base con forma de carpeta */}
       <button
         type="button"
         onClick={onClick}
-        className="absolute left-2 right-4 top-4 bottom-2 cursor-pointer active:scale-[0.98] transition-all duration-150 rounded-2xl overflow-hidden"
-        style={{ background: bodyGradient }}
+        className="absolute left-3.5 right-3.5 top-3.5 bottom-3.5 cursor-pointer active:scale-[0.98] transition-all duration-150"
       >
-        {/* Pestaña de carpeta - forma mejorada */}
+        {/* Pestaña de carpeta - forma característica */}
         <div
           className="absolute top-0 left-0 rounded-t-xl"
           style={{ 
-            width: '52%', 
-            height: 28,
-            background: `linear-gradient(180deg, ${lightenColor(accent, 0.2)} 0%, ${accent} 100%)`,
-            borderBottomRightRadius: 12
+            width: '48%', 
+            height: 26,
+            background: folderGradient,
+            borderBottomRightRadius: 10
           }}
         />
         
-        {/* Contenido de la carpeta */}
-        <div className="absolute inset-0 pt-7 flex flex-col justify-end p-3.5">
-          {cornerBadge}
-          {children}
+        {/* Cuerpo de la carpeta */}
+        <div
+          className="absolute inset-0 rounded-2xl overflow-hidden"
+          style={{ 
+            top: 18,
+            background: folderGradient
+          }}
+        >
+          {/* Contenido */}
+          <div className="relative h-full flex flex-col justify-end p-3.5 pt-7">
+            {cornerBadge}
+            {children}
+          </div>
         </div>
       </button>
     </div>
   );
 }
-
 
 export default function MateriasLevel({
   materias, processedDecks, loading, userId, isAdmin, viewMode, currentPath, setCurrentPath,
