@@ -2,7 +2,38 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Loader2, Bookmark, ChevronUp, MoreHorizontal, Pencil, ArrowRight } from 'lucide-react';
 import DeckCard from '../DeckCard';
 import ActionSheet from '../common/ActionSheet';
-import { getMateriaColor, getMateriaInitial } from '../../lib/materiaColors';
+import { getMateriaColor, getMateriaInitial, lightenColor, darkenColor, hexToRgba } from '../../lib/materiaColors';
+
+// Tono neutro para la celda "+N Ver todas" (no pertenece a ninguna materia)
+const OVERFLOW_ACCENT = '#64748B';
+
+// =========================================================================
+// 🗂️ CARCASA DE "CARPETA" (pestaña trasera + cuerpo con degradado + glow)
+// Solo se usa en modo grid — el modo lista no lleva este tratamiento.
+// =========================================================================
+function FolderCardShell({ accent, onClick, cornerBadge, children }) {
+  const tabColor = lightenColor(accent, 0.32);
+  const bodyGradient = `linear-gradient(155deg, ${lightenColor(accent, 0.14)} 0%, ${accent} 55%, ${darkenColor(accent, 0.12)} 100%)`;
+  const glow = `0 10px 22px -8px ${hexToRgba(accent, 0.5)}, 0 2px 6px -2px rgba(0,0,0,0.12)`;
+
+  return (
+    <div className="relative h-32">
+      {/* Capa trasera: pestaña de la carpeta, más clara, peeking arriba/derecha */}
+      <div className="absolute inset-0 rounded-2xl" style={{ backgroundColor: tabColor }} />
+
+      {/* Capa frontal: cuerpo con el contenido */}
+      <button
+        type="button"
+        onClick={onClick}
+        className="absolute left-0 bottom-0 w-[calc(100%-10px)] h-[106px] rounded-2xl flex flex-col justify-end overflow-hidden cursor-pointer active:scale-[0.98] transition-all duration-150"
+        style={{ background: bodyGradient, boxShadow: glow }}
+      >
+        {cornerBadge}
+        {children}
+      </button>
+    </div>
+  );
+}
 
 export default function MateriasLevel({
   materias, processedDecks, loading, userId, isAdmin, viewMode, currentPath, setCurrentPath,
@@ -44,7 +75,7 @@ export default function MateriasLevel({
   const activeMateria = materias.find((materia) => materia._id === activeMenuId);
 
   // =======================================================================
-  // 🎴 RENDERIZADO TIPO DECKCARD CON SOPORTE DARK/LIGHT + MENÚ
+  // 🎴 RENDERIZADO DE TARJETA DE MATERIA
   // =======================================================================
   const renderMateriaCard = (m) => {
     const isMenuOpen = activeMenuId === m._id;
@@ -90,70 +121,70 @@ export default function MateriasLevel({
       );
     }
 
-    // MODO GRID
+    // MODO GRID — carpeta apilada (tab + cuerpo con degradado + glow)
     return (
       <div key={m._id} className="relative group">
-        <button
-          type="button"
+        <FolderCardShell
+          accent={accent}
           onClick={() => setCurrentPath({ ...currentPath, materiaId: m._id })}
-          className="w-full text-left h-28 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm hover:shadow-md transition-all duration-150 active:scale-[0.98] cursor-pointer flex flex-col justify-end overflow-hidden bg-white dark:bg-zinc-800 relative"
+          cornerBadge={
+            <>
+              {/* Badge blanco con la inicial, coloreada con el acento */}
+              <div className="absolute top-3 left-3 z-10">
+                <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm">
+                  <span className="font-black text-xs" style={{ color: accent }}>{initial}</span>
+                </div>
+              </div>
+
+              {/* Botón menú */}
+              <div className="absolute top-2.5 right-2.5 z-30" onClick={(e) => e.stopPropagation()}>
+                <button
+                  type="button"
+                  onClick={() => setActiveMenuId(isMenuOpen ? null : m._id)}
+                  className={`p-1.5 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
+                    isMenuOpen
+                      ? 'bg-white text-zinc-900 shadow-sm'
+                      : 'bg-white/25 backdrop-blur-sm text-white hover:bg-white/40'
+                  }`}
+                >
+                  <MoreHorizontal className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </>
+          }
         >
-          {/* Barra de acento superior por materia */}
-          <div className="absolute top-0 left-0 right-0 h-[3px] z-10" style={{ backgroundColor: accent }} />
-
-          {/* Gradiente overlay SOLO modo oscuro */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent pointer-events-none z-0 dark:block hidden rounded-b-2xl" />
-
-          {/* Icono decorativo superior izquierdo: inicial de la materia con acento de color */}
-          <div className="absolute top-3.5 left-3 z-10">
-            <div
-              className="w-8 h-8 rounded-lg flex items-center justify-center shadow-xs"
-              style={{ backgroundColor: accent }}
-            >
-              <span className="text-white font-black text-xs">{initial}</span>
-            </div>
-          </div>
-
-          {/* Botón menú grid */}
-          <div className="absolute top-3 right-2.5 z-30" onClick={(e) => e.stopPropagation()}>
-            <button
-              type="button"
-              onClick={() => setActiveMenuId(isMenuOpen ? null : m._id)}
-              className={`p-1.5 rounded-lg shadow-xs flex items-center justify-center transition-all cursor-pointer ${
-                isMenuOpen
-                  ? 'bg-zinc-200 dark:bg-white text-zinc-900 dark:text-zinc-900'
-                  : 'bg-zinc-100/80 dark:bg-white/90 text-zinc-600 dark:text-zinc-700 hover:bg-zinc-200 dark:hover:bg-white'
-              }`}
-            >
-              <MoreHorizontal className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
-          {/* Nombre */}
-          <div className="p-3.5 pt-10 w-full z-10 min-w-0 relative">
-            <p className="font-bold text-sm leading-snug line-clamp-2 text-zinc-800 dark:text-white dark:drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">
+          <div className="p-3.5 pt-8 w-full z-10 min-w-0 relative">
+            <p className="font-bold text-sm leading-snug line-clamp-2 text-white drop-shadow-sm">
               {m.name}
             </p>
           </div>
-        </button>
-
+        </FolderCardShell>
       </div>
     );
   };
 
-  // Celda overflow "+N" - tarjeta sólida con degradado (antes: borde punteado)
+  // Celda overflow "+N" — misma carcasa de carpeta, tono neutro
   const renderOverflowCell = () => (
-    <button
-      type="button"
-      onClick={() => setShowAll(true)}
-      className="h-28 rounded-2xl bg-white dark:bg-gradient-to-br dark:from-zinc-800 dark:to-zinc-700 border border-zinc-200 dark:border-zinc-700 flex flex-col items-center justify-center gap-1 cursor-pointer shadow-sm hover:shadow-md active:scale-[0.98] transition-all duration-200 w-full"
-    >
-      <span className="text-2xl font-black text-zinc-900 dark:text-white">+{overflowCount}</span>
-      <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-zinc-500 dark:text-white/80">
-        Ver todas
-        <ArrowRight className="w-3 h-3" />
-      </span>
-    </button>
+    <div className="relative group">
+      <FolderCardShell
+        accent={OVERFLOW_ACCENT}
+        onClick={() => setShowAll(true)}
+        cornerBadge={
+          <div className="absolute top-3 left-3 z-10">
+            <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm">
+              <ArrowRight className="w-4 h-4" style={{ color: OVERFLOW_ACCENT }} />
+            </div>
+          </div>
+        }
+      >
+        <div className="p-3.5 pt-8 w-full z-10 min-w-0 relative">
+          <p className="font-black text-lg leading-none text-white">+{overflowCount}</p>
+          <p className="text-[10px] font-bold uppercase tracking-wider text-white/80 mt-1.5">
+            Ver todas
+          </p>
+        </div>
+      </FolderCardShell>
+    </div>
   );
 
   const CollapseButton = () => (
@@ -200,7 +231,7 @@ export default function MateriasLevel({
             <div className="space-y-1.5">{visibleMaterias.map(renderMateriaCard)}</div>
           ) : (
             <>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                 {visibleMaterias.map(renderMateriaCard)}
                 {!showAll && overflowCount > 0 && renderOverflowCell()}
               </div>
