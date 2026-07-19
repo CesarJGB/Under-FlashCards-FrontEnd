@@ -5,6 +5,8 @@ import DeckInterior from './DeckInterior';
 import DeckModal from './DeckModal';
 import LibraryToolbar from './library/LibraryToolbar';
 import LibraryFAB from './library/LibraryFAB';
+import LibrarySectionSwitcher from './library/LibrarySectionSwitcher';
+import GeneralSection from './library/GeneralSection';
 
 import Breadcrumbs from './library/Breadcrumbs';
 import MateriasLevel from './library/MateriasLevel';
@@ -33,6 +35,11 @@ export default function LibrarySection({
     if (typeof loadMaterias === 'function') loadMaterias();
   }, [loadDecks, loadMaterias]);
 
+  // =========================================================================
+  // 🧭 SWITCHER BIBLIOTECA / GENERAL
+  // =========================================================================
+  const [sectionMode, setSectionMode] = useState('biblioteca'); // 'biblioteca' | 'general'
+
   const {
     currentPath, setCurrentPath, temas, setTemas, subtemas, setSubtemas,
     academicLoading, searchQuery, setSearchQuery, sortBy, setSortBy,
@@ -46,6 +53,7 @@ export default function LibrarySection({
   useEffect(() => {
     if (!pendingNav) return;
 
+    setSectionMode('biblioteca');
     setCurrentPath({
       materiaId: pendingNav.materiaId ?? null,
       parcialNumber: pendingNav.parcialNumber ?? null,
@@ -297,226 +305,236 @@ export default function LibrarySection({
     <div data-testid="library-section" className="relative min-h-[60vh]">
       <input ref={fileInputRef} type="file" accept=".json" onChange={handleImport} className="hidden" />
 
-      <Breadcrumbs 
-        currentPath={currentPath}
-        setCurrentPath={setCurrentPath}
-        handleResetPath={handleResetPath}
-        activeMateriaName={activeMateriaName}
-        activeTemaName={activeTemaName}
-        activeSubtemaName={activeSubtemaName}
-      />
+      <LibrarySectionSwitcher sectionMode={sectionMode} setSectionMode={setSectionMode} />
 
-      <div className="animate-[fadeIn_0.15s_ease]">
-        {currentPath.materiaId === null && (
-          <LibraryToolbar
-            searchQuery={searchQuery}
-            setSearchQuery={setSearchQuery}
-            sortBy={sortBy}
-            setSortBy={setSortBy}
-            viewMode={viewMode}
-            setViewMode={setViewMode}
-          />
-        )}
+      {sectionMode === 'general' ? (
+        <GeneralSection />
+      ) : (
+        <>
+          <div className="mt-3">
+            <Breadcrumbs 
+              currentPath={currentPath}
+              setCurrentPath={setCurrentPath}
+              handleResetPath={handleResetPath}
+              activeMateriaName={activeMateriaName}
+              activeTemaName={activeTemaName}
+              activeSubtemaName={activeSubtemaName}
+            />
+          </div>
 
-        {searchResults ? (
-          <SearchResults
-            results={searchResults}
-            setCurrentPath={setCurrentPath}
-            setSearchQuery={setSearchQuery}
-            setCurrentDeck={setCurrentDeck}
-            setInitialMode={setInitialMode}
-          />
-        ) : (
-          <>
-            {/* 1. NIVEL MATERIAS */}
+          <div className="animate-[fadeIn_0.15s_ease]">
             {currentPath.materiaId === null && (
-              <MateriasLevel
-                materias={sortedMaterias}
-                processedDecks={processedDecks}
-                loading={loading}
-                userId={userId}
-                isAdmin={isAdmin}
+              <LibraryToolbar
+                searchQuery={searchQuery}
+                setSearchQuery={setSearchQuery}
+                sortBy={sortBy}
+                setSortBy={setSortBy}
                 viewMode={viewMode}
-                currentPath={currentPath}
-                setCurrentPath={setCurrentPath}
-                setAcademicModal={setAcademicModal}
-                handleDeleteAcademicFolder={handleDeleteAcademicFolder}
-                handleDeleteDeck={handleDeleteDeck}
-                handleDeckMutation={handleDeckMutation}
-                setInitialMode={setInitialMode}
-                setCurrentDeck={setCurrentDeck}
-                setModal={setModal}
+                setViewMode={setViewMode}
               />
             )}
 
-            {/* 2. NIVEL PARCIALES */}
-            {currentPath.materiaId !== null && currentPath.parcialNumber === null && (
-              <ParcialesLevel
-                temas={temas}
-                decks={decks}
-                currentPath={currentPath}
+            {searchResults ? (
+              <SearchResults
+                results={searchResults}
                 setCurrentPath={setCurrentPath}
-                handleResetPath={handleResetPath}
-                activeMateriaName={activeMateriaName}
-                materia={materias.find(m => (m._id || m.id) === currentPath.materiaId)}
-                onActiveParcialesChange={async (materiaId, newActive) => {
-                  // 1) Actualizar estado local y cache de materias inmediatamente
-                  const updated = materias.map(m =>
-                    (m._id || m.id) === materiaId ? { ...m, activeParciales: newActive } : m
-                  );
-                  setMaterias(updated);
-                  setJSON(`materias_${userId}`, updated);
+                setSearchQuery={setSearchQuery}
+                setCurrentDeck={setCurrentDeck}
+                setInitialMode={setInitialMode}
+              />
+            ) : (
+              <>
+                {/* 1. NIVEL MATERIAS */}
+                {currentPath.materiaId === null && (
+                  <MateriasLevel
+                    materias={sortedMaterias}
+                    processedDecks={processedDecks}
+                    loading={loading}
+                    userId={userId}
+                    isAdmin={isAdmin}
+                    viewMode={viewMode}
+                    currentPath={currentPath}
+                    setCurrentPath={setCurrentPath}
+                    setAcademicModal={setAcademicModal}
+                    handleDeleteAcademicFolder={handleDeleteAcademicFolder}
+                    handleDeleteDeck={handleDeleteDeck}
+                    handleDeckMutation={handleDeckMutation}
+                    setInitialMode={setInitialMode}
+                    setCurrentDeck={setCurrentDeck}
+                    setModal={setModal}
+                  />
+                )}
 
-                  // 2) Prefetch del nuevo domain-preview para evitar parpadeo
-                  try {
-                    const key = `domainPreviews_${userId}`;
-                    const cached = getJSON(key) || {};
-                    const id = String(materiaId);
+                {/* 2. NIVEL PARCIALES */}
+                {currentPath.materiaId !== null && currentPath.parcialNumber === null && (
+                  <ParcialesLevel
+                    temas={temas}
+                    decks={decks}
+                    currentPath={currentPath}
+                    setCurrentPath={setCurrentPath}
+                    handleResetPath={handleResetPath}
+                    activeMateriaName={activeMateriaName}
+                    materia={materias.find(m => (m._id || m.id) === currentPath.materiaId)}
+                    onActiveParcialesChange={async (materiaId, newActive) => {
+                      // 1) Actualizar estado local y cache de materias inmediatamente
+                      const updated = materias.map(m =>
+                        (m._id || m.id) === materiaId ? { ...m, activeParciales: newActive } : m
+                      );
+                      setMaterias(updated);
+                      setJSON(`materias_${userId}`, updated);
 
-                    const res = await fetch(
-                      `${BACKEND_URL}/api/academic/materias/${id}/domain-preview?parciales=${(newActive || []).join(',')}`
-                    );
+                      // 2) Prefetch del nuevo domain-preview para evitar parpadeo
+                      try {
+                        const key = `domainPreviews_${userId}`;
+                        const cached = getJSON(key) || {};
+                        const id = String(materiaId);
 
-                    if (res.ok) {
-                      const data = await res.json();
-                      const preview = {
-                        mastery: data.mastery,
-                        parciales: data.parciales,
-                        timestamp: Date.now()
-                      };
+                        const res = await fetch(
+                          `${BACKEND_URL}/api/academic/materias/${id}/domain-preview?parciales=${(newActive || []).join(',')}`
+                        );
 
-                      cached[id] = preview;
-                      try { setJSON(key, cached); } catch (e) { /* ignore */ }
+                        if (res.ok) {
+                          const data = await res.json();
+                          const preview = {
+                            mastery: data.mastery,
+                            parciales: data.parciales,
+                            timestamp: Date.now()
+                          };
 
-                      window.dispatchEvent(new CustomEvent('domainPreviews:update', {
-                        detail: { userId, materiaId: id, preview }
-                      }));
-                    } else {
-                        if (cached && cached[id]) {
-                          delete cached[id];
+                          cached[id] = preview;
                           try { setJSON(key, cached); } catch (e) { /* ignore */ }
+
+                          window.dispatchEvent(new CustomEvent('domainPreviews:update', {
+                            detail: { userId, materiaId: id, preview }
+                          }));
+                        } else {
+                            if (cached && cached[id]) {
+                              delete cached[id];
+                              try { setJSON(key, cached); } catch (e) { /* ignore */ }
+                            }
+                          window.dispatchEvent(new CustomEvent('domainPreviews:invalidate', {
+                            detail: { userId, materiaId: id }
+                          }));
                         }
-                      window.dispatchEvent(new CustomEvent('domainPreviews:invalidate', {
-                        detail: { userId, materiaId: id }
-                      }));
-                    }
-                  } catch (err) {
-                    try {
-                      const key = `domainPreviews_${userId}`;
-                      const cached = getJSON(key) || {};
-                      const id = String(materiaId);
-                      if (cached[id]) {
-                        delete cached[id];
-                        try { setJSON(key, cached); } catch (e) { /* ignore */ }
+                      } catch (err) {
+                        try {
+                          const key = `domainPreviews_${userId}`;
+                          const cached = getJSON(key) || {};
+                          const id = String(materiaId);
+                          if (cached[id]) {
+                            delete cached[id];
+                            try { setJSON(key, cached); } catch (e) { /* ignore */ }
+                          }
+                        } catch (e) { /* ignore */ }
+
+                        window.dispatchEvent(new CustomEvent('domainPreviews:invalidate', {
+                          detail: { userId, materiaId: String(materiaId) }
+                        }));
+
+                        console.error('[LibrarySection] Error prefetching domain preview', err);
                       }
-                    } catch (e) { /* ignore */ }
+                    }}
+                    filterActiveOnly={currentPath.filterActiveParciales}
+                    onClearFilter={() => setCurrentPath(prev => ({ ...prev, filterActiveParciales: false }))}
+                  />
+                )}
 
-                    window.dispatchEvent(new CustomEvent('domainPreviews:invalidate', {
-                      detail: { userId, materiaId: String(materiaId) }
-                    }));
+                {/* 💡 2.5. NUEVO NIVEL: INFORMACIÓN DE LA MATERIA */}
+                {currentPath.materiaId !== null && currentPath.parcialNumber === 'info' && (
+                  <InfoLevel
+                    materia={materias.find(m => (m._id || m.id) === currentPath.materiaId)}
+                    currentPath={currentPath}
+                    setCurrentPath={setCurrentPath}
+                    materias={materias}
+                    setMaterias={setMaterias}
+                    userId={userId}
+                  />
+                )}
 
-                    console.error('[LibrarySection] Error prefetching domain preview', err);
-                  }
-                }}
-                filterActiveOnly={currentPath.filterActiveParciales}
-                onClearFilter={() => setCurrentPath(prev => ({ ...prev, filterActiveParciales: false }))}
-              />
+                {/* 3. NIVEL TEMAS (Exclusión de 'info' añadida) */}
+                {currentPath.materiaId !== null && 
+                 currentPath.parcialNumber !== null && 
+                 currentPath.parcialNumber !== 'info' && 
+                 currentPath.temaId === null && (
+                  <TemasLevel
+                    temas={sortedTemas}
+                    decks={decks}
+                    processedDecks={processedDecks}
+                    academicLoading={academicLoading}
+                    userId={userId}
+                    isAdmin={isAdmin}
+                    viewMode={viewMode}
+                    currentPath={currentPath}
+                    setCurrentPath={setCurrentPath}
+                    setAcademicModal={setAcademicModal}
+                    handleDeleteAcademicFolder={handleDeleteAcademicFolder}
+                    handleDeleteDeck={handleDeleteDeck}
+                    handleDeckMutation={handleDeckMutation}
+                    setInitialMode={setInitialMode}
+                    setCurrentDeck={setCurrentDeck}
+                    setModal={setModal}
+                  />
+                )}
+
+                {/* 4. NIVEL SUBTEMAS (Exclusión de 'info' añadida) */}
+                {currentPath.materiaId !== null && 
+                 currentPath.parcialNumber !== null && 
+                 currentPath.parcialNumber !== 'info' && 
+                 currentPath.temaId !== null && (
+                  <SubtemasLevel
+                    subtemas={sortedSubtemas}
+                    decks={decks}
+                    processedDecks={processedDecks}
+                    userId={userId}
+                    isAdmin={isAdmin}
+                    viewMode={viewMode}
+                    currentPath={currentPath}
+                    setCurrentPath={setCurrentPath}
+                    setAcademicModal={setAcademicModal}
+                    handleDeleteAcademicFolder={handleDeleteAcademicFolder}
+                    handleDeleteDeck={handleDeleteDeck}
+                    handleDeckMutation={handleDeckMutation}
+                    setInitialMode={setInitialMode}
+                    setCurrentDeck={setCurrentDeck}
+                    setModal={setModal}
+                  />
+                )}
+              </>
             )}
+          </div>
 
-            {/* 💡 2.5. NUEVO NIVEL: INFORMACIÓN DE LA MATERIA */}
-            {currentPath.materiaId !== null && currentPath.parcialNumber === 'info' && (
-              <InfoLevel
-                materia={materias.find(m => (m._id || m.id) === currentPath.materiaId)}
-                currentPath={currentPath}
-                setCurrentPath={setCurrentPath}
-                materias={materias}
-                setMaterias={setMaterias}
-                userId={userId}
-              />
-            )}
+          {academicModal && (
+            <AcademicFolderModal 
+              academicModal={academicModal}
+              academicInput={academicInput}
+              setAcademicInput={setAcademicInput}
+              setAcademicModal={setAcademicModal}
+              handleCreateAcademicFolder={handleCreateAcademicFolder}
+              handleUpdateAcademicFolder={handleUpdateAcademicFolder}
+            />
+          )}
 
-            {/* 3. NIVEL TEMAS (Exclusión de 'info' añadida) */}
-            {currentPath.materiaId !== null && 
-             currentPath.parcialNumber !== null && 
-             currentPath.parcialNumber !== 'info' && 
-             currentPath.temaId === null && (
-              <TemasLevel
-                temas={sortedTemas}
-                decks={decks}
-                processedDecks={processedDecks}
-                academicLoading={academicLoading}
-                userId={userId}
-                isAdmin={isAdmin}
-                viewMode={viewMode}
-                currentPath={currentPath}
-                setCurrentPath={setCurrentPath}
-                setAcademicModal={setAcademicModal}
-                handleDeleteAcademicFolder={handleDeleteAcademicFolder}
-                handleDeleteDeck={handleDeleteDeck}
-                handleDeckMutation={handleDeckMutation}
-                setInitialMode={setInitialMode}
-                setCurrentDeck={setCurrentDeck}
-                setModal={setModal}
-              />
-            )}
+          {modal && (
+            <DeckModal 
+              initial={modal.editing} 
+              onClose={() => setModal(null)} 
+              onSave={handleSaveDeck} 
+            />
+          )}
 
-            {/* 4. NIVEL SUBTEMAS (Exclusión de 'info' añadida) */}
-            {currentPath.materiaId !== null && 
-             currentPath.parcialNumber !== null && 
-             currentPath.parcialNumber !== 'info' && 
-             currentPath.temaId !== null && (
-              <SubtemasLevel
-                subtemas={sortedSubtemas}
-                decks={decks}
-                processedDecks={processedDecks}
-                userId={userId}
-                isAdmin={isAdmin}
-                viewMode={viewMode}
-                currentPath={currentPath}
-                setCurrentPath={setCurrentPath}
-                setAcademicModal={setAcademicModal}
-                handleDeleteAcademicFolder={handleDeleteAcademicFolder}
-                handleDeleteDeck={handleDeleteDeck}
-                handleDeckMutation={handleDeckMutation}
-                setInitialMode={setInitialMode}
-                setCurrentDeck={setCurrentDeck}
-                setModal={setModal}
-              />
-            )}
-          </>
-        )}
-      </div>
-
-      {academicModal && (
-        <AcademicFolderModal 
-          academicModal={academicModal}
-          academicInput={academicInput}
-          setAcademicInput={setAcademicInput}
-          setAcademicModal={setAcademicModal}
-          handleCreateAcademicFolder={handleCreateAcademicFolder}
-          handleUpdateAcademicFolder={handleUpdateAcademicFolder}
-        />
-      )}
-
-      {modal && (
-        <DeckModal 
-          initial={modal.editing} 
-          onClose={() => setModal(null)} 
-          onSave={handleSaveDeck} 
-        />
-      )}
-
-      {currentPath.parcialNumber !== 'info' && (
-        <LibraryFAB 
-          currentPath={currentPath}
-          setModal={setModal} 
-          setAcademicModal={setAcademicModal}
-          fileInputRef={fileInputRef} 
-          importing={importing}
-          academicModal={academicModal}
-          modal={modal}
-          dashboardShell={dashboardShell}
-        />
+          {currentPath.parcialNumber !== 'info' && (
+            <LibraryFAB 
+              currentPath={currentPath}
+              setModal={setModal} 
+              setAcademicModal={setAcademicModal}
+              fileInputRef={fileInputRef} 
+              importing={importing}
+              academicModal={academicModal}
+              modal={modal}
+              dashboardShell={dashboardShell}
+            />
+          )}
+        </>
       )}
     </div>
   );
