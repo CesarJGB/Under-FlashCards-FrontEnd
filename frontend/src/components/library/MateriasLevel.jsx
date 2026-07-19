@@ -8,41 +8,42 @@ import { getMateriaColor, getMateriaInitial, lightenColor, darkenColor, hexToRgb
 const OVERFLOW_ACCENT = '#64748B';
 
 // =========================================================================
-// 🗂️ CARCASA DE "CARPETA" — 3 capas apiladas:
-//   1) fondo: color base (mismo tono que el cuerpo)
-//   2) intermedia: mismo color pero más clara, asoma entre fondo y cuerpo
-//   3) cuerpo frontal: mismo color que el fondo, con degradado + contenido
+// 🗂️ CARCASA DE "CARPETA" — silueta real (pestaña + cuerpo fusionados en una
+// sola forma, mismo color), con una capa trasera más clara asomando detrás.
 // Solo se usa en modo grid — el modo lista no lleva este tratamiento.
 // =========================================================================
 function FolderCardShell({ accent, onClick, cornerBadge, children }) {
-  const backColor = accent;
-  const middleColor = lightenColor(accent, 0.38);
-  const frontGradient = `linear-gradient(155deg, ${lightenColor(accent, 0.1)} 0%, ${accent} 55%, ${darkenColor(accent, 0.12)} 100%)`;
+  const backColor = lightenColor(accent, 0.35);
+  const bodyGradient = `linear-gradient(155deg, ${lightenColor(accent, 0.1)} 0%, ${accent} 55%, ${darkenColor(accent, 0.12)} 100%)`;
   const glow = `0 12px 26px -8px ${hexToRgba(accent, 0.55)}, 0 2px 6px -2px rgba(0,0,0,0.12)`;
 
   return (
     <div className="relative h-36">
-      {/* Capa 1: fondo — color base, define el contorno exterior + el glow */}
+      {/* Capa trasera: tono más claro, asoma detrás de la silueta de carpeta */}
       <div
         className="absolute inset-0 rounded-2xl"
         style={{ backgroundColor: backColor, boxShadow: glow }}
       />
 
-      {/* Capa 2: intermedia — mismo color pero más clara, asoma ~7px */}
-      <div
-        className="absolute left-0 bottom-0 rounded-2xl"
-        style={{ top: 7, right: 7, backgroundColor: middleColor }}
-      />
-
-      {/* Capa 3: cuerpo frontal — degradado del color base, contiene el contenido */}
+      {/* Silueta de carpeta (pestaña + cuerpo fusionados), clickable como una sola pieza */}
       <button
         type="button"
         onClick={onClick}
-        className="absolute left-0 bottom-0 w-[calc(100%-14px)] rounded-2xl flex flex-col justify-end overflow-hidden cursor-pointer active:scale-[0.98] transition-all duration-150"
-        style={{ top: 14, background: frontGradient }}
+        className="absolute left-0 right-2.5 top-2.5 bottom-0 cursor-pointer active:scale-[0.98] transition-all duration-150"
       >
-        {cornerBadge}
-        {children}
+        {/* Pestaña */}
+        <div
+          className="absolute top-0 left-0 rounded-t-2xl"
+          style={{ width: '58%', height: 26, background: bodyGradient }}
+        />
+        {/* Cuerpo: contiene ícono, menú y nombre */}
+        <div
+          className="absolute left-0 right-0 bottom-0 rounded-2xl overflow-hidden flex flex-col justify-end"
+          style={{ top: 18, background: bodyGradient }}
+        >
+          {cornerBadge}
+          {children}
+        </div>
       </button>
     </div>
   );
