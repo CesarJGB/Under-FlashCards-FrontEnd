@@ -29,3 +29,30 @@ export function getMateriaInitial(materia) {
   const name = (materia?.name || '').trim();
   return name ? name.charAt(0).toUpperCase() : '?';
 }
+
+// =========================================================================
+// 🎨 Utilidades de color para el look "carpeta" (tab + cuerpo con degradado + glow)
+// =========================================================================
+function hexToRgb(hex) {
+  const clean = String(hex).replace('#', '');
+  const full = clean.length === 3 ? clean.split('').map((c) => c + c).join('') : clean;
+  const num = parseInt(full, 16);
+  return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };
+}
+
+export function lightenColor(hex, amount = 0.25) {
+  const { r, g, b } = hexToRgb(hex);
+  const mix = (c) => Math.round(c + (255 - c) * amount);
+  return `rgb(${mix(r)}, ${mix(g)}, ${mix(b)})`;
+}
+
+export function darkenColor(hex, amount = 0.2) {
+  const { r, g, b } = hexToRgb(hex);
+  const mix = (c) => Math.round(c * (1 - amount));
+  return `rgb(${mix(r)}, ${mix(g)}, ${mix(b)})`;
+}
+
+export function hexToRgba(hex, alpha = 1) {
+  const { r, g, b } = hexToRgb(hex);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
