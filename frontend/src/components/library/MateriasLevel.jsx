@@ -2,34 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Loader2, Bookmark, ChevronUp, MoreHorizontal, Pencil, ArrowRight } from 'lucide-react';
 import DeckCard from '../DeckCard';
 import ActionSheet from '../common/ActionSheet';
-
-// =========================================================================
-// 🎨 PALETA DE ACENTOS POR MATERIA (determinística vía hash del _id/nombre)
-// =========================================================================
-const MATERIA_PALETTE = [
-  '#6366F1', // indigo
-  '#EC4899', // rose
-  '#10B981', // emerald
-  '#F59E0B', // amber
-  '#3B82F6', // blue
-  '#8B5CF6', // violet
-  '#EF4444', // coral
-  '#14B8A6'  // teal
-];
-
-function getMateriaColor(materia) {
-  const key = String(materia?._id || materia?.name || '');
-  let hash = 0;
-  for (let i = 0; i < key.length; i++) {
-    hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
-  }
-  return MATERIA_PALETTE[hash % MATERIA_PALETTE.length];
-}
-
-function getMateriaInitial(materia) {
-  const name = (materia?.name || '').trim();
-  return name ? name.charAt(0).toUpperCase() : '?';
-}
+import { getMateriaColor, getMateriaInitial } from '../../lib/materiaColors';
 
 export default function MateriasLevel({
   materias, processedDecks, loading, userId, isAdmin, viewMode, currentPath, setCurrentPath,
@@ -173,10 +146,10 @@ export default function MateriasLevel({
     <button
       type="button"
       onClick={() => setShowAll(true)}
-      className="h-28 rounded-2xl bg-gradient-to-br from-zinc-900 to-zinc-700 dark:from-zinc-700 dark:to-zinc-600 flex flex-col items-center justify-center gap-1 cursor-pointer shadow-sm hover:shadow-md active:scale-[0.98] transition-all duration-200 w-full"
+      className="h-28 rounded-2xl bg-white dark:bg-gradient-to-br dark:from-zinc-800 dark:to-zinc-700 border border-zinc-200 dark:border-zinc-700 flex flex-col items-center justify-center gap-1 cursor-pointer shadow-sm hover:shadow-md active:scale-[0.98] transition-all duration-200 w-full"
     >
-      <span className="text-2xl font-black text-white">+{overflowCount}</span>
-      <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-white/80">
+      <span className="text-2xl font-black text-zinc-900 dark:text-white">+{overflowCount}</span>
+      <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-zinc-500 dark:text-white/80">
         Ver todas
         <ArrowRight className="w-3 h-3" />
       </span>
@@ -197,15 +170,18 @@ export default function MateriasLevel({
   return (
     <div className="space-y-6 mt-6">
       {/* HEADER */}
-      <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-700/50 pb-2">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
-          Tus Materias ({materias.length})
-        </h3>
-        {!loading && materias.length > maxVisible && !showAll && (
-          <span className="text-[10px] font-medium text-zinc-400 dark:text-zinc-500">
-            Mostrando {maxVisible}
-          </span>
-        )}
+      <div className="space-y-2.5">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+            Tus Materias ({materias.length})
+          </h3>
+          {!loading && materias.length > maxVisible && !showAll && (
+            <span className="text-[10px] font-medium text-zinc-400 dark:text-zinc-500">
+              Mostrando {maxVisible}
+            </span>
+          )}
+        </div>
+        <div className="h-px w-full bg-gradient-to-r from-zinc-200 via-zinc-100 to-transparent dark:from-zinc-700 dark:via-zinc-800/60 dark:to-transparent" />
       </div>
 
       {/* GRID / LISTA */}
@@ -239,7 +215,7 @@ export default function MateriasLevel({
         title={activeMateria ? `Acciones de ${activeMateria.name}` : 'Acciones de materia'}
         options={activeMateria ? [{
           id: 'edit',
-          label: 'Editar nombre',
+          label: 'Editar materia',
           icon: Pencil,
           onSelect: () => handleEditMateriaName(activeMateria),
         }] : []}
