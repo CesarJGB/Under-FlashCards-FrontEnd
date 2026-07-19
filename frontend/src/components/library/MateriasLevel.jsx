@@ -8,25 +8,38 @@ import { getMateriaColor, getMateriaInitial, lightenColor, darkenColor, hexToRgb
 const OVERFLOW_ACCENT = '#64748B';
 
 // =========================================================================
-// 🗂️ CARCASA DE "CARPETA" (pestaña trasera + cuerpo con degradado + glow)
+// 🗂️ CARCASA DE "CARPETA" — 3 capas apiladas:
+//   1) fondo: color base (mismo tono que el cuerpo)
+//   2) intermedia: mismo color pero más clara, asoma entre fondo y cuerpo
+//   3) cuerpo frontal: mismo color que el fondo, con degradado + contenido
 // Solo se usa en modo grid — el modo lista no lleva este tratamiento.
 // =========================================================================
 function FolderCardShell({ accent, onClick, cornerBadge, children }) {
-  const tabColor = lightenColor(accent, 0.32);
-  const bodyGradient = `linear-gradient(155deg, ${lightenColor(accent, 0.14)} 0%, ${accent} 55%, ${darkenColor(accent, 0.12)} 100%)`;
-  const glow = `0 10px 22px -8px ${hexToRgba(accent, 0.5)}, 0 2px 6px -2px rgba(0,0,0,0.12)`;
+  const backColor = accent;
+  const middleColor = lightenColor(accent, 0.38);
+  const frontGradient = `linear-gradient(155deg, ${lightenColor(accent, 0.1)} 0%, ${accent} 55%, ${darkenColor(accent, 0.12)} 100%)`;
+  const glow = `0 12px 26px -8px ${hexToRgba(accent, 0.55)}, 0 2px 6px -2px rgba(0,0,0,0.12)`;
 
   return (
-    <div className="relative h-32">
-      {/* Capa trasera: pestaña de la carpeta, más clara, peeking arriba/derecha */}
-      <div className="absolute inset-0 rounded-2xl" style={{ backgroundColor: tabColor }} />
+    <div className="relative h-36">
+      {/* Capa 1: fondo — color base, define el contorno exterior + el glow */}
+      <div
+        className="absolute inset-0 rounded-2xl"
+        style={{ backgroundColor: backColor, boxShadow: glow }}
+      />
 
-      {/* Capa frontal: cuerpo con el contenido */}
+      {/* Capa 2: intermedia — mismo color pero más clara, asoma ~7px */}
+      <div
+        className="absolute left-0 bottom-0 rounded-2xl"
+        style={{ top: 7, right: 7, backgroundColor: middleColor }}
+      />
+
+      {/* Capa 3: cuerpo frontal — degradado del color base, contiene el contenido */}
       <button
         type="button"
         onClick={onClick}
-        className="absolute left-0 bottom-0 w-[calc(100%-10px)] h-[106px] rounded-2xl flex flex-col justify-end overflow-hidden cursor-pointer active:scale-[0.98] transition-all duration-150"
-        style={{ background: bodyGradient, boxShadow: glow }}
+        className="absolute left-0 bottom-0 w-[calc(100%-14px)] rounded-2xl flex flex-col justify-end overflow-hidden cursor-pointer active:scale-[0.98] transition-all duration-150"
+        style={{ top: 14, background: frontGradient }}
       >
         {cornerBadge}
         {children}
