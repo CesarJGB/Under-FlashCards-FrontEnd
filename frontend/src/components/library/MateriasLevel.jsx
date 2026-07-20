@@ -8,7 +8,7 @@ import { getMateriaColor, getMateriaInitial, lightenColor, darkenColor, hexToRgb
 const OVERFLOW_ACCENT = '#64748B';
 
 // =========================================================================
-// 🗂️ CARCASA DE "CARPETA" PREMIUM (Líneas blancas corregidas)
+// 🗂️ CARCASA DE "CARPETA" PREMIUM (Pestaña ensanchada)
 // =========================================================================
 function FolderCardShell({ accent, onClick, cornerBadge, children }) {
   const startColor = lightenColor(accent, 0.15);
@@ -21,7 +21,6 @@ function FolderCardShell({ accent, onClick, cornerBadge, children }) {
       type="button"
       onClick={onClick}
       style={{ boxShadow: glow }}
-      // border cambiado a transparent para matar el halo blanco exterior
       className="relative w-full h-36 rounded-2xl text-left transition-all duration-200 active:scale-[0.97] hover:scale-[1.01] group cursor-pointer select-none border border-transparent bg-transparent overflow-visible"
     >
       {/* CAPA 1: TRASERA */}
@@ -31,7 +30,6 @@ function FolderCardShell({ accent, onClick, cornerBadge, children }) {
       />
 
       {/* CAPA 2: HOJA INTERIOR */}
-      {/* top-[16px] alineado exactamente con la pestaña (17px) para evitar fugas */}
       <div
         className="absolute top-[16px] left-2.5 right-2.5 bottom-2.5 rounded-xl bg-white dark:bg-zinc-800 shadow-xs transform translate-y-0 transition-transform duration-300 group-hover:-translate-y-1"
       />
@@ -39,12 +37,12 @@ function FolderCardShell({ accent, onClick, cornerBadge, children }) {
       {/* CAPA 3: SOLAPA DELANTERA */}
       <div
         className="absolute bottom-0 inset-x-0 top-[38px] rounded-b-2xl rounded-tr-xl z-10"
-        // El brillo superior ahora es un inset shadow, lo que evita que se salga del borde
         style={{ background: folderGradient, boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.2)' }}
       >
         {/* Pestaña Izquierda Superior */}
+        {/* 👉 AQUI: Cambiado de w-[46%] a w-[55%] para que llegue a la mitad */}
         <div
-          className="absolute left-0 w-[46%] h-[22px] rounded-t-xl"
+          className="absolute left-0 w-[55%] h-[22px] rounded-t-xl"
           style={{ 
             backgroundColor: startColor, 
             top: '-21px',
