@@ -8,45 +8,49 @@ import { getMateriaColor, getMateriaInitial, lightenColor, darkenColor, hexToRgb
 const OVERFLOW_ACCENT = '#64748B';
 
 // =========================================================================
-// 🗂️ CARCASA DE "CARPETA" PREMIUM (Pestaña ensanchada)
+// 🗂️ CARCASA DE "CARPETA" PREMIUM (Mejorada con estilo Referencia)
 // =========================================================================
 function FolderCardShell({ accent, onClick, cornerBadge, children }) {
   const startColor = lightenColor(accent, 0.15);
-  const folderGradient = `linear-gradient(to bottom, ${startColor} 0%, ${accent} 45%, ${darkenColor(accent, 0.12)} 100%)`;
+  // Degradado en ángulo (160deg) para dar más volumen y realismo tipo botón 3D
+  const folderGradient = `linear-gradient(160deg, ${startColor} 0%, ${accent} 45%, ${darkenColor(accent, 0.2)} 100%)`;
   
-  const glow = `0 20px 32px -10px ${hexToRgba(accent, 0.4)}, 0 4px 12px -4px ${hexToRgba(accent, 0.18)}`;
+  const glow = `0 16px 28px -8px ${hexToRgba(accent, 0.45)}, 0 4px 10px -4px ${hexToRgba(accent, 0.2)}`;
 
   return (
     <button
       type="button"
       onClick={onClick}
       style={{ boxShadow: glow }}
-      className="relative w-full h-36 rounded-2xl text-left transition-all duration-200 active:scale-[0.97] hover:scale-[1.01] group cursor-pointer select-none border border-transparent bg-transparent overflow-visible"
+      className="relative w-full h-36 rounded-2xl text-left transition-all duration-200 active:scale-[0.97] hover:scale-[1.02] group cursor-pointer select-none border border-transparent bg-transparent overflow-visible"
     >
       {/* CAPA 1: TRASERA */}
       <div
         className="absolute inset-0 rounded-2xl"
-        style={{ backgroundColor: darkenColor(accent, 0.22) }}
+        style={{ backgroundColor: darkenColor(accent, 0.25) }}
       />
 
       {/* CAPA 2: HOJA INTERIOR */}
       <div
-        className="absolute top-[16px] left-2.5 right-2.5 bottom-2.5 rounded-xl bg-white dark:bg-zinc-800 shadow-xs transform translate-y-0 transition-transform duration-300 group-hover:-translate-y-1"
+        className="absolute top-[16px] left-2.5 right-2.5 bottom-2.5 rounded-xl bg-white dark:bg-zinc-800 shadow-xs transform translate-y-0 transition-transform duration-300 group-hover:-translate-y-1.5"
       />
 
       {/* CAPA 3: SOLAPA DELANTERA */}
       <div
         className="absolute bottom-0 inset-x-0 top-[38px] rounded-b-2xl rounded-tr-xl z-10"
-        style={{ background: folderGradient, boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.2)' }}
+        style={{ 
+          background: folderGradient, 
+          // Brillo superior + Sombra interior superior para dar profundidad 3D
+          boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.25), inset 0 6px 12px -6px rgba(0,0,0,0.15)' 
+        }}
       >
         {/* Pestaña Izquierda Superior */}
-        {/* 👉 AQUI: Cambiado de w-[46%] a w-[55%] para que llegue a la mitad */}
         <div
           className="absolute left-0 w-[55%] h-[22px] rounded-t-xl"
           style={{ 
             backgroundColor: startColor, 
             top: '-21px',
-            boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.25)' 
+            boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.3)' 
           }}
         />
 
@@ -157,10 +161,10 @@ export default function MateriasLevel({
           onClick={() => setCurrentPath({ ...currentPath, materiaId: m._id })}
           cornerBadge={
             <>
-              {/* Icono/Inicial */}
-              <div className="absolute top-[24px] left-3.5">
-                <div className="w-7 h-7 rounded-lg bg-white flex items-center justify-center shadow-xs border border-black/[0.04]">
-                  <span className="font-black text-xs tracking-wide" style={{ color: accent }}>{initial}</span>
+              {/* Icono/Inicial - Ligeramente más grande (w-8 h-8) y mejor posicionado */}
+              <div className="absolute top-[20px] left-4">
+                <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm border border-black/5">
+                  <span className="font-black text-sm" style={{ color: accent }}>{initial}</span>
                 </div>
               </div>
 
@@ -169,10 +173,10 @@ export default function MateriasLevel({
                 <button
                   type="button"
                   onClick={() => setActiveMenuId(isMenuOpen ? null : m._id)}
-                  className={`p-1.5 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
+                  className={`p-1.5 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
                     isMenuOpen
                       ? 'bg-white text-zinc-950 shadow-md'
-                      : 'bg-white/15 hover:bg-white/25 text-white'
+                      : 'bg-white/20 hover:bg-white/30 text-white backdrop-blur-sm'
                   }`}
                 >
                   <MoreHorizontal className="w-4 h-4" />
@@ -181,12 +185,13 @@ export default function MateriasLevel({
             </>
           }
         >
-          {/* Contenido inferior */}
+          {/* Contenido inferior - Tipografía mejorada tipo Referencia */}
           <div className="min-w-0 text-left select-none pointer-events-none">
-            <span className="text-[10px] font-bold tracking-wider text-white/60 uppercase block mb-0.5">
+            <span className="text-[9px] font-bold tracking-widest text-white/70 uppercase block mb-1">
               Materia
             </span>
-            <p className="font-bold text-sm leading-tight text-white line-clamp-2 drop-shadow-xs">
+            {/* Texto más grande y pesado (text-base font-black) para destacar como en la referencia */}
+            <p className="font-black text-base leading-tight text-white line-clamp-2 drop-shadow-sm">
               {m.name}
             </p>
           </div>
@@ -202,18 +207,18 @@ export default function MateriasLevel({
         accent={OVERFLOW_ACCENT}
         onClick={() => setShowAll(true)}
         cornerBadge={
-          <div className="absolute top-[24px] left-3.5">
-            <div className="w-7 h-7 rounded-lg bg-white flex items-center justify-center shadow-xs border border-black/[0.04]">
-              <ArrowRight className="w-3.5 h-3.5" style={{ color: OVERFLOW_ACCENT }} />
+          <div className="absolute top-[20px] left-4">
+            <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm border border-black/5">
+              <ArrowRight className="w-4 h-4" style={{ color: OVERFLOW_ACCENT }} />
             </div>
           </div>
         }
       >
         <div className="min-w-0 text-left select-none pointer-events-none">
-          <span className="text-[10px] font-bold tracking-wider text-white/60 uppercase block mb-0.5">
+          <span className="text-[9px] font-bold tracking-widest text-white/70 uppercase block mb-1">
             Colección
           </span>
-          <p className="font-black text-sm leading-tight text-white uppercase tracking-wide">
+          <p className="font-black text-base leading-tight text-white uppercase tracking-wide drop-shadow-sm">
             +{overflowCount} Ver todas
           </p>
         </div>
