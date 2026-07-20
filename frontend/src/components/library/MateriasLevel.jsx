@@ -8,15 +8,12 @@ import { getMateriaColor, getMateriaInitial, lightenColor, darkenColor, hexToRgb
 const OVERFLOW_ACCENT = '#64748B';
 
 // =========================================================================
-// 🗂️ CARCASA DE "CARPETA" PREMIUM (Fusión Molecular Perfecta)
+// 🗂️ CARCASA DE "CARPETA" PREMIUM (Estilo Referencia - Hoja Expuesta)
 // =========================================================================
 function FolderCardShell({ accent, onClick, cornerBadge, children }) {
-  // El color base 'accent' es el puente de unión matemático entre la pestaña y el cuerpo
   const topGloss = lightenColor(accent, 0.25);
   const bottomColor = darkenColor(accent, 0.15);
   
-  // La pestaña va del brillo blanco al color base. El cuerpo va del color base a la sombra.
-  // Al compartir el color base en la unión, se ven como una sola pieza.
   const tabGradient = `linear-gradient(to bottom, ${topGloss} 0%, ${accent} 100%)`;
   const folderGradient = `linear-gradient(to bottom, ${accent} 0%, ${accent} 50%, ${bottomColor} 100%)`;
   
@@ -35,23 +32,22 @@ function FolderCardShell({ accent, onClick, cornerBadge, children }) {
         style={{ backgroundColor: darkenColor(accent, 0.25) }}
       />
 
-      {/* CAPA 2: HOJA INTERIOR */}
+      {/* CAPA 2: HOJA INTERIOR (Subida un poco para que asome más) */}
       <div
-        className="absolute top-[16px] left-2.5 right-2.5 bottom-2.5 rounded-xl bg-white dark:bg-zinc-800 shadow-xs transform translate-y-0 transition-transform duration-300 group-hover:-translate-y-1.5"
+        className="absolute top-[14px] left-2.5 right-2.5 bottom-2.5 rounded-xl bg-white dark:bg-zinc-800 shadow-xs transform translate-y-0 transition-transform duration-300 group-hover:-translate-y-1.5"
       />
 
-      {/* CAPA 3: SOLAPA DELANTERA */}
+      {/* CAPA 3: SOLAPA DELANTERA (Bajada a 52px para mostrar más la hoja blanca) */}
       <div
-        className="absolute bottom-0 inset-x-0 top-[38px] rounded-b-2xl rounded-tr-xl z-10"
-        // Eliminamos el boxShadow inset que causaba la línea divisoria
+        className="absolute bottom-0 inset-x-0 top-[52px] rounded-b-2xl rounded-tr-xl z-10"
         style={{ background: folderGradient }}
       >
-        {/* Pestaña Izquierda Superior */}
+        {/* Pestaña Izquierda Superior (Ajustada 24px de altura para bajarla) */}
         <div
-          className="absolute left-0 w-[55%] h-[22px] rounded-t-xl"
+          className="absolute left-0 w-[55%] h-[24px] rounded-t-xl"
           style={{ 
             background: tabGradient, 
-            top: '-21px',
+            top: '-24px', // -24px respecto a los 52px = empieza a los 28px del top total
             boxShadow: 'inset 0 1.5px 1px rgba(255, 255, 255, 0.4)' 
           }}
         />
@@ -163,15 +159,15 @@ export default function MateriasLevel({
           onClick={() => setCurrentPath({ ...currentPath, materiaId: m._id })}
           cornerBadge={
             <>
-              {/* Icono/Inicial */}
-              <div className="absolute top-[20px] left-4">
+              {/* Icono/Inicial - Bajado a top-[40px] para que se ubique en la mitad visual como en el ejemplo */}
+              <div className="absolute top-[40px] left-4">
                 <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm border border-black/5">
                   <span className="font-black text-sm" style={{ color: accent }}>{initial}</span>
                 </div>
               </div>
 
-              {/* Botón de opciones */}
-              <div className="absolute top-[48px] right-3.5" onClick={(e) => e.stopPropagation()}>
+              {/* Botón de opciones - Bajado a top-[56px] para armonizar con el icono bajado */}
+              <div className="absolute top-[56px] right-3.5" onClick={(e) => e.stopPropagation()}>
                 <button
                   type="button"
                   onClick={() => setActiveMenuId(isMenuOpen ? null : m._id)}
@@ -208,7 +204,7 @@ export default function MateriasLevel({
         accent={OVERFLOW_ACCENT}
         onClick={() => setShowAll(true)}
         cornerBadge={
-          <div className="absolute top-[20px] left-4">
+          <div className="absolute top-[40px] left-4">
             <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm border border-black/5">
               <ArrowRight className="w-4 h-4" style={{ color: OVERFLOW_ACCENT }} />
             </div>
