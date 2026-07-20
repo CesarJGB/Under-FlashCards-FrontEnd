@@ -159,15 +159,15 @@ export default function MateriasLevel({
           onClick={() => setCurrentPath({ ...currentPath, materiaId: m._id })}
           cornerBadge={
             <>
-              {/* Icono/Inicial - Ubicado en top-[60px] para arrancar justo en la parte colorida */}
-              <div className="absolute top-[60px] left-4">
+              {/* Icono/Inicial - Ubicado en la esquina superior izquierda (top-[24px]) para que no choque con el texto inferior */}
+              <div className="absolute top-[24px] left-4">
                 <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm border border-black/5">
                   <span className="font-black text-sm" style={{ color: accent }}>{initial}</span>
                 </div>
               </div>
 
-              {/* Botón de opciones - Alineado en top-[60px] junto con el icono */}
-              <div className="absolute top-[60px] right-3.5" onClick={(e) => e.stopPropagation()}>
+              {/* Botón de opciones - Alineado en top-[24px] junto con el icono */}
+              <div className="absolute top-[24px] right-3.5" onClick={(e) => e.stopPropagation()}>
                 <button
                   type="button"
                   onClick={() => setActiveMenuId(isMenuOpen ? null : m._id)}
@@ -204,7 +204,7 @@ export default function MateriasLevel({
         accent={OVERFLOW_ACCENT}
         onClick={() => setShowAll(true)}
         cornerBadge={
-          <div className="absolute top-[60px] left-4">
+          <div className="absolute top-[24px] left-4">
             <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm border border-black/5">
               <ArrowRight className="w-4 h-4" style={{ color: OVERFLOW_ACCENT }} />
             </div>
