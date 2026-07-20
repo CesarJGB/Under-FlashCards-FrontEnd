@@ -32,22 +32,22 @@ function FolderCardShell({ accent, onClick, cornerBadge, children }) {
         style={{ backgroundColor: darkenColor(accent, 0.25) }}
       />
 
-      {/* CAPA 2: HOJA INTERIOR (Subida un poco para que asome más) */}
+      {/* CAPA 2: HOJA INTERIOR */}
       <div
         className="absolute top-[14px] left-2.5 right-2.5 bottom-2.5 rounded-xl bg-white dark:bg-zinc-800 shadow-xs transform translate-y-0 transition-transform duration-300 group-hover:-translate-y-1.5"
       />
 
-      {/* CAPA 3: SOLAPA DELANTERA (Bajada a 52px para mostrar más la hoja blanca) */}
+      {/* CAPA 3: SOLAPA DELANTERA */}
       <div
         className="absolute bottom-0 inset-x-0 top-[52px] rounded-b-2xl rounded-tr-xl z-10"
         style={{ background: folderGradient }}
       >
-        {/* Pestaña Izquierda Superior (Ajustada 24px de altura para bajarla) */}
+        {/* Pestaña Izquierda Superior */}
         <div
           className="absolute left-0 w-[55%] h-[24px] rounded-t-xl"
           style={{ 
             background: tabGradient, 
-            top: '-24px', // -24px respecto a los 52px = empieza a los 28px del top total
+            top: '-24px',
             boxShadow: 'inset 0 1.5px 1px rgba(255, 255, 255, 0.4)' 
           }}
         />
@@ -159,15 +159,15 @@ export default function MateriasLevel({
           onClick={() => setCurrentPath({ ...currentPath, materiaId: m._id })}
           cornerBadge={
             <>
-              {/* Icono/Inicial - Bajado a top-[40px] para que se ubique en la mitad visual como en el ejemplo */}
-              <div className="absolute top-[40px] left-4">
-                <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm border border-black/5">
-                  <span className="font-black text-sm" style={{ color: accent }}>{initial}</span>
+              {/* Icono/Inicial - Reducido a w-7 h-7 y subido a top-[32px] para evitar choque con texto largo */}
+              <div className="absolute top-[32px] left-4">
+                <div className="w-7 h-7 rounded-lg bg-white flex items-center justify-center shadow-sm border border-black/5">
+                  <span className="font-black text-xs" style={{ color: accent }}>{initial}</span>
                 </div>
               </div>
 
-              {/* Botón de opciones - Bajado a top-[56px] para armonizar con el icono bajado */}
-              <div className="absolute top-[56px] right-3.5" onClick={(e) => e.stopPropagation()}>
+              {/* Botón de opciones - Ajustado a top-[32px] para armonizar con el icono */}
+              <div className="absolute top-[32px] right-3.5" onClick={(e) => e.stopPropagation()}>
                 <button
                   type="button"
                   onClick={() => setActiveMenuId(isMenuOpen ? null : m._id)}
@@ -204,9 +204,9 @@ export default function MateriasLevel({
         accent={OVERFLOW_ACCENT}
         onClick={() => setShowAll(true)}
         cornerBadge={
-          <div className="absolute top-[40px] left-4">
-            <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm border border-black/5">
-              <ArrowRight className="w-4 h-4" style={{ color: OVERFLOW_ACCENT }} />
+          <div className="absolute top-[32px] left-4">
+            <div className="w-7 h-7 rounded-lg bg-white flex items-center justify-center shadow-sm border border-black/5">
+              <ArrowRight className="w-3.5 h-3.5" style={{ color: OVERFLOW_ACCENT }} />
             </div>
           </div>
         }
