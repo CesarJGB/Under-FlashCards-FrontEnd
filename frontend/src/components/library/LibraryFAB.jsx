@@ -29,11 +29,12 @@ export default function LibraryFAB({
 
   const isTemasLevel = currentPath.materiaId !== null && currentPath.parcialNumber !== null && currentPath.temaId === null;
 
+  // FAB Con efecto Liquid Glass
   const fabButton = !fabOpen && !isParcialesLevel && (
     <button
       type="button"
       onClick={() => setFabOpen(true)}
-      className="absolute right-6 w-14 h-14 rounded-2xl bg-slate-900 text-white shadow-lg flex items-center justify-center z-50 hover:bg-slate-800 hover:scale-105 active:scale-90 transition-all duration-200 cursor-pointer md:fixed"
+      className="absolute right-6 w-14 h-14 rounded-2xl bg-white/70 dark:bg-zinc-900/70 backdrop-blur-xl border border-white/80 dark:border-white/10 text-zinc-900 dark:text-white shadow-xl shadow-black/10 flex items-center justify-center z-50 hover:bg-white/90 dark:hover:bg-zinc-900/90 hover:scale-105 active:scale-90 transition-all duration-200 cursor-pointer md:fixed"
       style={{ bottom: 'calc(env(safe-area-inset-bottom) + 6rem)' }}
     >
       <Plus className="w-6 h-6 stroke-[2.5]" />
@@ -46,7 +47,7 @@ export default function LibraryFAB({
       {fabOpen && (
         <div
           onClick={() => setFabOpen(false)}
-          className="fixed inset-0 bg-slate-900/40 z-40 animate-[fadeIn_0.25s_ease-out]"
+          className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-40 animate-[fadeIn_0.25s_ease-out]"
         />
       )}
 
@@ -59,11 +60,11 @@ export default function LibraryFAB({
           }}
         >
           {/* Contenedor blanco completo */}
-          <div className="bg-white rounded-t-3xl shadow-2xl">
+          <div className="bg-white dark:bg-zinc-900 rounded-t-3xl shadow-2xl border-t border-zinc-100 dark:border-zinc-800">
             
             {/* Handle */}
             <div className="flex justify-center pt-3 pb-4">
-              <div className="w-10 h-1 bg-slate-300 rounded-full" />
+              <div className="w-10 h-1 bg-slate-300 dark:bg-zinc-700 rounded-full" />
             </div>
 
             {/* Cards con animación escalonada */}
@@ -74,20 +75,20 @@ export default function LibraryFAB({
                 <button
                   type="button"
                   onClick={() => { setFabOpen(false); setAcademicModal({ type: folderConfig.type }); }}
-                  className="w-full bg-gradient-to-br from-indigo-100 to-violet-100 border-2 border-indigo-200 rounded-3xl p-5 text-left shadow-lg shadow-indigo-200/50 hover:shadow-xl active:scale-[0.98] transition-all duration-200"
+                  className="w-full bg-gradient-to-br from-indigo-100 to-violet-100 dark:from-indigo-950/40 dark:to-violet-950/40 border-2 border-indigo-200 dark:border-indigo-800/50 rounded-3xl p-5 text-left shadow-lg shadow-indigo-200/50 dark:shadow-none hover:shadow-xl active:scale-[0.98] transition-all duration-200 cursor-pointer"
                   style={{
                     animation: 'cardIn 0.35s cubic-bezier(0.32, 0.72, 0, 1) 0.08s both'
                   }}
                 >
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm">
-                      <FolderPlus className="w-6 h-6 text-indigo-600" />
+                    <div className="w-12 h-12 bg-white dark:bg-zinc-800 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm">
+                      <FolderPlus className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="text-lg font-bold text-slate-900 leading-tight mb-1">
+                      <h3 className="text-lg font-bold text-slate-900 dark:text-white leading-tight mb-1">
                         {folderConfig.text}
                       </h3>
-                      <p className="text-sm text-slate-700 leading-snug">
+                      <p className="text-sm text-slate-700 dark:text-zinc-300 leading-snug">
                         {folderConfig.subtitle}
                       </p>
                     </div>
@@ -100,20 +101,20 @@ export default function LibraryFAB({
                 <button
                   type="button"
                   onClick={() => { setFabOpen(false); setModal({}); }}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-3xl p-5 text-left hover:shadow-md active:scale-[0.98] transition-all duration-200"
+                  className="w-full bg-slate-50 dark:bg-zinc-800/60 border border-slate-200 dark:border-zinc-700/60 rounded-3xl p-5 text-left hover:shadow-md active:scale-[0.98] transition-all duration-200 cursor-pointer"
                   style={{
                     animation: 'cardIn 0.35s cubic-bezier(0.32, 0.72, 0, 1) 0.14s both'
                   }}
                 >
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm">
-                      <FileText className="w-6 h-6 text-slate-700" />
+                    <div className="w-12 h-12 bg-white dark:bg-zinc-800 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm">
+                      <FileText className="w-6 h-6 text-slate-700 dark:text-zinc-300" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="text-lg font-bold text-slate-900 leading-tight mb-1">
+                      <h3 className="text-lg font-bold text-slate-900 dark:text-white leading-tight mb-1">
                         Crear mazo
                       </h3>
-                      <p className="text-sm text-slate-600 leading-snug">
+                      <p className="text-sm text-slate-600 dark:text-zinc-400 leading-snug">
                         Escribe tus propias tarjetas desde cero
                       </p>
                     </div>
@@ -127,24 +128,24 @@ export default function LibraryFAB({
                   type="button"
                   onClick={() => { setFabOpen(false); fileInputRef.current?.click(); }}
                   disabled={importing}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-3xl p-5 text-left hover:shadow-md active:scale-[0.98] transition-all duration-200 disabled:opacity-50"
+                  className="w-full bg-slate-50 dark:bg-zinc-800/60 border border-slate-200 dark:border-zinc-700/60 rounded-3xl p-5 text-left hover:shadow-md active:scale-[0.98] transition-all duration-200 disabled:opacity-50 cursor-pointer"
                   style={{
                     animation: 'cardIn 0.35s cubic-bezier(0.32, 0.72, 0, 1) 0.20s both'
                   }}
                 >
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm">
+                    <div className="w-12 h-12 bg-white dark:bg-zinc-800 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm">
                       {importing ? (
-                        <Loader2 className="w-6 h-6 animate-spin text-slate-700" />
+                        <Loader2 className="w-6 h-6 animate-spin text-slate-700 dark:text-zinc-300" />
                       ) : (
-                        <Upload className="w-6 h-6 text-slate-700" />
+                        <Upload className="w-6 h-6 text-slate-700 dark:text-zinc-300" />
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="text-lg font-bold text-slate-900 leading-tight mb-1">
+                      <h3 className="text-lg font-bold text-slate-900 dark:text-white leading-tight mb-1">
                         Importar mazo
                       </h3>
-                      <p className="text-sm text-slate-600 leading-snug">
+                      <p className="text-sm text-slate-600 dark:text-zinc-400 leading-snug">
                         Sube un archivo JSON existente
                       </p>
                     </div>
