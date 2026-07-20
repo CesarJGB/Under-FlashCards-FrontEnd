@@ -175,8 +175,8 @@ export default function MateriasLevel({
                 </div>
               </div>
 
-              {/* Botón de opciones - Desplazado hacia abajo (top-[56px]) para estar en la solapa frontal y con fondo translúcido */}
-              <div className="absolute top-[56px] right-3.5 z-30" onClick={(e) => e.stopPropagation()}>
+              {/* Botón de opciones - Desplazado hacia abajo (top-[64px]) y alineado a la derecha (right-2.5) */}
+              <div className="absolute top-[64px] right-2.5 z-30" onClick={(e) => e.stopPropagation()}>
                 <button
                   type="button"
                   onClick={() => setActiveMenuId(isMenuOpen ? null : m._id)}
