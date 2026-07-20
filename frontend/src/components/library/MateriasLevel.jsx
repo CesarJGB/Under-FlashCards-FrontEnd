@@ -32,9 +32,9 @@ function FolderCardShell({ accent, onClick, cornerBadge, children }) {
         style={{ backgroundColor: darkenColor(accent, 0.22) }}
       />
 
-      {/* CAPA 2: HOJA INTERIOR (Hoja trasera limpia) */}
+      {/* CAPA 2: HOJA INTERIOR (Hoja trasera limpia) — bajada a 18px para que quede oculta bajo la pestaña en reposo */}
       <div
-        className="absolute top-3 left-2.5 right-2.5 bottom-2.5 rounded-xl bg-white dark:bg-zinc-800 shadow-xs transform translate-y-0 transition-transform duration-300 group-hover:-translate-y-1"
+        className="absolute top-[18px] left-2.5 right-2.5 bottom-2.5 rounded-xl bg-white dark:bg-zinc-800 shadow-xs transform translate-y-0 transition-transform duration-300 group-hover:-translate-y-1"
       />
 
       {/* CAPA 3: SOLAPA DELANTERA (Cuerpo + Pestaña acoplados verticalmente) */}
@@ -55,8 +55,18 @@ function FolderCardShell({ accent, onClick, cornerBadge, children }) {
           <div className="absolute top-0 inset-x-0 h-px bg-white/25 rounded-t-full" />
         </div>
 
-        {/* Reflejo de luz solo en el escalón exterior derecho */}
-        <div className="absolute top-0 right-0 left-[46%] h-px bg-white/20" />
+        {/* Relleno derecho: misma altura que la pestaña, tapa el hueco que dejaba ver la hoja interior */}
+        <div
+          className="absolute right-0 left-[46%] rounded-tr-xl"
+          style={{
+            backgroundColor: startColor,
+            top: '-21px',
+            height: '22px'
+          }}
+        >
+          {/* Reflejo de luz, ahora en el borde superior de este relleno (antes era la fuga) */}
+          <div className="absolute top-0 inset-x-0 h-px bg-white/20 rounded-t-full" />
+        </div>
 
         {/* Contenedor del Texto */}
         <div className="relative h-full w-full p-4 flex flex-col justify-end z-10">
