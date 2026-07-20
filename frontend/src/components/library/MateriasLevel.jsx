@@ -8,14 +8,14 @@ import { getMateriaColor, getMateriaInitial, lightenColor, darkenColor, hexToRgb
 const OVERFLOW_ACCENT = '#64748B';
 
 // =========================================================================
-// 🗂️ CARCASA DE "CARPETA" PREMIUM (Estilo Semi-Esqueumórfico / Apple)
+// 🗂️ CARCASA DE "CARPETA" PREMIUM (Curvas Suaves y Fusión de Color)
 // =========================================================================
 function FolderCardShell({ accent, onClick, cornerBadge, children }) {
+  // Color exacto para la pestaña y el inicio del gradiente (Garantiza fusión)
   const startColor = lightenColor(accent, 0.15);
-  // Degradado vertical puro continuo para la pieza única moldeada
   const folderGradient = `linear-gradient(to bottom, ${startColor} 0%, ${accent} 50%, ${darkenColor(accent, 0.12)} 100%)`;
   
-  // Brillo exterior (Outer Glow) suave e inmersivo
+  // Brillo exterior (Outer Glow)
   const glow = `0 20px 32px -10px ${hexToRgba(accent, 0.4)}, 0 4px 12px -4px ${hexToRgba(accent, 0.18)}`;
 
   return (
@@ -25,37 +25,47 @@ function FolderCardShell({ accent, onClick, cornerBadge, children }) {
       style={{ boxShadow: glow }}
       className="relative w-full h-36 rounded-2xl text-left transition-all duration-200 active:scale-[0.97] hover:scale-[1.01] group cursor-pointer select-none border border-black/5 dark:border-white/5 bg-transparent overflow-visible"
     >
-      {/* 🛡️ CONTENEDOR MÁSCARA: Corta de raíz cualquier fuga o línea en los bordes curvos externos */}
+      {/* 🛡️ CONTENEDOR MÁSCARA: Mantiene las esquinas redondas exteriores inmaculadas, sin fugas */}
       <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none">
         
-        {/* CAPA 1: TRASERA (Fondo base oscuro de la carpeta) */}
+        {/* CAPA 1: TRASERA (Fondo oscuro) */}
         <div
           className="absolute inset-0"
           style={{ backgroundColor: darkenColor(accent, 0.22) }}
         />
 
-        {/* CAPA 2: HOJA INTERIOR (Se asoma por detrás con micro-animación orgánica) */}
+        {/* CAPA 2: HOJA INTERIOR (Se asoma por el corte derecho) */}
         <div
-          className="absolute top-3 left-2.5 right-2.5 bottom-2.5 rounded-xl bg-white dark:bg-zinc-850 shadow-xs transform translate-y-0 transition-transform duration-300 group-hover:-translate-y-0.5"
+          className="absolute top-2.5 left-2.5 right-2.5 bottom-2.5 rounded-xl bg-white dark:bg-zinc-850 shadow-xs transform translate-y-0 transition-transform duration-300 group-hover:-translate-y-1"
         />
 
-        {/* CAPA 3: SOLAPA DELANTERA SEAMLESS (Pieza única moldeada con Clip-Path) */}
+        {/* CAPA 3: SOLAPA DELANTERA (Construida en 2 partes que se enciman para ocultar la costura) */}
+        
+        {/* Parte A: Pestaña Izquierda (Vuelve el borde curvo suave) */}
         <div
-          className="absolute inset-0 top-3.5 z-10"
-          style={{ 
-            background: folderGradient,
-            clipPath: 'polygon(0% 0%, 46% 0%, 54% 20px, 100% 20px, 100% 100%, 0% 100%)',
-            WebkitClipPath: 'polygon(0% 0%, 46% 0%, 54% 20px, 100% 20px, 100% 100%, 0% 100%)'
-          }}
+          className="absolute top-[22px] left-0 w-[52%] h-[30px] rounded-tr-2xl z-10"
+          style={{ backgroundColor: startColor }}
         >
+          {/* Reflejo de luz curvo exclusivo de la pestaña */}
+          <div className="absolute top-0 inset-x-0 h-px bg-white/30 rounded-tr-2xl" />
+        </div>
+
+        {/* Parte B: Cuerpo Principal (Sube y se empalma sobre la Pestaña por 4px para fusionarse) */}
+        <div
+          className="absolute top-[48px] bottom-0 inset-x-0 z-10"
+          style={{ background: folderGradient }}
+        >
+          {/* Reflejo de luz del escalón derecho */}
+          <div className="absolute top-0 right-0 w-[48%] h-px bg-white/25" />
+
           {/* Contenedor del Texto */}
-          <div className="relative h-full w-full p-4 flex flex-col justify-end pointer-events-auto">
+          <div className="absolute inset-0 p-4 flex flex-col justify-end pointer-events-auto">
             {children}
           </div>
         </div>
       </div>
 
-      {/* CAPA 4: ELEMENTOS INTERACTIVOS (Flotando milimétricamente en zonas seguras) */}
+      {/* CAPA 4: ELEMENTOS INTERACTIVOS CONTROLES */}
       <div className="absolute inset-0 z-20 pointer-events-none">
         <div className="relative w-full h-full pointer-events-auto">
           {cornerBadge}
@@ -148,7 +158,7 @@ export default function MateriasLevel({
       );
     }
 
-    // MODO GRID: BALANCEADO Y PURGADO DE LÍNEAS DE CORTE
+    // MODO GRID: Curvas recuperadas y alineación perfecta
     return (
       <div key={m._id} className="relative">
         <FolderCardShell
@@ -156,15 +166,15 @@ export default function MateriasLevel({
           onClick={() => setCurrentPath({ ...currentPath, materiaId: m._id })}
           cornerBadge={
             <>
-              {/* Icono/Inicial: Ubicado centrado y natural dentro del área real de la solapa izquierda */}
-              <div className="absolute top-[20px] left-3.5">
+              {/* Icono/Inicial */}
+              <div className="absolute top-[16px] left-3.5">
                 <div className="w-7 h-7 rounded-lg bg-white flex items-center justify-center shadow-xs border border-black/[0.04]">
                   <span className="font-black text-xs tracking-wide" style={{ color: accent }}>{initial}</span>
                 </div>
               </div>
 
-              {/* Botón de opciones: Posicionado nítidamente sobre el cuerpo sólido derecho */}
-              <div className="absolute top-[44px] right-3.5" onClick={(e) => e.stopPropagation()}>
+              {/* Botón de opciones */}
+              <div className="absolute top-[54px] right-3.5" onClick={(e) => e.stopPropagation()}>
                 <button
                   type="button"
                   onClick={() => setActiveMenuId(isMenuOpen ? null : m._id)}
@@ -180,7 +190,6 @@ export default function MateriasLevel({
             </>
           }
         >
-          {/* Contenido inferior */}
           <div className="min-w-0 text-left select-none pointer-events-none">
             <span className="text-[10px] font-bold tracking-wider text-white/60 uppercase block mb-0.5">
               Materia
@@ -201,7 +210,7 @@ export default function MateriasLevel({
         accent={OVERFLOW_ACCENT}
         onClick={() => setShowAll(true)}
         cornerBadge={
-          <div className="absolute top-[20px] left-3.5">
+          <div className="absolute top-[16px] left-3.5">
             <div className="w-7 h-7 rounded-lg bg-white flex items-center justify-center shadow-xs border border-black/[0.04]">
               <ArrowRight className="w-3.5 h-3.5" style={{ color: OVERFLOW_ACCENT }} />
             </div>
@@ -233,7 +242,6 @@ export default function MateriasLevel({
 
   return (
     <div className="space-y-6 mt-6">
-      {/* HEADER */}
       <div className="space-y-2.5">
         <div className="flex items-center justify-between">
           <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
@@ -248,7 +256,6 @@ export default function MateriasLevel({
         <div className="h-px w-full bg-gradient-to-r from-zinc-200 via-zinc-100 to-transparent dark:from-zinc-700 dark:via-zinc-800/60 dark:to-transparent" />
       </div>
 
-      {/* GRID / LISTA */}
       {loading && materias.length === 0 ? (
         <div className="flex items-center justify-center py-12 gap-2 text-zinc-400 dark:text-zinc-500 text-xs font-medium">
           <Loader2 className="w-4 h-4 animate-spin text-indigo-500" />
@@ -286,7 +293,6 @@ export default function MateriasLevel({
         onClose={() => setActiveMenuId(null)}
       />
 
-      {/* MAZOS SIN CLASIFICAR */}
       <div className="pt-6 border-t border-zinc-200/60 dark:border-zinc-700/50">
         <div className="flex items-center gap-1.5 mb-4">
           <Bookmark className="w-3.5 h-3.5 text-zinc-400 dark:text-zinc-500" />
