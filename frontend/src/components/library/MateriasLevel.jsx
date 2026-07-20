@@ -156,7 +156,7 @@ export default function MateriasLevel({
     // 1. Heurística: detectamos si el texto tendrá 2 líneas basandonos en su longitud.
     const isLongName = m.name.length > 18; 
     
-    // 2. Reglas dinámicas solo para el icono de la materia
+    // 2. Reglas dinámicas: Usamos la misma variable 'iconTop' para el icono y los 3 puntos
     const iconTop = isLongName ? 'top-[40px]' : 'top-[46px]'; // Si es largo, sube más para dar espacio al texto; si es corto, bajalo.
     const iconBoxSize = isLongName ? 'w-6 h-6' : 'w-8 h-8';     // Si es largo, hace el icono más pequeño; si es corto, normal.
     const iconTextSize = isLongName ? 'text-xs' : 'text-sm';    // Tamaño de la letra acorde al icono.
@@ -175,15 +175,15 @@ export default function MateriasLevel({
                 </div>
               </div>
 
-              {/* Botón de opciones - ESTÁTICO en la esquina superior derecha para que no se desconfigure */}
-              <div className="absolute top-[22px] right-3.5" onClick={(e) => e.stopPropagation()}>
+              {/* Botón de opciones - AHORA ALINEADO AL ICONO (usa iconTop) y con color visible sobre blanco */}
+              <div className={`absolute ${iconTop} right-3.5`} onClick={(e) => e.stopPropagation()}>
                 <button
                   type="button"
                   onClick={() => setActiveMenuId(isMenuOpen ? null : m._id)}
                   className={`p-1.5 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
                     isMenuOpen
-                      ? 'bg-white text-zinc-950 shadow-md'
-                      : 'bg-white/20 hover:bg-white/30 text-white backdrop-blur-sm'
+                      ? 'bg-zinc-900 text-white shadow-md dark:bg-white dark:text-zinc-900'
+                      : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-700/60 dark:text-zinc-300 dark:hover:bg-zinc-700'
                   }`}
                 >
                   <MoreHorizontal className="w-4 h-4" />
