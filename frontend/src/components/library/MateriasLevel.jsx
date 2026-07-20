@@ -8,56 +8,61 @@ import { getMateriaColor, getMateriaInitial, lightenColor, darkenColor, hexToRgb
 const OVERFLOW_ACCENT = '#64748B';
 
 // =========================================================================
-// 🗂️ CARCASA DE "CARPETA" PREMIUM (Estilo Semi-Esqueumórfico / Apple)
+// 🗂️ CARCASA DE "CARPETA" REAL (Estilo Semi-Esqueumórfico / Apple)
 // =========================================================================
 function FolderCardShell({ accent, onClick, cornerBadge, children }) {
-  // Un solo degradado fluido para toda la pieza delantera
-  const folderGradient = `linear-gradient(135deg, ${lightenColor(accent, 0.15)} 0%, ${accent} 55%, ${darkenColor(accent, 0.1)} 100%)`;
+  // Degradado idéntico para asegurar fusión molecular entre solapa y cuerpo
+  const folderGradient = `linear-gradient(135deg, ${lightenColor(accent, 0.16)} 0%, ${accent} 55%, ${darkenColor(accent, 0.12)} 100%)`;
   
-  // Brillo exterior (Outer Glow) sofisticado
-  const glow = `0 20px 32px -10px ${hexToRgba(accent, 0.45)}, 0 4px 12px -4px ${hexToRgba(accent, 0.22)}`;
-
-  // Estilo compartido para la hoja trasera y el recorte simulado (Garantiza fusión cromática exacta)
-  const sheetStyle = "bg-white/85 dark:bg-zinc-900/60 backdrop-blur-xs shadow-xs";
+  // Brillo exterior (Outer Glow) suave basado en el color de la materia
+  const glow = `0 20px 32px -10px ${hexToRgba(accent, 0.4)}, 0 4px 12px -4px ${hexToRgba(accent, 0.18)}`;
 
   return (
     <button
       type="button"
       onClick={onClick}
       style={{ boxShadow: glow }}
-      className="relative w-full h-36 rounded-2xl text-left transition-all duration-200 active:scale-[0.97] hover:scale-[1.01] group cursor-pointer overflow-hidden select-none border border-black/5 dark:border-white/5"
+      className="relative w-full h-36 rounded-2xl text-left transition-all duration-200 active:scale-[0.97] hover:scale-[1.01] group cursor-pointer select-none border border-black/5 dark:border-white/5 bg-transparent"
     >
       {/* CAPA 1: TRASERA (Fondo base oscuro de la carpeta) */}
       <div
-        className="absolute inset-0 rounded-2xl opacity-95"
-        style={{ backgroundColor: darkenColor(accent, 0.18) }}
+        className="absolute inset-0 rounded-2xl transition-colors"
+        style={{ backgroundColor: darkenColor(accent, 0.2) }}
       />
 
-      {/* CAPA 2: HOJA INTERIOR (Se asoma de fondo) */}
+      {/* CAPA 2: HOJA INTERIOR (Se asoma de fondo de forma natural) */}
       <div
-        className={`absolute top-2.5 left-2.5 right-2.5 bottom-2 rounded-xl transform translate-y-0 transition-transform duration-300 group-hover:-translate-y-1 ${sheetStyle}`}
+        className="absolute top-2 left-2 right-2 bottom-2 rounded-xl bg-zinc-50 dark:bg-zinc-800 shadow-inner transform translate-y-0 transition-transform duration-300 group-hover:-translate-y-1"
       />
 
-      {/* CAPA 3: SOLAPA DELANTERA UNIFICADA (Cuerpo + Pestaña en una sola pieza ininterrumpida) */}
+      {/* CAPA 3: SOLAPA DELANTERA (Construcción limpia sin parches encima) */}
+      {/* Cuerpo Principal Inferior */}
       <div
-        className="absolute bottom-0 inset-x-0 top-5 rounded-b-2xl rounded-t-xl z-10"
+        className="absolute bottom-0 inset-x-0 top-9 rounded-b-2xl rounded-tr-xl z-10"
         style={{ background: folderGradient }}
       >
-        {/* 
-          EL RECORTE ORGÁNICO (Scoop): Capa superior interna con esquina redondeada invertida.
-          Visualmente "se come" la sección superior derecha simulando la caída de la carpeta de forma 100% natural.
-        */}
-        <div 
-          className={`absolute top-0 right-0 w-[53%] h-5 rounded-bl-2xl pointer-events-none ${sheetStyle}`}
-        />
+        {/* Pestaña Izquierda Superior (Unida orgánicamente al cuerpo) */}
+        <div
+          className="absolute bottom-full left-0 h-5 w-[46%] rounded-t-xl"
+          style={{ 
+            background: folderGradient,
+            bottom: '-1px' // Elimina cualquier micro-separación por renderizado de pantalla
+          }}
+        >
+          {/* Brillo reflectivo superior exclusivo de la solapa izquierda */}
+          <div className="absolute top-0 inset-x-0 h-px bg-white/25 rounded-t-full" />
+        </div>
 
-        {/* Contenedor del Texto (Alineado abajo) */}
+        {/* Brillo reflectivo superior exclusivo del escalón derecho */}
+        <div className="absolute top-0 right-0 left-[46%] h-px bg-white/15" />
+
+        {/* Contenedor del Texto */}
         <div className="relative h-full w-full p-4 flex flex-col justify-end z-10">
           {children}
         </div>
       </div>
 
-      {/* CAPA 4: CONTROLES FLOTANTES (Ajustados milimétricamente en altura) */}
+      {/* CAPA 4: ELEMENTOS INTERACTIVOS (Posicionados milimétricamente) */}
       <div className="absolute inset-0 z-20 pointer-events-none">
         <div className="relative w-full h-full pointer-events-auto">
           {cornerBadge}
@@ -150,7 +155,7 @@ export default function MateriasLevel({
       );
     }
 
-    // MODO GRID MODERNO CON GEOMETRÍA CORREGIDA
+    // MODO GRID FIEL AL COMPONENTE ORIGINAL
     return (
       <div key={m._id} className="relative">
         <FolderCardShell
@@ -158,31 +163,31 @@ export default function MateriasLevel({
           onClick={() => setCurrentPath({ ...currentPath, materiaId: m._id })}
           cornerBadge={
             <>
-              {/* Icono/Inicial: Bajado ligeramente para abrazar la solapa de forma orgánica */}
-              <div className="absolute top-4 left-3.5">
-                <div className="w-7 h-7 rounded-lg bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/20 shadow-inner">
-                  <span className="font-black text-[11px] text-white tracking-wide">{initial}</span>
+              {/* Icono/Inicial: Cuadro sólido blanco con sombra equilibrada, posicionado perfectamente dentro de la pestaña */}
+              <div className="absolute top-6 left-4">
+                <div className="w-8 h-8 rounded-xl bg-white flex items-center justify-center shadow-sm border border-black/[0.04]">
+                  <span className="font-black text-xs tracking-wide" style={{ color: accent }}>{initial}</span>
                 </div>
               </div>
 
-              {/* Botón de opciones: Bajado para posicionarse sólidamente sobre la estructura del frente */}
-              <div className="absolute top-[46px] right-3.5" onClick={(e) => e.stopPropagation()}>
+              {/* Botón de opciones: Bajado elegantemente al panel principal para no flotar en el corte */}
+              <div className="absolute top-[52px] right-4" onClick={(e) => e.stopPropagation()}>
                 <button
                   type="button"
                   onClick={() => setActiveMenuId(isMenuOpen ? null : m._id)}
-                  className={`p-1.5 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
+                  className={`p-1.5 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
                     isMenuOpen
-                      ? 'bg-white text-zinc-950 shadow-md scale-100'
-                      : 'bg-white/10 hover:bg-white/20 text-white/90 backdrop-blur-xs'
+                      ? 'bg-white text-zinc-950 shadow-md'
+                      : 'bg-white/15 hover:bg-white/25 text-white'
                   }`}
                 >
-                  <MoreHorizontal className="w-3.5 h-3.5" />
+                  <MoreHorizontal className="w-4 h-4" />
                 </button>
               </div>
             </>
           }
         >
-          {/* Contenido inferior */}
+          {/* Contenido inferior alineado a la izquierda */}
           <div className="min-w-0 text-left select-none pointer-events-none">
             <span className="text-[10px] font-bold tracking-wider text-white/60 uppercase block mb-0.5">
               Materia
@@ -196,16 +201,16 @@ export default function MateriasLevel({
     );
   };
 
-  // Celda overflow "+N" balanceada al nuevo diseño
+  // Celda overflow "+N" adaptada
   const renderOverflowCell = () => (
     <div className="relative">
       <FolderCardShell
         accent={OVERFLOW_ACCENT}
         onClick={() => setShowAll(true)}
         cornerBadge={
-          <div className="absolute top-4 left-3.5">
-            <div className="w-7 h-7 rounded-lg bg-white/25 backdrop-blur-md flex items-center justify-center border border-white/10">
-              <ArrowRight className="w-3.5 h-3.5 text-white" />
+          <div className="absolute top-6 left-4">
+            <div className="w-8 h-8 rounded-xl bg-white flex items-center justify-center shadow-sm border border-black/[0.04]">
+              <ArrowRight className="w-4 h-4" style={{ color: OVERFLOW_ACCENT }} />
             </div>
           </div>
         }
