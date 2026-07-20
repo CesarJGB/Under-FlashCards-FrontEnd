@@ -152,6 +152,16 @@ export default function MateriasLevel({
     }
 
     // MODO GRID
+    
+    // 1. Heurística: detectamos si el texto tendrá 2 líneas basandonos en su longitud.
+    // 18 caracteres es un buen punto de quiebre para el ancho estándar de esta tarjeta.
+    const isLongName = m.name.length > 18; 
+    
+    // 2. Reglas dinámicas para separar los dos casos que mencionaste:
+    const badgeTop = isLongName ? 'top-[44px]' : 'top-[48px]'; // Si es largo, sube un poco el badge; si es corto, lo baja.
+    const iconBoxSize = isLongName ? 'w-6 h-6' : 'w-8 h-8';     // Si es largo, hace el icono más pequeño; si es corto, lo deja normal.
+    const iconTextSize = isLongName ? 'text-xs' : 'text-sm';    // Tamaño de la letra acorde al icono.
+
     return (
       <div key={m._id} className="relative">
         <FolderCardShell
@@ -159,15 +169,15 @@ export default function MateriasLevel({
           onClick={() => setCurrentPath({ ...currentPath, materiaId: m._id })}
           cornerBadge={
             <>
-              {/* Icono/Inicial - Ubicado en la esquina superior izquierda (top-[24px]) para que no choque con el texto inferior */}
-              <div className="absolute top-[24px] left-4">
-                <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm border border-black/5">
-                  <span className="font-black text-sm" style={{ color: accent }}>{initial}</span>
+              {/* Icono/Inicial - Ahora se adapta dinámicamente según las líneas de texto */}
+              <div className={`absolute ${badgeTop} left-4 transition-all duration-200`}>
+                <div className={`${iconBoxSize} rounded-lg bg-white flex items-center justify-center shadow-md border border-black/5`}>
+                  <span className={`font-black ${iconTextSize}`} style={{ color: accent }}>{initial}</span>
                 </div>
               </div>
 
-              {/* Botón de opciones - Alineado en top-[24px] junto con el icono */}
-              <div className="absolute top-[24px] right-3.5" onClick={(e) => e.stopPropagation()}>
+              {/* Botón de opciones - Alineado dinámicamente junto con el icono */}
+              <div className={`absolute ${badgeTop} right-3.5`} onClick={(e) => e.stopPropagation()}>
                 <button
                   type="button"
                   onClick={() => setActiveMenuId(isMenuOpen ? null : m._id)}
@@ -197,15 +207,15 @@ export default function MateriasLevel({
     );
   };
 
-  // Celda overflow "+N" balanceada al nuevo sistema
+  // Celda overflow "+N" balanceada al sistema (usa el estilo de 1 línea)
   const renderOverflowCell = () => (
     <div className="relative">
       <FolderCardShell
         accent={OVERFLOW_ACCENT}
         onClick={() => setShowAll(true)}
         cornerBadge={
-          <div className="absolute top-[24px] left-4">
-            <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm border border-black/5">
+          <div className="absolute top-[48px] left-4">
+            <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-md border border-black/5">
               <ArrowRight className="w-4 h-4" style={{ color: OVERFLOW_ACCENT }} />
             </div>
           </div>
