@@ -159,15 +159,15 @@ export default function MateriasLevel({
           onClick={() => setCurrentPath({ ...currentPath, materiaId: m._id })}
           cornerBadge={
             <>
-              {/* Icono/Inicial - Reducido a w-7 h-7 y subido a top-[32px] para evitar choque con texto largo */}
-              <div className="absolute top-[32px] left-4">
-                <div className="w-7 h-7 rounded-lg bg-white flex items-center justify-center shadow-sm border border-black/5">
-                  <span className="font-black text-xs" style={{ color: accent }}>{initial}</span>
+              {/* Icono/Inicial - Ubicado en top-[60px] para arrancar justo en la parte colorida */}
+              <div className="absolute top-[60px] left-4">
+                <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm border border-black/5">
+                  <span className="font-black text-sm" style={{ color: accent }}>{initial}</span>
                 </div>
               </div>
 
-              {/* Botón de opciones - Ajustado a top-[32px] para armonizar con el icono */}
-              <div className="absolute top-[32px] right-3.5" onClick={(e) => e.stopPropagation()}>
+              {/* Botón de opciones - Alineado en top-[60px] junto con el icono */}
+              <div className="absolute top-[60px] right-3.5" onClick={(e) => e.stopPropagation()}>
                 <button
                   type="button"
                   onClick={() => setActiveMenuId(isMenuOpen ? null : m._id)}
@@ -204,9 +204,9 @@ export default function MateriasLevel({
         accent={OVERFLOW_ACCENT}
         onClick={() => setShowAll(true)}
         cornerBadge={
-          <div className="absolute top-[32px] left-4">
-            <div className="w-7 h-7 rounded-lg bg-white flex items-center justify-center shadow-sm border border-black/5">
-              <ArrowRight className="w-3.5 h-3.5" style={{ color: OVERFLOW_ACCENT }} />
+          <div className="absolute top-[60px] left-4">
+            <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm border border-black/5">
+              <ArrowRight className="w-4 h-4" style={{ color: OVERFLOW_ACCENT }} />
             </div>
           </div>
         }
