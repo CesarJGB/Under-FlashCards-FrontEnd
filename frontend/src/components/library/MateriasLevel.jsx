@@ -8,19 +8,17 @@ import { getMateriaColor, getMateriaInitial, lightenColor, darkenColor, hexToRgb
 const OVERFLOW_ACCENT = '#64748B';
 
 // =========================================================================
-// 🗂️ CARCASA DE "CARPETA" PREMIUM (Unificada y Brillo Blanco Mejorado)
+// 🗂️ CARCASA DE "CARPETA" PREMIUM (Fusión Molecular Perfecta)
 // =========================================================================
 function FolderCardShell({ accent, onClick, cornerBadge, children }) {
-  // Colores calculados para una transición matemáticamente perfecta
-  const topGloss = lightenColor(accent, 0.35); // Color más blanco para la cima
-  const seamColor = lightenColor(accent, 0.15); // Color exacto de la junta (empareja pestaña con frente)
-  const bottomColor = darkenColor(accent, 0.1); // Sombra suave inferior
+  // El color base 'accent' es el puente de unión matemático entre la pestaña y el cuerpo
+  const topGloss = lightenColor(accent, 0.25);
+  const bottomColor = darkenColor(accent, 0.15);
   
-  // Brillo blanco superpuesto para efecto gel/cristal (como tu referencia)
-  const glossOverlay = 'linear-gradient(to bottom, rgba(255,255,255,0.25) 0%, rgba(255,255,255,0) 50%)';
-  
-  const tabGradient = `${glossOverlay}, linear-gradient(to bottom, ${topGloss} 0%, ${seamColor} 100%)`;
-  const folderGradient = `${glossOverlay}, linear-gradient(to bottom, ${seamColor} 0%, ${accent} 55%, ${bottomColor} 100%)`;
+  // La pestaña va del brillo blanco al color base. El cuerpo va del color base a la sombra.
+  // Al compartir el color base en la unión, se ven como una sola pieza.
+  const tabGradient = `linear-gradient(to bottom, ${topGloss} 0%, ${accent} 100%)`;
+  const folderGradient = `linear-gradient(to bottom, ${accent} 0%, ${accent} 50%, ${bottomColor} 100%)`;
   
   const glow = `0 16px 28px -8px ${hexToRgba(accent, 0.45)}, 0 4px 10px -4px ${hexToRgba(accent, 0.2)}`;
 
@@ -45,8 +43,8 @@ function FolderCardShell({ accent, onClick, cornerBadge, children }) {
       {/* CAPA 3: SOLAPA DELANTERA */}
       <div
         className="absolute bottom-0 inset-x-0 top-[38px] rounded-b-2xl rounded-tr-xl z-10"
-        // Brillo superior sutil, sin sombras oscuras que separen la pieza
-        style={{ background: folderGradient, boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.3)' }}
+        // Eliminamos el boxShadow inset que causaba la línea divisoria
+        style={{ background: folderGradient }}
       >
         {/* Pestaña Izquierda Superior */}
         <div
