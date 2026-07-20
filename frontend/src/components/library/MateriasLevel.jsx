@@ -8,15 +8,15 @@ import { getMateriaColor, getMateriaInitial, lightenColor, darkenColor, hexToRgb
 const OVERFLOW_ACCENT = '#64748B';
 
 // =========================================================================
-// 🗂️ CARCASA DE "CARPETA" REAL (Estilo Semi-Esqueumórfico / Apple)
+// 🗂️ CARCASA DE "CARPETA" PREMIUM (Estilo Semi-Esqueumórfico / Apple)
 // =========================================================================
 function FolderCardShell({ accent, onClick, cornerBadge, children }) {
-  // Color exacto de inicio para la solapa superior
-  const startColor = lightenColor(accent, 0.16);
-  // Degradado fluido para el cuerpo delantero
-  const folderGradient = `linear-gradient(135deg, ${startColor} 0%, ${accent} 55%, ${darkenColor(accent, 0.12)} 100%)`;
+  // Color base exacto superior
+  const startColor = lightenColor(accent, 0.15);
+  // Gradiente vertical puro para asegurar una fusión molecular invisible en la junta horizontal
+  const folderGradient = `linear-gradient(to bottom, ${startColor} 0%, ${accent} 45%, ${darkenColor(accent, 0.12)} 100%)`;
   
-  // Brillo exterior (Outer Glow) suave basado en el color de la materia
+  // Brillo de contorno premium (Outer Glow)
   const glow = `0 20px 32px -10px ${hexToRgba(accent, 0.4)}, 0 4px 12px -4px ${hexToRgba(accent, 0.18)}`;
 
   return (
@@ -26,35 +26,37 @@ function FolderCardShell({ accent, onClick, cornerBadge, children }) {
       style={{ boxShadow: glow }}
       className="relative w-full h-36 rounded-2xl text-left transition-all duration-200 active:scale-[0.97] hover:scale-[1.01] group cursor-pointer select-none border border-black/5 dark:border-white/5 bg-transparent overflow-visible"
     >
-      {/* CAPA 1: TRASERA (Fondo base oscuro de la carpeta) */}
+      {/* CAPA 1: TRASERA (Profundidad interna de la carpeta) */}
       <div
-        className="absolute inset-0 rounded-2xl transition-colors"
-        style={{ backgroundColor: darkenColor(accent, 0.2) }}
+        className="absolute inset-0 rounded-2xl"
+        style={{ backgroundColor: darkenColor(accent, 0.22) }}
       />
 
-      {/* CAPA 2: HOJA INTERIOR (Se asoma de fondo de forma natural) */}
+      {/* CAPA 2: HOJA INTERIOR (Hoja trasera limpia) */}
       <div
-        className="absolute top-2.5 left-2.5 right-2.5 bottom-2.5 rounded-xl bg-white dark:bg-zinc-800 shadow-xs transform translate-y-0 transition-transform duration-300 group-hover:-translate-y-1"
+        className="absolute top-3 left-2.5 right-2.5 bottom-2.5 rounded-xl bg-white dark:bg-zinc-800 shadow-xs transform translate-y-0 transition-transform duration-300 group-hover:-translate-y-1"
       />
 
-      {/* CAPA 3: SOLAPA DELANTERA (Cuerpo + Pestaña con coordenadas fijas) */}
+      {/* CAPA 3: SOLAPA DELANTERA (Cuerpo + Pestaña acoplados verticalmente) */}
       {/* Cuerpo Principal Inferior */}
       <div
-        className="absolute bottom-0 inset-x-0 top-[34px] rounded-b-2xl rounded-tr-xl z-10"
+        className="absolute bottom-0 inset-x-0 top-[38px] rounded-b-2xl rounded-tr-xl z-10"
         style={{ background: folderGradient }}
       >
-        {/* Pestaña Izquierda Superior (Fusionada milimétricamente al cuerpo sin líneas divisorias) */}
+        {/* Pestaña Izquierda Superior (Mismo color base exacto, solapado 1px para matar fugas de pantalla) */}
         <div
-          className="absolute left-0 w-[48%] h-[20px] rounded-t-xl"
+          className="absolute left-0 w-[46%] h-[22px] rounded-t-xl"
           style={{ 
             backgroundColor: startColor, 
-            top: '-19px' // Posicionamiento relativo limpio hacia arriba
+            top: '-21px' 
           }}
-        />
+        >
+          {/* Reflejo de luz solo en el borde superior externo de la pestaña */}
+          <div className="absolute top-0 inset-x-0 h-px bg-white/25 rounded-t-full" />
+        </div>
 
-        {/* Micro reflejos de luz sutiles en los bordes superiores expuestos */}
-        <div className="absolute top-0 right-0 left-[48%] h-px bg-white/15" />
-        <div className="absolute left-0 h-px bg-white/20 w-[48%]" style={{ top: '-19px' }} />
+        {/* Reflejo de luz solo en el escalón exterior derecho */}
+        <div className="absolute top-0 right-0 left-[46%] h-px bg-white/20" />
 
         {/* Contenedor del Texto */}
         <div className="relative h-full w-full p-4 flex flex-col justify-end z-10">
@@ -62,7 +64,7 @@ function FolderCardShell({ accent, onClick, cornerBadge, children }) {
         </div>
       </div>
 
-      {/* CAPA 4: ELEMENTOS INTERACTIVOS (Flotando de forma segura sobre el contenedor global h-36) */}
+      {/* CAPA 4: ELEMENTOS INTERACTIVOS CONTROLES */}
       <div className="absolute inset-0 z-20 pointer-events-none">
         <div className="relative w-full h-full pointer-events-auto">
           {cornerBadge}
@@ -155,7 +157,7 @@ export default function MateriasLevel({
       );
     }
 
-    // MODO GRID FIEL AL COMPONENTE ORIGINAL (GEOMETRÍA PREMIUM CORREGIDA)
+    // MODO GRID: GEOMETRÍA SEAMLESS Y BALANCEADA
     return (
       <div key={m._id} className="relative">
         <FolderCardShell
@@ -163,15 +165,15 @@ export default function MateriasLevel({
           onClick={() => setCurrentPath({ ...currentPath, materiaId: m._id })}
           cornerBadge={
             <>
-              {/* Icono/Inicial: Ubicado perfectamente dentro del espacio real de la solapa izquierda */}
-              <div className="absolute top-[20px] left-3.5">
+              {/* Icono/Inicial: Ubicado armónicamente rompiendo la línea superior, idéntico al diseño original */}
+              <div className="absolute top-[24px] left-3.5">
                 <div className="w-7 h-7 rounded-lg bg-white flex items-center justify-center shadow-xs border border-black/[0.04]">
                   <span className="font-black text-xs tracking-wide" style={{ color: accent }}>{initial}</span>
                 </div>
               </div>
 
-              {/* Botón de opciones: Integrado sólidamente en la sección superior del cuerpo derecho */}
-              <div className="absolute top-[44px] right-3.5" onClick={(e) => e.stopPropagation()}>
+              {/* Botón de opciones: Bajado limpiamente a la altura del panel principal */}
+              <div className="absolute top-[48px] right-3.5" onClick={(e) => e.stopPropagation()}>
                 <button
                   type="button"
                   onClick={() => setActiveMenuId(isMenuOpen ? null : m._id)}
@@ -187,7 +189,7 @@ export default function MateriasLevel({
             </>
           }
         >
-          {/* Contenido inferior alineado a la izquierda */}
+          {/* Contenido inferior */}
           <div className="min-w-0 text-left select-none pointer-events-none">
             <span className="text-[10px] font-bold tracking-wider text-white/60 uppercase block mb-0.5">
               Materia
@@ -201,14 +203,14 @@ export default function MateriasLevel({
     );
   };
 
-  // Celda overflow "+N" adaptada
+  // Celda overflow "+N" balanceada al nuevo sistema
   const renderOverflowCell = () => (
     <div className="relative">
       <FolderCardShell
         accent={OVERFLOW_ACCENT}
         onClick={() => setShowAll(true)}
         cornerBadge={
-          <div className="absolute top-[20px] left-3.5">
+          <div className="absolute top-[24px] left-3.5">
             <div className="w-7 h-7 rounded-lg bg-white flex items-center justify-center shadow-xs border border-black/[0.04]">
               <ArrowRight className="w-3.5 h-3.5" style={{ color: OVERFLOW_ACCENT }} />
             </div>
