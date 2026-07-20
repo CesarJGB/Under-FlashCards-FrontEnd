@@ -248,19 +248,14 @@ export default function MateriasLevel({
 
   return (
     <div className="space-y-6 mt-6">
-      {/* HEADER */}
-      <div className="space-y-2.5">
-        <div className="flex items-center justify-between">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
-            Tus Materias ({materias.length})
-          </h3>
-          {!loading && materias.length > maxVisible && !showAll && (
-            <span className="text-[10px] font-medium text-zinc-400 dark:text-zinc-500">
-              Mostrando {maxVisible}
-            </span>
-          )}
-        </div>
-        <div className="h-px w-full bg-gradient-to-r from-zinc-200 via-zinc-100 to-transparent dark:from-zinc-700 dark:via-zinc-800/60 dark:to-transparent" />
+      {/* HEADER NUEVO */}
+      <div className="flex items-center gap-2.5">
+        <h3 className="text-xl font-black uppercase tracking-tight text-zinc-800 dark:text-zinc-100">
+          Tus Materias
+        </h3>
+        <span className="px-2.5 py-0.5 rounded-full bg-zinc-200/80 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 text-xs font-black">
+          {materias.length}
+        </span>
       </div>
 
       {/* GRID / LISTA */}
