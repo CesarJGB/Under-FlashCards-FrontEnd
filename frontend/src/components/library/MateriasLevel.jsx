@@ -37,7 +37,7 @@ function FolderCardShell({ accent, onClick, cornerBadge, children }) {
         className="absolute top-[14px] left-2.5 right-2.5 bottom-2.5 rounded-xl bg-white dark:bg-zinc-800 shadow-xs transform translate-y-0 transition-transform duration-300 group-hover:-translate-y-1.5"
       />
 
-      {/* CAPA 3: SOLAPA DELANTERA */}
+      {/* CAPA 3: SOLAPA DELANTERA (El frente de color empieza en 52px) */}
       <div
         className="absolute bottom-0 inset-x-0 top-[52px] rounded-b-2xl rounded-tr-xl z-10"
         style={{ background: folderGradient }}
@@ -156,10 +156,13 @@ export default function MateriasLevel({
     // 1. Heurística: detectamos si el texto tendrá 2 líneas basandonos en su longitud.
     const isLongName = m.name.length > 18; 
     
-    // 2. Reglas dinámicas: Usamos la misma variable 'iconTop' para el icono y los 3 puntos
-    const iconTop = isLongName ? 'top-[40px]' : 'top-[46px]'; // Si es largo, sube más para dar espacio al texto; si es corto, bajalo.
-    const iconBoxSize = isLongName ? 'w-6 h-6' : 'w-8 h-8';     // Si es largo, hace el icono más pequeño; si es corto, normal.
-    const iconTextSize = isLongName ? 'text-xs' : 'text-sm';    // Tamaño de la letra acorde al icono.
+    // 2. Reglas dinámicas: 
+    // El frente de la carpeta empieza en 52px. 
+    // Si el nombre es corto (1 línea), el icono baja a top-[58px] para quedar bien adentro.
+    // Si el nombre es largo (2 líneas), el icono sube a top-[54px] y se hace más pequeño para dejar espacio al texto.
+    const iconTop = isLongName ? 'top-[54px]' : 'top-[58px]'; 
+    const iconBoxSize = isLongName ? 'w-6 h-6' : 'w-8 h-8';     
+    const iconTextSize = isLongName ? 'text-xs' : 'text-sm';    
 
     return (
       <div key={m._id} className="relative">
@@ -168,14 +171,14 @@ export default function MateriasLevel({
           onClick={() => setCurrentPath({ ...currentPath, materiaId: m._id })}
           cornerBadge={
             <>
-              {/* Icono/Inicial - Se adapta dinámicamente según las líneas de texto */}
+              {/* Icono/Inicial - Ahora se acomoda DENTRO del frente de color */}
               <div className={`absolute ${iconTop} left-4 transition-all duration-200`}>
                 <div className={`${iconBoxSize} rounded-lg bg-white flex items-center justify-center shadow-md border border-black/5`}>
                   <span className={`font-black ${iconTextSize}`} style={{ color: accent }}>{initial}</span>
                 </div>
               </div>
 
-              {/* Botón de opciones - AHORA ALINEADO AL ICONO (usa iconTop) y con color visible sobre blanco */}
+              {/* Botón de opciones - Alineado con el icono y color visible sobre el fondo de color */}
               <div className={`absolute ${iconTop} right-3.5`} onClick={(e) => e.stopPropagation()}>
                 <button
                   type="button"
@@ -183,7 +186,7 @@ export default function MateriasLevel({
                   className={`p-1.5 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
                     isMenuOpen
                       ? 'bg-zinc-900 text-white shadow-md dark:bg-white dark:text-zinc-900'
-                      : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-700/60 dark:text-zinc-300 dark:hover:bg-zinc-700'
+                      : 'bg-white/20 hover:bg-white/30 text-white backdrop-blur-sm'
                   }`}
                 >
                   <MoreHorizontal className="w-4 h-4" />
@@ -206,7 +209,7 @@ export default function MateriasLevel({
     );
   };
 
-  // Celda overflow "+N" balanceada al sistema (usa el estilo de 1 línea)
+  // Celda overflow "+N" balanceada al sistema (usa el estilo de 1 línea dentro del frente)
   const renderOverflowCell = () => (
     <div className="relative">
       <FolderCardShell
@@ -214,8 +217,8 @@ export default function MateriasLevel({
         onClick={() => setShowAll(true)}
         cornerBadge={
           <>
-            {/* Icono estático bajo las reglas de 1 línea */}
-            <div className="absolute top-[46px] left-4">
+            {/* Icono estático bajo las reglas de 1 línea (top-[58px]) */}
+            <div className="absolute top-[58px] left-4">
               <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-md border border-black/5">
                 <ArrowRight className="w-4 h-4" style={{ color: OVERFLOW_ACCENT }} />
               </div>
