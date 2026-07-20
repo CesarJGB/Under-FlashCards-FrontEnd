@@ -8,12 +8,19 @@ import { getMateriaColor, getMateriaInitial, lightenColor, darkenColor, hexToRgb
 const OVERFLOW_ACCENT = '#64748B';
 
 // =========================================================================
-// 🗂️ CARCASA DE "CARPETA" PREMIUM (Mejorada con estilo Referencia)
+// 🗂️ CARCASA DE "CARPETA" PREMIUM (Unificada y Brillo Blanco Mejorado)
 // =========================================================================
 function FolderCardShell({ accent, onClick, cornerBadge, children }) {
-  const startColor = lightenColor(accent, 0.15);
-  // Degradado en ángulo (160deg) para dar más volumen y realismo tipo botón 3D
-  const folderGradient = `linear-gradient(160deg, ${startColor} 0%, ${accent} 45%, ${darkenColor(accent, 0.2)} 100%)`;
+  // Colores calculados para una transición matemáticamente perfecta
+  const topGloss = lightenColor(accent, 0.35); // Color más blanco para la cima
+  const seamColor = lightenColor(accent, 0.15); // Color exacto de la junta (empareja pestaña con frente)
+  const bottomColor = darkenColor(accent, 0.1); // Sombra suave inferior
+  
+  // Brillo blanco superpuesto para efecto gel/cristal (como tu referencia)
+  const glossOverlay = 'linear-gradient(to bottom, rgba(255,255,255,0.25) 0%, rgba(255,255,255,0) 50%)';
+  
+  const tabGradient = `${glossOverlay}, linear-gradient(to bottom, ${topGloss} 0%, ${seamColor} 100%)`;
+  const folderGradient = `${glossOverlay}, linear-gradient(to bottom, ${seamColor} 0%, ${accent} 55%, ${bottomColor} 100%)`;
   
   const glow = `0 16px 28px -8px ${hexToRgba(accent, 0.45)}, 0 4px 10px -4px ${hexToRgba(accent, 0.2)}`;
 
@@ -38,19 +45,16 @@ function FolderCardShell({ accent, onClick, cornerBadge, children }) {
       {/* CAPA 3: SOLAPA DELANTERA */}
       <div
         className="absolute bottom-0 inset-x-0 top-[38px] rounded-b-2xl rounded-tr-xl z-10"
-        style={{ 
-          background: folderGradient, 
-          // Brillo superior + Sombra interior superior para dar profundidad 3D
-          boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.25), inset 0 6px 12px -6px rgba(0,0,0,0.15)' 
-        }}
+        // Brillo superior sutil, sin sombras oscuras que separen la pieza
+        style={{ background: folderGradient, boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.3)' }}
       >
         {/* Pestaña Izquierda Superior */}
         <div
           className="absolute left-0 w-[55%] h-[22px] rounded-t-xl"
           style={{ 
-            backgroundColor: startColor, 
+            background: tabGradient, 
             top: '-21px',
-            boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.3)' 
+            boxShadow: 'inset 0 1.5px 1px rgba(255, 255, 255, 0.4)' 
           }}
         />
 
@@ -161,7 +165,7 @@ export default function MateriasLevel({
           onClick={() => setCurrentPath({ ...currentPath, materiaId: m._id })}
           cornerBadge={
             <>
-              {/* Icono/Inicial - Ligeramente más grande (w-8 h-8) y mejor posicionado */}
+              {/* Icono/Inicial */}
               <div className="absolute top-[20px] left-4">
                 <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm border border-black/5">
                   <span className="font-black text-sm" style={{ color: accent }}>{initial}</span>
@@ -185,12 +189,11 @@ export default function MateriasLevel({
             </>
           }
         >
-          {/* Contenido inferior - Tipografía mejorada tipo Referencia */}
+          {/* Contenido inferior */}
           <div className="min-w-0 text-left select-none pointer-events-none">
             <span className="text-[9px] font-bold tracking-widest text-white/70 uppercase block mb-1">
               Materia
             </span>
-            {/* Texto más grande y pesado (text-base font-black) para destacar como en la referencia */}
             <p className="font-black text-base leading-tight text-white line-clamp-2 drop-shadow-sm">
               {m.name}
             </p>
