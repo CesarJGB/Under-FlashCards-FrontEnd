@@ -29,15 +29,24 @@ export default function LibraryFAB({
 
   const isTemasLevel = currentPath.materiaId !== null && currentPath.parcialNumber !== null && currentPath.temaId === null;
 
-  // FAB Con efecto Liquid Glass
+  // FAB Con efecto Liquid Glass Mejorado
   const fabButton = !fabOpen && !isParcialesLevel && (
     <button
       type="button"
       onClick={() => setFabOpen(true)}
-      className="absolute right-6 w-14 h-14 rounded-2xl bg-white/15 dark:bg-white/10 backdrop-blur-lg backdrop-saturate-200 backdrop-brightness-110 border border-white/25 dark:border-white/15 border-t-white/70 dark:border-t-white/40 border-b-white/10 dark:border-b-white/5 text-zinc-900 dark:text-white shadow-[0_8px_24px_-4px_rgba(0,0,0,0.25),0_2px_8px_-2px_rgba(0,0,0,0.15),inset_0_1px_1px_0_rgba(255,255,255,0.6),inset_0_-1px_2px_0_rgba(0,0,0,0.05)] flex items-center justify-center z-50 hover:bg-white/25 dark:hover:bg-white/18 hover:scale-105 active:scale-[0.92] transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] cursor-pointer md:fixed"
+      className="absolute right-6 w-14 h-14 rounded-[1.3rem] md:fixed flex items-center justify-center z-50 cursor-pointer
+      /* Base de vidrio: más blur y saturación para que lo de atrás se vea como a través de agua */
+      bg-white/25 dark:bg-white/10 backdrop-blur-2xl backdrop-saturate-150
+      /* Bordes: brillante arriba, oscuro abajo para simular grosor */
+      border border-white/40 dark:border-white/20
+      /* Sombras: Sombra exterior profunda + brillo superior interno + sombra inferior interna */
+      shadow-[0_10px_30px_-5px_rgba(0,0,0,0.3),0_4px_12px_-4px_rgba(0,0,0,0.2),inset_0_1.5px_1px_0_rgba(255,255,255,0.8),inset_0_-1.5px_2px_0_rgba(0,0,0,0.1)]
+      /* Animaciones */
+      hover:bg-white/40 dark:hover:bg-white/20 hover:scale-105 active:scale-95 transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]"
       style={{ bottom: 'calc(env(safe-area-inset-bottom) + 6rem)' }}
     >
-      <Plus className="w-6 h-6 stroke-[2.5] drop-shadow-[0_1px_3px_rgba(0,0,0,0.35)]" />
+      {/* El ícono necesita una sombra fuerte para leerse sobre cualquier fondo */}
+      <Plus className="w-6 h-6 stroke-[2.5] text-zinc-800 dark:text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.4)]" />
     </button>
   );
 
@@ -59,8 +68,8 @@ export default function LibraryFAB({
             animation: 'slideUp 0.4s cubic-bezier(0.32, 0.72, 0, 1) forwards'
           }}
         >
-          {/* Contenedor blanco completo */}
-          <div className="bg-white dark:bg-zinc-900 rounded-t-3xl shadow-2xl border-t border-zinc-100 dark:border-zinc-800">
+          {/* Contenedor con efecto vidrio premium en lugar de blanco sólido */}
+          <div className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-2xl backdrop-saturate-150 rounded-t-3xl shadow-[0_-10px_30px_-10px_rgba(0,0,0,0.2)] border-t border-white/40 dark:border-white/10">
             
             {/* Handle */}
             <div className="flex justify-center pt-3 pb-4">
@@ -103,7 +112,7 @@ export default function LibraryFAB({
                   onClick={() => { setFabOpen(false); setModal({}); }}
                   className="w-full bg-slate-50 dark:bg-zinc-800/60 border border-slate-200 dark:border-zinc-700/60 rounded-3xl p-5 text-left hover:shadow-md active:scale-[0.98] transition-all duration-200 cursor-pointer"
                   style={{
-                    animation: 'cardIn 0.35s cubic-bezier(0.32, 0.72, 0, 1) 0.14s both'
+                    animation: 'cardIn 0.35s cubic-bezier(0.32,0.72,0,1) 0.14s both'
                   }}
                 >
                   <div className="flex items-center gap-4">
@@ -130,7 +139,7 @@ export default function LibraryFAB({
                   disabled={importing}
                   className="w-full bg-slate-50 dark:bg-zinc-800/60 border border-slate-200 dark:border-zinc-700/60 rounded-3xl p-5 text-left hover:shadow-md active:scale-[0.98] transition-all duration-200 disabled:opacity-50 cursor-pointer"
                   style={{
-                    animation: 'cardIn 0.35s cubic-bezier(0.32, 0.72, 0, 1) 0.20s both'
+                    animation: 'cardIn 0.35s cubic-bezier(0.32,0.72,0,1) 0.20s both'
                   }}
                 >
                   <div className="flex items-center gap-4">
