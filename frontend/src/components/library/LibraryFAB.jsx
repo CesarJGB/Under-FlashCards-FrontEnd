@@ -29,26 +29,26 @@ export default function LibraryFAB({
 
   const isTemasLevel = currentPath.materiaId !== null && currentPath.parcialNumber !== null && currentPath.temaId === null;
 
-  // FAB Con efecto Liquid Glass Corregido (Visible sobre fondos coloridos)
+  // FAB Con efecto Liquid Glass (Alta transparencia para lectura)
   const fabButton = !fabOpen && !isParcialesLevel && (
     <button
       type="button"
       onClick={() => setFabOpen(true)}
       className="absolute right-6 w-14 h-14 rounded-[1.3rem] md:fixed flex items-center justify-center z-50 cursor-pointer
-      /* Degradado de vidrio: Brillante arriba, con cuerpo abajo para no perderse */
-      bg-gradient-to-b from-white/70 to-white/30 dark:from-white/30 dark:to-white/10
-      /* Blur fuerte para difuminar los colores de atrás */
-      backdrop-blur-xl backdrop-saturate-150
-      /* Bordes brillantes */
-      border border-white/60 dark:border-white/20
-      /* Sombras: Sombra exterior profunda + brillo superior interno + sombra inferior interna */
-      shadow-[0_10px_30px_-5px_rgba(0,0,0,0.3),0_4px_12px_-4px_rgba(0,0,0,0.2),inset_0_1.5px_1.5px_0_rgba(255,255,255,0.9),inset_0_-2px_3px_0_rgba(0,0,0,0.1)]
+      /* Base muy transparente para que se lea lo de atrás */
+      bg-gradient-to-b from-white/30 to-white/5 dark:from-white/15 dark:to-white/5
+      /* Blur moderado: si es muy fuerte no se lee el texto detrás, este punto difumina sin perder la letra */
+      backdrop-blur-md backdrop-saturate-150
+      /* Bordes brillantes para definir la forma del cristal */
+      border border-white/60 dark:border-white/30
+      /* Sombras: Mucho brillo arriba y sombra abajo para dar grosor al cristal */
+      shadow-[0_8px_25px_-5px_rgba(0,0,0,0.3),0_3px_10px_-3px_rgba(0,0,0,0.2),inset_0_1.5px_1px_0_rgba(255,255,255,0.9),inset_0_-2px_2px_0_rgba(0,0,0,0.1)]
       /* Animaciones */
-      hover:from-white/80 hover:to-white/40 hover:scale-105 active:scale-95 transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]"
+      hover:from-white/40 hover:to-white/10 hover:scale-105 active:scale-95 transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]"
       style={{ bottom: 'calc(env(safe-area-inset-bottom) + 6rem)' }}
     >
-      {/* Ícono más grande, grueso y con sombra fuerte para máxima legibilidad */}
-      <Plus className="w-7 h-7 stroke-[3] text-zinc-900 dark:text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]" />
+      {/* Ícono con sombra muy fuerte para que sobresalga del cristal transparente */}
+      <Plus className="w-7 h-7 stroke-[3] text-zinc-900 dark:text-white drop-shadow-[0_2px_5px_rgba(0,0,0,0.6)]" />
     </button>
   );
 
