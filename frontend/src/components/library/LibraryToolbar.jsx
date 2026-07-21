@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import {
   Search,
-  SlidersHorizontal,
+  Filter, // Cambiamos SlidersHorizontal por Filter para matchear la referencia
   Grid,
   List,
   Check,
@@ -35,35 +35,39 @@ export default function LibraryToolbar({
   const hasActiveFilter = sortBy !== DEFAULT_SORT;
 
   return (
-    <div className="mt-1.5 flex gap-2 items-center w-full relative">
+    // Aumenté un poco el margen superior y separación para que respire mejor
+    <div className="mt-3 flex gap-3 items-center w-full relative">
 
-      {/* Input de Búsqueda de Mazos */}
+      {/* Input de Búsqueda de Mazos - Estilo Moderno Sin Bordes */}
       <div className="relative flex-1">
-        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-slate-400" />
         <input
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Buscar"
-          className="w-full h-11 pl-10 pr-4 bg-slate-50 border border-slate-200/80 rounded-2xl text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-300 focus:bg-white placeholder:text-slate-400 shadow-3xs transition-all"
+          placeholder="Buscar..." // Texto más limpio como en la referencia
+          // Cambios clave: bg-slate-100, sin border, rounded-2xl, text-sm, sombra suave al hacer focus
+          className="w-full h-12 pl-11 pr-4 bg-slate-100 rounded-2xl text-sm font-medium text-slate-700 outline-none focus:bg-white focus:ring-2 focus:ring-slate-900/5 focus:shadow-[0_4px_12px_rgba(0,0,0,0.05)] placeholder:text-slate-400 transition-all"
         />
       </div>
 
-      {/* Botón de Opciones (Ordenar + Vista) */}
+      {/* Botón de Opciones (Ordenar + Vista) - Estilo Moderno Sin Bordes */}
       <div className="relative">
         <button
           type="button"
           onClick={() => setOptionsOpen(!optionsOpen)}
-          className={`relative w-11 h-11 border text-slate-500 rounded-2xl shadow-3xs transition-all active:scale-[0.97] flex items-center justify-center cursor-pointer ${
+          // Cambios clave: w-12 h-12, bg-slate-100, sin border, sombra sutil al activar
+          className={`relative w-12 h-12 rounded-2xl flex items-center justify-center cursor-pointer transition-all active:scale-[0.95] ${
             optionsOpen
-              ? 'bg-slate-900 border-slate-900 text-white'
-              : 'bg-slate-50 border-slate-200/80 hover:text-slate-900 hover:bg-slate-100'
+              ? 'bg-slate-900 text-white shadow-lg shadow-slate-900/20'
+              : 'bg-slate-100 text-slate-500 hover:bg-slate-200/70 hover:text-slate-900'
           }`}
           title="Opciones de biblioteca"
         >
-          <SlidersHorizontal className="w-4 h-4" />
+          <Filter className="w-[18px] h-[18px]" />
           {hasActiveFilter && !optionsOpen && (
-            <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-slate-900 ring-2 ring-white" />
+            // El punto de "filtro activo" ahora tiene un color azul/índigo para destacar sobre el gris
+            <span className="absolute top-2.5 right-2.5 w-2 h-2 rounded-full bg-indigo-500 ring-2 ring-slate-100" />
           )}
         </button>
 
@@ -74,10 +78,11 @@ export default function LibraryToolbar({
               className="fixed inset-0 z-40 bg-transparent"
               onClick={() => setOptionsOpen(false)}
             />
-            <div className="absolute right-0 mt-2 w-64 origin-top-right bg-white/95 backdrop-blur border border-slate-200/80 rounded-2xl shadow-xl shadow-slate-900/10 z-50 p-1.5 animate-[slideUp_0.15s_ease-out] flex flex-col gap-0.5">
+            {/* Mejorado el shadow y el borde del dropdown */}
+            <div className="absolute right-0 mt-2 w-64 origin-top-right bg-white/95 backdrop-blur-xl border border-slate-100 rounded-2xl shadow-2xl shadow-slate-900/10 z-50 p-1.5 animate-[slideUp_0.15s_ease-out] flex flex-col gap-0.5">
 
               {/* SECCIÓN 1: ORDENAMIENTO */}
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2.5 py-1 block">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2.5 py-1.5 block">
                 Ordenar por
               </span>
 
@@ -89,47 +94,47 @@ export default function LibraryToolbar({
                     key={opt.value}
                     type="button"
                     onClick={() => { setSortBy(opt.value); setOptionsOpen(false); }}
-                    className={`w-full text-left px-2.5 py-1.5 hover:bg-slate-50 text-[11px] font-bold rounded-xl flex items-center gap-2 transition-colors cursor-pointer ${
+                    className={`w-full text-left px-2.5 py-2 hover:bg-slate-50 text-[12px] font-semibold rounded-xl flex items-center gap-2.5 transition-colors cursor-pointer ${
                       isActive ? 'text-slate-950 bg-slate-50' : 'text-slate-600'
                     }`}
                   >
-                    <Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-slate-900' : 'text-slate-400'}`} />
+                    <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-slate-900' : 'text-slate-400'}`} />
                     <span className="flex-1">{opt.label}</span>
-                    {isActive && <Check className="w-3.5 h-3.5 text-slate-900 stroke-[2.5]" />}
+                    {isActive && <Check className="w-4 h-4 text-slate-900 stroke-[2.5]" />}
                   </button>
                 );
               })}
 
               {/* SEPARATOR */}
-              <div className="my-1 border-t border-slate-100" />
+              <div className="my-1.5 border-t border-slate-100" />
 
               {/* SECCIÓN 2: INTERCAMBIADOR DE VISTA */}
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2.5 py-1 block">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2.5 py-1.5 block">
                 Visualización
               </span>
 
               <button
                 type="button"
                 onClick={() => { setViewMode('grid'); setOptionsOpen(false); }}
-                className={`w-full text-left px-2.5 py-1.5 hover:bg-slate-50 text-[11px] font-bold rounded-xl flex items-center gap-2 transition-colors cursor-pointer ${
+                className={`w-full text-left px-2.5 py-2 hover:bg-slate-50 text-[12px] font-semibold rounded-xl flex items-center gap-2.5 transition-colors cursor-pointer ${
                   viewMode === 'grid' ? 'text-slate-950 bg-slate-50' : 'text-slate-600'
                 }`}
               >
-                <Grid className={`w-3.5 h-3.5 ${viewMode === 'grid' ? 'text-slate-900' : 'text-slate-400'}`} />
+                <Grid className={`w-4 h-4 ${viewMode === 'grid' ? 'text-slate-900' : 'text-slate-400'}`} />
                 <span className="flex-1">Vista cuadrícula</span>
-                {viewMode === 'grid' && <Check className="w-3.5 h-3.5 text-slate-900 stroke-[2.5]" />}
+                {viewMode === 'grid' && <Check className="w-4 h-4 text-slate-900 stroke-[2.5]" />}
               </button>
 
               <button
                 type="button"
                 onClick={() => { setViewMode('list'); setOptionsOpen(false); }}
-                className={`w-full text-left px-2.5 py-1.5 hover:bg-slate-50 text-[11px] font-bold rounded-xl flex items-center gap-2 transition-colors cursor-pointer ${
+                className={`w-full text-left px-2.5 py-2 hover:bg-slate-50 text-[12px] font-semibold rounded-xl flex items-center gap-2.5 transition-colors cursor-pointer ${
                   viewMode === 'list' ? 'text-slate-950 bg-slate-50' : 'text-slate-600'
                 }`}
               >
-                <List className={`w-3.5 h-3.5 ${viewMode === 'list' ? 'text-slate-900' : 'text-slate-400'}`} />
+                <List className={`w-4 h-4 ${viewMode === 'list' ? 'text-slate-900' : 'text-slate-400'}`} />
                 <span className="flex-1">Vista lista</span>
-                {viewMode === 'list' && <Check className="w-3.5 h-3.5 text-slate-900 stroke-[2.5]" />}
+                {viewMode === 'list' && <Check className="w-4 h-4 text-slate-900 stroke-[2.5]" />}
               </button>
 
             </div>
