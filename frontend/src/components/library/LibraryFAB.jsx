@@ -34,10 +34,10 @@ export default function LibraryFAB({
     <button
       type="button"
       onClick={() => setFabOpen(true)}
-      className="absolute right-6 w-14 h-14 rounded-2xl bg-white/70 dark:bg-zinc-900/70 backdrop-blur-xl border border-white/80 dark:border-white/10 text-zinc-900 dark:text-white shadow-xl shadow-black/10 flex items-center justify-center z-50 hover:bg-white/90 dark:hover:bg-zinc-900/90 hover:scale-105 active:scale-90 transition-all duration-200 cursor-pointer md:fixed"
+      className="absolute right-6 w-14 h-14 rounded-2xl bg-white/40 dark:bg-zinc-900/40 backdrop-blur-2xl backdrop-saturate-150 backdrop-brightness-105 border border-t-white/60 border-x-white/30 border-b-white/10 dark:border-t-white/15 dark:border-x-white/10 dark:border-b-white/5 text-zinc-900 dark:text-white shadow-[0_10px_30px_-6px_rgba(0,0,0,0.18),0_2px_10px_-2px_rgba(0,0,0,0.12),inset_0_1px_0_0_rgba(255,255,255,0.5)] dark:shadow-[0_10px_30px_-6px_rgba(0,0,0,0.6),0_2px_10px_-2px_rgba(0,0,0,0.4),inset_0_1px_0_0_rgba(255,255,255,0.08)] flex items-center justify-center z-50 hover:bg-white/55 dark:hover:bg-zinc-900/55 hover:scale-105 active:scale-[0.92] transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] cursor-pointer md:fixed"
       style={{ bottom: 'calc(env(safe-area-inset-bottom) + 6rem)' }}
     >
-      <Plus className="w-6 h-6 stroke-[2.5]" />
+      <Plus className="w-6 h-6 stroke-[2.5] drop-shadow-sm" />
     </button>
   );
 
