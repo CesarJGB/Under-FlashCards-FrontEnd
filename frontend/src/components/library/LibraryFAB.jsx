@@ -39,11 +39,16 @@ export default function LibraryFAB({
       bg-white/10 dark:bg-white/5
       /* Blur mínimo (3px): suficiente para sentir cristal, pero no difuminar letras */
       backdrop-blur-[3px] backdrop-saturate-100
-      /* Bordes sutiles pero definidos para dar la forma */
-      border border-white/40 dark:border-white/20
-      /* Sombras internas para simular el grosor del vidrio sin usar fondo opaco */
-      shadow-[0_8px_20px_-4px_rgba(0,0,0,0.25),inset_0_1px_1px_0_rgba(255,255,255,0.7),inset_0_-1.5px_1.5px_0_rgba(0,0,0,0.1)]
-      hover:bg-white/20 dark:hover:bg-white/10 hover:scale-105 active:scale-95 transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]"
+      /* Doble borde: bisel nítido + anillo interior para sensación de grosor */
+      border border-white/50 dark:border-white/25
+      ring-1 ring-inset ring-white/30 dark:ring-white/10
+      /* Sombras múltiples: exterior amplia (profundidad) + insets (refracción del borde) */
+      shadow-[0_10px_30px_-6px_rgba(0,0,0,0.35),0_4px_10px_-2px_rgba(0,0,0,0.15),inset_0_1.5px_0.5px_0_rgba(255,255,255,0.9),inset_0_-1.5px_1px_-0.5px_rgba(0,0,0,0.18),inset_1px_0_1px_-0.5px_rgba(255,255,255,0.4),inset_-1px_0_1px_-0.5px_rgba(0,0,0,0.12)]
+      hover:bg-white/15 dark:hover:bg-white/10 hover:scale-105 active:scale-95 transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]
+      /* Pseudo before: destello radial superior, clásico del liquid glass */
+      before:absolute before:inset-0 before:rounded-[1.3rem] before:pointer-events-none before:bg-[radial-gradient(80%_60%_at_50%_-5%,rgba(255,255,255,0.45)_0%,rgba(255,255,255,0.08)_35%,transparent_70%)] before:opacity-90
+      /* Pseudo after: borde interior sutil con blend para dar textura de cristal pulido */
+      after:absolute after:inset-[1px] after:rounded-[1.2rem] after:pointer-events-none after:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.18)] after:mix-blend-overlay"
       style={{ bottom: 'calc(env(safe-area-inset-bottom) + 6rem)' }}
     >
       {/* 
@@ -51,8 +56,9 @@ export default function LibraryFAB({
         Al poner un icono negro sobre un fondo oscuro (tarjeta gris), se pierde.
         Solución: Le damos una sombra blanca hacia arriba y una negra hacia abajo.
         Esto crea un "halo" que separa el icono de cualquier fondo, claro u oscuro.
+        relative para que quede encima de los pseudo-elementos.
       */}
-      <Plus className="w-7 h-7 stroke-[3] text-slate-800 dark:text-white drop-shadow-[0_1px_1px_rgba(255,255,255,0.8)] dark:drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
+      <Plus className="relative w-7 h-7 stroke-[3] text-slate-800 dark:text-white drop-shadow-[0_1px_1px_rgba(255,255,255,0.8)] dark:drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
     </button>
   );
 
