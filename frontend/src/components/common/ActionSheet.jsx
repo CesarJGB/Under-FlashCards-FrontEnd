@@ -1,8 +1,9 @@
 import { isValidElement, useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { Check } from 'lucide-react';
 import { useBodyScrollLock } from '../../lib/scrollLock';
 
-export default function ActionSheet({ open, title, options, onClose }) {
+export default function ActionSheet({ open, title, options, onClose, selectedId }) {
   const dialogRef = useRef(null);
   const id = useId();
   const titleId = `${id}-title`;
@@ -38,6 +39,7 @@ export default function ActionSheet({ open, title, options, onClose }) {
   if (!open || typeof document === 'undefined') return null;
 
   const actionOptions = Array.isArray(options) ? options : [];
+  const isSelectable = selectedId !== undefined;
 
   return createPortal(
     <>
@@ -69,7 +71,8 @@ export default function ActionSheet({ open, title, options, onClose }) {
             if (!option) return null;
 
             const Icon = option.icon;
-            const isPrimary = index === 0;
+            const isSelected = isSelectable && option.id === selectedId;
+            const isPrimary = isSelectable ? isSelected : index === 0;
 
             return (
               <button
@@ -104,6 +107,9 @@ export default function ActionSheet({ open, title, options, onClose }) {
                       <p className={`text-sm leading-snug ${isPrimary ? 'text-slate-700' : 'text-slate-600'}`}>{option.description}</p>
                     )}
                   </div>
+                  {isSelected && (
+                    <Check className="w-5 h-5 text-indigo-600 stroke-[2.5] flex-shrink-0" aria-hidden="true" />
+                  )}
                 </div>
               </button>
             );
