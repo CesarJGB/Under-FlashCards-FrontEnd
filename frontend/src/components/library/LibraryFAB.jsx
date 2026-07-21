@@ -29,34 +29,36 @@ export default function LibraryFAB({
 
   const isTemasLevel = currentPath.materiaId !== null && currentPath.parcialNumber !== null && currentPath.temaId === null;
 
-  // FAB Con efecto Liquid Glass Mejorado
+  // FAB Con efecto Liquid Glass Corregido (Visible sobre fondos coloridos)
   const fabButton = !fabOpen && !isParcialesLevel && (
     <button
       type="button"
       onClick={() => setFabOpen(true)}
       className="absolute right-6 w-14 h-14 rounded-[1.3rem] md:fixed flex items-center justify-center z-50 cursor-pointer
-      /* Base de vidrio: más blur y saturación para que lo de atrás se vea como a través de agua */
-      bg-white/25 dark:bg-white/10 backdrop-blur-2xl backdrop-saturate-150
-      /* Bordes: brillante arriba, oscuro abajo para simular grosor */
-      border border-white/40 dark:border-white/20
+      /* Degradado de vidrio: Brillante arriba, con cuerpo abajo para no perderse */
+      bg-gradient-to-b from-white/70 to-white/30 dark:from-white/30 dark:to-white/10
+      /* Blur fuerte para difuminar los colores de atrás */
+      backdrop-blur-xl backdrop-saturate-150
+      /* Bordes brillantes */
+      border border-white/60 dark:border-white/20
       /* Sombras: Sombra exterior profunda + brillo superior interno + sombra inferior interna */
-      shadow-[0_10px_30px_-5px_rgba(0,0,0,0.3),0_4px_12px_-4px_rgba(0,0,0,0.2),inset_0_1.5px_1px_0_rgba(255,255,255,0.8),inset_0_-1.5px_2px_0_rgba(0,0,0,0.1)]
+      shadow-[0_10px_30px_-5px_rgba(0,0,0,0.3),0_4px_12px_-4px_rgba(0,0,0,0.2),inset_0_1.5px_1.5px_0_rgba(255,255,255,0.9),inset_0_-2px_3px_0_rgba(0,0,0,0.1)]
       /* Animaciones */
-      hover:bg-white/40 dark:hover:bg-white/20 hover:scale-105 active:scale-95 transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]"
+      hover:from-white/80 hover:to-white/40 hover:scale-105 active:scale-95 transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]"
       style={{ bottom: 'calc(env(safe-area-inset-bottom) + 6rem)' }}
     >
-      {/* El ícono necesita una sombra fuerte para leerse sobre cualquier fondo */}
-      <Plus className="w-6 h-6 stroke-[2.5] text-zinc-800 dark:text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.4)]" />
+      {/* Ícono más grande, grueso y con sombra fuerte para máxima legibilidad */}
+      <Plus className="w-7 h-7 stroke-[3] text-zinc-900 dark:text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]" />
     </button>
   );
 
   const fabOverlays = (
     <>
-      {/* Backdrop con fade suave */}
+      {/* Backdrop oscurecido para enfocar en el menú */}
       {fabOpen && (
         <div
           onClick={() => setFabOpen(false)}
-          className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-40 animate-[fadeIn_0.25s_ease-out]"
+          className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-40 animate-[fadeIn_0.25s_ease-out]"
         />
       )}
 
@@ -68,8 +70,8 @@ export default function LibraryFAB({
             animation: 'slideUp 0.4s cubic-bezier(0.32, 0.72, 0, 1) forwards'
           }}
         >
-          {/* Contenedor con efecto vidrio premium en lugar de blanco sólido */}
-          <div className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-2xl backdrop-saturate-150 rounded-t-3xl shadow-[0_-10px_30px_-10px_rgba(0,0,0,0.2)] border-t border-white/40 dark:border-white/10">
+          {/* Contenedor: Subimos la opacidad al 95% para que el texto sea 100% legible */}
+          <div className="bg-white/95 dark:bg-zinc-900/95 backdrop-blur-2xl backdrop-saturate-150 rounded-t-3xl shadow-[0_-10px_30px_-10px_rgba(0,0,0,0.2)] border-t border-white/40 dark:border-white/10">
             
             {/* Handle */}
             <div className="flex justify-center pt-3 pb-4">
