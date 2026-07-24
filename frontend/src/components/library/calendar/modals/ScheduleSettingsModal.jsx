@@ -1,11 +1,18 @@
 // FILE: frontend/src/components/library/calendar/modals/ScheduleSettingsModal.jsx
+import { useState } from 'react';
 import { Check, Minus, Plus } from 'lucide-react';
 
 export default function ScheduleSettingsModal({ 
-  scheduleName, setScheduleName, 
-  daysCount, setDaysCount, 
-  onClose 
+  scheduleName, daysCount, onSave, onClose 
 }) {
+  const [draftName, setDraftName] = useState(scheduleName);
+  const [draftDays, setDraftDays] = useState(daysCount);
+
+  const handleDone = () => {
+    onSave({ name: draftName, daysCount: draftDays });
+    onClose();
+  };
+
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 animate-[fadeIn_0.15s_ease]">
       <div className="w-full max-w-sm bg-slate-100 rounded-3xl p-5 shadow-2xl space-y-4">
@@ -14,7 +21,7 @@ export default function ScheduleSettingsModal({
           <h3 className="text-base font-extrabold text-slate-900">Ajustes</h3>
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleDone}
             className="w-7 h-7 bg-blue-500 rounded-full flex items-center justify-center text-white cursor-pointer"
           >
             <Check className="w-4 h-4 stroke-[3]" />
@@ -33,8 +40,8 @@ export default function ScheduleSettingsModal({
               </span>
               <input
                 type="text"
-                value={scheduleName}
-                onChange={(e) => setScheduleName(e.target.value)}
+                value={draftName}
+                onChange={(e) => setDraftName(e.target.value)}
                 className="text-xs font-medium text-slate-500 text-right bg-transparent focus:outline-none focus:text-slate-900 max-w-[130px]"
               />
             </div>
@@ -42,21 +49,21 @@ export default function ScheduleSettingsModal({
             <div className="p-3.5 flex items-center justify-between">
               <div>
                 <span className="text-xs font-bold text-slate-800 block">Días</span>
-                <span className="text-[11px] font-medium text-slate-400">{daysCount} días</span>
+                <span className="text-[11px] font-medium text-slate-400">{draftDays} días</span>
               </div>
               <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
                 <button
                   type="button"
-                  disabled={daysCount <= 5}
-                  onClick={() => setDaysCount((prev) => Math.max(5, prev - 1))}
+                  disabled={draftDays <= 5}
+                  onClick={() => setDraftDays((prev) => Math.max(5, prev - 1))}
                   className="p-1 rounded-lg hover:bg-white disabled:opacity-30 cursor-pointer"
                 >
                   <Minus className="w-3.5 h-3.5 text-slate-700" />
                 </button>
                 <button
                   type="button"
-                  disabled={daysCount >= 7}
-                  onClick={() => setDaysCount((prev) => Math.min(7, prev + 1))}
+                  disabled={draftDays >= 7}
+                  onClick={() => setDraftDays((prev) => Math.min(7, prev + 1))}
                   className="p-1 rounded-lg hover:bg-white disabled:opacity-30 cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5 text-slate-700" />
