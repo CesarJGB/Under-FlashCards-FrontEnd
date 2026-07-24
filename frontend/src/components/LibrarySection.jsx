@@ -7,11 +7,12 @@ import LibraryToolbar from './library/LibraryToolbar';
 import LibraryFAB from './library/LibraryFAB';
 import LibrarySectionSwitcher from './library/LibrarySectionSwitcher';
 import GeneralSection from './library/GeneralSection';
+import ScheduleCalendar from './library/ScheduleCalendar'; // 💡 Importación del calendario
 
 import Breadcrumbs from './library/Breadcrumbs';
 import MateriasLevel from './library/MateriasLevel';
 import ParcialesLevel from './library/ParcialesLevel';
-import InfoLevel from './library/InfoLevel'; // 💡 Importación del nuevo nivel añadida
+import InfoLevel from './library/InfoLevel';
 import TemasLevel from './library/TemasLevel';
 import SubtemasLevel from './library/SubtemasLevel';
 import AcademicFolderModal from './library/AcademicFolderModal';
@@ -36,9 +37,9 @@ export default function LibrarySection({
   }, [loadDecks, loadMaterias]);
 
   // =========================================================================
-  // 🧭 SWITCHER BIBLIOTECA / GENERAL
+  // 🧭 SWITCHER BIBLIOTECA / GENERAL / CALENDAR
   // =========================================================================
-  const [sectionMode, setSectionMode] = useState('biblioteca'); // 'biblioteca' | 'general'
+  const [sectionMode, setSectionMode] = useState('biblioteca'); // 'biblioteca' | 'general' | 'calendar'
 
   const {
     currentPath, setCurrentPath, temas, setTemas, subtemas, setSubtemas,
@@ -145,7 +146,6 @@ export default function LibrarySection({
       
       const updated = await res.json();
 
-      // Actualizar estado local según tipo
         if (type === 'materia') {
         const nextMaterias = materias.map(m => m._id === updated._id ? { ...m, ...updated } : m)
           .sort((a, b) => a.name.localeCompare(b.name));
@@ -316,7 +316,9 @@ export default function LibrarySection({
       <LibrarySectionSwitcher sectionMode={sectionMode} setSectionMode={setSectionMode} />
 
       {sectionMode === 'general' ? (
-        <GeneralSection />
+        <GeneralSection onOpenCalendar={() => setSectionMode('calendar')} />
+      ) : sectionMode === 'calendar' ? (
+        <ScheduleCalendar onBack={() => setSectionMode('general')} />
       ) : (
         <>
           <div className="mt-3">
@@ -384,14 +386,12 @@ export default function LibrarySection({
                     activeMateriaName={activeMateriaName}
                     materia={materias.find(m => (m._id || m.id) === currentPath.materiaId)}
                     onActiveParcialesChange={async (materiaId, newActive) => {
-                      // 1) Actualizar estado local y cache de materias inmediatamente
                       const updated = materias.map(m =>
                         (m._id || m.id) === materiaId ? { ...m, activeParciales: newActive } : m
                       );
                       setMaterias(updated);
                       setJSON(`materias_${userId}`, updated);
 
-                      // 2) Prefetch del nuevo domain-preview para evitar parpadeo
                       try {
                         const key = `domainPreviews_${userId}`;
                         const cached = getJSON(key) || {};
@@ -438,8 +438,6 @@ export default function LibrarySection({
                         window.dispatchEvent(new CustomEvent('domainPreviews:invalidate', {
                           detail: { userId, materiaId: String(materiaId) }
                         }));
-
-                        console.error('[LibrarySection] Error prefetching domain preview', err);
                       }
                     }}
                     filterActiveOnly={currentPath.filterActiveParciales}
@@ -447,7 +445,7 @@ export default function LibrarySection({
                   />
                 )}
 
-                {/* 💡 2.5. NUEVO NIVEL: INFORMACIÓN DE LA MATERIA */}
+                {/* 2.5. NIVEL: INFORMACIÓN DE LA MATERIA */}
                 {currentPath.materiaId !== null && currentPath.parcialNumber === 'info' && (
                   <InfoLevel
                     materia={materias.find(m => (m._id || m.id) === currentPath.materiaId)}
@@ -459,7 +457,7 @@ export default function LibrarySection({
                   />
                 )}
 
-                {/* 3. NIVEL TEMAS (Exclusión de 'info' añadida) */}
+                {/* 3. NIVEL TEMAS */}
                 {currentPath.materiaId !== null && 
                  currentPath.parcialNumber !== null && 
                  currentPath.parcialNumber !== 'info' && 
@@ -484,7 +482,7 @@ export default function LibrarySection({
                   />
                 )}
 
-                {/* 4. NIVEL SUBTEMAS (Exclusión de 'info' añadida) */}
+                {/* 4. NIVEL SUBTEMAS */}
                 {currentPath.materiaId !== null && 
                  currentPath.parcialNumber !== null && 
                  currentPath.parcialNumber !== 'info' && 
