@@ -10,10 +10,12 @@ import ClassFormModal from './calendar/modals/ClassFormModal';
 import ClassDetailModal from './calendar/modals/ClassDetailModal';
 import ScheduleSettingsModal from './calendar/modals/ScheduleSettingsModal';
 
-export default function ScheduleCalendar({ onBack, dashboardShell }) {
+export default function ScheduleCalendar({ userId, scheduleId, onBack, dashboardShell }) {
   const {
-    scheduleName, setScheduleName,
-    daysCount, setDaysCount,
+    loading,
+    error,
+    scheduleName,
+    daysCount,
     classes,
     activeDayIndex, setActiveDayIndex,
     currentDayClasses,
@@ -29,8 +31,17 @@ export default function ScheduleCalendar({ onBack, dashboardShell }) {
     formEndTime, setFormEndTime,
     handleSaveClass,
     handleDeleteClass,
-    handleUpdateAttendance
-  } = useScheduleCalendar();
+    handleUpdateAttendance,
+    handleUpdateSettings,
+  } = useScheduleCalendar(userId, scheduleId);
+
+  if (loading) {
+    return (
+      <div className="w-full max-w-2xl mx-auto py-20 text-center text-sm text-slate-400">
+        Cargando horario...
+      </div>
+    );
+  }
 
   return (
     <div className="w-full max-w-2xl mx-auto pb-20 animate-[fadeIn_0.15s_ease] select-none">
@@ -39,6 +50,12 @@ export default function ScheduleCalendar({ onBack, dashboardShell }) {
         scheduleName={scheduleName} 
         onOpenSettings={() => setShowSettings(true)} 
       />
+
+      {error && (
+        <div className="mx-2 mb-4 px-3 py-2 bg-red-50 border border-red-200 rounded-xl text-xs font-medium text-red-700">
+          {error}
+        </div>
+      )}
 
       <DayTabs 
         daysCount={daysCount} 
@@ -93,8 +110,9 @@ export default function ScheduleCalendar({ onBack, dashboardShell }) {
 
       {showSettings && (
         <ScheduleSettingsModal 
-          scheduleName={scheduleName} setScheduleName={setScheduleName}
-          daysCount={daysCount} setDaysCount={setDaysCount}
+          scheduleName={scheduleName}
+          daysCount={daysCount}
+          onSave={handleUpdateSettings}
           onClose={() => setShowSettings(false)}
         />
       )}
