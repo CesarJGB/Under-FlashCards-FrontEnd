@@ -1,5 +1,6 @@
 // FILE: frontend/src/components/library/ScheduleCalendar.jsx
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   ArrowLeft, Plus, Settings, Clock, User, MapPin, 
   X, Trash2, Check, ChevronRight, Minus, BookOpen
@@ -8,7 +9,7 @@ import {
 const WEEKDAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 const SHORT_WEEKDAYS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 
-export default function ScheduleCalendar({ onBack }) {
+export default function ScheduleCalendar({ onBack, dashboardShell }) {
   // --- ESTADOS PRINCIPALES ---
   const [scheduleName, setScheduleName] = useState(() => {
     return localStorage.getItem('schedule_name') || 'Horario Principal';
@@ -57,7 +58,6 @@ export default function ScheduleCalendar({ onBack }) {
       room: formRoom.trim() || 'Por definir',
       startTime: formStartTime,
       endTime: formEndTime,
-      // Contadores de asistencia (Captura 1)
       attendances: 0,
       absences: 0,
       partialAttendances: 0,
@@ -65,7 +65,6 @@ export default function ScheduleCalendar({ onBack }) {
     };
 
     setClasses((prev) => [...prev, newClass]);
-    // Limpiar formulario y cerrar
     setFormSubject('');
     setFormTeacher('');
     setFormRoom('');
@@ -102,6 +101,26 @@ export default function ScheduleCalendar({ onBack }) {
   const currentDayClasses = classes
     .filter((c) => c.dayIndex === activeDayIndex)
     .sort((a, b) => a.startTime.localeCompare(b.startTime));
+
+  // --- BOTÓN FLOTANTE CON ESTILO LIQUID GLASS DE LIBRARYFAB ---
+  const fabButton = (
+    <button
+      type="button"
+      onClick={() => setShowDayPicker(true)}
+      className="fixed right-6 w-14 h-14 rounded-[1.3rem] flex items-center justify-center z-50 cursor-pointer
+      bg-white/10 dark:bg-white/5
+      backdrop-blur-[3px] backdrop-saturate-100
+      border border-white/50 dark:border-white/25
+      ring-1 ring-inset ring-white/30 dark:ring-white/10
+      shadow-[0_10px_30px_-6px_rgba(0,0,0,0.35),0_4px_10px_-2px_rgba(0,0,0,0.15),inset_0_1.5px_0.5px_0_rgba(255,255,255,0.9),inset_0_-1.5px_1px_-0.5px_rgba(0,0,0,0.18),inset_1px_0_1px_-0.5px_rgba(255,255,255,0.4),inset_-1px_0_1px_-0.5px_rgba(0,0,0,0.12)]
+      hover:bg-white/15 dark:hover:bg-white/10 hover:scale-105 active:scale-95 transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]
+      before:absolute before:inset-0 before:rounded-[1.3rem] before:pointer-events-none before:bg-[radial-gradient(80%_60%_at_50%_-5%,rgba(255,255,255,0.45)_0%,rgba(255,255,255,0.08)_35%,transparent_70%)] before:opacity-90
+      after:absolute after:inset-[1px] after:rounded-[1.2rem] after:pointer-events-none after:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.18)] after:mix-blend-overlay"
+      style={{ bottom: 'calc(env(safe-area-inset-bottom) + 6rem)' }}
+    >
+      <Plus className="relative w-7 h-7 stroke-[3] text-slate-800 dark:text-white drop-shadow-[0_1px_1px_rgba(255,255,255,0.8)] dark:drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
+    </button>
+  );
 
   return (
     <div className="w-full max-w-2xl mx-auto pb-20 animate-[fadeIn_0.15s_ease] select-none">
@@ -209,18 +228,10 @@ export default function ScheduleCalendar({ onBack }) {
         )}
       </div>
 
-      {/* 4. BOTÓN FLOTANTE (+) */}
-      <button
-        type="button"
-        onClick={() => setShowDayPicker(true)}
-        className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-blue-500 hover:bg-blue-600 active:scale-95 text-white shadow-lg shadow-blue-500/30 flex items-center justify-center transition-all cursor-pointer z-30"
-      >
-        <Plus className="w-7 h-7 stroke-[2.5]" />
-      </button>
+      {/* RENDERING FAB CON PORTAL DE FORMA SEGURA */}
+      {dashboardShell ? createPortal(fabButton, dashboardShell) : fabButton}
 
-      {/* ========================================================================= */}
-      /* MODAL 1: ELEGIR DÍA (Captura 2) */
-      /* ========================================================================= */}
+      {/* MODAL 1: ELEGIR DÍA */}
       {showDayPicker && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-end sm:items-center justify-center p-4 animate-[fadeIn_0.15s_ease]">
           <div className="w-full max-w-sm bg-slate-100/95 rounded-3xl p-5 shadow-2xl space-y-2 border border-white/40">
@@ -254,9 +265,7 @@ export default function ScheduleCalendar({ onBack }) {
         </div>
       )}
 
-      {/* ========================================================================= */}
-      /* MODAL 2: CREAR ASIGNATURA */
-      /* ========================================================================= */}
+      {/* MODAL 2: CREAR ASIGNATURA */}
       {showClassForm && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 animate-[fadeIn_0.15s_ease]">
           <div className="w-full max-w-md bg-white rounded-3xl p-6 shadow-2xl space-y-5">
@@ -363,9 +372,7 @@ export default function ScheduleCalendar({ onBack }) {
         </div>
       )}
 
-      {/* ========================================================================= */}
-      /* MODAL 3: DETALLE DE CLASE Y REGISTRO DE ASISTENCIA (Captura 1) */
-      /* ========================================================================= */}
+      {/* MODAL 3: DETALLE DE CLASE Y REGISTRO DE ASISTENCIA */}
       {selectedClassDetail && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-end justify-center animate-[fadeIn_0.15s_ease]">
           <div className="w-full max-w-lg bg-slate-900 text-white rounded-t-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
@@ -488,9 +495,7 @@ export default function ScheduleCalendar({ onBack }) {
         </div>
       )}
 
-      {/* ========================================================================= */}
-      /* MODAL 4: AJUSTES DE HORARIO (Captura 4) */
-      /* ========================================================================= */}
+      {/* MODAL 4: AJUSTES DE HORARIO */}
       {showSettings && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 animate-[fadeIn_0.15s_ease]">
           <div className="w-full max-w-sm bg-slate-100 rounded-3xl p-5 shadow-2xl space-y-4">
