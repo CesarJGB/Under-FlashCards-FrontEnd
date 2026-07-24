@@ -6,7 +6,7 @@ import LibraryToolbar from './library/LibraryToolbar';
 import LibraryFAB from './library/LibraryFAB';
 import LibrarySectionSwitcher from './library/LibrarySectionSwitcher';
 import GeneralSection from './library/GeneralSection';
-import ScheduleCalendar from './library/ScheduleCalendar';
+import ScheduleListScreen from './calendar/ScheduleListScreen';
 
 import Breadcrumbs from './library/Breadcrumbs';
 import MateriasLevel from './library/MateriasLevel';
@@ -327,7 +327,8 @@ export default function LibrarySection({
       {sectionMode === 'general' ? (
         <GeneralSection onOpenCalendar={() => setSectionMode('calendar')} />
       ) : sectionMode === 'calendar' ? (
-        <ScheduleCalendar 
+        <ScheduleListScreen 
+          userId={userId} 
           onBack={() => setSectionMode('general')} 
           dashboardShell={dashboardShell} 
         />
