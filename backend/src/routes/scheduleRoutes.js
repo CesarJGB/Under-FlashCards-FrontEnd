@@ -2,17 +2,16 @@
 const express = require('express');
 const router = express.Router();
 const scheduleController = require('../controllers/scheduleController');
-const { protect } = require('../controllers/authController');
 
 // --- Endpoints de Horarios ---
-router.get('/schedules/:userId', protect, scheduleController.getSchedules);
-router.post('/schedules', protect, scheduleController.createSchedule);
-router.put('/schedules/:id', protect, scheduleController.updateSchedule);
-router.delete('/schedules/:id', protect, scheduleController.deleteSchedule);
+router.get('/schedules/:userId', scheduleController.getSchedules);
+router.post('/schedules', scheduleController.createSchedule);
+router.put('/schedules/:id', scheduleController.updateSchedule);
+router.delete('/schedules/:id', scheduleController.deleteSchedule);
 
 // --- Endpoints de Clases (dentro de un horario) ---
-router.post('/schedules/:id/classes', protect, scheduleController.addClass);
-router.put('/schedules/:id/classes/:classId', protect, scheduleController.updateClass);
-router.delete('/schedules/:id/classes/:classId', protect, scheduleController.deleteClass);
+router.post('/schedules/:id/classes', scheduleController.addClass);
+router.put('/schedules/:id/classes/:classId', scheduleController.updateClass);
+router.delete('/schedules/:id/classes/:classId', scheduleController.deleteClass);
 
 module.exports = router;
