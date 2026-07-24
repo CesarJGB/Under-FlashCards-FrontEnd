@@ -1,10 +1,7 @@
 // FILE: frontend/src/components/library/GeneralSection.jsx
 import { CalendarDays, NotebookPen, Sparkles } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 
 export default function GeneralSection({ onSelectSection }) {
-  const navigate = useNavigate();
-
   const upcomingTools = [
     {
       id: 'calendar',
@@ -13,9 +10,6 @@ export default function GeneralSection({ onSelectSection }) {
       description: 'Arma tu horario semanal y recibe recordatorios antes de cada clase.',
       active: true,
       onClick: () => {
-        // Si usas React Router:
-        navigate('/library/calendar');
-        // O si manejas el cambio por callback/prop de estado:
         if (onSelectSection) onSelectSection('calendar');
       }
     },
