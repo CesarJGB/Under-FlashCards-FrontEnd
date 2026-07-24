@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/library/calendar/modals/DayPickerModal.jsx
-import ActionSheet from '../../ActionSheet'; // Ajusta la ruta relativa según la estructura de tu proyecto
+import ActionSheet from '../../../common/ActionSheet'; // Ajusta la ruta relativa según la estructura de tu proyecto
 import { WEEKDAYS } from '../useScheduleCalendar';
 import { CalendarDays } from 'lucide-react';
 
