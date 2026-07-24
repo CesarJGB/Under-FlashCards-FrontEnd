@@ -1,7 +1,7 @@
 // FILE: frontend/src/components/library/GeneralSection.jsx
 import { CalendarDays, NotebookPen, Sparkles } from 'lucide-react';
 
-export default function GeneralSection({ onSelectSection }) {
+export default function GeneralSection({ onOpenCalendar }) {
   const upcomingTools = [
     {
       id: 'calendar',
@@ -9,9 +9,7 @@ export default function GeneralSection({ onSelectSection }) {
       title: 'Horario de clases',
       description: 'Arma tu horario semanal y recibe recordatorios antes de cada clase.',
       active: true,
-      onClick: () => {
-        if (onSelectSection) onSelectSection('calendar');
-      }
+      onClick: onOpenCalendar
     },
     {
       id: 'notes',
