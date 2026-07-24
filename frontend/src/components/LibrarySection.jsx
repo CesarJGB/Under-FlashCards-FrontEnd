@@ -7,7 +7,7 @@ import LibraryToolbar from './library/LibraryToolbar';
 import LibraryFAB from './library/LibraryFAB';
 import LibrarySectionSwitcher from './library/LibrarySectionSwitcher';
 import GeneralSection from './library/GeneralSection';
-import ScheduleCalendar from './library/ScheduleCalendar'; // 💡 Importación del calendario
+import ScheduleCalendar from './library/ScheduleCalendar';
 
 import Breadcrumbs from './library/Breadcrumbs';
 import MateriasLevel from './library/MateriasLevel';
@@ -20,6 +20,7 @@ import SearchResults from './library/SearchResults';
 import { getJSON, setJSON, remove } from '../lib/safeLocalStorage';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+
 export default function LibrarySection({
   userId, isAdmin: adminAccess, authToken, decks, materias, loading,
   setDecks, setMaterias, loadDecks, loadMaterias,
@@ -81,6 +82,12 @@ export default function LibrarySection({
   const activeMateriaName = useMemo(() => materias.find(m => m._id === currentPath.materiaId)?.name, [materias, currentPath.materiaId]);
   const activeTemaName = useMemo(() => temas.find(t => t._id === currentPath.temaId)?.name, [temas, currentPath.temaId]);
   const activeSubtemaName = useMemo(() => subtemas.find(s => s._id === currentPath.subtemaId)?.name, [subtemas, currentPath.subtemaId]);
+
+  // 💡 Condición para ocultar el Switcher en sub-pantallas, búsquedas y creador/editor de mazos
+  const shouldShowSwitcher = 
+    !modal && 
+    ((sectionMode === 'general') || 
+     (sectionMode === 'biblioteca' && currentPath.materiaId === null && !searchResults));
 
   const handleCreateAcademicFolder = async (e) => {
     e.preventDefault();
@@ -313,7 +320,10 @@ export default function LibrarySection({
     <div data-testid="library-section" className="relative min-h-[60vh]">
       <input ref={fileInputRef} type="file" accept=".json" onChange={handleImport} className="hidden" />
 
-      <LibrarySectionSwitcher sectionMode={sectionMode} setSectionMode={setSectionMode} />
+      {/* 💡 Solo visible en la raíz de General o en la raíz de Biblioteca sin modal ni búsqueda activa */}
+      {shouldShowSwitcher && (
+        <LibrarySectionSwitcher sectionMode={sectionMode} setSectionMode={setSectionMode} />
+      )}
 
       {sectionMode === 'general' ? (
         <GeneralSection onOpenCalendar={() => setSectionMode('calendar')} />
