@@ -8,11 +8,6 @@ const Schedule = require('../models/Schedule');
 exports.getSchedules = async (req, res) => {
   try {
     const { userId } = req.params;
-    const authUserId = req.user?.id || req.user?._id;
-    if (String(userId) !== String(authUserId)) {
-      return res.status(403).json({ error: 'No tienes permisos para ver estos horarios.' });
-    }
-
     const schedules = await Schedule.find({ userId }).sort({ createdAt: 1 });
     return res.json(schedules.map((s) => s.serialize()));
   } catch (err) {
@@ -23,8 +18,8 @@ exports.getSchedules = async (req, res) => {
 
 exports.createSchedule = async (req, res) => {
   try {
-    const userId = req.user?.id || req.user?._id;
-    const { name, daysCount } = req.body || {};
+    const { userId, name, daysCount } = req.body || {};
+    if (!userId) return res.status(400).json({ error: 'userId es requerido.' });
 
     const schedule = await Schedule.create({
       userId,
@@ -42,14 +37,10 @@ exports.createSchedule = async (req, res) => {
 exports.updateSchedule = async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = req.user?.id || req.user?._id;
     const { name, daysCount } = req.body || {};
 
     const schedule = await Schedule.findById(id);
     if (!schedule) return res.status(404).json({ error: 'Horario no encontrado.' });
-    if (String(schedule.userId) !== String(userId)) {
-      return res.status(403).json({ error: 'No tienes permisos para editar este horario.' });
-    }
 
     if (name !== undefined) {
       if (!name.trim()) return res.status(400).json({ error: 'El nombre del horario es requerido.' });
@@ -70,15 +61,8 @@ exports.updateSchedule = async (req, res) => {
 exports.deleteSchedule = async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = req.user?.id || req.user?._id;
-
-    const schedule = await Schedule.findById(id);
+    const schedule = await Schedule.findByIdAndDelete(id);
     if (!schedule) return res.status(404).json({ error: 'Horario no encontrado.' });
-    if (String(schedule.userId) !== String(userId)) {
-      return res.status(403).json({ error: 'No tienes permisos para eliminar este horario.' });
-    }
-
-    await Schedule.findByIdAndDelete(id);
     return res.json({ success: true, message: 'Horario eliminado.' });
   } catch (err) {
     console.error('[schedule:deleteSchedule] error:', err.message);
@@ -93,7 +77,6 @@ exports.deleteSchedule = async (req, res) => {
 exports.addClass = async (req, res) => {
   try {
     const { id } = req.params; // scheduleId
-    const userId = req.user?.id || req.user?._id;
     const { subject, teacher, room, dayIndex, startTime, endTime } = req.body || {};
 
     if (!subject?.trim()) return res.status(400).json({ error: 'La asignatura es requerida.' });
@@ -101,9 +84,6 @@ exports.addClass = async (req, res) => {
 
     const schedule = await Schedule.findById(id);
     if (!schedule) return res.status(404).json({ error: 'Horario no encontrado.' });
-    if (String(schedule.userId) !== String(userId)) {
-      return res.status(403).json({ error: 'No tienes permisos para editar este horario.' });
-    }
 
     schedule.classes.push({
       subject: subject.trim(),
@@ -125,14 +105,10 @@ exports.addClass = async (req, res) => {
 exports.updateClass = async (req, res) => {
   try {
     const { id, classId } = req.params;
-    const userId = req.user?.id || req.user?._id;
     const updates = req.body || {};
 
     const schedule = await Schedule.findById(id);
     if (!schedule) return res.status(404).json({ error: 'Horario no encontrado.' });
-    if (String(schedule.userId) !== String(userId)) {
-      return res.status(403).json({ error: 'No tienes permisos para editar este horario.' });
-    }
 
     const classItem = schedule.classes.id(classId);
     if (!classItem) return res.status(404).json({ error: 'Clase no encontrada.' });
@@ -157,13 +133,9 @@ exports.updateClass = async (req, res) => {
 exports.deleteClass = async (req, res) => {
   try {
     const { id, classId } = req.params;
-    const userId = req.user?.id || req.user?._id;
 
     const schedule = await Schedule.findById(id);
     if (!schedule) return res.status(404).json({ error: 'Horario no encontrado.' });
-    if (String(schedule.userId) !== String(userId)) {
-      return res.status(403).json({ error: 'No tienes permisos para editar este horario.' });
-    }
 
     schedule.classes.pull(classId);
     await schedule.save();
