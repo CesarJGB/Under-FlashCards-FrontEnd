@@ -1,4 +1,3 @@
-// FILE: frontend/src/components/LibrarySection.jsx
 import { useRef, useState, useMemo, useEffect } from 'react';
 import { useLibraryState } from '../hooks/useLibraryState';
 import DeckInterior from './DeckInterior';
@@ -328,7 +327,10 @@ export default function LibrarySection({
       {sectionMode === 'general' ? (
         <GeneralSection onOpenCalendar={() => setSectionMode('calendar')} />
       ) : sectionMode === 'calendar' ? (
-        <ScheduleCalendar onBack={() => setSectionMode('general')} />
+        <ScheduleCalendar 
+          onBack={() => setSectionMode('general')} 
+          dashboardShell={dashboardShell} 
+        />
       ) : (
         <>
           <div className="mt-3">
