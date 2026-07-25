@@ -96,6 +96,7 @@ export default function ScheduleCalendar({ userId, scheduleId, onBack, dashboard
           formRoom={formRoom} setFormRoom={setFormRoom}
           formStartTime={formStartTime} setFormStartTime={setFormStartTime}
           formEndTime={formEndTime} setFormEndTime={setFormEndTime}
+          existingClasses={classes}
         />
       )}
 
