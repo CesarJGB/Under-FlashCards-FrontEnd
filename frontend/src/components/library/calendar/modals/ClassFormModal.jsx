@@ -1,10 +1,9 @@
 // FILE: frontend/src/components/library/calendar/modals/ClassFormModal.jsx
 import { useMemo, useRef, useState } from 'react';
 import { X, MapPin } from 'lucide-react';
-import { WEEKDAYS } from '../useScheduleCalendar';
 
 export default function ClassFormModal({
-  selectedDay, onClose, onSubmit,
+  onClose, onSubmit,
   formSubject, setFormSubject,
   formTeacher, setFormTeacher,
   formRoom, setFormRoom,
@@ -52,14 +51,8 @@ export default function ClassFormModal({
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 animate-[fadeIn_0.15s_ease]">
-      <div className="w-full max-w-md bg-white rounded-3xl p-6 shadow-2xl space-y-5">
-        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-          <div>
-            <h3 className="text-lg font-bold text-slate-900">Nueva Asignatura</h3>
-            <p className="text-xs font-medium text-slate-400">
-              Añadir clase para el {WEEKDAYS[selectedDay]}
-            </p>
-          </div>
+      <div className="w-full max-w-md bg-white rounded-3xl p-6 shadow-2xl">
+        <div className="flex justify-end -mt-1 -mr-1 mb-1">
           <button
             type="button"
             onClick={onClose}
@@ -69,15 +62,15 @@ export default function ClassFormModal({
           </button>
         </div>
 
-        <form onSubmit={onSubmit} className="space-y-4">
+        <form onSubmit={onSubmit} className="space-y-7">
           <div className="relative">
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              Asignatura *
+            <label className="block text-xs font-bold uppercase tracking-wide text-slate-400 mb-1">
+              Asignatura
             </label>
             <input
               type="text"
               required
-              placeholder="Ej. Inglés, Matemáticas..."
+              placeholder="Ej. Inglés"
               value={formSubject}
               onChange={(e) => handleSubjectChange(e.target.value)}
               onFocus={() => setShowPicker(true)}
@@ -85,7 +78,7 @@ export default function ClassFormModal({
                 blurTimeoutRef.current = setTimeout(() => setShowPicker(false), 150);
               }}
               autoComplete="off"
-              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:border-slate-900"
+              className="w-full text-3xl font-extrabold text-slate-900 placeholder-slate-300 bg-transparent border-b-2 border-transparent focus:outline-none focus:border-slate-900 pb-1 transition-colors"
             />
 
             {showPicker && filteredSubjects.length > 0 && (
@@ -108,69 +101,64 @@ export default function ClassFormModal({
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Profesor
-              </label>
-              <input
-                type="text"
-                placeholder="Ej. Juan García"
-                value={formTeacher}
-                onChange={(e) => setFormTeacher(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:border-slate-900"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Aula
-              </label>
-              <input
-                type="text"
-                placeholder="Ej. 201A, Edificio B"
-                value={formRoom}
-                onChange={(e) => { setFormRoom(e.target.value); setRoomSuggestion(''); }}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:border-slate-900"
-              />
-              {roomSuggestion && (
-                <button
-                  type="button"
-                  onClick={handleUseRoomSuggestion}
-                  className="mt-1.5 flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-slate-900 cursor-pointer"
-                >
-                  <MapPin className="w-3 h-3" />
-                  ¿Usar {roomSuggestion}?
-                </button>
-              )}
-            </div>
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wide text-slate-400 mb-1">
+              Profesor
+            </label>
+            <input
+              type="text"
+              placeholder="Ej. Juan García"
+              value={formTeacher}
+              onChange={(e) => setFormTeacher(e.target.value)}
+              className="w-full text-2xl font-extrabold text-slate-900 placeholder-slate-300 bg-transparent border-b-2 border-transparent focus:outline-none focus:border-slate-900 pb-1 transition-colors"
+            />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Hora inicio
-              </label>
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wide text-slate-400 mb-1">
+              Aula
+            </label>
+            <input
+              type="text"
+              placeholder="Ej. 201A"
+              value={formRoom}
+              onChange={(e) => { setFormRoom(e.target.value); setRoomSuggestion(''); }}
+              className="w-full text-2xl font-extrabold text-slate-900 placeholder-slate-300 bg-transparent border-b-2 border-transparent focus:outline-none focus:border-slate-900 pb-1 transition-colors"
+            />
+            {roomSuggestion && (
+              <button
+                type="button"
+                onClick={handleUseRoomSuggestion}
+                className="mt-2 flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-slate-900 cursor-pointer"
+              >
+                <MapPin className="w-3 h-3" />
+                ¿Usar {roomSuggestion}?
+              </button>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wide text-slate-400 mb-2">
+              Horario
+            </label>
+            <div className="flex items-center gap-3">
               <input
                 type="time"
                 value={formStartTime}
                 onChange={(e) => setFormStartTime(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:border-slate-900"
+                className="text-2xl font-extrabold text-slate-900 bg-transparent border-b-2 border-transparent focus:outline-none focus:border-slate-900 pb-1 transition-colors"
               />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Hora fin
-              </label>
+              <span className="text-2xl font-extrabold text-slate-300">–</span>
               <input
                 type="time"
                 value={formEndTime}
                 onChange={(e) => setFormEndTime(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:border-slate-900"
+                className="text-2xl font-extrabold text-slate-900 bg-transparent border-b-2 border-transparent focus:outline-none focus:border-slate-900 pb-1 transition-colors"
               />
             </div>
           </div>
 
-          <div className="flex gap-2 pt-3">
+          <div className="flex gap-2 pt-2">
             <button
               type="button"
               onClick={onClose}
