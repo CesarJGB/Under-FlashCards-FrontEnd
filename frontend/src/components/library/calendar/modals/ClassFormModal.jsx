@@ -1,6 +1,6 @@
 // FILE: frontend/src/components/library/calendar/modals/ClassFormModal.jsx
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { X, MapPin, ChevronRight } from 'lucide-react';
+import { X, ChevronRight } from 'lucide-react';
 
 export default function ClassFormModal({
   onClose, onSubmit,
@@ -11,18 +11,23 @@ export default function ClassFormModal({
   formEndTime, setFormEndTime,
   existingClasses = [],
 }) {
-  const [fieldsEditorOpen, setFieldsEditorOpen] = useState(false);
-  const [initialFocusField, setInitialFocusField] = useState('subject');
-  const [showPicker, setShowPicker] = useState(false);
-  const [roomSuggestion, setRoomSuggestion] = useState('');
-  const blurTimeoutRef = useRef(null);
+  // null | 'subject' | 'teacher' | 'room' | 'combined'
+  const [activeScreen, setActiveScreen] = useState(null);
 
   const subjectInputRef = useRef(null);
   const teacherInputRef = useRef(null);
   const roomInputRef = useRef(null);
 
-  // Una entrada por asignatura (sin duplicar). Si la misma asignatura aparece
-  // varias veces en el horario, nos quedamos con la última para sugerir profesor/aula.
+  useEffect(() => {
+    const refs = { subject: subjectInputRef, teacher: teacherInputRef, room: roomInputRef };
+    const target = refs[activeScreen]?.current;
+    if (target) {
+      const t = setTimeout(() => target.focus(), 50);
+      return () => clearTimeout(t);
+    }
+  }, [activeScreen]);
+
+  // --- Materias ya usadas (una por asignatura, sin duplicar) ---
   const uniqueSubjects = useMemo(() => {
     const map = new Map();
     for (const c of existingClasses) {
@@ -32,48 +37,62 @@ export default function ClassFormModal({
     return Array.from(map.values()).sort((a, b) => a.subject.localeCompare(b.subject));
   }, [existingClasses]);
 
-  const filteredSubjects = useMemo(() => {
+  const subjectItems = useMemo(() => {
     const query = formSubject.trim().toLowerCase();
-    if (!query) return uniqueSubjects;
-    return uniqueSubjects.filter((c) => c.subject.toLowerCase().includes(query));
+    const list = query
+      ? uniqueSubjects.filter((c) => c.subject.toLowerCase().includes(query))
+      : uniqueSubjects;
+    return list.map((c) => ({ key: c.id, primary: c.subject, secondary: c.teacher, raw: c }));
   }, [uniqueSubjects, formSubject]);
 
-  const openFieldsEditor = (field) => {
-    setInitialFocusField(field);
-    setFieldsEditorOpen(true);
-  };
-
-  const closeFieldsEditor = () => {
-    setFieldsEditorOpen(false);
-    setShowPicker(false);
-  };
-
-  // Enfoca el campo correcto apenas se monta la pantalla completa
-  useEffect(() => {
-    if (!fieldsEditorOpen) return;
-    const refs = { subject: subjectInputRef, teacher: teacherInputRef, room: roomInputRef };
-    const target = refs[initialFocusField]?.current;
-    if (target) {
-      const t = setTimeout(() => target.focus(), 50);
-      return () => clearTimeout(t);
+  // --- Profesores ya usados ---
+  const uniqueTeachers = useMemo(() => {
+    const seen = new Set();
+    const list = [];
+    for (const c of existingClasses) {
+      const t = c.teacher?.trim();
+      if (!t || seen.has(t.toLowerCase())) continue;
+      seen.add(t.toLowerCase());
+      list.push(t);
     }
-  }, [fieldsEditorOpen, initialFocusField]);
+    return list.sort((a, b) => a.localeCompare(b));
+  }, [existingClasses]);
 
-  const handleSubjectChange = (value) => {
-    setFormSubject(value);
-    setRoomSuggestion(''); // el usuario está escribiendo algo nuevo, ya no aplica la sugerencia previa
-  };
+  const teacherItems = useMemo(() => {
+    const query = formTeacher.trim().toLowerCase();
+    const list = query
+      ? uniqueTeachers.filter((t) => t.toLowerCase().includes(query))
+      : uniqueTeachers;
+    return list.map((t) => ({ key: t, primary: t }));
+  }, [uniqueTeachers, formTeacher]);
 
-  const handleSelectExisting = (classItem) => {
+  // --- Aulas ya usadas ---
+  const uniqueRooms = useMemo(() => {
+    const seen = new Set();
+    const list = [];
+    for (const c of existingClasses) {
+      const r = c.room?.trim();
+      if (!r || seen.has(r.toLowerCase())) continue;
+      seen.add(r.toLowerCase());
+      list.push(r);
+    }
+    return list.sort((a, b) => a.localeCompare(b));
+  }, [existingClasses]);
+
+  const roomItems = useMemo(() => {
+    const query = formRoom.trim().toLowerCase();
+    const list = query
+      ? uniqueRooms.filter((r) => r.toLowerCase().includes(query))
+      : uniqueRooms;
+    return list.map((r) => ({ key: r, primary: r }));
+  }, [uniqueRooms, formRoom]);
+
+  // Seleccionar una materia existente autocompleta asignatura + profesor
+  // y abre la pantalla de los 3 juntos por si hay que ajustar algo a mano.
+  const handleSelectSubject = (classItem) => {
     setFormSubject(classItem.subject);
     setFormTeacher(classItem.teacher || '');
-    setRoomSuggestion(classItem.room || '');
-    setShowPicker(false);
-  };
-
-  const handleUseRoomSuggestion = () => {
-    setFormRoom(roomSuggestion);
-    setRoomSuggestion('');
+    setActiveScreen('combined');
   };
 
   return (
@@ -95,19 +114,19 @@ export default function ClassFormModal({
             value={formSubject}
             placeholder="Ej. Inglés"
             size="lg"
-            onClick={() => openFieldsEditor('subject')}
+            onClick={() => setActiveScreen('subject')}
           />
           <FieldButton
             label="Profesor"
             value={formTeacher}
             placeholder="Ej. Juan García"
-            onClick={() => openFieldsEditor('teacher')}
+            onClick={() => setActiveScreen('teacher')}
           />
           <FieldButton
             label="Aula"
             value={formRoom}
             placeholder="Ej. 201A"
-            onClick={() => openFieldsEditor('room')}
+            onClick={() => setActiveScreen('room')}
           />
 
           <div>
@@ -149,19 +168,61 @@ export default function ClassFormModal({
         </form>
       </div>
 
-      {fieldsEditorOpen && (
+      {activeScreen === 'subject' && (
+        <SingleFieldScreen
+          title="Asignatura"
+          value={formSubject}
+          onChange={setFormSubject}
+          placeholder="Ej. Inglés"
+          listHeader="Materias en otros días"
+          items={subjectItems}
+          onSelectItem={(item) => handleSelectSubject(item.raw)}
+          onClose={() => setActiveScreen(null)}
+          inputRef={subjectInputRef}
+        />
+      )}
+
+      {activeScreen === 'teacher' && (
+        <SingleFieldScreen
+          title="Profesor"
+          value={formTeacher}
+          onChange={setFormTeacher}
+          placeholder="Ej. Juan García"
+          listHeader="Profesores que ya usas"
+          items={teacherItems}
+          onSelectItem={(item) => { setFormTeacher(item.primary); setActiveScreen(null); }}
+          onClose={() => setActiveScreen(null)}
+          inputRef={teacherInputRef}
+        />
+      )}
+
+      {activeScreen === 'room' && (
+        <SingleFieldScreen
+          title="Aula"
+          value={formRoom}
+          onChange={setFormRoom}
+          placeholder="Ej. 201A"
+          listHeader="Aulas que ya usas"
+          items={roomItems}
+          onSelectItem={(item) => { setFormRoom(item.primary); setActiveScreen(null); }}
+          onClose={() => setActiveScreen(null)}
+          inputRef={roomInputRef}
+        />
+      )}
+
+      {activeScreen === 'combined' && (
         <div className="fixed inset-0 z-[60] bg-white flex flex-col animate-[fadeIn_0.15s_ease]">
           <div className="flex items-center justify-between px-5 pt-[calc(env(safe-area-inset-top)+16px)] pb-4">
             <button
               type="button"
-              onClick={closeFieldsEditor}
+              onClick={() => setActiveScreen(null)}
               className="p-1.5 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
             <button
               type="button"
-              onClick={closeFieldsEditor}
+              onClick={() => setActiveScreen(null)}
               className="px-5 py-2 bg-slate-900 hover:bg-slate-800 rounded-full text-xs font-bold text-white cursor-pointer"
             >
               Guardar
@@ -169,42 +230,17 @@ export default function ClassFormModal({
           </div>
 
           <div className="flex-1 overflow-y-auto px-5 space-y-7">
-            <div className="relative">
+            <div>
               <label className="block text-xs font-bold uppercase tracking-wide text-slate-400 mb-1">
                 Asignatura
               </label>
               <input
-                ref={subjectInputRef}
                 type="text"
                 placeholder="Ej. Inglés"
                 value={formSubject}
-                onChange={(e) => handleSubjectChange(e.target.value)}
-                onFocus={() => setShowPicker(true)}
-                onBlur={() => {
-                  blurTimeoutRef.current = setTimeout(() => setShowPicker(false), 150);
-                }}
-                autoComplete="off"
+                onChange={(e) => setFormSubject(e.target.value)}
                 className="w-full text-3xl font-extrabold text-slate-900 placeholder-slate-300 bg-transparent border-b-2 border-transparent focus:outline-none focus:border-slate-900 pb-1 transition-colors"
               />
-
-              {showPicker && filteredSubjects.length > 0 && (
-                <div className="absolute z-10 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
-                  {filteredSubjects.map((c) => (
-                    <button
-                      key={c.id}
-                      type="button"
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => handleSelectExisting(c)}
-                      className="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 text-left hover:bg-slate-50 cursor-pointer"
-                    >
-                      <span className="text-sm font-semibold text-slate-800 truncate">{c.subject}</span>
-                      {c.teacher && (
-                        <span className="text-xs font-medium text-slate-400 shrink-0">{c.teacher}</span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              )}
             </div>
 
             <div>
@@ -212,7 +248,6 @@ export default function ClassFormModal({
                 Profesor
               </label>
               <input
-                ref={teacherInputRef}
                 type="text"
                 placeholder="Ej. Juan García"
                 value={formTeacher}
@@ -226,23 +261,12 @@ export default function ClassFormModal({
                 Aula
               </label>
               <input
-                ref={roomInputRef}
                 type="text"
                 placeholder="Ej. 201A"
                 value={formRoom}
-                onChange={(e) => { setFormRoom(e.target.value); setRoomSuggestion(''); }}
+                onChange={(e) => setFormRoom(e.target.value)}
                 className="w-full text-2xl font-extrabold text-slate-900 placeholder-slate-300 bg-transparent border-b-2 border-transparent focus:outline-none focus:border-slate-900 pb-1 transition-colors"
               />
-              {roomSuggestion && (
-                <button
-                  type="button"
-                  onClick={handleUseRoomSuggestion}
-                  className="mt-2 flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-slate-900 cursor-pointer"
-                >
-                  <MapPin className="w-3 h-3" />
-                  ¿Usar {roomSuggestion}?
-                </button>
-              )}
             </div>
           </div>
         </div>
@@ -267,5 +291,66 @@ function FieldButton({ label, value, placeholder, size = 'md', onClick }) {
         <ChevronRight className="w-4 h-4 text-slate-300 shrink-0" />
       </span>
     </button>
+  );
+}
+
+function SingleFieldScreen({ title, value, onChange, placeholder, listHeader, items, onSelectItem, onClose, inputRef }) {
+  return (
+    <div className="fixed inset-0 z-[60] bg-white flex flex-col animate-[fadeIn_0.15s_ease]">
+      <div className="flex items-center justify-between px-5 pt-[calc(env(safe-area-inset-top)+16px)] pb-4">
+        <button
+          type="button"
+          onClick={onClose}
+          className="p-1.5 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 cursor-pointer"
+        >
+          <X className="w-5 h-5" />
+        </button>
+        <button
+          type="button"
+          onClick={onClose}
+          className="px-5 py-2 bg-slate-900 hover:bg-slate-800 rounded-full text-xs font-bold text-white cursor-pointer"
+        >
+          Guardar
+        </button>
+      </div>
+
+      <div className="px-5">
+        <label className="block text-xs font-bold uppercase tracking-wide text-slate-400 mb-1">
+          {title}
+        </label>
+        <input
+          ref={inputRef}
+          type="text"
+          placeholder={placeholder}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          autoComplete="off"
+          className="w-full text-3xl font-extrabold text-slate-900 placeholder-slate-300 bg-transparent border-b-2 border-slate-100 focus:outline-none focus:border-slate-900 pb-2 transition-colors"
+        />
+      </div>
+
+      {items.length > 0 && (
+        <>
+          <div className="mt-6 px-5 py-2 bg-slate-50 border-y border-slate-100">
+            <span className="text-xs font-bold text-slate-500">{listHeader}</span>
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            {items.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => onSelectItem(item)}
+                className="w-full flex items-center justify-between gap-2 px-5 py-3.5 text-left border-b border-slate-50 hover:bg-slate-50 cursor-pointer"
+              >
+                <span className="text-sm font-semibold text-slate-800 truncate">{item.primary}</span>
+                {item.secondary && (
+                  <span className="text-xs font-medium text-slate-400 shrink-0">{item.secondary}</span>
+                )}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
   );
 }
