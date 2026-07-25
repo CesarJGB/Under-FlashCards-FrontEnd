@@ -95,6 +95,7 @@ export function useScheduleCalendar(userId, scheduleId) {
       if (!res.ok) throw new Error();
       const updated = await res.json();
       setSchedule(updated);
+      setActiveDayIndex(selectedDayForForm); // salta al día donde se acaba de crear la clase
       resetClassForm();
       setShowClassForm(false);
     } catch {
