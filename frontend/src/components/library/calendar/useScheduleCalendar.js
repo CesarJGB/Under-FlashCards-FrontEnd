@@ -27,6 +27,20 @@ export function useScheduleCalendar(userId, scheduleId) {
   const [formStartTime, setFormStartTime] = useState('08:00');
   const [formEndTime, setFormEndTime] = useState('09:30');
 
+  const resetClassForm = () => {
+    setFormSubject('');
+    setFormTeacher('');
+    setFormRoom('');
+    setFormStartTime('08:00');
+    setFormEndTime('09:30');
+  };
+
+  // Cerrar el modal SIEMPRE limpia el formulario, se guarde o se cancele.
+  const handleCloseClassForm = () => {
+    setShowClassForm(false);
+    resetClassForm();
+  };
+
   // NOTA: reutilizamos el mismo GET de lista (no hay endpoint de detalle por id)
   // y buscamos el horario dentro de la respuesta. Es aceptable mientras la
   // cantidad de horarios/clases por usuario sea pequeña.
@@ -81,11 +95,7 @@ export function useScheduleCalendar(userId, scheduleId) {
       if (!res.ok) throw new Error();
       const updated = await res.json();
       setSchedule(updated);
-      setFormSubject('');
-      setFormTeacher('');
-      setFormRoom('');
-      setFormStartTime('08:00');
-      setFormEndTime('09:30');
+      resetClassForm();
       setShowClassForm(false);
     } catch {
       setError('No se pudo guardar la clase.');
@@ -160,6 +170,7 @@ export function useScheduleCalendar(userId, scheduleId) {
     showSettings, setShowSettings,
     showDayPicker, setShowDayPicker,
     showClassForm, setShowClassForm,
+    handleCloseClassForm,
     selectedDayForForm, setSelectedDayForForm,
     selectedClassDetail, setSelectedClassDetail,
     formSubject, setFormSubject,
