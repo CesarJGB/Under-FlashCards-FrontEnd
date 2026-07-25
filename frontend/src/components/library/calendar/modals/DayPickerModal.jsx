@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/library/calendar/modals/DayPickerModal.jsx
-import ActionSheet from '../../../common/ActionSheet'; // Ajusta la ruta relativa según la estructura de tu proyecto
+import ActionSheet from '../../../common/ActionSheet';
 import { WEEKDAYS } from '../useScheduleCalendar';
 import { CalendarDays } from 'lucide-react';
 
@@ -8,7 +8,6 @@ export default function DayPickerModal({ daysCount, onSelectDay, onClose, open =
   const dayOptions = WEEKDAYS.slice(0, daysCount).map((dayName, idx) => ({
     id: `day-${idx}`,
     label: dayName,
-    description: `Seleccionar ${dayName.toLowerCase()} para agendar`,
     icon: CalendarDays,
     onSelect: () => onSelectDay(idx),
   }));
