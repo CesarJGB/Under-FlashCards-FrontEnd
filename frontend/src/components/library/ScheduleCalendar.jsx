@@ -22,6 +22,7 @@ export default function ScheduleCalendar({ userId, scheduleId, onBack, dashboard
     showSettings, setShowSettings,
     showDayPicker, setShowDayPicker,
     showClassForm, setShowClassForm,
+    handleCloseClassForm,
     selectedDayForForm, setSelectedDayForForm,
     selectedClassDetail, setSelectedClassDetail,
     formSubject, setFormSubject,
@@ -89,7 +90,7 @@ export default function ScheduleCalendar({ userId, scheduleId, onBack, dashboard
       {showClassForm && (
         <ClassFormModal 
           selectedDay={selectedDayForForm}
-          onClose={() => setShowClassForm(false)}
+          onClose={handleCloseClassForm}
           onSubmit={handleSaveClass}
           formSubject={formSubject} setFormSubject={setFormSubject}
           formTeacher={formTeacher} setFormTeacher={setFormTeacher}
