@@ -102,18 +102,18 @@ export default function ClassDetailModal({
                   <span className="text-[10px] font-medium text-slate-500 leading-tight">
                     {item.label}
                   </span>
-                  <div className="flex gap-1 mt-1">
+                  <div className="flex gap-2 mt-2">
                     <button
                       type="button"
                       onClick={() => onUpdateAttendance(selectedClass.id, item.key, -1)}
-                      className="w-5 h-5 rounded-md bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 text-xs font-bold cursor-pointer"
+                      className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 text-base font-bold cursor-pointer transition-transform active:scale-90"
                     >
                       -
                     </button>
                     <button
                       type="button"
                       onClick={() => onUpdateAttendance(selectedClass.id, item.key, 1)}
-                      className="w-5 h-5 rounded-md bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 text-xs font-bold cursor-pointer"
+                      className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 text-base font-bold cursor-pointer transition-transform active:scale-90"
                     >
                       +
                     </button>
