@@ -151,6 +151,11 @@ export function useScheduleCalendar(userId, scheduleId) {
       if (!res.ok) throw new Error();
       const updated = await res.json();
       setSchedule(updated);
+
+      // Ajuste de índice fuera de rango al reducir los días
+      if (activeDayIndex >= updated.daysCount) {
+        setActiveDayIndex(0);
+      }
     } catch {
       setError('No se pudieron guardar los ajustes.');
     }
