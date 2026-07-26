@@ -17,14 +17,22 @@ export default function ScheduleCalendar({ userId, scheduleId, onBack, dashboard
     scheduleName,
     daysCount,
     classes,
-    activeDayIndex, setActiveDayIndex,
+    activeDayIndex,
+    setActiveDayIndex,
     currentDayClasses,
-    showSettings, setShowSettings,
-    showDayPicker, setShowDayPicker,
-    showClassForm, setShowClassForm,
+    showSettings,
+    setShowSettings,
+    showDayPicker,
+    setShowDayPicker,
+    showClassForm,
+    setShowClassForm,
     handleCloseClassForm,
-    selectedDayForForm, setSelectedDayForForm,
-    selectedClassDetail, setSelectedClassDetail,
+    selectedDayForForm,
+    setSelectedDayForForm,
+    selectedClassDetail,
+    setSelectedClassDetail,
+    editingClass,
+    handleEditClassClick,
     handleSaveClass,
     handleDeleteClass,
     handleUpdateAttendance,
@@ -86,9 +94,15 @@ export default function ScheduleCalendar({ userId, scheduleId, onBack, dashboard
 
       {showClassForm && (
         <ClassFormModal 
+          key={editingClass?.id || 'new'} // Forzar re-instanciación al cambiar la clase seleccionada
           selectedDay={selectedDayForForm}
           onClose={handleCloseClassForm}
-          onSave={handleSaveClass}
+          onSave={(data) => handleSaveClass(data, editingClass?.id)}
+          initialSubject={editingClass?.subject || ''}
+          initialTeacher={editingClass?.teacher || ''}
+          initialRoom={editingClass?.room || ''}
+          initialStartTime={editingClass?.startTime || '08:00'}
+          initialEndTime={editingClass?.endTime || '09:30'}
           existingClasses={classes}
         />
       )}
@@ -99,6 +113,7 @@ export default function ScheduleCalendar({ userId, scheduleId, onBack, dashboard
           onClose={() => setSelectedClassDetail(null)}
           onDelete={handleDeleteClass}
           onUpdateAttendance={handleUpdateAttendance}
+          onEdit={handleEditClassClick}
         />
       )}
 
@@ -109,7 +124,7 @@ export default function ScheduleCalendar({ userId, scheduleId, onBack, dashboard
           onSave={handleUpdateSettings}
           onClose={() => setShowSettings(false)}
         />
-      )}
+      )} mñn
     </div>
   );
 }
