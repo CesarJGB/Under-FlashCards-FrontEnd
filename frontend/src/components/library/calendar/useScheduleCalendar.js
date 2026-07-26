@@ -55,7 +55,31 @@ export function useScheduleCalendar(userId, scheduleId) {
     }
   }, [schedule, selectedClassDetail]);
 
-  const handleSaveClass = async (formData) => {
+  const handleSaveClass = async (formData, editingClassId = null) => {
+    // 1. VALIDACIÓN DE CHOQUE DE HORARIOS
+    const hasConflict = schedule?.classes.some((c) => {
+      // Si estamos editando, ignoramos la clase actual para que no choque consigo misma
+      if (c.id === editingClassId) return false;
+
+      // Solo nos importan las clases del MISMO DÍA
+      if (c.dayIndex !== selectedDayForForm) return false;
+
+      // Lógica de superposición de intervalos:
+      // (StartA < EndB) && (EndA > StartB)
+      const isOverlap = formData.startTime < c.endTime && formData.endTime > c.startTime;
+
+      return isOverlap;
+    });
+
+    if (hasConflict) {
+      setError('Error: Esta clase se superpone con otra ya existente en este día.');
+      return; // Detenemos el guardado antes de hacer el fetch
+    }
+
+    // Si pasa la validación, limpiamos errores y procedemos
+    setError('');
+
+    // 2. PETICIÓN A LA API
     try {
       const res = await fetch(`${BACKEND_URL}/api/schedules/${scheduleId}/classes`, {
         method: 'POST',
@@ -65,10 +89,12 @@ export function useScheduleCalendar(userId, scheduleId) {
           dayIndex: selectedDayForForm,
         }),
       });
+
       if (!res.ok) throw new Error();
+
       const updated = await res.json();
       setSchedule(updated);
-      setActiveDayIndex(selectedDayForForm); // salta al día donde se acaba de crear la clase
+      setActiveDayIndex(selectedDayForForm); // Salta al día donde se creó
       setShowClassForm(false);
     } catch {
       setError('No se pudo guardar la clase.');
@@ -91,31 +117,25 @@ export function useScheduleCalendar(userId, scheduleId) {
   };
 
   const handleUpdateAttendance = async (classId, field, delta) => {
-    // 1. Buscamos la clase actual y calculamos el nuevo valor
     const target = schedule?.classes.find((c) => c.id === classId);
     if (!target) return;
 
     const nextVal = Math.max(0, (target[field] || 0) + delta);
-
-    // Si el valor no cambia (ej. ya está en 0 y presionamos "-"), no hacemos nada
     if (target[field] === nextVal) return;
 
-    // 2. Guardamos el estado actual por si necesitamos revertir si hay error
     const prevSchedule = schedule;
     const prevSelectedClassDetail = selectedClassDetail;
 
-    // 3. OPTIMISTIC UI: Actualizamos el estado local INMEDIATAMENTE
+    // OPTIMISTIC UI: Actualización inmediata en cliente
     const optimisticClasses = schedule.classes.map((c) =>
       c.id === classId ? { ...c, [field]: nextVal } : c
     );
     setSchedule({ ...schedule, classes: optimisticClasses });
 
-    // Actualizamos también el modal de detalle si está abierto para que el número cambie al instante
     if (selectedClassDetail?.id === classId) {
       setSelectedClassDetail({ ...selectedClassDetail, [field]: nextVal });
     }
 
-    // 4. Petición a la API en segundo plano
     try {
       const res = await fetch(`${BACKEND_URL}/api/schedules/${scheduleId}/classes/${classId}`, {
         method: 'PUT',
@@ -123,11 +143,8 @@ export function useScheduleCalendar(userId, scheduleId) {
         body: JSON.stringify({ [field]: nextVal }),
       });
       if (!res.ok) throw new Error();
-
-      // Nota: No hacemos setSchedule(updated) con la respuesta del backend,
-      // porque ya actualizamos el estado optimistamente y así ahorramos otro re-render.
     } catch {
-      // 5. REVERTIR si la petición falla
+      // Reversión en caso de falla
       setError('No se pudo actualizar la asistencia. Revisa tu conexión.');
       setSchedule(prevSchedule);
       if (prevSelectedClassDetail?.id === classId) {
@@ -147,7 +164,6 @@ export function useScheduleCalendar(userId, scheduleId) {
       const updated = await res.json();
       setSchedule(updated);
 
-      // Ajuste de índice fuera de rango al reducir los días
       if (activeDayIndex >= updated.daysCount) {
         setActiveDayIndex(0);
       }
