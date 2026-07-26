@@ -13,6 +13,7 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
   const [selectedScheduleId, setSelectedScheduleId] = useState(null);
   const [creating, setCreating] = useState(false);
   const [scheduleToDelete, setScheduleToDelete] = useState(null);
+  const [showSwitcher, setShowSwitcher] = useState(false); // Estado del menú selector
 
   const loadSchedules = useCallback(async () => {
     setLoading(true);
@@ -37,6 +38,7 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
 
   const handleCreate = async () => {
     setCreating(true);
+    setShowSwitcher(false); // Cierra el menú selector si estaba abierto
     try {
       const res = await fetch(`${BACKEND_URL}/api/schedules`, {
         method: 'POST',
@@ -73,17 +75,47 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
     }
   };
 
+  // Opciones para el selector rápido de horarios
+  const switcherOptions = [
+    {
+      id: 'create-new',
+      label: 'Crear nuevo horario',
+      description: 'Empieza un horario desde cero',
+      icon: Plus,
+      onSelect: handleCreate,
+    },
+    ...schedules.map((s) => ({
+      id: s.id,
+      label: s.name,
+      description: `${s.classes.length} clase(s) · ${s.daysCount} días`,
+      onSelect: () => {
+        setSelectedScheduleId(s.id);
+      },
+    })),
+  ];
+
   if (selectedScheduleId) {
     return (
-      <ScheduleCalendar
-        userId={userId}
-        scheduleId={selectedScheduleId}
-        onBack={() => {
-          setSelectedScheduleId(null);
-          loadSchedules();
-        }}
-        dashboardShell={dashboardShell}
-      />
+      <>
+        <ScheduleCalendar
+          userId={userId}
+          scheduleId={selectedScheduleId}
+          onBack={() => {
+            setSelectedScheduleId(null);
+            loadSchedules();
+          }}
+          dashboardShell={dashboardShell}
+          onOpenSwitcher={() => setShowSwitcher(true)}
+        />
+
+        {/* ActionSheet selector disponible mientras se visualiza un horario */}
+        <ActionSheet
+          open={showSwitcher}
+          title="Cambiar horario"
+          options={switcherOptions}
+          onClose={() => setShowSwitcher(false)}
+        />
+      </>
     );
   }
 
@@ -135,7 +167,9 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
               role="button"
               tabIndex={0}
               onClick={() => setSelectedScheduleId(s.id)}
-              onKeyDown={(e) => { if (e.key === 'Enter') setSelectedScheduleId(s.id); }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') setSelectedScheduleId(s.id);
+              }}
               className="w-full text-left bg-white border border-slate-200/90 rounded-2xl p-4 shadow-sm hover:border-slate-300 hover:shadow-md transition-all cursor-pointer flex items-center justify-between"
             >
               <div>
@@ -163,6 +197,7 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
         </div>
       )}
 
+      {/* ActionSheet de confirmación para eliminar */}
       <ActionSheet
         open={Boolean(scheduleToDelete)}
         title="Eliminar horario"
@@ -170,17 +205,26 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
           {
             id: 'confirm',
             label: 'Eliminar horario',
-            description: 'Se eliminarán todas las clases asociadas. Esta acción no se puede deshacer.',
+            description:
+              'Se eliminarán todas las clases asociadas. Esta acción no se puede deshacer.',
             icon: Trash2,
             danger: true,
-            onSelect: confirmDelete
+            onSelect: confirmDelete,
           },
           {
             id: 'cancel',
-            label: 'Cancelar'
-          }
+            label: 'Cancelar',
+          },
         ]}
         onClose={() => setScheduleToDelete(null)}
+      />
+
+      {/* ActionSheet para cambiar entre horarios de la lista */}
+      <ActionSheet
+        open={showSwitcher}
+        title="Cambiar horario"
+        options={switcherOptions}
+        onClose={() => setShowSwitcher(false)}
       />
     </div>
   );
