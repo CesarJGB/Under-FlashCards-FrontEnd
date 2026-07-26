@@ -124,7 +124,7 @@ export default function ScheduleCalendar({ userId, scheduleId, onBack, dashboard
           onSave={handleUpdateSettings}
           onClose={() => setShowSettings(false)}
         />
-      )} mñn
+      )}
     </div>
   );
 }
