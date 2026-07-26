@@ -18,7 +18,7 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
   const [creating, setCreating] = useState(false);
   const [scheduleToDelete, setScheduleToDelete] = useState(null);
   const [showSwitcher, setShowSwitcher] = useState(false);
-  const [showCreateConfirm, setShowCreateConfirm] = useState(false); // Estado para el modal de creación
+  const [showCreateConfirm, setShowCreateConfirm] = useState(false);
 
   const loadSchedules = useCallback(async () => {
     if (!userId) return;
@@ -47,8 +47,8 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
 
   const handleCreate = async () => {
     setCreating(true);
-    setShowCreateConfirm(false); // Cierra el modal de confirmación de creación
-    setShowSwitcher(false);      // Cierra el menú selector si estaba abierto
+    setShowCreateConfirm(false);
+    setShowSwitcher(false);
     try {
       const res = await fetch(`${BACKEND_URL}/api/schedules`, {
         method: 'POST',
@@ -128,13 +128,16 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
           onOpenSwitcher={() => setShowSwitcher(true)}
         />
 
+        {/* ActionSheet selector resalta el horario activo con selectedId */}
         <ActionSheet
           open={showSwitcher}
           title="Cambiar horario"
           options={switcherOptions}
+          selectedId={selectedScheduleId}
           onClose={() => setShowSwitcher(false)}
         />
 
+        {/* ActionSheet de confirmación para crear desde el visor */}
         <ActionSheet
           open={showCreateConfirm}
           title="Crear horario"
