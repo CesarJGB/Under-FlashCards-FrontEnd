@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { CalendarDays, Plus, Trash2, ChevronRight } from 'lucide-react';
 import ScheduleCalendar from '../ScheduleCalendar';
-import ActionSheet from '../../../common/ActionSheet';
+import ActionSheet from '../../common/ActionSheet';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
