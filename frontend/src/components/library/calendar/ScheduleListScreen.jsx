@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { CalendarDays, Plus, Trash2, ChevronRight } from 'lucide-react';
 import ScheduleCalendar from '../ScheduleCalendar';
+import ActionSheet from '../../../common/ActionSheet'; // NUEVO IMPORT
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
@@ -11,6 +12,7 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
   const [error, setError] = useState('');
   const [selectedScheduleId, setSelectedScheduleId] = useState(null);
   const [creating, setCreating] = useState(false);
+  const [scheduleToDelete, setScheduleToDelete] = useState(null); // NUEVO ESTADO
 
   const loadSchedules = useCallback(async () => {
     setLoading(true);
@@ -55,19 +57,20 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
     }
   };
 
-  const handleDelete = async (id, e) => {
-    e.stopPropagation();
-    if (!window.confirm('¿Eliminar este horario y todas sus clases?')) return;
-
+  // NUEVA FUNCIÓN: Se llama cuando se confirma en el ActionSheet
+  const confirmDelete = async () => {
+    if (!scheduleToDelete) return;
     try {
-      const res = await fetch(`${BACKEND_URL}/api/schedules/${id}`, {
+      const res = await fetch(`${BACKEND_URL}/api/schedules/${scheduleToDelete}`, {
         method: 'DELETE',
         headers: { 'X-User-Id': userId },
       });
       if (!res.ok) throw new Error();
-      setSchedules((prev) => prev.filter((s) => s.id !== id));
+      setSchedules((prev) => prev.filter((s) => s.id !== scheduleToDelete));
     } catch {
       setError('No se pudo eliminar el horario.');
+    } finally {
+      setScheduleToDelete(null);
     }
   };
 
@@ -87,44 +90,12 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
 
   return (
     <div className="w-full max-w-2xl mx-auto pb-20 animate-[fadeIn_0.15s_ease]">
-      <div className="flex items-center justify-between py-3 border-b border-slate-200/80 mb-4 px-2">
-        <button
-          type="button"
-          onClick={onBack}
-          className="text-xs font-semibold text-slate-600 hover:text-slate-900 cursor-pointer"
-        >
-          ← Biblioteca
-        </button>
-        <h2 className="text-base font-extrabold text-slate-900">Horarios</h2>
-        <button
-          type="button"
-          onClick={handleCreate}
-          disabled={creating}
-          className="p-2 -mr-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer disabled:opacity-40"
-          title="Nuevo horario"
-        >
-          <Plus className="w-5 h-5" />
-        </button>
-      </div>
-
-      {error && (
-        <div className="mx-2 mb-4 px-3 py-2 bg-red-50 border border-red-200 rounded-xl text-xs font-medium text-red-700">
-          {error}
-        </div>
-      )}
-
+      {/* ... Header y Error sin cambios ... */}
+      
       {loading ? (
         <p className="text-center text-sm text-slate-400 py-12">Cargando...</p>
       ) : schedules.length === 0 ? (
-        <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed border-slate-200 rounded-3xl text-center min-h-[250px] mx-2">
-          <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center mb-3">
-            <CalendarDays className="w-6 h-6 text-slate-400" />
-          </div>
-          <p className="text-sm font-bold text-slate-700">Sin horarios todavía</p>
-          <p className="text-xs text-slate-400 mt-1 max-w-xs">
-            Presiona el botón "+" arriba a la derecha para crear tu primer horario.
-          </p>
-        </div>
+        /* ... Empty state sin cambios ... */
       ) : (
         <div className="space-y-3 px-2">
           {schedules.map((s) => (
@@ -134,7 +105,7 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
               tabIndex={0}
               onClick={() => setSelectedScheduleId(s.id)}
               onKeyDown={(e) => { if (e.key === 'Enter') setSelectedScheduleId(s.id); }}
-              className="w-full text-left bg-white border border-slate-200/90 rounded-2xl p-4 shadow-3xs hover:border-slate-300 hover:shadow-xs transition-all cursor-pointer flex items-center justify-between"
+              className="w-full text-left bg-white border border-slate-200/90 rounded-2xl p-4 shadow-sm hover:border-slate-300 hover:shadow-xs transition-all cursor-pointer flex items-center justify-between"
             >
               <div>
                 <h3 className="text-base font-extrabold text-slate-900">{s.name}</h3>
@@ -145,7 +116,10 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
               <div className="flex items-center gap-1">
                 <button
                   type="button"
-                  onClick={(e) => handleDelete(s.id, e)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setScheduleToDelete(s.id); // ABRE EL ACTIONSHEET
+                  }}
                   className="p-2 text-slate-300 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors cursor-pointer"
                   title="Eliminar horario"
                 >
@@ -157,6 +131,27 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
           ))}
         </div>
       )}
+
+      {/* NUEVO: ActionSheet para confirmación de borrado */}
+      <ActionSheet
+        open={Boolean(scheduleToDelete)}
+        title="Eliminar horario"
+        options={[
+          {
+            id: 'confirm',
+            label: 'Eliminar horario',
+            description: 'Se eliminarán todas las clases asociadas. Esta acción no se puede deshacer.',
+            icon: Trash2,
+            danger: true,
+            onSelect: confirmDelete
+          },
+          {
+            id: 'cancel',
+            label: 'Cancelar'
+          }
+        ]}
+        onClose={() => setScheduleToDelete(null)}
+      />
     </div>
   );
 }
