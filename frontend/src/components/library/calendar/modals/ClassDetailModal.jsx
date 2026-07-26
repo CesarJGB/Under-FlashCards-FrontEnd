@@ -2,7 +2,13 @@
 import { X, Trash2 } from 'lucide-react';
 import { WEEKDAYS } from '../useScheduleCalendar';
 
-export default function ClassDetailModal({ selectedClass, onClose, onDelete, onUpdateAttendance }) {
+export default function ClassDetailModal({ 
+  selectedClass, 
+  onClose, 
+  onDelete, 
+  onUpdateAttendance, 
+  onEdit 
+}) {
   if (!selectedClass) return null;
 
   return (
@@ -109,13 +115,23 @@ export default function ClassDetailModal({ selectedClass, onClose, onDelete, onU
               <Trash2 className="w-4 h-4" />
               Eliminar
             </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-5 py-2 bg-slate-900 text-white text-xs font-bold rounded-xl cursor-pointer"
-            >
-              Listo
-            </button>
+            
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => onEdit(selectedClass)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl cursor-pointer transition-colors"
+              >
+                Editar
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-5 py-2 bg-slate-900 text-white text-xs font-bold rounded-xl cursor-pointer"
+              >
+                Listo
+              </button>
+            </div>
           </div>
         </div>
 
