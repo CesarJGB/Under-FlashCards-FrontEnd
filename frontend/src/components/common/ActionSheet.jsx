@@ -1,3 +1,4 @@
+// FILE: frontend/src/components/common/ActionSheet.jsx
 import { isValidElement, useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Check } from 'lucide-react';
@@ -73,6 +74,19 @@ export default function ActionSheet({ open, title, options, onClose, selectedId 
             const Icon = option.icon;
             const isSelected = isSelectable && option.id === selectedId;
             const isPrimary = isSelectable ? isSelected : index === 0;
+            const isDanger = Boolean(option.danger); // NUEVO: Detectar si es acción destructiva
+
+            // Lógica de clases dinámicas
+            let optionClasses = 'bg-slate-50 border border-slate-200 hover:shadow-md';
+            if (isPrimary) {
+              optionClasses = 'bg-gradient-to-br from-indigo-100 to-violet-100 border-2 border-indigo-200 shadow-lg shadow-indigo-200/50 hover:shadow-xl';
+            }
+            if (isDanger) {
+              optionClasses = 'bg-gradient-to-br from-red-50 to-rose-100 border-2 border-red-200 shadow-lg shadow-red-200/50 hover:shadow-xl';
+            }
+
+            const iconColor = isDanger ? 'text-red-600' : (isPrimary ? 'text-indigo-600' : 'text-slate-700');
+            const descColor = isDanger ? 'text-red-700' : (isPrimary ? 'text-slate-700' : 'text-slate-600');
 
             return (
               <button
@@ -84,11 +98,7 @@ export default function ActionSheet({ open, title, options, onClose, selectedId 
                   option.onSelect?.();
                   onClose?.();
                 }}
-                className={`w-full rounded-3xl p-5 text-left active:scale-[0.98] transition-all duration-200 disabled:opacity-50 ${
-                  isPrimary
-                    ? 'bg-gradient-to-br from-indigo-100 to-violet-100 border-2 border-indigo-200 shadow-lg shadow-indigo-200/50 hover:shadow-xl'
-                    : 'bg-slate-50 border border-slate-200 hover:shadow-md'
-                }`}
+                className={`w-full rounded-3xl p-5 text-left active:scale-[0.98] transition-all duration-200 disabled:opacity-50 ${optionClasses}`}
                 style={{
                   animation: `cardIn 0.35s cubic-bezier(0.32, 0.72, 0, 1) ${0.08 + index * 0.06}s both`,
                 }}
@@ -98,13 +108,13 @@ export default function ActionSheet({ open, title, options, onClose, selectedId 
                     <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm">
                       {isValidElement(Icon)
                         ? Icon
-                        : <Icon className={`w-6 h-6 ${isPrimary ? 'text-indigo-600' : 'text-slate-700'}`} aria-hidden="true" />}
+                        : <Icon className={`w-6 h-6 ${iconColor}`} aria-hidden="true" />}
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
                     <h3 className="text-lg font-bold text-slate-900 leading-tight mb-1">{option.label}</h3>
                     {option.description && (
-                      <p className={`text-sm leading-snug ${isPrimary ? 'text-slate-700' : 'text-slate-600'}`}>{option.description}</p>
+                      <p className={`text-sm leading-snug ${descColor}`}>{option.description}</p>
                     )}
                   </div>
                   {isSelected && (
