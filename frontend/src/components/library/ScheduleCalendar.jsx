@@ -25,11 +25,6 @@ export default function ScheduleCalendar({ userId, scheduleId, onBack, dashboard
     handleCloseClassForm,
     selectedDayForForm, setSelectedDayForForm,
     selectedClassDetail, setSelectedClassDetail,
-    formSubject, setFormSubject,
-    formTeacher, setFormTeacher,
-    formRoom, setFormRoom,
-    formStartTime, setFormStartTime,
-    formEndTime, setFormEndTime,
     handleSaveClass,
     handleDeleteClass,
     handleUpdateAttendance,
@@ -76,7 +71,7 @@ export default function ScheduleCalendar({ userId, scheduleId, onBack, dashboard
       />
 
       {/* RENDERIZADO SIEMPRE ACTIVO:
-          Pasamos el estado 'open' para permitir que el ActionSheet / Modal
+          Pasamos la prop 'open' para permitir que el ActionSheet / Modal
           ejecute la animación de cierre adecuadamente. */}
       <DayPickerModal 
         open={showDayPicker}
@@ -93,12 +88,7 @@ export default function ScheduleCalendar({ userId, scheduleId, onBack, dashboard
         <ClassFormModal 
           selectedDay={selectedDayForForm}
           onClose={handleCloseClassForm}
-          onSubmit={handleSaveClass}
-          formSubject={formSubject} setFormSubject={setFormSubject}
-          formTeacher={formTeacher} setFormTeacher={setFormTeacher}
-          formRoom={formRoom} setFormRoom={setFormRoom}
-          formStartTime={formStartTime} setFormStartTime={setFormStartTime}
-          formEndTime={formEndTime} setFormEndTime={setFormEndTime}
+          onSave={handleSaveClass}
           existingClasses={classes}
         />
       )}
