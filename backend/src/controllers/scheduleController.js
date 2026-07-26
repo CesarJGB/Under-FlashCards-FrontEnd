@@ -1,4 +1,4 @@
-// backend/src/controllers/scheduleController.js
+// FILE: backend/src/controllers/scheduleController.js
 const Schedule = require('../models/Schedule');
 
 // =========================================================================
@@ -13,6 +13,36 @@ exports.getSchedules = async (req, res) => {
   } catch (err) {
     console.error('[schedule:getSchedules] error:', err.message);
     return res.status(500).json({ error: 'Server error al obtener horarios.' });
+  }
+};
+
+// =========================================================================
+// OBTENER UN SOLO HORARIO POR ID
+// =========================================================================
+exports.getScheduleById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const requestedUserId = req.headers['x-user-id']; // Seguridad: comprobar dueño
+
+    const schedule = await Schedule.findById(id);
+
+    if (!schedule) {
+      return res.status(404).json({ error: 'Horario no encontrado.' });
+    }
+
+    // Seguridad: Verificar que el horario pertenece al usuario que hace la petición
+    if (schedule.userId.toString() !== requestedUserId) {
+      return res.status(403).json({ error: 'No autorizado para ver este horario.' });
+    }
+
+    return res.json(schedule.serialize());
+  } catch (err) {
+    console.error('[schedule:getScheduleById] error:', err.message);
+    // Si el ID no tiene formato válido de MongoDB, Mongoose lanza un error de "Cast"
+    if (err.kind === 'ObjectId') {
+      return res.status(404).json({ error: 'Horario no encontrado.' });
+    }
+    return res.status(500).json({ error: 'Server error al obtener el horario.' });
   }
 };
 
