@@ -1,6 +1,6 @@
 // FILE: frontend/src/components/library/calendar/modals/ClassDetailModal.jsx
 import { useState } from 'react';
-import { X, Trash2 } from 'lucide-react';
+import { X, Trash2, ChevronDown } from 'lucide-react';
 import { WEEKDAYS } from '../useScheduleCalendar';
 import ActionSheet from '../../../common/ActionSheet';
 
@@ -28,9 +28,9 @@ export default function ClassDetailModal({
       <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-end justify-center animate-[fadeIn_0.15s_ease]">
         <div className="w-full max-w-lg bg-slate-900 text-white rounded-t-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
           
-          {/* Indicador de arrastre superior */}
+          {/* 2F: Indicador de arrastre superior en fondo oscuro */}
           <div className="pt-3 flex justify-center">
-            <div className="w-10 h-1 bg-slate-700 rounded-full" />
+            <div className="w-12 h-1 bg-slate-600 rounded-full" />
           </div>
 
           <div className="p-6 pb-8 space-y-6 relative">
@@ -42,9 +42,11 @@ export default function ClassDetailModal({
               <X className="w-6 h-6" />
             </button>
 
+            {/* 2G: Nombre del día con icono ChevronDown */}
             <div className="text-center pt-2">
-              <span className="text-sm font-bold text-slate-300">
-                {WEEKDAYS[selectedClass.dayIndex]} ▼
+              <span className="flex items-center justify-center gap-1 text-sm font-bold text-slate-300">
+                {WEEKDAYS[selectedClass.dayIndex]}
+                <ChevronDown className="w-4 h-4" />
               </span>
               <div className="mt-1 inline-block bg-slate-800/80 px-3 py-1 rounded-full text-xs font-extrabold tracking-wider">
                 {selectedClass.startTime} - {selectedClass.endTime}
@@ -81,9 +83,8 @@ export default function ClassDetailModal({
             </div>
           </div>
 
+          {/* Hoja Inferior Blanca con Registro de Asistencias */}
           <div className="bg-white text-slate-900 rounded-t-3xl p-6 flex-1 space-y-6">
-            <div className="w-12 h-1 bg-slate-200 rounded-full mx-auto" />
-
             <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider text-center">
               Registro de asistencia
             </h4>
