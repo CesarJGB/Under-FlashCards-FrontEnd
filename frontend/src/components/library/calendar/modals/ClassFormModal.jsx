@@ -2,10 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { X, ChevronRight, MapPin } from 'lucide-react';
 
-// Bloquea el scroll del body mientras el modal está montado (evita que el
-// fondo se desplace y "se asome" detrás cuando el teclado empuja el viewport
-// en iOS). overflow:hidden no basta en iOS con un input enfocado; hay que
-// fijar el body con position:fixed y restaurar el scroll al desmontar.
+// Bloquea el scroll del body mientras el modal está montado
 function useLockBodyScroll() {
   useEffect(() => {
     const scrollY = window.scrollY;
@@ -36,23 +33,33 @@ function useLockBodyScroll() {
 }
 
 export default function ClassFormModal({
-  onClose, onSubmit,
-  formSubject, setFormSubject,
-  formTeacher, setFormTeacher,
-  formRoom, setFormRoom,
-  formStartTime, setFormStartTime,
-  formEndTime, setFormEndTime,
+  onClose,
+  onSave, // Reemplaza a onSubmit
+  initialSubject = '',
+  initialTeacher = '',
+  initialRoom = '',
+  initialStartTime = '08:00',
+  initialEndTime = '09:30',
   existingClasses = [],
 }) {
   useLockBodyScroll();
 
+  // El estado de escritura vive ahora dentro del propio modal
+  const [formSubject, setFormSubject] = useState(initialSubject);
+  const [formTeacher, setFormTeacher] = useState(initialTeacher);
+  const [formRoom, setFormRoom] = useState(initialRoom);
+  const [formStartTime, setFormStartTime] = useState(initialStartTime);
+  const [formEndTime, setFormEndTime] = useState(initialEndTime);
+
   // null | 'subject' | 'teacher' | 'room' | 'combined'
   const [activeScreen, setActiveScreen] = useState(null);
 
-  // Borrador para la pantalla de los 3 campos juntos: nada se aplica al
-  // formulario real hasta que se pulsa "Guardar" ahí dentro.
+  // Borrador para la pantalla de los 3 campos juntos
   const [combinedDraft, setCombinedDraft] = useState({
-    subject: '', teacher: '', room: '', roomSuggestion: '',
+    subject: '',
+    teacher: '',
+    room: '',
+    roomSuggestion: '',
   });
 
   const subjectInputRef = useRef(null);
@@ -68,7 +75,7 @@ export default function ClassFormModal({
     }
   }, [activeScreen]);
 
-  // --- Materias ya usadas (una por asignatura, sin duplicar) ---
+  // --- Materias ya usadas ---
   const uniqueSubjects = useMemo(() => {
     const map = new Map();
     for (const c of existingClasses) {
@@ -128,8 +135,6 @@ export default function ClassFormModal({
     return list.map((r) => ({ key: r, primary: r }));
   }, [uniqueRooms, formRoom]);
 
-  // Elegir una materia existente abre la pantalla de los 3 juntos, en
-  // borrador — no toca el formulario real todavía.
   const handleSelectSubject = (classItem) => {
     setCombinedDraft({
       subject: classItem.subject,
@@ -141,7 +146,6 @@ export default function ClassFormModal({
   };
 
   const handleCancelCombined = () => {
-    // Descarta el borrador: el formulario real queda como estaba antes.
     setActiveScreen(null);
   };
 
@@ -150,6 +154,19 @@ export default function ClassFormModal({
     setFormTeacher(combinedDraft.teacher);
     setFormRoom(combinedDraft.room);
     setActiveScreen(null);
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!formSubject.trim()) return;
+
+    onSave({
+      subject: formSubject.trim(),
+      teacher: formTeacher.trim(),
+      room: formRoom.trim(),
+      startTime: formStartTime,
+      endTime: formEndTime,
+    });
   };
 
   return (
@@ -165,7 +182,7 @@ export default function ClassFormModal({
           </button>
         </div>
 
-        <form onSubmit={onSubmit} className="space-y-7">
+        <form onSubmit={handleSubmit} className="space-y-7">
           <FieldButton
             label="Asignatura"
             value={formSubject}
@@ -247,7 +264,10 @@ export default function ClassFormModal({
           placeholder="Ej. Juan García"
           listHeader="Profesores que ya usas"
           items={teacherItems}
-          onSelectItem={(item) => { setFormTeacher(item.primary); setActiveScreen(null); }}
+          onSelectItem={(item) => {
+            setFormTeacher(item.primary);
+            setActiveScreen(null);
+          }}
           onClose={() => setActiveScreen(null)}
           inputRef={teacherInputRef}
         />
@@ -261,7 +281,10 @@ export default function ClassFormModal({
           placeholder="Ej. 201A"
           listHeader="Aulas que ya usas"
           items={roomItems}
-          onSelectItem={(item) => { setFormRoom(item.primary); setActiveScreen(null); }}
+          onSelectItem={(item) => {
+            setFormRoom(item.primary);
+            setActiveScreen(null);
+          }}
           onClose={() => setActiveScreen(null)}
           inputRef={roomInputRef}
         />
@@ -282,7 +305,7 @@ export default function ClassFormModal({
 function FieldButton({ label, value, placeholder, size = 'md', onClick }) {
   const textSize = size === 'lg' ? 'text-3xl' : 'text-2xl';
   return (
-    <button type="button" onClick={onClick} className="w-full text-left group">
+    <button type="button" onClick={onClick} className="w-full text-left group cursor-pointer">
       <span className="block text-xs font-bold uppercase tracking-wide text-slate-400 mb-1">
         {label}
       </span>
@@ -298,7 +321,17 @@ function FieldButton({ label, value, placeholder, size = 'md', onClick }) {
   );
 }
 
-function SingleFieldScreen({ title, value, onChange, placeholder, listHeader, items, onSelectItem, onClose, inputRef }) {
+function SingleFieldScreen({
+  title,
+  value,
+  onChange,
+  placeholder,
+  listHeader,
+  items,
+  onSelectItem,
+  onClose,
+  inputRef,
+}) {
   return (
     <div className="fixed inset-0 z-[60] bg-white flex flex-col animate-[fadeIn_0.15s_ease]">
       <div className="flex items-center justify-between px-5 pt-[calc(env(safe-area-inset-top)+16px)] pb-4">
@@ -346,9 +379,13 @@ function SingleFieldScreen({ title, value, onChange, placeholder, listHeader, it
                 onClick={() => onSelectItem(item)}
                 className="w-full flex items-center justify-between gap-2 px-5 py-3.5 text-left border-b border-slate-50 hover:bg-slate-50 cursor-pointer"
               >
-                <span className="text-sm font-semibold text-slate-800 truncate">{item.primary}</span>
+                <span className="text-sm font-semibold text-slate-800 truncate">
+                  {item.primary}
+                </span>
                 {item.secondary && (
-                  <span className="text-xs font-medium text-slate-400 shrink-0">{item.secondary}</span>
+                  <span className="text-xs font-medium text-slate-400 shrink-0">
+                    {item.secondary}
+                  </span>
                 )}
               </button>
             ))}
@@ -359,10 +396,6 @@ function SingleFieldScreen({ title, value, onChange, placeholder, listHeader, it
   );
 }
 
-// Pantalla de los 3 campos juntos (tras elegir una materia existente).
-// Usa el borrador que le pasan — nada de esto es el formulario real
-// hasta que se llama a onSave. Sin listas de autocompletar propias,
-// salvo la sugerencia de aula (misma materia → probablemente mismo salón).
 function CombinedFieldsScreen({ draft, onChangeDraft, onCancel, onSave }) {
   const handleUseRoomSuggestion = () => {
     onChangeDraft({ ...draft, room: draft.roomSuggestion, roomSuggestion: '' });
