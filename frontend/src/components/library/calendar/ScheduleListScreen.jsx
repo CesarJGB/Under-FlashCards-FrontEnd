@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { CalendarDays, Plus, Trash2, ChevronRight } from 'lucide-react';
 import ScheduleCalendar from '../ScheduleCalendar';
 import ActionSheet from '../../common/ActionSheet';
-import { getJSON, setJSON, remove } from '../../../lib/safeLocalStorage';
+import { getJSON, setJSON } from '../../../lib/safeLocalStorage';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
@@ -17,12 +17,12 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
   const [selectedScheduleId, setSelectedScheduleId] = useState(null);
   const [creating, setCreating] = useState(false);
   const [scheduleToDelete, setScheduleToDelete] = useState(null);
-  const [showSwitcher, setShowSwitcher] = useState(false); // Estado del menú selector
+  const [showSwitcher, setShowSwitcher] = useState(false);
+  const [showCreateConfirm, setShowCreateConfirm] = useState(false); // Estado para el modal de creación
 
   const loadSchedules = useCallback(async () => {
     if (!userId) return;
 
-    // Solo mostramos loading si no existen datos almacenados previamente
     if (!getJSON(listCacheKey)) setLoading(true);
     setError('');
 
@@ -33,7 +33,7 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
       if (!res.ok) throw new Error();
       const data = await res.json();
       setSchedules(data);
-      if (listCacheKey) setJSON(listCacheKey, data); // Guardar en cache
+      if (listCacheKey) setJSON(listCacheKey, data);
     } catch {
       setError('No se pudieron cargar tus horarios.');
     } finally {
@@ -47,7 +47,8 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
 
   const handleCreate = async () => {
     setCreating(true);
-    setShowSwitcher(false); // Cierra el menú selector si estaba abierto
+    setShowCreateConfirm(false); // Cierra el modal de confirmación de creación
+    setShowSwitcher(false);      // Cierra el menú selector si estaba abierto
     try {
       const res = await fetch(`${BACKEND_URL}/api/schedules`, {
         method: 'POST',
@@ -62,7 +63,7 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
 
       setSchedules((prev) => {
         const next = [...prev, newSchedule];
-        if (listCacheKey) setJSON(listCacheKey, next); // Actualiza cache local
+        if (listCacheKey) setJSON(listCacheKey, next);
         return next;
       });
 
@@ -85,7 +86,7 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
 
       setSchedules((prev) => {
         const next = prev.filter((s) => s.id !== scheduleToDelete);
-        if (listCacheKey) setJSON(listCacheKey, next); // Actualiza cache local
+        if (listCacheKey) setJSON(listCacheKey, next);
         return next;
       });
     } catch {
@@ -95,14 +96,13 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
     }
   };
 
-  // Opciones para el selector rápido de horarios
   const switcherOptions = [
     {
       id: 'create-new',
       label: 'Crear nuevo horario',
       description: 'Empieza un horario desde cero',
       icon: Plus,
-      onSelect: handleCreate,
+      onSelect: () => setShowCreateConfirm(true),
     },
     ...schedules.map((s) => ({
       id: s.id,
@@ -128,12 +128,30 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
           onOpenSwitcher={() => setShowSwitcher(true)}
         />
 
-        {/* ActionSheet selector disponible mientras se visualiza un horario */}
         <ActionSheet
           open={showSwitcher}
           title="Cambiar horario"
           options={switcherOptions}
           onClose={() => setShowSwitcher(false)}
+        />
+
+        <ActionSheet
+          open={showCreateConfirm}
+          title="Crear horario"
+          options={[
+            {
+              id: 'confirm',
+              label: 'Crear nuevo horario',
+              description: 'Se añadirá un horario vacío a tu lista para que lo configures.',
+              icon: Plus,
+              onSelect: handleCreate,
+            },
+            {
+              id: 'cancel',
+              label: 'Cancelar',
+            },
+          ]}
+          onClose={() => setShowCreateConfirm(false)}
         />
       </>
     );
@@ -152,7 +170,7 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
         <h2 className="text-base font-extrabold text-slate-900">Horarios</h2>
         <button
           type="button"
-          onClick={handleCreate}
+          onClick={() => setShowCreateConfirm(true)}
           disabled={creating}
           className="p-2 -mr-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer disabled:opacity-40"
           title="Nuevo horario"
@@ -245,6 +263,26 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
         title="Cambiar horario"
         options={switcherOptions}
         onClose={() => setShowSwitcher(false)}
+      />
+
+      {/* ActionSheet de confirmación para crear */}
+      <ActionSheet
+        open={showCreateConfirm}
+        title="Crear horario"
+        options={[
+          {
+            id: 'confirm',
+            label: 'Crear nuevo horario',
+            description: 'Se añadirá un horario vacío a tu lista para que lo configures.',
+            icon: Plus,
+            onSelect: handleCreate,
+          },
+          {
+            id: 'cancel',
+            label: 'Cancelar',
+          },
+        ]}
+        onClose={() => setShowCreateConfirm(false)}
       />
     </div>
   );
