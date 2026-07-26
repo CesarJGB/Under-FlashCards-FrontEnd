@@ -3,12 +3,20 @@ import { useState } from 'react';
 import { Check, Minus, Plus } from 'lucide-react';
 
 export default function ScheduleSettingsModal({ 
-  scheduleName, daysCount, onSave, onClose 
+  scheduleName, daysCount, classes = [], onSave, onClose 
 }) {
   const [draftName, setDraftName] = useState(scheduleName);
   const [draftDays, setDraftDays] = useState(daysCount);
 
+  const hiddenClassesCount = classes.filter((c) => c.dayIndex >= draftDays).length;
+
   const handleDone = () => {
+    if (hiddenClassesCount > 0) {
+      const confirmed = window.confirm(
+        `Tienes ${hiddenClassesCount} clase${hiddenClassesCount !== 1 ? 's' : ''} en día(s) que vas a ocultar. No se borran, pero no las verás mientras el horario tenga menos días. ¿Continuar?`
+      );
+      if (!confirmed) return;
+    }
     onSave({ name: draftName, daysCount: draftDays });
     onClose();
   };
@@ -71,6 +79,12 @@ export default function ScheduleSettingsModal({
               </div>
             </div>
           </div>
+
+          {hiddenClassesCount > 0 && (
+            <p className="text-[11px] font-semibold text-amber-600 px-1 pt-1">
+              Ocultarás {hiddenClassesCount} clase{hiddenClassesCount !== 1 ? 's' : ''} (no se borran, solo dejan de verse).
+            </p>
+          )}
         </div>
 
       </div>
