@@ -11,11 +11,16 @@ export default function ClassDetailModal({
 }) {
   if (!selectedClass) return null;
 
+  const handleDeleteClick = () => {
+    if (window.confirm(`¿Eliminar la clase de ${selectedClass.subject}? Esta acción no se puede deshacer.`)) {
+      onDelete(selectedClass.id);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-end justify-center animate-[fadeIn_0.15s_ease]">
       <div className="w-full max-w-lg bg-slate-900 text-white rounded-t-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
         
-        {/* Header Oscuro */}
         <div className="p-6 pb-8 space-y-6 relative">
           <button
             type="button"
@@ -64,7 +69,6 @@ export default function ClassDetailModal({
           </div>
         </div>
 
-        {/* Hoja Inferior Blanca con Registro de Asistencias */}
         <div className="bg-white text-slate-900 rounded-t-3xl p-6 flex-1 space-y-6">
           <div className="w-12 h-1 bg-slate-200 rounded-full mx-auto" />
 
@@ -109,7 +113,7 @@ export default function ClassDetailModal({
           <div className="pt-4 border-t border-slate-100 flex justify-between items-center">
             <button
               type="button"
-              onClick={() => onDelete(selectedClass.id)}
+              onClick={handleDeleteClick}
               className="px-3 py-2 text-xs font-bold text-red-600 hover:bg-red-50 rounded-xl transition-colors cursor-pointer flex items-center gap-1.5"
             >
               <Trash2 className="w-4 h-4" />
