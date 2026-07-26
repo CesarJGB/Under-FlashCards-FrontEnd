@@ -1,6 +1,6 @@
 // FILE: frontend/src/components/library/calendar/useScheduleCalendar.js
 import { useState, useEffect, useCallback } from 'react';
-import { getJSON, setJSON } from '../../../../lib/safeLocalStorage';
+import { getJSON, setJSON, remove } from '../../../lib/safeLocalStorage';
 
 export const WEEKDAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 export const SHORT_WEEKDAYS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
