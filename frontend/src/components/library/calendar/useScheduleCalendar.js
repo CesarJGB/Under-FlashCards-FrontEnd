@@ -24,21 +24,18 @@ export function useScheduleCalendar(userId, scheduleId) {
     setShowClassForm(false);
   };
 
-  // NOTA: reutilizamos el mismo GET de lista (no hay endpoint de detalle por id)
-  // y buscamos el horario dentro de la respuesta. Es aceptable mientras la
-  // cantidad de horarios/clases por usuario sea pequeña.
+  // Carga directa del horario por su ID específico
   const loadSchedule = useCallback(async () => {
     if (!userId || !scheduleId) return;
     setLoading(true);
     setError('');
     try {
-      const res = await fetch(`${BACKEND_URL}/api/schedules/${userId}`, {
+      const res = await fetch(`${BACKEND_URL}/api/schedules/by-id/${scheduleId}`, {
         headers: { 'X-User-Id': userId },
       });
       if (!res.ok) throw new Error();
       const data = await res.json();
-      const found = data.find((s) => s.id === scheduleId);
-      setSchedule(found || null);
+      setSchedule(data);
     } catch {
       setError('No se pudo cargar el horario.');
     } finally {
