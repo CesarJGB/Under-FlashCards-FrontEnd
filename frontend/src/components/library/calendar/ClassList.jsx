@@ -23,7 +23,7 @@ export default function ClassList({ currentDayClasses, onSelectClass }) {
           key={item.id}
           type="button"
           onClick={() => onSelectClass(item)}
-          className="w-full text-left bg-white border border-slate-200/90 rounded-2xl p-4 shadow-3xs hover:border-slate-300 hover:shadow-xs transition-all cursor-pointer flex items-center justify-between"
+          className="w-full text-left bg-white border border-slate-200/90 rounded-2xl p-4 shadow-sm hover:border-slate-300 hover:shadow-md transition-all cursor-pointer flex items-center justify-between"
         >
           <div className="space-y-1">
             <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-slate-100 text-[11px] font-bold text-slate-700">
