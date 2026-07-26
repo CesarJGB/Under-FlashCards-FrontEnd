@@ -136,7 +136,7 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
               tabIndex={0}
               onClick={() => setSelectedScheduleId(s.id)}
               onKeyDown={(e) => { if (e.key === 'Enter') setSelectedScheduleId(s.id); }}
-              className="w-full text-left bg-white border border-slate-200/90 rounded-2xl p-4 shadow-sm hover:border-slate-300 hover:shadow-xs transition-all cursor-pointer flex items-center justify-between"
+              className="w-full text-left bg-white border border-slate-200/90 rounded-2xl p-4 shadow-sm hover:border-slate-300 hover:shadow-md transition-all cursor-pointer flex items-center justify-between"
             >
               <div>
                 <h3 className="text-base font-extrabold text-slate-900">{s.name}</h3>
