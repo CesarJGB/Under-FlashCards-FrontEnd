@@ -1,5 +1,6 @@
 // FILE: frontend/src/components/library/calendar/useScheduleCalendar.js
 import { useState, useEffect, useCallback } from 'react';
+import { getJSON, setJSON } from '../../../../lib/safeLocalStorage';
 
 export const WEEKDAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 export const SHORT_WEEKDAYS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
@@ -7,8 +8,11 @@ export const SHORT_WEEKDAYS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
 export function useScheduleCalendar(userId, scheduleId) {
-  const [schedule, setSchedule] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const cacheKey = scheduleId ? `schedule_${scheduleId}` : null;
+
+  // Intentamos cargar del cache inmediatamente para sensación 0ms
+  const [schedule, setSchedule] = useState(() => (cacheKey ? getJSON(cacheKey) : null));
+  const [loading, setLoading] = useState(() => (cacheKey ? !getJSON(cacheKey) : true));
   const [error, setError] = useState('');
 
   const [activeDayIndex, setActiveDayIndex] = useState(0);
@@ -35,11 +39,14 @@ export function useScheduleCalendar(userId, scheduleId) {
     setShowClassForm(true);       // Abre el formulario
   };
 
-  // Carga directa del horario por su ID específico
+  // Carga directa del horario por su ID específico con revalidación en segundo plano
   const loadSchedule = useCallback(async () => {
     if (!userId || !scheduleId) return;
-    setLoading(true);
+
+    // Si no tenemos datos en cache, mostramos el loader
+    if (!getJSON(cacheKey)) setLoading(true);
     setError('');
+
     try {
       const res = await fetch(`${BACKEND_URL}/api/schedules/by-id/${scheduleId}`, {
         headers: { 'X-User-Id': userId },
@@ -47,12 +54,13 @@ export function useScheduleCalendar(userId, scheduleId) {
       if (!res.ok) throw new Error();
       const data = await res.json();
       setSchedule(data);
+      if (cacheKey) setJSON(cacheKey, data); // Actualizamos el cache
     } catch {
       setError('No se pudo cargar el horario.');
     } finally {
       setLoading(false);
     }
-  }, [userId, scheduleId]);
+  }, [userId, scheduleId, cacheKey]);
 
   useEffect(() => {
     loadSchedule();
@@ -69,16 +77,9 @@ export function useScheduleCalendar(userId, scheduleId) {
   const handleSaveClass = async (formData, editingClassId = null) => {
     // 1. VALIDACIÓN DE CHOQUE DE HORARIOS
     const hasConflict = schedule?.classes.some((c) => {
-      // Ignorar la clase actual si se está editando
       if (c.id === editingClassId) return false;
-
-      // Solo importa comparar con clases del mismo día
       if (c.dayIndex !== selectedDayForForm) return false;
-
-      // Lógica de superposición de intervalos: (StartA < EndB) && (EndA > StartB)
-      const isOverlap = formData.startTime < c.endTime && formData.endTime > c.startTime;
-
-      return isOverlap;
+      return formData.startTime < c.endTime && formData.endTime > c.startTime;
     });
 
     if (hasConflict) {
@@ -92,14 +93,12 @@ export function useScheduleCalendar(userId, scheduleId) {
     try {
       let res;
       if (editingClassId) {
-        // MODO EDICIÓN: Petición PUT
         res = await fetch(`${BACKEND_URL}/api/schedules/${scheduleId}/classes/${editingClassId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
           body: JSON.stringify(formData),
         });
       } else {
-        // MODO CREACIÓN: Petición POST
         res = await fetch(`${BACKEND_URL}/api/schedules/${scheduleId}/classes`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
@@ -114,13 +113,14 @@ export function useScheduleCalendar(userId, scheduleId) {
 
       const updated = await res.json();
       setSchedule(updated);
+      if (cacheKey) setJSON(cacheKey, updated); // Sincronizamos cache
 
       if (!editingClassId) {
-        setActiveDayIndex(selectedDayForForm); // Saltar al día solo si es nueva
+        setActiveDayIndex(selectedDayForForm);
       }
 
       setShowClassForm(false);
-      setEditingClass(null); // Limpia el modo edición
+      setEditingClass(null);
     } catch {
       setError('No se pudo guardar la clase.');
     }
@@ -135,6 +135,7 @@ export function useScheduleCalendar(userId, scheduleId) {
       if (!res.ok) throw new Error();
       const updated = await res.json();
       setSchedule(updated);
+      if (cacheKey) setJSON(cacheKey, updated); // Sincronizamos cache
       setSelectedClassDetail(null);
     } catch {
       setError('No se pudo eliminar la clase.');
@@ -144,8 +145,9 @@ export function useScheduleCalendar(userId, scheduleId) {
   const handleUpdateAttendance = async (classId, field, delta) => {
     let nextVal = 0;
     let prevScheduleSnapshot = schedule;
+    let updatedScheduleSnapshot = null;
 
-    // Usamos actualización funcional para evitar race conditions si el usuario hace clic muy rápido
+    // Actualización funcional para evitar race conditions
     setSchedule((prev) => {
       if (!prev) return prev;
       prevScheduleSnapshot = prev;
@@ -158,10 +160,14 @@ export function useScheduleCalendar(userId, scheduleId) {
       const optimisticClasses = prev.classes.map((c) =>
         c.id === classId ? { ...c, [field]: nextVal } : c
       );
-      return { ...prev, classes: optimisticClasses };
+      updatedScheduleSnapshot = { ...prev, classes: optimisticClasses };
+      return updatedScheduleSnapshot;
     });
 
-    // Actualizamos el modal de detalle de forma funcional también
+    if (updatedScheduleSnapshot && cacheKey) {
+      setJSON(cacheKey, updatedScheduleSnapshot);
+    }
+
     setSelectedClassDetail((prevDetail) => {
       if (prevDetail?.id === classId) {
         return { ...prevDetail, [field]: nextVal };
@@ -178,8 +184,10 @@ export function useScheduleCalendar(userId, scheduleId) {
       if (!res.ok) throw new Error();
     } catch {
       setError('No se pudo actualizar la asistencia. Revisa tu conexión.');
-      // Rollback a la versión exacta de antes del fallo
+      // Rollback del estado y cache
       setSchedule(prevScheduleSnapshot);
+      if (cacheKey && prevScheduleSnapshot) setJSON(cacheKey, prevScheduleSnapshot);
+
       setSelectedClassDetail((prevDetail) => {
         if (prevDetail?.id === classId) {
           const target = prevScheduleSnapshot?.classes.find((c) => c.id === classId);
@@ -191,11 +199,13 @@ export function useScheduleCalendar(userId, scheduleId) {
   };
 
   const handleUpdateSettings = async ({ name, daysCount }) => {
-    // 1. Guardamos el estado previo por si falla
     const prevSchedule = schedule;
 
-    // 2. Actualización optimista inmediata en la UI
-    setSchedule({ ...schedule, name, daysCount });
+    // Actualización optimista inmediata en UI y Cache
+    const nextSchedule = schedule ? { ...schedule, name, daysCount } : null;
+    setSchedule(nextSchedule);
+    if (cacheKey && nextSchedule) setJSON(cacheKey, nextSchedule);
+
     if (activeDayIndex >= daysCount) {
       setActiveDayIndex(0);
     }
@@ -208,13 +218,14 @@ export function useScheduleCalendar(userId, scheduleId) {
       });
       if (!res.ok) throw new Error();
 
-      // Si todo sale bien, sincronizamos con la respuesta del servidor
       const updated = await res.json();
       setSchedule(updated);
+      if (cacheKey) setJSON(cacheKey, updated);
     } catch {
-      // 3. Si falla, mostramos error y revertimos la UI
       setError('No se pudieron guardar los ajustes. Revisa tu conexión.');
-      setSchedule(prevSchedule); // Rollback
+      // Rollback
+      setSchedule(prevSchedule);
+      if (cacheKey && prevSchedule) setJSON(cacheKey, prevSchedule);
     }
   };
 
