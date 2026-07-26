@@ -20,25 +20,8 @@ export function useScheduleCalendar(userId, scheduleId) {
   const [selectedDayForForm, setSelectedDayForForm] = useState(0);
   const [selectedClassDetail, setSelectedClassDetail] = useState(null);
 
-  // Formulario
-  const [formSubject, setFormSubject] = useState('');
-  const [formTeacher, setFormTeacher] = useState('');
-  const [formRoom, setFormRoom] = useState('');
-  const [formStartTime, setFormStartTime] = useState('08:00');
-  const [formEndTime, setFormEndTime] = useState('09:30');
-
-  const resetClassForm = () => {
-    setFormSubject('');
-    setFormTeacher('');
-    setFormRoom('');
-    setFormStartTime('08:00');
-    setFormEndTime('09:30');
-  };
-
-  // Cerrar el modal SIEMPRE limpia el formulario, se guarde o se cancele.
   const handleCloseClassForm = () => {
     setShowClassForm(false);
-    resetClassForm();
   };
 
   // NOTA: reutilizamos el mismo GET de lista (no hay endpoint de detalle por id)
@@ -75,28 +58,20 @@ export function useScheduleCalendar(userId, scheduleId) {
     }
   }, [schedule, selectedClassDetail]);
 
-  const handleSaveClass = async (e) => {
-    e.preventDefault();
-    if (!formSubject.trim()) return;
-
+  const handleSaveClass = async (formData) => {
     try {
       const res = await fetch(`${BACKEND_URL}/api/schedules/${scheduleId}/classes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
         body: JSON.stringify({
-          subject: formSubject.trim(),
-          teacher: formTeacher.trim(),
-          room: formRoom.trim(),
+          ...formData,
           dayIndex: selectedDayForForm,
-          startTime: formStartTime,
-          endTime: formEndTime,
         }),
       });
       if (!res.ok) throw new Error();
       const updated = await res.json();
       setSchedule(updated);
       setActiveDayIndex(selectedDayForForm); // salta al día donde se acaba de crear la clase
-      resetClassForm();
       setShowClassForm(false);
     } catch {
       setError('No se pudo guardar la clase.');
@@ -179,11 +154,6 @@ export function useScheduleCalendar(userId, scheduleId) {
     handleCloseClassForm,
     selectedDayForForm, setSelectedDayForForm,
     selectedClassDetail, setSelectedClassDetail,
-    formSubject, setFormSubject,
-    formTeacher, setFormTeacher,
-    formRoom, setFormRoom,
-    formStartTime, setFormStartTime,
-    formEndTime, setFormEndTime,
     handleSaveClass,
     handleDeleteClass,
     handleUpdateAttendance,
