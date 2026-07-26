@@ -2,6 +2,39 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { X, ChevronRight, MapPin } from 'lucide-react';
 
+// Bloquea el scroll del body mientras el modal está montado (evita que el
+// fondo se desplace y "se asome" detrás cuando el teclado empuja el viewport
+// en iOS). overflow:hidden no basta en iOS con un input enfocado; hay que
+// fijar el body con position:fixed y restaurar el scroll al desmontar.
+function useLockBodyScroll() {
+  useEffect(() => {
+    const scrollY = window.scrollY;
+    const body = document.body;
+    const prev = {
+      position: body.style.position,
+      top: body.style.top,
+      left: body.style.left,
+      right: body.style.right,
+      width: body.style.width,
+    };
+
+    body.style.position = 'fixed';
+    body.style.top = `-${scrollY}px`;
+    body.style.left = '0';
+    body.style.right = '0';
+    body.style.width = '100%';
+
+    return () => {
+      body.style.position = prev.position;
+      body.style.top = prev.top;
+      body.style.left = prev.left;
+      body.style.right = prev.right;
+      body.style.width = prev.width;
+      window.scrollTo(0, scrollY);
+    };
+  }, []);
+}
+
 export default function ClassFormModal({
   onClose, onSubmit,
   formSubject, setFormSubject,
@@ -11,6 +44,8 @@ export default function ClassFormModal({
   formEndTime, setFormEndTime,
   existingClasses = [],
 }) {
+  useLockBodyScroll();
+
   // null | 'subject' | 'teacher' | 'room' | 'combined'
   const [activeScreen, setActiveScreen] = useState(null);
 
@@ -328,8 +363,6 @@ function SingleFieldScreen({ title, value, onChange, placeholder, listHeader, it
 // Usa el borrador que le pasan — nada de esto es el formulario real
 // hasta que se llama a onSave. Sin listas de autocompletar propias,
 // salvo la sugerencia de aula (misma materia → probablemente mismo salón).
-// Sin overflow/scroll interno a propósito: con solo 3 campos siempre cabe
-// en pantalla y así evitamos que el teclado "empuje" la vista sin necesidad.
 function CombinedFieldsScreen({ draft, onChangeDraft, onCancel, onSave }) {
   const handleUseRoomSuggestion = () => {
     onChangeDraft({ ...draft, room: draft.roomSuggestion, roomSuggestion: '' });
