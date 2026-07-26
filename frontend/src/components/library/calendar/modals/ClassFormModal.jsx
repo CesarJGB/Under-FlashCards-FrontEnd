@@ -51,6 +51,9 @@ export default function ClassFormModal({
   const [formStartTime, setFormStartTime] = useState(initialStartTime);
   const [formEndTime, setFormEndTime] = useState(initialEndTime);
 
+  // Estado para mensajes de validación
+  const [formError, setFormError] = useState('');
+
   // null | 'subject' | 'teacher' | 'room' | 'combined'
   const [activeScreen, setActiveScreen] = useState(null);
 
@@ -153,12 +156,25 @@ export default function ClassFormModal({
     setFormSubject(combinedDraft.subject);
     setFormTeacher(combinedDraft.teacher);
     setFormRoom(combinedDraft.room);
+    setFormError('');
     setActiveScreen(null);
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!formSubject.trim()) return;
+    setFormError('');
+
+    // 5b: Avisar cuando Asignatura está vacía
+    if (!formSubject.trim()) {
+      setFormError('Por favor, ingresa el nombre de la asignatura.');
+      return;
+    }
+
+    // 5a: Validar que la hora de fin sea posterior a la de inicio
+    if (formEndTime <= formStartTime) {
+      setFormError('La hora de fin debe ser posterior a la hora de inicio.');
+      return;
+    }
 
     onSave({
       subject: formSubject.trim(),
@@ -182,13 +198,22 @@ export default function ClassFormModal({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-7">
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {formError && (
+            <div className="px-3.5 py-2.5 bg-red-50 border border-red-200 rounded-xl text-xs font-semibold text-red-600 animate-[fadeIn_0.15s_ease]">
+              {formError}
+            </div>
+          )}
+
           <FieldButton
             label="Asignatura"
             value={formSubject}
             placeholder="Ej. Inglés"
             size="lg"
-            onClick={() => setActiveScreen('subject')}
+            onClick={() => {
+              setFormError('');
+              setActiveScreen('subject');
+            }}
           />
           <FieldButton
             label="Profesor"
@@ -211,14 +236,20 @@ export default function ClassFormModal({
               <input
                 type="time"
                 value={formStartTime}
-                onChange={(e) => setFormStartTime(e.target.value)}
+                onChange={(e) => {
+                  setFormStartTime(e.target.value);
+                  setFormError('');
+                }}
                 className="text-2xl font-extrabold text-slate-900 bg-transparent border-b-2 border-transparent focus:outline-none focus:border-slate-900 pb-1 transition-colors"
               />
               <span className="text-2xl font-extrabold text-slate-300">–</span>
               <input
                 type="time"
                 value={formEndTime}
-                onChange={(e) => setFormEndTime(e.target.value)}
+                onChange={(e) => {
+                  setFormEndTime(e.target.value);
+                  setFormError('');
+                }}
                 className="text-2xl font-extrabold text-slate-900 bg-transparent border-b-2 border-transparent focus:outline-none focus:border-slate-900 pb-1 transition-colors"
               />
             </div>
@@ -246,7 +277,10 @@ export default function ClassFormModal({
         <SingleFieldScreen
           title="Asignatura"
           value={formSubject}
-          onChange={setFormSubject}
+          onChange={(val) => {
+            setFormSubject(val);
+            setFormError('');
+          }}
           placeholder="Ej. Inglés"
           listHeader="Materias en otros días"
           items={subjectItems}
