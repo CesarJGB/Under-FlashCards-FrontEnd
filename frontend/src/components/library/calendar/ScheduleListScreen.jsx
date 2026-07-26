@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { CalendarDays, Plus, Trash2, ChevronRight } from 'lucide-react';
 import ScheduleCalendar from '../ScheduleCalendar';
 import ActionSheet from '../../common/ActionSheet';
-import { getJSON, setJSON } from '../../../../lib/safeLocalStorage';
+import { getJSON, setJSON, remove } from '../../../lib/safeLocalStorage';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
