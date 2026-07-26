@@ -20,8 +20,19 @@ export function useScheduleCalendar(userId, scheduleId) {
   const [selectedDayForForm, setSelectedDayForForm] = useState(0);
   const [selectedClassDetail, setSelectedClassDetail] = useState(null);
 
+  // Estado para modo edición
+  const [editingClass, setEditingClass] = useState(null);
+
   const handleCloseClassForm = () => {
     setShowClassForm(false);
+    setEditingClass(null); // Limpia edición al cerrar
+  };
+
+  const handleEditClassClick = (classItem) => {
+    setSelectedClassDetail(null); // Cierra el modal de detalle
+    setEditingClass(classItem);   // Guarda la clase que vamos a editar
+    setSelectedDayForForm(classItem.dayIndex); // Asegura que estemos en el día correcto
+    setShowClassForm(true);       // Abre el formulario
   };
 
   // Carga directa del horario por su ID específico
@@ -58,14 +69,13 @@ export function useScheduleCalendar(userId, scheduleId) {
   const handleSaveClass = async (formData, editingClassId = null) => {
     // 1. VALIDACIÓN DE CHOQUE DE HORARIOS
     const hasConflict = schedule?.classes.some((c) => {
-      // Si estamos editando, ignoramos la clase actual para que no choque consigo misma
+      // Ignorar la clase actual si se está editando
       if (c.id === editingClassId) return false;
 
-      // Solo nos importan las clases del MISMO DÍA
+      // Solo importa comparar con clases del mismo día
       if (c.dayIndex !== selectedDayForForm) return false;
 
-      // Lógica de superposición de intervalos:
-      // (StartA < EndB) && (EndA > StartB)
+      // Lógica de superposición de intervalos: (StartA < EndB) && (EndA > StartB)
       const isOverlap = formData.startTime < c.endTime && formData.endTime > c.startTime;
 
       return isOverlap;
@@ -73,29 +83,44 @@ export function useScheduleCalendar(userId, scheduleId) {
 
     if (hasConflict) {
       setError('Error: Esta clase se superpone con otra ya existente en este día.');
-      return; // Detenemos el guardado antes de hacer el fetch
+      return;
     }
 
-    // Si pasa la validación, limpiamos errores y procedemos
     setError('');
 
     // 2. PETICIÓN A LA API
     try {
-      const res = await fetch(`${BACKEND_URL}/api/schedules/${scheduleId}/classes`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
-        body: JSON.stringify({
-          ...formData,
-          dayIndex: selectedDayForForm,
-        }),
-      });
+      let res;
+      if (editingClassId) {
+        // MODO EDICIÓN: Petición PUT
+        res = await fetch(`${BACKEND_URL}/api/schedules/${scheduleId}/classes/${editingClassId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
+          body: JSON.stringify(formData),
+        });
+      } else {
+        // MODO CREACIÓN: Petición POST
+        res = await fetch(`${BACKEND_URL}/api/schedules/${scheduleId}/classes`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
+          body: JSON.stringify({
+            ...formData,
+            dayIndex: selectedDayForForm,
+          }),
+        });
+      }
 
       if (!res.ok) throw new Error();
 
       const updated = await res.json();
       setSchedule(updated);
-      setActiveDayIndex(selectedDayForForm); // Salta al día donde se creó
+
+      if (!editingClassId) {
+        setActiveDayIndex(selectedDayForForm); // Saltar al día solo si es nueva
+      }
+
       setShowClassForm(false);
+      setEditingClass(null); // Limpia el modo edición
     } catch {
       setError('No se pudo guardar la clase.');
     }
@@ -144,7 +169,6 @@ export function useScheduleCalendar(userId, scheduleId) {
       });
       if (!res.ok) throw new Error();
     } catch {
-      // Reversión en caso de falla
       setError('No se pudo actualizar la asistencia. Revisa tu conexión.');
       setSchedule(prevSchedule);
       if (prevSelectedClassDetail?.id === classId) {
@@ -196,6 +220,8 @@ export function useScheduleCalendar(userId, scheduleId) {
     setSelectedDayForForm,
     selectedClassDetail,
     setSelectedClassDetail,
+    editingClass,
+    handleEditClassClick,
     handleSaveClass,
     handleDeleteClass,
     handleUpdateAttendance,
