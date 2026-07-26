@@ -75,17 +75,19 @@ export default function ScheduleCalendar({ userId, scheduleId, onBack, dashboard
         dashboardShell={dashboardShell} 
       />
 
-      {showDayPicker && (
-        <DayPickerModal 
-          daysCount={daysCount}
-          onSelectDay={(idx) => {
-            setSelectedDayForForm(idx);
-            setShowDayPicker(false);
-            setShowClassForm(true);
-          }}
-          onClose={() => setShowDayPicker(false)}
-        />
-      )}
+      {/* RENDERIZADO SIEMPRE ACTIVO:
+          Pasamos el estado 'open' para permitir que el ActionSheet / Modal
+          ejecute la animación de cierre adecuadamente. */}
+      <DayPickerModal 
+        open={showDayPicker}
+        daysCount={daysCount}
+        onSelectDay={(idx) => {
+          setSelectedDayForForm(idx);
+          setShowDayPicker(false);
+          setShowClassForm(true);
+        }}
+        onClose={() => setShowDayPicker(false)}
+      />
 
       {showClassForm && (
         <ClassFormModal 
