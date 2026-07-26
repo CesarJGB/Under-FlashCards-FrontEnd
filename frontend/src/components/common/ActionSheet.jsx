@@ -65,7 +65,11 @@ export default function ActionSheet({ open, title, options, onClose, selectedId 
           <div className="w-10 h-1 bg-slate-300 rounded-full" />
         </div>
 
-        {title && <h2 id={titleId} className="sr-only">{title}</h2>}
+        {title && (
+          <h2 id={titleId} className="px-4 pb-2 text-sm font-bold text-slate-400 uppercase tracking-wide text-center">
+            {title}
+          </h2>
+        )}
 
         <div className="px-4 pb-8 flex flex-col gap-3">
           {actionOptions.map((option, index) => {
@@ -74,7 +78,7 @@ export default function ActionSheet({ open, title, options, onClose, selectedId 
             const Icon = option.icon;
             const isSelected = isSelectable && option.id === selectedId;
             const isPrimary = isSelectable ? isSelected : index === 0;
-            const isDanger = Boolean(option.danger); // NUEVO: Detectar si es acción destructiva
+            const isDanger = Boolean(option.danger);
 
             // Lógica de clases dinámicas
             let optionClasses = 'bg-slate-50 border border-slate-200 hover:shadow-md';
