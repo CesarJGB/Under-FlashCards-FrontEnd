@@ -142,24 +142,32 @@ export function useScheduleCalendar(userId, scheduleId) {
   };
 
   const handleUpdateAttendance = async (classId, field, delta) => {
-    const target = schedule?.classes.find((c) => c.id === classId);
-    if (!target) return;
+    let nextVal = 0;
+    let prevScheduleSnapshot = schedule;
 
-    const nextVal = Math.max(0, (target[field] || 0) + delta);
-    if (target[field] === nextVal) return;
+    // Usamos actualización funcional para evitar race conditions si el usuario hace clic muy rápido
+    setSchedule((prev) => {
+      if (!prev) return prev;
+      prevScheduleSnapshot = prev;
+      const target = prev.classes.find((c) => c.id === classId);
+      if (!target) return prev;
 
-    const prevSchedule = schedule;
-    const prevSelectedClassDetail = selectedClassDetail;
+      nextVal = Math.max(0, (target[field] || 0) + delta);
+      if (target[field] === nextVal) return prev;
 
-    // OPTIMISTIC UI: Actualización inmediata en cliente
-    const optimisticClasses = schedule.classes.map((c) =>
-      c.id === classId ? { ...c, [field]: nextVal } : c
-    );
-    setSchedule({ ...schedule, classes: optimisticClasses });
+      const optimisticClasses = prev.classes.map((c) =>
+        c.id === classId ? { ...c, [field]: nextVal } : c
+      );
+      return { ...prev, classes: optimisticClasses };
+    });
 
-    if (selectedClassDetail?.id === classId) {
-      setSelectedClassDetail({ ...selectedClassDetail, [field]: nextVal });
-    }
+    // Actualizamos el modal de detalle de forma funcional también
+    setSelectedClassDetail((prevDetail) => {
+      if (prevDetail?.id === classId) {
+        return { ...prevDetail, [field]: nextVal };
+      }
+      return prevDetail;
+    });
 
     try {
       const res = await fetch(`${BACKEND_URL}/api/schedules/${scheduleId}/classes/${classId}`, {
@@ -170,10 +178,15 @@ export function useScheduleCalendar(userId, scheduleId) {
       if (!res.ok) throw new Error();
     } catch {
       setError('No se pudo actualizar la asistencia. Revisa tu conexión.');
-      setSchedule(prevSchedule);
-      if (prevSelectedClassDetail?.id === classId) {
-        setSelectedClassDetail(prevSelectedClassDetail);
-      }
+      // Rollback a la versión exacta de antes del fallo
+      setSchedule(prevScheduleSnapshot);
+      setSelectedClassDetail((prevDetail) => {
+        if (prevDetail?.id === classId) {
+          const target = prevScheduleSnapshot?.classes.find((c) => c.id === classId);
+          return target ? { ...prevDetail, [field]: target[field] } : prevDetail;
+        }
+        return prevDetail;
+      });
     }
   };
 
