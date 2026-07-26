@@ -1,7 +1,7 @@
 // FILE: frontend/src/components/library/calendar/ScheduleHeader.jsx
-import { ArrowLeft, Settings, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Settings, ChevronDown } from 'lucide-react';
 
-export default function ScheduleHeader({ onBack, scheduleName, onOpenSettings }) {
+export default function ScheduleHeader({ onBack, scheduleName, onOpenSettings, onOpenSwitcher }) {
   return (
     <div className="flex items-center justify-between py-3 border-b border-slate-200/80 mb-4 px-2">
       <button
@@ -15,11 +15,11 @@ export default function ScheduleHeader({ onBack, scheduleName, onOpenSettings })
 
       <button
         type="button"
-        onClick={onOpenSettings}
-        className="flex items-center gap-1.5 text-base font-extrabold text-slate-900 hover:opacity-80 transition-opacity cursor-pointer"
+        onClick={onOpenSwitcher}
+        className="flex-1 flex items-center justify-center gap-1 text-base font-extrabold text-slate-900 truncate px-2 cursor-pointer hover:opacity-80 transition-opacity"
       >
-        <span>{scheduleName}</span>
-        <ChevronRight className="w-4 h-4 text-slate-400 rotate-90" />
+        <span className="truncate">{scheduleName}</span>
+        <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
       </button>
 
       <button
