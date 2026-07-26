@@ -3,12 +3,16 @@ import { useState, useEffect, useCallback } from 'react';
 import { CalendarDays, Plus, Trash2, ChevronRight } from 'lucide-react';
 import ScheduleCalendar from '../ScheduleCalendar';
 import ActionSheet from '../../common/ActionSheet';
+import { getJSON, setJSON } from '../../../../lib/safeLocalStorage';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
 export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
-  const [schedules, setSchedules] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const listCacheKey = userId ? `schedules_list_${userId}` : null;
+
+  // Carga instantánea desde cache local (0ms)
+  const [schedules, setSchedules] = useState(() => (listCacheKey ? getJSON(listCacheKey) || [] : []));
+  const [loading, setLoading] = useState(() => (listCacheKey ? !getJSON(listCacheKey) : true));
   const [error, setError] = useState('');
   const [selectedScheduleId, setSelectedScheduleId] = useState(null);
   const [creating, setCreating] = useState(false);
@@ -16,8 +20,12 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
   const [showSwitcher, setShowSwitcher] = useState(false); // Estado del menú selector
 
   const loadSchedules = useCallback(async () => {
-    setLoading(true);
+    if (!userId) return;
+
+    // Solo mostramos loading si no existen datos almacenados previamente
+    if (!getJSON(listCacheKey)) setLoading(true);
     setError('');
+
     try {
       const res = await fetch(`${BACKEND_URL}/api/schedules/${userId}`, {
         headers: { 'X-User-Id': userId },
@@ -25,12 +33,13 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
       if (!res.ok) throw new Error();
       const data = await res.json();
       setSchedules(data);
+      if (listCacheKey) setJSON(listCacheKey, data); // Guardar en cache
     } catch {
       setError('No se pudieron cargar tus horarios.');
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, [userId, listCacheKey]);
 
   useEffect(() => {
     if (userId) loadSchedules();
@@ -50,7 +59,13 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
       });
       if (!res.ok) throw new Error();
       const newSchedule = await res.json();
-      setSchedules((prev) => [...prev, newSchedule]);
+
+      setSchedules((prev) => {
+        const next = [...prev, newSchedule];
+        if (listCacheKey) setJSON(listCacheKey, next); // Actualiza cache local
+        return next;
+      });
+
       setSelectedScheduleId(newSchedule.id);
     } catch {
       setError('No se pudo crear el horario.');
@@ -67,7 +82,12 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
         headers: { 'X-User-Id': userId },
       });
       if (!res.ok) throw new Error();
-      setSchedules((prev) => prev.filter((s) => s.id !== scheduleToDelete));
+
+      setSchedules((prev) => {
+        const next = prev.filter((s) => s.id !== scheduleToDelete);
+        if (listCacheKey) setJSON(listCacheKey, next); // Actualiza cache local
+        return next;
+      });
     } catch {
       setError('No se pudo eliminar el horario.');
     } finally {
@@ -87,7 +107,7 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
     ...schedules.map((s) => ({
       id: s.id,
       label: s.name,
-      description: `${s.classes.length} clase(s) · ${s.daysCount} días`,
+      description: `${s.classes?.length || 0} clase(s) · ${s.daysCount} días`,
       onSelect: () => {
         setSelectedScheduleId(s.id);
       },
@@ -175,7 +195,7 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
               <div>
                 <h3 className="text-base font-extrabold text-slate-900">{s.name}</h3>
                 <p className="text-xs font-medium text-slate-500 mt-0.5">
-                  {s.classes.length} clase{s.classes.length !== 1 ? 's' : ''} · {s.daysCount} días
+                  {s.classes?.length || 0} clase{(s.classes?.length || 0) !== 1 ? 's' : ''} · {s.daysCount} días
                 </p>
               </div>
               <div className="flex items-center gap-1">
