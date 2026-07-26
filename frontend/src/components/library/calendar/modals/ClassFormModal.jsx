@@ -1,6 +1,6 @@
 // FILE: frontend/src/components/library/calendar/modals/ClassFormModal.jsx
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { X, ChevronRight } from 'lucide-react';
+import { X, ChevronRight, MapPin } from 'lucide-react';
 
 export default function ClassFormModal({
   onClose, onSubmit,
@@ -13,6 +13,12 @@ export default function ClassFormModal({
 }) {
   // null | 'subject' | 'teacher' | 'room' | 'combined'
   const [activeScreen, setActiveScreen] = useState(null);
+
+  // Borrador para la pantalla de los 3 campos juntos: nada se aplica al
+  // formulario real hasta que se pulsa "Guardar" ahí dentro.
+  const [combinedDraft, setCombinedDraft] = useState({
+    subject: '', teacher: '', room: '', roomSuggestion: '',
+  });
 
   const subjectInputRef = useRef(null);
   const teacherInputRef = useRef(null);
@@ -87,12 +93,28 @@ export default function ClassFormModal({
     return list.map((r) => ({ key: r, primary: r }));
   }, [uniqueRooms, formRoom]);
 
-  // Seleccionar una materia existente autocompleta asignatura + profesor
-  // y abre la pantalla de los 3 juntos por si hay que ajustar algo a mano.
+  // Elegir una materia existente abre la pantalla de los 3 juntos, en
+  // borrador — no toca el formulario real todavía.
   const handleSelectSubject = (classItem) => {
-    setFormSubject(classItem.subject);
-    setFormTeacher(classItem.teacher || '');
+    setCombinedDraft({
+      subject: classItem.subject,
+      teacher: classItem.teacher || '',
+      room: formRoom,
+      roomSuggestion: classItem.room || '',
+    });
     setActiveScreen('combined');
+  };
+
+  const handleCancelCombined = () => {
+    // Descarta el borrador: el formulario real queda como estaba antes.
+    setActiveScreen(null);
+  };
+
+  const handleSaveCombined = () => {
+    setFormSubject(combinedDraft.subject);
+    setFormTeacher(combinedDraft.teacher);
+    setFormRoom(combinedDraft.room);
+    setActiveScreen(null);
   };
 
   return (
@@ -211,65 +233,12 @@ export default function ClassFormModal({
       )}
 
       {activeScreen === 'combined' && (
-        <div className="fixed inset-0 z-[60] bg-white flex flex-col animate-[fadeIn_0.15s_ease]">
-          <div className="flex items-center justify-between px-5 pt-[calc(env(safe-area-inset-top)+16px)] pb-4">
-            <button
-              type="button"
-              onClick={() => setActiveScreen(null)}
-              className="p-1.5 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveScreen(null)}
-              className="px-5 py-2 bg-slate-900 hover:bg-slate-800 rounded-full text-xs font-bold text-white cursor-pointer"
-            >
-              Guardar
-            </button>
-          </div>
-
-          <div className="flex-1 overflow-y-auto px-5 space-y-7">
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wide text-slate-400 mb-1">
-                Asignatura
-              </label>
-              <input
-                type="text"
-                placeholder="Ej. Inglés"
-                value={formSubject}
-                onChange={(e) => setFormSubject(e.target.value)}
-                className="w-full text-3xl font-extrabold text-slate-900 placeholder-slate-300 bg-transparent border-b-2 border-transparent focus:outline-none focus:border-slate-900 pb-1 transition-colors"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wide text-slate-400 mb-1">
-                Profesor
-              </label>
-              <input
-                type="text"
-                placeholder="Ej. Juan García"
-                value={formTeacher}
-                onChange={(e) => setFormTeacher(e.target.value)}
-                className="w-full text-2xl font-extrabold text-slate-900 placeholder-slate-300 bg-transparent border-b-2 border-transparent focus:outline-none focus:border-slate-900 pb-1 transition-colors"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wide text-slate-400 mb-1">
-                Aula
-              </label>
-              <input
-                type="text"
-                placeholder="Ej. 201A"
-                value={formRoom}
-                onChange={(e) => setFormRoom(e.target.value)}
-                className="w-full text-2xl font-extrabold text-slate-900 placeholder-slate-300 bg-transparent border-b-2 border-transparent focus:outline-none focus:border-slate-900 pb-1 transition-colors"
-              />
-            </div>
-          </div>
-        </div>
+        <CombinedFieldsScreen
+          draft={combinedDraft}
+          onChangeDraft={setCombinedDraft}
+          onCancel={handleCancelCombined}
+          onSave={handleSaveCombined}
+        />
       )}
     </div>
   );
@@ -351,6 +320,90 @@ function SingleFieldScreen({ title, value, onChange, placeholder, listHeader, it
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+// Pantalla de los 3 campos juntos (tras elegir una materia existente).
+// Usa el borrador que le pasan — nada de esto es el formulario real
+// hasta que se llama a onSave. Sin listas de autocompletar propias,
+// salvo la sugerencia de aula (misma materia → probablemente mismo salón).
+// Sin overflow/scroll interno a propósito: con solo 3 campos siempre cabe
+// en pantalla y así evitamos que el teclado "empuje" la vista sin necesidad.
+function CombinedFieldsScreen({ draft, onChangeDraft, onCancel, onSave }) {
+  const handleUseRoomSuggestion = () => {
+    onChangeDraft({ ...draft, room: draft.roomSuggestion, roomSuggestion: '' });
+  };
+
+  return (
+    <div className="fixed inset-0 z-[60] bg-white flex flex-col animate-[fadeIn_0.15s_ease]">
+      <div className="flex items-center justify-between px-5 pt-[calc(env(safe-area-inset-top)+16px)] pb-4">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="p-1.5 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 cursor-pointer"
+        >
+          <X className="w-5 h-5" />
+        </button>
+        <button
+          type="button"
+          onClick={onSave}
+          className="px-5 py-2 bg-slate-900 hover:bg-slate-800 rounded-full text-xs font-bold text-white cursor-pointer"
+        >
+          Guardar
+        </button>
+      </div>
+
+      <div className="px-5 space-y-7">
+        <div>
+          <label className="block text-xs font-bold uppercase tracking-wide text-slate-400 mb-1">
+            Asignatura
+          </label>
+          <input
+            type="text"
+            placeholder="Ej. Inglés"
+            value={draft.subject}
+            onChange={(e) => onChangeDraft({ ...draft, subject: e.target.value })}
+            className="w-full text-3xl font-extrabold text-slate-900 placeholder-slate-300 bg-transparent border-b-2 border-transparent focus:outline-none focus:border-slate-900 pb-1 transition-colors"
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs font-bold uppercase tracking-wide text-slate-400 mb-1">
+            Profesor
+          </label>
+          <input
+            type="text"
+            placeholder="Ej. Juan García"
+            value={draft.teacher}
+            onChange={(e) => onChangeDraft({ ...draft, teacher: e.target.value })}
+            className="w-full text-2xl font-extrabold text-slate-900 placeholder-slate-300 bg-transparent border-b-2 border-transparent focus:outline-none focus:border-slate-900 pb-1 transition-colors"
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs font-bold uppercase tracking-wide text-slate-400 mb-1">
+            Aula
+          </label>
+          <input
+            type="text"
+            placeholder="Ej. 201A"
+            value={draft.room}
+            onChange={(e) => onChangeDraft({ ...draft, room: e.target.value, roomSuggestion: '' })}
+            className="w-full text-2xl font-extrabold text-slate-900 placeholder-slate-300 bg-transparent border-b-2 border-transparent focus:outline-none focus:border-slate-900 pb-1 transition-colors"
+          />
+          {draft.roomSuggestion && draft.roomSuggestion !== draft.room && (
+            <button
+              type="button"
+              onClick={handleUseRoomSuggestion}
+              className="mt-2 flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-slate-900 cursor-pointer"
+            >
+              <MapPin className="w-3 h-3" />
+              ¿Usar {draft.roomSuggestion}?
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
