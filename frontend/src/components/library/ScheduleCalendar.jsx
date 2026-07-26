@@ -121,6 +121,7 @@ export default function ScheduleCalendar({ userId, scheduleId, onBack, dashboard
         <ScheduleSettingsModal 
           scheduleName={scheduleName}
           daysCount={daysCount}
+          classes={classes}
           onSave={handleUpdateSettings}
           onClose={() => setShowSettings(false)}
         />
