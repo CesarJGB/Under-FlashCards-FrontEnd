@@ -1,9 +1,12 @@
-// backend/src/routes/scheduleRoutes.js
+// FILE: backend/src/routes/scheduleRoutes.js
 const express = require('express');
 const router = express.Router();
 const scheduleController = require('../controllers/scheduleController');
 
 // --- Endpoints de Horarios ---
+// Obtenemos un horario específico por su ID (debe ir antes que :userId para evitar colisiones)
+router.get('/schedules/by-id/:id', scheduleController.getScheduleById);
+
 router.get('/schedules/:userId', scheduleController.getSchedules);
 router.post('/schedules', scheduleController.createSchedule);
 router.put('/schedules/:id', scheduleController.updateSchedule);
