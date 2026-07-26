@@ -178,6 +178,15 @@ export function useScheduleCalendar(userId, scheduleId) {
   };
 
   const handleUpdateSettings = async ({ name, daysCount }) => {
+    // 1. Guardamos el estado previo por si falla
+    const prevSchedule = schedule;
+
+    // 2. Actualización optimista inmediata en la UI
+    setSchedule({ ...schedule, name, daysCount });
+    if (activeDayIndex >= daysCount) {
+      setActiveDayIndex(0);
+    }
+
     try {
       const res = await fetch(`${BACKEND_URL}/api/schedules/${scheduleId}`, {
         method: 'PUT',
@@ -185,14 +194,14 @@ export function useScheduleCalendar(userId, scheduleId) {
         body: JSON.stringify({ name, daysCount }),
       });
       if (!res.ok) throw new Error();
+
+      // Si todo sale bien, sincronizamos con la respuesta del servidor
       const updated = await res.json();
       setSchedule(updated);
-
-      if (activeDayIndex >= updated.daysCount) {
-        setActiveDayIndex(0);
-      }
     } catch {
-      setError('No se pudieron guardar los ajustes.');
+      // 3. Si falla, mostramos error y revertimos la UI
+      setError('No se pudieron guardar los ajustes. Revisa tu conexión.');
+      setSchedule(prevSchedule); // Rollback
     }
   };
 
