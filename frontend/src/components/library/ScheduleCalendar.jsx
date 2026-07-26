@@ -10,7 +10,13 @@ import ClassFormModal from './calendar/modals/ClassFormModal';
 import ClassDetailModal from './calendar/modals/ClassDetailModal';
 import ScheduleSettingsModal from './calendar/modals/ScheduleSettingsModal';
 
-export default function ScheduleCalendar({ userId, scheduleId, onBack, dashboardShell }) {
+export default function ScheduleCalendar({ 
+  userId, 
+  scheduleId, 
+  onBack, 
+  dashboardShell, 
+  onOpenSwitcher 
+}) {
   const {
     loading,
     error,
@@ -53,6 +59,7 @@ export default function ScheduleCalendar({ userId, scheduleId, onBack, dashboard
         onBack={onBack} 
         scheduleName={scheduleName} 
         onOpenSettings={() => setShowSettings(true)} 
+        onOpenSwitcher={onOpenSwitcher}
       />
 
       {error && (
