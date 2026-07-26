@@ -91,10 +91,31 @@ export function useScheduleCalendar(userId, scheduleId) {
   };
 
   const handleUpdateAttendance = async (classId, field, delta) => {
+    // 1. Buscamos la clase actual y calculamos el nuevo valor
     const target = schedule?.classes.find((c) => c.id === classId);
     if (!target) return;
+
     const nextVal = Math.max(0, (target[field] || 0) + delta);
 
+    // Si el valor no cambia (ej. ya está en 0 y presionamos "-"), no hacemos nada
+    if (target[field] === nextVal) return;
+
+    // 2. Guardamos el estado actual por si necesitamos revertir si hay error
+    const prevSchedule = schedule;
+    const prevSelectedClassDetail = selectedClassDetail;
+
+    // 3. OPTIMISTIC UI: Actualizamos el estado local INMEDIATAMENTE
+    const optimisticClasses = schedule.classes.map((c) =>
+      c.id === classId ? { ...c, [field]: nextVal } : c
+    );
+    setSchedule({ ...schedule, classes: optimisticClasses });
+
+    // Actualizamos también el modal de detalle si está abierto para que el número cambie al instante
+    if (selectedClassDetail?.id === classId) {
+      setSelectedClassDetail({ ...selectedClassDetail, [field]: nextVal });
+    }
+
+    // 4. Petición a la API en segundo plano
     try {
       const res = await fetch(`${BACKEND_URL}/api/schedules/${scheduleId}/classes/${classId}`, {
         method: 'PUT',
@@ -102,14 +123,16 @@ export function useScheduleCalendar(userId, scheduleId) {
         body: JSON.stringify({ [field]: nextVal }),
       });
       if (!res.ok) throw new Error();
-      const updated = await res.json();
-      setSchedule(updated);
-      const refreshed = updated.classes.find((c) => c.id === classId);
-      if (selectedClassDetail?.id === classId && refreshed) {
-        setSelectedClassDetail(refreshed);
-      }
+
+      // Nota: No hacemos setSchedule(updated) con la respuesta del backend,
+      // porque ya actualizamos el estado optimistamente y así ahorramos otro re-render.
     } catch {
-      setError('No se pudo actualizar la asistencia.');
+      // 5. REVERTIR si la petición falla
+      setError('No se pudo actualizar la asistencia. Revisa tu conexión.');
+      setSchedule(prevSchedule);
+      if (prevSelectedClassDetail?.id === classId) {
+        setSelectedClassDetail(prevSelectedClassDetail);
+      }
     }
   };
 
@@ -143,14 +166,20 @@ export function useScheduleCalendar(userId, scheduleId) {
     scheduleName: schedule?.name || '',
     daysCount: schedule?.daysCount || 5,
     classes: schedule?.classes || [],
-    activeDayIndex, setActiveDayIndex,
+    activeDayIndex,
+    setActiveDayIndex,
     currentDayClasses,
-    showSettings, setShowSettings,
-    showDayPicker, setShowDayPicker,
-    showClassForm, setShowClassForm,
+    showSettings,
+    setShowSettings,
+    showDayPicker,
+    setShowDayPicker,
+    showClassForm,
+    setShowClassForm,
     handleCloseClassForm,
-    selectedDayForForm, setSelectedDayForForm,
-    selectedClassDetail, setSelectedClassDetail,
+    selectedDayForForm,
+    setSelectedDayForForm,
+    selectedClassDetail,
+    setSelectedClassDetail,
     handleSaveClass,
     handleDeleteClass,
     handleUpdateAttendance,
