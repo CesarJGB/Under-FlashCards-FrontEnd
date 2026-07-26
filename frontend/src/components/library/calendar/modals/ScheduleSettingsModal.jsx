@@ -1,6 +1,6 @@
 // FILE: frontend/src/components/library/calendar/modals/ScheduleSettingsModal.jsx
 import { useState } from 'react';
-import { Check, Minus, Plus, AlertTriangle } from 'lucide-react';
+import { X, Minus, Plus, AlertTriangle } from 'lucide-react';
 import ActionSheet from '../../../common/ActionSheet';
 
 export default function ScheduleSettingsModal({ 
@@ -38,10 +38,10 @@ export default function ScheduleSettingsModal({
             <h3 className="text-base font-extrabold text-slate-900">Ajustes</h3>
             <button
               type="button"
-              onClick={handleDone}
-              className="w-7 h-7 bg-blue-500 hover:bg-blue-600 rounded-full flex items-center justify-center text-white cursor-pointer transition-colors"
+              onClick={onClose}
+              className="p-1 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-200 cursor-pointer transition-colors"
             >
-              <Check className="w-4 h-4 stroke-[3]" />
+              <X className="w-5 h-5" />
             </button>
           </div>
 
@@ -94,6 +94,16 @@ export default function ScheduleSettingsModal({
                 Ocultarás {hiddenClassesCount} clase{hiddenClassesCount !== 1 ? 's' : ''} (no se borran, solo dejan de verse).
               </p>
             )}
+          </div>
+
+          <div className="pt-4">
+            <button
+              type="button"
+              onClick={handleDone}
+              className="w-full py-3 bg-slate-900 hover:bg-slate-800 rounded-xl text-sm font-bold text-white cursor-pointer transition-colors"
+            >
+              Guardar Cambios
+            </button>
           </div>
 
         </div>
