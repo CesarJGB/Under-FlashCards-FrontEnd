@@ -1,7 +1,7 @@
 // FILE: frontend/src/components/library/calendar/ScheduleListScreen.jsx
 import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { CalendarDays, Plus, Trash2, MoreHorizontal } from 'lucide-react';
+import { CalendarDays, Plus, Trash2, MoreHorizontal, ChevronLeft } from 'lucide-react'; // <-- Añadido ChevronLeft aquí
 import ScheduleCalendar from '../ScheduleCalendar';
 import ActionSheet from '../../common/ActionSheet';
 import { getJSON, setJSON } from '../../../lib/safeLocalStorage';
