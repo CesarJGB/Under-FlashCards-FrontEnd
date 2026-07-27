@@ -1,7 +1,7 @@
 // FILE: frontend/src/components/library/calendar/ScheduleListScreen.jsx
 import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { CalendarDays, Plus, Trash2, MoreHorizontal, ChevronLeft } from 'lucide-react';
+import { CalendarDays, Plus, Trash2, MoreHorizontal, ArrowLeft } from 'lucide-react';
 import ScheduleCalendar from '../ScheduleCalendar';
 import ActionSheet from '../../common/ActionSheet';
 import { getJSON, setJSON } from '../../../lib/safeLocalStorage';
@@ -269,22 +269,17 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
 
   return (
     <div className="w-full max-w-2xl mx-auto pb-24 animate-[fadeIn_0.2s_ease]">
-      {/* Header Mejorado con CSS Grid para centrado perfecto */}
-      <header className="grid grid-cols-3 items-center mb-6 px-2 pt-4">
+      {/* Header estilo botón cuadrado */}
+      <header className="flex items-center gap-3 mb-6 px-2 pt-4">
         <button
           type="button"
           onClick={onBack}
-          className="justify-self-start flex items-center gap-1.5 text-sm font-semibold text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white transition-colors cursor-pointer group"
+          className="h-9 w-9 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl flex items-center justify-center text-slate-600 dark:text-slate-300 active:scale-95 transition-all cursor-pointer shadow-3xs"
+          title="Volver"
         >
-          <span className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 group-hover:bg-slate-200 dark:group-hover:bg-slate-700 transition-colors">
-            <ChevronLeft className="w-4 h-4" />
-          </span>
-          General
+          <ArrowLeft className="w-4 h-4" />
         </button>
-        
-        <h2 className="justify-self-center text-lg font-bold text-slate-900 dark:text-white tracking-tight">Horarios</h2>
-        
-        <div className="justify-self-end" /> {/* Columna derecha vacía para equilibrar el grid */}
+        <h2 className="text-xl font-black tracking-tight text-slate-900 dark:text-white">Horarios</h2>
       </header>
 
       {/* Estado de Error Mejorado */}
