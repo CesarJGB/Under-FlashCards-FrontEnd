@@ -1,5 +1,6 @@
 // FILE: frontend/src/components/library/ScheduleCalendar.jsx
-import { useScheduleCalendar } from './calendar/useScheduleCalendar';
+import { useState } from 'react';
+import { useScheduleCalendar, WEEKDAYS } from './calendar/useScheduleCalendar';
 import ScheduleHeader from './calendar/ScheduleHeader';
 import DayTabs from './calendar/DayTabs';
 import ClassList from './calendar/ClassList';
@@ -45,6 +46,9 @@ export default function ScheduleCalendar({
     handleUpdateSettings,
   } = useScheduleCalendar(userId, scheduleId);
 
+  // ESTADO para el mini-menú del FAB
+  const [showFabMenu, setShowFabMenu] = useState(false);
+
   if (loading) {
     return (
       <div className="w-full max-w-2xl mx-auto py-20 text-center text-sm text-slate-400">
@@ -53,7 +57,7 @@ export default function ScheduleCalendar({
     );
   }
 
-  // MEJORA 1: Determinar si hay algún modal/acción activa para ocultar el FAB
+  // Determinar si hay algún modal/acción activa para ocultar el FAB
   const isAnyModalOpen = showSettings || showDayPicker || showClassForm || !!selectedClassDetail;
 
   return (
@@ -83,17 +87,49 @@ export default function ScheduleCalendar({
         onSelectClass={setSelectedClassDetail} 
       />
 
-      {/* MEJORA 1: El FAB solo se renderiza si no hay modales abiertos */}
+      {/* BLOQUE DEL FAB INTELIGENTE CON MINI-MENÚ */}
       {!isAnyModalOpen && (
-        <CalendarFAB 
-          onClick={() => setShowDayPicker(true)} 
-          dashboardShell={dashboardShell} 
-        />
+        <>
+          {/* Overlay invisible para cerrar el menú si se toca fuera */}
+          {showFabMenu && (
+            <div 
+              className="fixed inset-0 z-30" 
+              onClick={() => setShowFabMenu(false)} 
+            />
+          )}
+
+          {/* Mini-menú de opciones rápidas */}
+          {showFabMenu && (
+            <div className="fixed bottom-24 right-4 md:right-8 z-40 w-48 bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden animate-[fadeIn_0.1s_ease]">
+              <button 
+                className="w-full text-left px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50 active:bg-slate-100 transition-colors"
+                onClick={() => {
+                  setSelectedDayForForm(activeDayIndex);
+                  setShowClassForm(true);
+                  setShowFabMenu(false);
+                }}
+              >
+                + Añadir a {WEEKDAYS[activeDayIndex] || `Día ${activeDayIndex + 1}`}
+              </button>
+              <button 
+                className="w-full text-left px-4 py-3 text-sm text-slate-500 hover:bg-slate-50 active:bg-slate-100 border-t border-slate-100 transition-colors"
+                onClick={() => {
+                  setShowDayPicker(true);
+                  setShowFabMenu(false);
+                }}
+              >
+                Elegir otro día...
+              </button>
+            </div>
+          )}
+
+          <CalendarFAB 
+            onClick={() => setShowFabMenu((prev) => !prev)} 
+            dashboardShell={dashboardShell} 
+          />
+        </>
       )}
 
-      {/* RENDERIZADO SIEMPRE ACTIVO:
-          Pasamos la prop 'open' para permitir que el ActionSheet / Modal
-          ejecute la animación de cierre adecuadamente. */}
       <DayPickerModal 
         open={showDayPicker}
         daysCount={daysCount}
@@ -105,13 +141,9 @@ export default function ScheduleCalendar({
         onClose={() => setShowDayPicker(false)}
       />
 
-      {/* 
-        NOTA LÓGICA: Si quieres que este modal también tenga animación de salida 
-        como el DayPicker, deberías cambiarlo a <ClassFormModal open={showClassForm} ... />
-      */}
       {showClassForm && (
         <ClassFormModal 
-          key={editingClass?.id || 'new'} // Forzar re-instanciación al cambiar la clase seleccionada
+          key={editingClass?.id || 'new'}
           selectedDay={selectedDayForForm}
           onClose={handleCloseClassForm}
           onSave={(data) => handleSaveClass(data, editingClass?.id)}
@@ -124,9 +156,6 @@ export default function ScheduleCalendar({
         />
       )}
 
-      {/* 
-        NOTA LÓGICA: Mismo caso aquí, idealmente pasar a <ClassDetailModal open={!!selectedClassDetail} ... />
-      */}
       {selectedClassDetail && (
         <ClassDetailModal 
           selectedClass={selectedClassDetail}
