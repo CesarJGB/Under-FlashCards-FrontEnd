@@ -5,41 +5,47 @@ export default function GeneralSection({ onOpenCalendar }) {
   const upcomingTools = [
     {
       id: 'calendar',
-      icon: CalendarDays,
       title: 'Horario de clases',
+      icon: CalendarDays,
+      color: 'from-amber-500 to-orange-600',
       active: true,
       onClick: onOpenCalendar
     },
     {
       id: 'notes',
-      icon: NotebookPen,
       title: 'Notas rápidas',
+      icon: NotebookPen,
+      color: 'from-yellow-400 to-amber-500',
       active: false
     }
   ];
 
   return (
-    <div className="mt-8 flex flex-col items-center px-4">
-      <div className="w-full max-w-sm flex flex-col gap-2.5">
-        {upcomingTools.map(({ id, icon: Icon, title, active, onClick }) => (
+    <div className="grid grid-cols-2 gap-3">
+      {upcomingTools.map((tool) => {
+        const Icon = tool.icon;
+
+        return (
           <button
-            key={id}
+            key={tool.id}
             type="button"
-            onClick={onClick}
-            disabled={!active}
-            className={`flex items-center gap-3 p-3.5 bg-white border border-slate-200 rounded-2xl text-left shadow-3xs transition-all ${
-              active 
-                ? 'hover:border-slate-300 hover:shadow-xs cursor-pointer active:scale-[0.995]' 
+            onClick={tool.active ? tool.onClick : undefined}
+            disabled={!tool.active}
+            className={`aspect-square rounded-2xl border border-slate-200 bg-white p-4 shadow-3xs transition-all duration-200 active:scale-[0.99] ${
+              tool.active 
+                ? 'hover:border-slate-300 hover:shadow-xs cursor-pointer' 
                 : 'opacity-70 cursor-not-allowed'
             }`}
           >
-            <div className="w-9 h-9 shrink-0 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center">
-              <Icon className="w-4 h-4 text-slate-500" />
-            </div>
-            <p className="text-xs font-bold text-slate-800">{title}</p>
+            <span className={`mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br ${tool.color} text-white shadow-xs`}>
+              <Icon className="h-6 w-6" />
+            </span>
+            <span className="mt-3 block text-center text-sm font-bold tracking-tight text-slate-900">
+              {tool.title}
+            </span>
           </button>
-        ))}
-      </div>
+        );
+      })}
     </div>
   );
 }
