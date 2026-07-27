@@ -61,20 +61,20 @@ export default function ScheduleCalendar({
 
   const isAnyModalOpen = showSettings || showDayPicker || showClassForm || !!selectedClassDetail || showFabSheet;
 
-  // Handlers para garantizar un cierre limpio del FabSheet antes de abrir la siguiente vista
+  // Handlers con delay prudencial para que iOS libere el scrollLock y el status bar
   const handleSelectAddCurrentDay = () => {
     setShowFabSheet(false);
     setTimeout(() => {
       setSelectedDayForForm(activeDayIndex);
       setShowClassForm(true);
-    }, 0);
+    }, 200);
   };
 
   const handleSelectPickOtherDay = () => {
     setShowFabSheet(false);
     setTimeout(() => {
       setShowDayPicker(true);
-    }, 0);
+    }, 200);
   };
 
   // Opciones para el ActionSheet reutilizable
@@ -130,7 +130,7 @@ export default function ScheduleCalendar({
         />
       )}
 
-      {/* COMPONENTE REUTILIZABLE ACTION SHEET */}
+      {/* ACTION SHEET REUTILIZABLE */}
       <ActionSheet 
         open={showFabSheet}
         title="Acciones del Horario"
@@ -145,7 +145,8 @@ export default function ScheduleCalendar({
         onSelectDay={(idx) => {
           setSelectedDayForForm(idx);
           setShowDayPicker(false);
-          setShowClassForm(true);
+          // Transición suave al formulario de clase tras elegir el día
+          setTimeout(() => setShowClassForm(true), 200);
         }}
         onClose={() => setShowDayPicker(false)}
       />
