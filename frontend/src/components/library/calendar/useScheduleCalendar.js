@@ -1,6 +1,6 @@
 // FILE: frontend/src/components/library/calendar/useScheduleCalendar.js
-import { useState, useEffect, useCallback } from 'react';
-import { getJSON, setJSON } from '../../../lib/safeLocalStorage'; // 1. MEJORA: Eliminado 'remove' que no se usa
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { getJSON, setJSON } from '../../../lib/safeLocalStorage';
 
 export const WEEKDAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 export const SHORT_WEEKDAYS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
@@ -34,7 +34,7 @@ export function useScheduleCalendar(userId, scheduleId) {
       _setShowClassForm(false);
       _setSelectedClassDetail(null);
     }
-    setError(''); // 2. MEJORA: Limpiar errores fantasma al cambiar de vista
+    setError('');
     _setShowSettings(val);
   };
 
@@ -164,11 +164,9 @@ export function useScheduleCalendar(userId, scheduleId) {
     }
   };
 
-  // 3. MEJORA: Eliminación optimista para que la UI reaccione al instante
   const handleDeleteClass = async (classId) => {
     const prevSchedule = schedule;
     
-    // Cerramos el modal inmediatamente y quitamos la clase de la UI/Cache
     setSelectedClassDetail(null);
     const optimisticSchedule = schedule ? { ...schedule, classes: schedule.classes.filter(c => c.id !== classId) } : null;
     setSchedule(optimisticSchedule);
@@ -186,7 +184,6 @@ export function useScheduleCalendar(userId, scheduleId) {
       if (cacheKey) setJSON(cacheKey, updated);
     } catch {
       setError('No se pudo eliminar la clase.');
-      // Rollback si falla
       setSchedule(prevSchedule);
       if (cacheKey && prevSchedule) setJSON(cacheKey, prevSchedule);
     }
@@ -275,9 +272,12 @@ export function useScheduleCalendar(userId, scheduleId) {
     }
   };
 
-  const currentDayClasses = (schedule?.classes || [])
-    .filter((c) => c.dayIndex === activeDayIndex)
-    .sort((a, b) => a.startTime.localeCompare(b.startTime));
+  // Cálculo memorizado de las clases del día activo
+  const currentDayClasses = useMemo(() => {
+    return (schedule?.classes || [])
+      .filter((c) => c.dayIndex === activeDayIndex)
+      .sort((a, b) => a.startTime.localeCompare(b.startTime));
+  }, [schedule, activeDayIndex]);
 
   return {
     loading,
