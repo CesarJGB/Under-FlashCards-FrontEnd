@@ -1,6 +1,6 @@
 // FILE: frontend/src/components/library/calendar/useScheduleCalendar.js
 import { useState, useEffect, useCallback } from 'react';
-import { getJSON, setJSON, remove } from '../../../lib/safeLocalStorage';
+import { getJSON, setJSON } from '../../../lib/safeLocalStorage'; // 1. MEJORA: Eliminado 'remove' que no se usa
 
 export const WEEKDAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 export const SHORT_WEEKDAYS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
@@ -27,14 +27,14 @@ export function useScheduleCalendar(userId, scheduleId) {
   // Estado para modo edición
   const [editingClass, setEditingClass] = useState(null);
 
-  // --- INTERCEPTORES DE MODALES (Exclusión mutua) ---
-  // Esto asegura que si abres uno, cierras los otros. El FAB en ScheduleCalendar.jsx funcionará perfecto.
+  // --- INTERCEPTORES DE MODALES (Exclusión mutua y limpieza de errores) ---
   const setShowSettings = (val) => {
     if (val) {
       _setShowDayPicker(false);
       _setShowClassForm(false);
       _setSelectedClassDetail(null);
     }
+    setError(''); // 2. MEJORA: Limpiar errores fantasma al cambiar de vista
     _setShowSettings(val);
   };
 
@@ -44,6 +44,7 @@ export function useScheduleCalendar(userId, scheduleId) {
       _setShowClassForm(false);
       _setSelectedClassDetail(null);
     }
+    setError('');
     _setShowDayPicker(val);
   };
 
@@ -53,11 +54,11 @@ export function useScheduleCalendar(userId, scheduleId) {
       _setShowDayPicker(false);
       _setSelectedClassDetail(null);
     }
+    setError('');
     _setShowClassForm(val);
   };
 
   const setSelectedClassDetail = (val) => {
-    // Soporte para actualizaciones funcionales (ej. usado en handleUpdateAttendance)
     if (typeof val === 'function') {
       _setSelectedClassDetail(val);
       return;
@@ -67,27 +68,26 @@ export function useScheduleCalendar(userId, scheduleId) {
       _setShowDayPicker(false);
       _setShowClassForm(false);
     }
+    setError('');
     _setSelectedClassDetail(val);
   };
   // -------------------------------------------------
 
   const handleCloseClassForm = () => {
     setShowClassForm(false);
-    setEditingClass(null); // Limpia edición al cerrar
+    setEditingClass(null);
   };
 
   const handleEditClassClick = (classItem) => {
-    setSelectedClassDetail(null); // El interceptor ya lo hace, pero lo dejamos por claridad
-    setEditingClass(classItem);   // Guarda la clase que vamos a editar
-    setSelectedDayForForm(classItem.dayIndex); // Asegura que estemos en el día correcto
-    setShowClassForm(true);       // Abre el formulario (y cierra los demás)
+    setSelectedClassDetail(null);
+    setEditingClass(classItem);
+    setSelectedDayForForm(classItem.dayIndex);
+    setShowClassForm(true);
   };
 
-  // Carga directa del horario por su ID específico con revalidación en segundo plano
   const loadSchedule = useCallback(async () => {
     if (!userId || !scheduleId) return;
 
-    // Si no tenemos datos en cache, mostramos el loader
     if (!getJSON(cacheKey)) setLoading(true);
     setError('');
 
@@ -98,7 +98,7 @@ export function useScheduleCalendar(userId, scheduleId) {
       if (!res.ok) throw new Error();
       const data = await res.json();
       setSchedule(data);
-      if (cacheKey) setJSON(cacheKey, data); // Actualizamos el cache
+      if (cacheKey) setJSON(cacheKey, data);
     } catch {
       setError('No se pudo cargar el horario.');
     } finally {
@@ -110,16 +110,14 @@ export function useScheduleCalendar(userId, scheduleId) {
     loadSchedule();
   }, [loadSchedule]);
 
-  // Si la clase seleccionada desaparece (borrada desde otro lado), cerramos el detalle
   useEffect(() => {
     if (selectedClassDetail && schedule) {
       const stillExists = schedule.classes.some((c) => c.id === selectedClassDetail.id);
-      if (!stillExists) _setSelectedClassDetail(null); // Usamos el interno para no disparar la lógica de cierre de otros modales
+      if (!stillExists) _setSelectedClassDetail(null);
     }
   }, [schedule, selectedClassDetail]);
 
   const handleSaveClass = async (formData, editingClassId = null) => {
-    // 1. VALIDACIÓN DE CHOQUE DE HORARIOS
     const hasConflict = schedule?.classes.some((c) => {
       if (c.id === editingClassId) return false;
       if (c.dayIndex !== selectedDayForForm) return false;
@@ -133,7 +131,6 @@ export function useScheduleCalendar(userId, scheduleId) {
 
     setError('');
 
-    // 2. PETICIÓN A LA API
     try {
       let res;
       if (editingClassId) {
@@ -146,10 +143,7 @@ export function useScheduleCalendar(userId, scheduleId) {
         res = await fetch(`${BACKEND_URL}/api/schedules/${scheduleId}/classes`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
-          body: JSON.stringify({
-            ...formData,
-            dayIndex: selectedDayForForm,
-          }),
+          body: JSON.stringify({ ...formData, dayIndex: selectedDayForForm }),
         });
       }
 
@@ -157,7 +151,7 @@ export function useScheduleCalendar(userId, scheduleId) {
 
       const updated = await res.json();
       setSchedule(updated);
-      if (cacheKey) setJSON(cacheKey, updated); // Sincronizamos cache
+      if (cacheKey) setJSON(cacheKey, updated);
 
       if (!editingClassId) {
         setActiveDayIndex(selectedDayForForm);
@@ -170,19 +164,31 @@ export function useScheduleCalendar(userId, scheduleId) {
     }
   };
 
+  // 3. MEJORA: Eliminación optimista para que la UI reaccione al instante
   const handleDeleteClass = async (classId) => {
+    const prevSchedule = schedule;
+    
+    // Cerramos el modal inmediatamente y quitamos la clase de la UI/Cache
+    setSelectedClassDetail(null);
+    const optimisticSchedule = schedule ? { ...schedule, classes: schedule.classes.filter(c => c.id !== classId) } : null;
+    setSchedule(optimisticSchedule);
+    if (cacheKey && optimisticSchedule) setJSON(cacheKey, optimisticSchedule);
+
     try {
       const res = await fetch(`${BACKEND_URL}/api/schedules/${scheduleId}/classes/${classId}`, {
         method: 'DELETE',
         headers: { 'X-User-Id': userId },
       });
       if (!res.ok) throw new Error();
+      
       const updated = await res.json();
       setSchedule(updated);
-      if (cacheKey) setJSON(cacheKey, updated); // Sincronizamos cache
-      setSelectedClassDetail(null);
+      if (cacheKey) setJSON(cacheKey, updated);
     } catch {
       setError('No se pudo eliminar la clase.');
+      // Rollback si falla
+      setSchedule(prevSchedule);
+      if (cacheKey && prevSchedule) setJSON(cacheKey, prevSchedule);
     }
   };
 
@@ -191,7 +197,6 @@ export function useScheduleCalendar(userId, scheduleId) {
     let prevScheduleSnapshot = schedule;
     let updatedScheduleSnapshot = null;
 
-    // Actualización funcional para evitar race conditions
     setSchedule((prev) => {
       if (!prev) return prev;
       prevScheduleSnapshot = prev;
@@ -228,7 +233,6 @@ export function useScheduleCalendar(userId, scheduleId) {
       if (!res.ok) throw new Error();
     } catch {
       setError('No se pudo actualizar la asistencia. Revisa tu conexión.');
-      // Rollback del estado y cache
       setSchedule(prevScheduleSnapshot);
       if (cacheKey && prevScheduleSnapshot) setJSON(cacheKey, prevScheduleSnapshot);
 
@@ -245,7 +249,6 @@ export function useScheduleCalendar(userId, scheduleId) {
   const handleUpdateSettings = async ({ name, daysCount }) => {
     const prevSchedule = schedule;
 
-    // Actualización optimista inmediata en UI y Cache
     const nextSchedule = schedule ? { ...schedule, name, daysCount } : null;
     setSchedule(nextSchedule);
     if (cacheKey && nextSchedule) setJSON(cacheKey, nextSchedule);
@@ -267,7 +270,6 @@ export function useScheduleCalendar(userId, scheduleId) {
       if (cacheKey) setJSON(cacheKey, updated);
     } catch {
       setError('No se pudieron guardar los ajustes. Revisa tu conexión.');
-      // Rollback
       setSchedule(prevSchedule);
       if (cacheKey && prevSchedule) setJSON(cacheKey, prevSchedule);
     }
