@@ -21,7 +21,7 @@ export default function GeneralSection({ onOpenCalendar }) {
   ];
 
   return (
-    <div className="grid grid-cols-2 gap-3">
+    <div className="grid grid-cols-2 gap-3 mt-6">
       {upcomingTools.map((tool) => {
         const Icon = tool.icon;
 
