@@ -1,7 +1,7 @@
 // FILE: frontend/src/components/library/calendar/ScheduleListScreen.jsx
 import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { CalendarDays, Plus, Trash2, ChevronRight } from 'lucide-react';
+import { CalendarDays, Plus, Trash2, ChevronRight, ChevronLeft } from 'lucide-react';
 import ScheduleCalendar from '../ScheduleCalendar';
 import ActionSheet from '../../common/ActionSheet';
 import { getJSON, setJSON } from '../../../lib/safeLocalStorage';
@@ -115,7 +115,7 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
     })),
   ];
 
-  // Elemento del FAB flotante
+  // Elemento del FAB flotante (Se mantiene intacto por su buen diseño)
   const fabButton = (
     <button
       type="button"
@@ -123,14 +123,12 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
       disabled={creating}
       aria-label="Crear nuevo horario"
       className="absolute right-6 w-14 h-14 rounded-[1.3rem] md:fixed flex items-center justify-center z-50 cursor-pointer disabled:opacity-40
-      /* Liquid Glass Base */
       bg-white/10 dark:bg-white/5
       backdrop-blur-[3px] backdrop-saturate-100
       border border-white/50 dark:border-white/25
       ring-1 ring-inset ring-white/30 dark:ring-white/10
       shadow-[0_10px_30px_-6px_rgba(0,0,0,0.35),0_4px_10px_-2px_rgba(0,0,0,0.15),inset_0_1.5px_0.5px_0_rgba(255,255,255,0.9),inset_0_-1.5px_1px_-0.5px_rgba(0,0,0,0.18),inset_1px_0_1px_-0.5px_rgba(255,255,255,0.4),inset_-1px_0_1px_-0.5px_rgba(0,0,0,0.12)]
       hover:bg-white/15 dark:hover:bg-white/10 hover:scale-105 active:scale-95 transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]
-      /* Destellos de bisel */
       before:absolute before:inset-0 before:rounded-[1.3rem] before:pointer-events-none before:bg-[radial-gradient(80%_60%_at_50%_-5%,rgba(255,255,255,0.45)_0%,rgba(255,255,255,0.08)_35%,transparent_70%)] before:opacity-90
       after:absolute after:inset-[1px] after:rounded-[1.2rem] after:pointer-events-none after:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.18)] after:mix-blend-overlay"
       style={{ bottom: 'calc(env(safe-area-inset-bottom) + 6rem)' }}
@@ -155,7 +153,6 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
           onOpenSwitcher={() => setShowSwitcher(true)}
         />
 
-        {/* ActionSheet selector resalta el horario activo con selectedId */}
         <ActionSheet
           open={showSwitcher}
           title="Cambiar horario"
@@ -164,7 +161,6 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
           onClose={() => setShowSwitcher(false)}
         />
 
-        {/* ActionSheet de confirmación para crear desde el visor */}
         <ActionSheet
           open={showCreateConfirm}
           title="Crear horario"
@@ -188,72 +184,108 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
   }
 
   return (
-    <div className="w-full max-w-2xl mx-auto pb-20 animate-[fadeIn_0.15s_ease]">
-      <div className="flex items-center justify-between py-3 border-b border-slate-200/80 mb-4 px-2">
+    <div className="w-full max-w-2xl mx-auto pb-24 animate-[fadeIn_0.2s_ease]">
+      {/* Header Mejorado */}
+      <header className="flex items-center justify-between mb-6 px-2 pt-4">
         <button
           type="button"
           onClick={onBack}
-          className="text-xs font-semibold text-slate-600 hover:text-slate-900 cursor-pointer"
+          className="flex items-center gap-1.5 text-sm font-semibold text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white transition-colors cursor-pointer group"
         >
-          ← Biblioteca
+          <span className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 group-hover:bg-slate-200 dark:group-hover:bg-slate-700 transition-colors">
+            <ChevronLeft className="w-4 h-4" />
+          </span>
+          Biblioteca
         </button>
-        <h2 className="text-base font-extrabold text-slate-900">Horarios</h2>
-        <div className="w-16" /> {/* Espaciador óptico para mantener centrado el título */}
-      </div>
+        
+        <h2 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight">Horarios</h2>
+        
+        {/* Espaciador para centrar el título perfectamente */}
+        <div className="w-[84px]" /> 
+      </header>
 
+      {/* Estado de Error Mejorado */}
       {error && (
-        <div className="mx-2 mb-4 px-3 py-2 bg-red-50 border border-red-200 rounded-xl text-xs font-medium text-red-700">
+        <div className="mx-2 mb-4 px-4 py-3 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-2xl text-sm font-medium text-red-600 dark:text-red-400 flex items-center gap-2">
           {error}
         </div>
       )}
 
       {loading ? (
-        <p className="text-center text-sm text-slate-400 py-12">Cargando...</p>
+        <div className="flex flex-col gap-3 px-2 mt-4">
+          {/* Skeletons de carga para parecer más profesional */}
+          {[1, 2].map((i) => (
+            <div key={i} className="h-24 bg-slate-100 dark:bg-slate-800/50 rounded-3xl animate-pulse" />
+          ))}
+        </div>
       ) : schedules.length === 0 ? (
-        <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed border-slate-200 rounded-3xl text-center min-h-[250px] mx-2">
-          <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center mb-3">
-            <CalendarDays className="w-6 h-6 text-slate-400" />
+        /* Estado Vacío Mejorado */
+        <div className="flex flex-col items-center justify-center p-12 bg-slate-50 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-700/50 rounded-[2rem] text-center min-h-[300px] mx-2 mt-4">
+          <div className="w-20 h-20 rounded-3xl bg-white dark:bg-slate-800 flex items-center justify-center mb-5 shadow-sm border border-slate-100 dark:border-slate-700">
+            <CalendarDays className="w-10 h-10 text-slate-300 dark:text-slate-600" strokeWidth={1.5} />
           </div>
-          <p className="text-sm font-bold text-slate-700">Sin horarios todavía</p>
-          <p className="text-xs text-slate-400 mt-1 max-w-xs">
-            Presiona el botón "+" para crear tu primer horario.
+          <p className="text-base font-bold text-slate-800 dark:text-white">Sin horarios todavía</p>
+          <p className="text-sm text-slate-400 dark:text-slate-500 mt-1.5 max-w-xs leading-relaxed">
+            Toca el botón <span className="font-bold text-indigo-500">+</span> para crear tu primer horario y organizar tus clases.
           </p>
         </div>
       ) : (
-        <div className="space-y-3 px-2">
-          {schedules.map((s) => (
-            <div
-              key={s.id}
-              role="button"
-              tabIndex={0}
-              onClick={() => setSelectedScheduleId(s.id)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') setSelectedScheduleId(s.id);
-              }}
-              className="w-full text-left bg-white border border-slate-200/90 rounded-2xl p-4 shadow-sm hover:border-slate-300 hover:shadow-md transition-all cursor-pointer flex items-center justify-between"
-            >
-              <div>
-                <h3 className="text-base font-extrabold text-slate-900">{s.name}</h3>
-                <p className="text-xs font-medium text-slate-500 mt-0.5">
-                  {s.classes?.length || 0} clase{(s.classes?.length || 0) !== 1 ? 's' : ''} · {s.daysCount} días
-                </p>
+        /* Lista de Horarios Mejorada */
+        <div className="space-y-4 px-2">
+          {schedules.map((s) => {
+            const classCount = s.classes?.length || 0;
+            return (
+              <div
+                key={s.id}
+                role="button"
+                tabIndex={0}
+                onClick={() => setSelectedScheduleId(s.id)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') setSelectedScheduleId(s.id);
+                }}
+                className="group relative w-full text-left bg-white dark:bg-slate-800/50 dark:backdrop-blur-sm border border-slate-200/80 dark:border-white/10 rounded-3xl p-5 shadow-sm hover:shadow-xl hover:border-slate-300 dark:hover:border-white/20 hover:-translate-y-0.5 transition-all duration-300 cursor-pointer flex items-center gap-4 overflow-hidden"
+              >
+                {/* Overlay sutil al hacer hover */}
+                <div className="absolute inset-0 bg-gradient-to-br from-indigo-50/40 to-transparent dark:from-indigo-500/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none rounded-3xl"></div>
+
+                {/* Icono Decorativo */}
+                <div className="relative w-14 h-14 rounded-2xl bg-slate-50 dark:bg-slate-900/40 border border-slate-100 dark:border-white/5 flex items-center justify-center flex-shrink-0 group-hover:bg-indigo-50 dark:group-hover:bg-indigo-500/10 group-hover:border-indigo-100 dark:group-hover:border-indigo-500/20 transition-colors">
+                  <CalendarDays className="w-6 h-6 text-slate-400 dark:text-slate-500 group-hover:text-indigo-500 dark:group-hover:text-indigo-400 transition-colors" />
+                </div>
+
+                {/* Contenido Textual */}
+                <div className="relative flex-1 min-w-0">
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white truncate">{s.name}</h3>
+                  <div className="flex items-center gap-2 mt-2">
+                    <span className="inline-flex items-center text-[11px] font-semibold px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-700/50 text-slate-600 dark:text-slate-300">
+                      {classCount} {classCount !== 1 ? 'clases' : 'clase'}
+                    </span>
+                    <span className="inline-flex items-center text-[11px] font-semibold px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-700/50 text-slate-600 dark:text-slate-300">
+                      {s.daysCount} días
+                    </span>
+                  </div>
+                </div>
+
+                {/* Acciones */}
+                <div className="relative flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setScheduleToDelete(s.id);
+                    }}
+                    className="p-2.5 text-slate-300 dark:text-slate-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-xl transition-colors cursor-pointer"
+                    title="Eliminar horario"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+                  <div className="w-9 h-9 flex items-center justify-center rounded-full text-slate-300 dark:text-slate-500 group-hover:text-indigo-500 dark:group-hover:text-indigo-400 group-hover:bg-indigo-50 dark:group-hover:bg-indigo-500/10 transition-all">
+                    <ChevronRight className="w-5 h-5" />
+                  </div>
+                </div>
               </div>
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setScheduleToDelete(s.id);
-                  }}
-                  className="p-2 text-slate-300 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors cursor-pointer"
-                  title="Eliminar horario"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-                <ChevronRight className="w-5 h-5 text-slate-300" />
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
