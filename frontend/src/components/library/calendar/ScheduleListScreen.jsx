@@ -1,23 +1,110 @@
 // FILE: frontend/src/components/library/calendar/ScheduleListScreen.jsx
 import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { CalendarDays, Plus, Trash2, ChevronRight, ChevronLeft } from 'lucide-react';
+import { CalendarDays, Plus, Trash2, MoreHorizontal } from 'lucide-react';
 import ScheduleCalendar from '../ScheduleCalendar';
 import ActionSheet from '../../common/ActionSheet';
 import { getJSON, setJSON } from '../../../lib/safeLocalStorage';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
+// =======================================================================
+// SUBCOMPONENTE: Tarjeta de Horario Individual (con su propio ActionSheet)
+// =======================================================================
+function ScheduleItemCard({ schedule, onSelect, onDelete }) {
+  const [showMenu, setShowMenu] = useState(false);
+  const classCount = schedule.classes?.length || 0;
+
+  const handleSelect = () => onSelect(schedule.id);
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') handleSelect();
+  };
+
+  return (
+    <>
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={handleSelect}
+        onKeyDown={handleKeyDown}
+        className="group relative w-full text-left bg-white dark:bg-slate-800/50 dark:backdrop-blur-sm border border-slate-200/80 dark:border-white/10 rounded-3xl p-5 shadow-sm hover:shadow-xl hover:border-slate-300 dark:hover:border-white/20 hover:-translate-y-0.5 transition-all duration-300 cursor-pointer flex items-center gap-4 overflow-hidden"
+      >
+        {/* Overlay sutil al hacer hover */}
+        <div className="absolute inset-0 bg-gradient-to-br from-indigo-50/40 to-transparent dark:from-indigo-500/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none rounded-3xl"></div>
+
+        {/* Botón de 3 puntos (Arriba a la derecha) */}
+        <div 
+          className="absolute top-3 right-3 z-30"
+          onClick={(e) => e.stopPropagation()} // Evitar que abra el horario al clickar el botón
+        >
+          <button
+            type="button"
+            onClick={() => setShowMenu(true)}
+            className="p-2 text-slate-300 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-xl transition-colors cursor-pointer"
+            aria-label="Más acciones"
+          >
+            <MoreHorizontal className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Icono Decorativo */}
+        <div className="relative w-14 h-14 rounded-2xl bg-slate-50 dark:bg-slate-900/40 border border-slate-100 dark:border-white/5 flex items-center justify-center flex-shrink-0 group-hover:bg-indigo-50 dark:group-hover:bg-indigo-500/10 group-hover:border-indigo-100 dark:group-hover:border-indigo-500/20 transition-colors">
+          <CalendarDays className="w-6 h-6 text-slate-400 dark:text-slate-500 group-hover:text-indigo-500 dark:group-hover:text-indigo-400 transition-colors" />
+        </div>
+
+        {/* Contenido Textual (pr-12 para no chocar con el botón de 3 puntos) */}
+        <div className="relative flex-1 min-w-0 pr-12">
+          <h3 className="text-base font-bold text-slate-900 dark:text-white truncate">{schedule.name}</h3>
+          <div className="flex items-center gap-2 mt-2">
+            <span className="inline-flex items-center text-[11px] font-semibold px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-700/50 text-slate-600 dark:text-slate-300">
+              {classCount} {classCount !== 1 ? 'clases' : 'clase'}
+            </span>
+            <span className="inline-flex items-center text-[11px] font-semibold px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-700/50 text-slate-600 dark:text-slate-300">
+              {schedule.daysCount} días
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* ActionSheet local para esta tarjeta específica */}
+      <ActionSheet
+        open={showMenu}
+        title={schedule.name}
+        options={[
+          {
+            id: 'delete',
+            label: 'Eliminar horario',
+            description: 'Se eliminarán todas las clases asociadas. Esta acción no se puede deshacer.',
+            icon: Trash2,
+            danger: true,
+            onSelect: () => {
+              setShowMenu(false);
+              onDelete(schedule.id);
+            },
+          },
+          {
+            id: 'cancel',
+            label: 'Cancelar',
+          },
+        ]}
+        onClose={() => setShowMenu(false)}
+      />
+    </>
+  );
+}
+
+// =======================================================================
+// COMPONENTE PRINCIPAL
+// =======================================================================
 export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
   const listCacheKey = userId ? `schedules_list_${userId}` : null;
 
-  // Carga instantánea desde cache local (0ms)
   const [schedules, setSchedules] = useState(() => (listCacheKey ? getJSON(listCacheKey) || [] : []));
   const [loading, setLoading] = useState(() => (listCacheKey ? !getJSON(listCacheKey) : true));
   const [error, setError] = useState('');
   const [selectedScheduleId, setSelectedScheduleId] = useState(null);
   const [creating, setCreating] = useState(false);
-  const [scheduleToDelete, setScheduleToDelete] = useState(null);
   const [showSwitcher, setShowSwitcher] = useState(false);
   const [showCreateConfirm, setShowCreateConfirm] = useState(false);
 
@@ -76,24 +163,21 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
     }
   };
 
-  const confirmDelete = async () => {
-    if (!scheduleToDelete) return;
+  const handleDeleteSchedule = async (scheduleId) => {
     try {
-      const res = await fetch(`${BACKEND_URL}/api/schedules/${scheduleToDelete}`, {
+      const res = await fetch(`${BACKEND_URL}/api/schedules/${scheduleId}`, {
         method: 'DELETE',
         headers: { 'X-User-Id': userId },
       });
       if (!res.ok) throw new Error();
 
       setSchedules((prev) => {
-        const next = prev.filter((s) => s.id !== scheduleToDelete);
+        const next = prev.filter((s) => s.id !== scheduleId);
         if (listCacheKey) setJSON(listCacheKey, next);
         return next;
       });
     } catch {
       setError('No se pudo eliminar el horario.');
-    } finally {
-      setScheduleToDelete(null);
     }
   };
 
@@ -115,7 +199,7 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
     })),
   ];
 
-  // Elemento del FAB flotante (Se mantiene intacto por su buen diseño)
+  // Elemento del FAB flotante (Se mantiene intacto)
   const fabButton = (
     <button
       type="button"
@@ -200,7 +284,6 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
         
         <h2 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight">Horarios</h2>
         
-        {/* Espaciador para centrar el título perfectamente */}
         <div className="w-[84px]" /> 
       </header>
 
@@ -213,13 +296,11 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
 
       {loading ? (
         <div className="flex flex-col gap-3 px-2 mt-4">
-          {/* Skeletons de carga para parecer más profesional */}
           {[1, 2].map((i) => (
             <div key={i} className="h-24 bg-slate-100 dark:bg-slate-800/50 rounded-3xl animate-pulse" />
           ))}
         </div>
       ) : schedules.length === 0 ? (
-        /* Estado Vacío Mejorado */
         <div className="flex flex-col items-center justify-center p-12 bg-slate-50 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-700/50 rounded-[2rem] text-center min-h-[300px] mx-2 mt-4">
           <div className="w-20 h-20 rounded-3xl bg-white dark:bg-slate-800 flex items-center justify-center mb-5 shadow-sm border border-slate-100 dark:border-slate-700">
             <CalendarDays className="w-10 h-10 text-slate-300 dark:text-slate-600" strokeWidth={1.5} />
@@ -230,89 +311,21 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
           </p>
         </div>
       ) : (
-        /* Lista de Horarios Mejorada */
+        /* Lista de Horarios */
         <div className="space-y-4 px-2">
-          {schedules.map((s) => {
-            const classCount = s.classes?.length || 0;
-            return (
-              <div
-                key={s.id}
-                role="button"
-                tabIndex={0}
-                onClick={() => setSelectedScheduleId(s.id)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') setSelectedScheduleId(s.id);
-                }}
-                className="group relative w-full text-left bg-white dark:bg-slate-800/50 dark:backdrop-blur-sm border border-slate-200/80 dark:border-white/10 rounded-3xl p-5 shadow-sm hover:shadow-xl hover:border-slate-300 dark:hover:border-white/20 hover:-translate-y-0.5 transition-all duration-300 cursor-pointer flex items-center gap-4 overflow-hidden"
-              >
-                {/* Overlay sutil al hacer hover */}
-                <div className="absolute inset-0 bg-gradient-to-br from-indigo-50/40 to-transparent dark:from-indigo-500/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none rounded-3xl"></div>
-
-                {/* Icono Decorativo */}
-                <div className="relative w-14 h-14 rounded-2xl bg-slate-50 dark:bg-slate-900/40 border border-slate-100 dark:border-white/5 flex items-center justify-center flex-shrink-0 group-hover:bg-indigo-50 dark:group-hover:bg-indigo-500/10 group-hover:border-indigo-100 dark:group-hover:border-indigo-500/20 transition-colors">
-                  <CalendarDays className="w-6 h-6 text-slate-400 dark:text-slate-500 group-hover:text-indigo-500 dark:group-hover:text-indigo-400 transition-colors" />
-                </div>
-
-                {/* Contenido Textual */}
-                <div className="relative flex-1 min-w-0">
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white truncate">{s.name}</h3>
-                  <div className="flex items-center gap-2 mt-2">
-                    <span className="inline-flex items-center text-[11px] font-semibold px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-700/50 text-slate-600 dark:text-slate-300">
-                      {classCount} {classCount !== 1 ? 'clases' : 'clase'}
-                    </span>
-                    <span className="inline-flex items-center text-[11px] font-semibold px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-700/50 text-slate-600 dark:text-slate-300">
-                      {s.daysCount} días
-                    </span>
-                  </div>
-                </div>
-
-                {/* Acciones */}
-                <div className="relative flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setScheduleToDelete(s.id);
-                    }}
-                    className="p-2.5 text-slate-300 dark:text-slate-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-xl transition-colors cursor-pointer"
-                    title="Eliminar horario"
-                  >
-                    <Trash2 className="w-5 h-5" />
-                  </button>
-                  <div className="w-9 h-9 flex items-center justify-center rounded-full text-slate-300 dark:text-slate-500 group-hover:text-indigo-500 dark:group-hover:text-indigo-400 group-hover:bg-indigo-50 dark:group-hover:bg-indigo-500/10 transition-all">
-                    <ChevronRight className="w-5 h-5" />
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+          {schedules.map((s) => (
+            <ScheduleItemCard 
+              key={s.id} 
+              schedule={s} 
+              onSelect={setSelectedScheduleId} 
+              onDelete={handleDeleteSchedule} 
+            />
+          ))}
         </div>
       )}
 
       {/* FAB Flotante */}
       {fab}
-
-      {/* ActionSheet de confirmación para eliminar */}
-      <ActionSheet
-        open={Boolean(scheduleToDelete)}
-        title="Eliminar horario"
-        options={[
-          {
-            id: 'confirm',
-            label: 'Eliminar horario',
-            description:
-              'Se eliminarán todas las clases asociadas. Esta acción no se puede deshacer.',
-            icon: Trash2,
-            danger: true,
-            onSelect: confirmDelete,
-          },
-          {
-            id: 'cancel',
-            label: 'Cancelar',
-          },
-        ]}
-        onClose={() => setScheduleToDelete(null)}
-      />
 
       {/* ActionSheet para cambiar entre horarios de la lista */}
       <ActionSheet
