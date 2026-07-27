@@ -1,7 +1,7 @@
 // FILE: frontend/src/components/library/calendar/ScheduleListScreen.jsx
 import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { CalendarDays, Plus, Trash2, MoreHorizontal, ChevronLeft } from 'lucide-react'; // <-- Añadido ChevronLeft aquí
+import { CalendarDays, Plus, Trash2, MoreHorizontal, ChevronLeft } from 'lucide-react';
 import ScheduleCalendar from '../ScheduleCalendar';
 import ActionSheet from '../../common/ActionSheet';
 import { getJSON, setJSON } from '../../../lib/safeLocalStorage';
@@ -269,22 +269,22 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
 
   return (
     <div className="w-full max-w-2xl mx-auto pb-24 animate-[fadeIn_0.2s_ease]">
-      {/* Header Mejorado */}
-      <header className="flex items-center justify-between mb-6 px-2 pt-4">
+      {/* Header Mejorado con CSS Grid para centrado perfecto */}
+      <header className="grid grid-cols-3 items-center mb-6 px-2 pt-4">
         <button
           type="button"
           onClick={onBack}
-          className="flex items-center gap-1.5 text-sm font-semibold text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white transition-colors cursor-pointer group"
+          className="justify-self-start flex items-center gap-1.5 text-sm font-semibold text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white transition-colors cursor-pointer group"
         >
           <span className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 group-hover:bg-slate-200 dark:group-hover:bg-slate-700 transition-colors">
             <ChevronLeft className="w-4 h-4" />
           </span>
-          Biblioteca
+          General
         </button>
         
-        <h2 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight">Horarios</h2>
+        <h2 className="justify-self-center text-lg font-bold text-slate-900 dark:text-white tracking-tight">Horarios</h2>
         
-        <div className="w-[84px]" /> 
+        <div className="justify-self-end" /> {/* Columna derecha vacía para equilibrar el grid */}
       </header>
 
       {/* Estado de Error Mejorado */}
