@@ -1,10 +1,12 @@
 // FILE: frontend/src/components/library/ScheduleCalendar.jsx
 import { useState } from 'react';
+import { Plus, Calendar } from 'lucide-react';
 import { useScheduleCalendar, WEEKDAYS } from './calendar/useScheduleCalendar';
 import ScheduleHeader from './calendar/ScheduleHeader';
 import DayTabs from './calendar/DayTabs';
 import ClassList from './calendar/ClassList';
 import CalendarFAB from './calendar/CalendarFAB';
+import ActionSheet from '../common/ActionSheet';
 
 import DayPickerModal from './calendar/modals/DayPickerModal';
 import ClassFormModal from './calendar/modals/ClassFormModal';
@@ -46,7 +48,7 @@ export default function ScheduleCalendar({
     handleUpdateSettings,
   } = useScheduleCalendar(userId, scheduleId);
 
-  // 1. ESTADO renombrado para el Action Sheet
+  // Estado para el Action Sheet del FAB
   const [showFabSheet, setShowFabSheet] = useState(false);
 
   if (loading) {
@@ -57,8 +59,30 @@ export default function ScheduleCalendar({
     );
   }
 
-  // 2. Incluimos showFabSheet para ocultar el FAB si el Action Sheet está desplegado
   const isAnyModalOpen = showSettings || showDayPicker || showClassForm || !!selectedClassDetail || showFabSheet;
+
+  // Opciones para el ActionSheet reutilizable
+  const fabOptions = [
+    {
+      id: 'add-current-day',
+      label: `Añadir a ${WEEKDAYS[activeDayIndex] || `Día ${activeDayIndex + 1}`}`,
+      description: 'Crear una nueva clase en el día seleccionado',
+      icon: Plus,
+      onSelect: () => {
+        setSelectedDayForForm(activeDayIndex);
+        setShowClassForm(true);
+      },
+    },
+    {
+      id: 'pick-other-day',
+      label: 'Elegir otro día...',
+      description: 'Seleccionar un día distinto del calendario',
+      icon: Calendar,
+      onSelect: () => {
+        setShowDayPicker(true);
+      },
+    },
+  ];
 
   return (
     <div className="w-full max-w-2xl mx-auto pb-20 animate-[fadeIn_0.15s_ease] select-none relative">
@@ -87,7 +111,7 @@ export default function ScheduleCalendar({
         onSelectClass={setSelectedClassDetail} 
       />
 
-      {/* BLOQUE DEL FAB SIMPLIFICADO */}
+      {/* FAB */}
       {!isAnyModalOpen && (
         <CalendarFAB 
           onClick={() => setShowFabSheet(true)} 
@@ -95,51 +119,15 @@ export default function ScheduleCalendar({
         />
       )}
 
-      {/* ACTION SHEET DEL FAB INTELIGENTE */}
-      {showFabSheet && (
-        <div 
-          className="fixed inset-0 z-40 bg-black/30 flex justify-center animate-[fadeIn_0.15s_ease]"
-          onClick={() => setShowFabSheet(false)}
-        >
-          <div 
-            className="absolute bottom-0 left-0 right-0 max-w-2xl mx-auto bg-white rounded-t-3xl p-4 pb-8 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Handlebar superior estilo iOS/Android */}
-            <div className="w-10 h-1.5 bg-slate-200 rounded-full mx-auto mb-4" />
-            
-            <button 
-              className="w-full text-left px-4 py-3.5 text-base font-semibold text-blue-600 active:bg-slate-50 rounded-xl mb-1 transition-colors"
-              onClick={() => {
-                setSelectedDayForForm(activeDayIndex);
-                setShowClassForm(true);
-                setShowFabSheet(false);
-              }}
-            >
-              + Añadir a {WEEKDAYS[activeDayIndex] || `Día ${activeDayIndex + 1}`}
-            </button>
-            
-            <button 
-              className="w-full text-left px-4 py-3.5 text-base text-slate-700 active:bg-slate-50 rounded-xl border-t border-slate-100 transition-colors"
-              onClick={() => {
-                setShowDayPicker(true);
-                setShowFabSheet(false);
-              }}
-            >
-              Elegir otro día...
-            </button>
-            
-            <button 
-              className="w-full text-left px-4 py-3.5 text-base font-medium text-red-500 active:bg-slate-50 rounded-xl border-t border-slate-100 mt-2 transition-colors"
-              onClick={() => setShowFabSheet(false)}
-            >
-              Cancelar
-            </button>
-          </div>
-        </div>
-      )}
+      {/* COMPONENTE REUTILIZABLE ACTION SHEET */}
+      <ActionSheet 
+        open={showFabSheet}
+        title="Acciones del Horario"
+        options={fabOptions}
+        onClose={() => setShowFabSheet(false)}
+      />
 
-      {/* MODALES EXISTENTES */}
+      {/* MODALES */}
       <DayPickerModal 
         open={showDayPicker}
         daysCount={daysCount}
