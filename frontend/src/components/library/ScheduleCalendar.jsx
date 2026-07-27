@@ -53,8 +53,11 @@ export default function ScheduleCalendar({
     );
   }
 
+  // MEJORA 1: Determinar si hay algún modal/acción activa para ocultar el FAB
+  const isAnyModalOpen = showSettings || showDayPicker || showClassForm || !!selectedClassDetail;
+
   return (
-    <div className="w-full max-w-2xl mx-auto pb-20 animate-[fadeIn_0.15s_ease] select-none">
+    <div className="w-full max-w-2xl mx-auto pb-20 animate-[fadeIn_0.15s_ease] select-none relative">
       <ScheduleHeader 
         onBack={onBack} 
         scheduleName={scheduleName} 
@@ -80,10 +83,13 @@ export default function ScheduleCalendar({
         onSelectClass={setSelectedClassDetail} 
       />
 
-      <CalendarFAB 
-        onClick={() => setShowDayPicker(true)} 
-        dashboardShell={dashboardShell} 
-      />
+      {/* MEJORA 1: El FAB solo se renderiza si no hay modales abiertos */}
+      {!isAnyModalOpen && (
+        <CalendarFAB 
+          onClick={() => setShowDayPicker(true)} 
+          dashboardShell={dashboardShell} 
+        />
+      )}
 
       {/* RENDERIZADO SIEMPRE ACTIVO:
           Pasamos la prop 'open' para permitir que el ActionSheet / Modal
@@ -99,6 +105,10 @@ export default function ScheduleCalendar({
         onClose={() => setShowDayPicker(false)}
       />
 
+      {/* 
+        NOTA LÓGICA: Si quieres que este modal también tenga animación de salida 
+        como el DayPicker, deberías cambiarlo a <ClassFormModal open={showClassForm} ... />
+      */}
       {showClassForm && (
         <ClassFormModal 
           key={editingClass?.id || 'new'} // Forzar re-instanciación al cambiar la clase seleccionada
@@ -114,6 +124,9 @@ export default function ScheduleCalendar({
         />
       )}
 
+      {/* 
+        NOTA LÓGICA: Mismo caso aquí, idealmente pasar a <ClassDetailModal open={!!selectedClassDetail} ... />
+      */}
       {selectedClassDetail && (
         <ClassDetailModal 
           selectedClass={selectedClassDetail}
