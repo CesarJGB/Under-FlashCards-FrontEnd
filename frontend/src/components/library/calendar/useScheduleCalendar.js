@@ -17,15 +17,59 @@ export function useScheduleCalendar(userId, scheduleId) {
 
   const [activeDayIndex, setActiveDayIndex] = useState(0);
 
-  // Modales
-  const [showSettings, setShowSettings] = useState(false);
-  const [showDayPicker, setShowDayPicker] = useState(false);
-  const [showClassForm, setShowClassForm] = useState(false);
+  // Modales (Usamos setters internos _set... para interceptar y garantizar exclusión mutua)
+  const [showSettings, _setShowSettings] = useState(false);
+  const [showDayPicker, _setShowDayPicker] = useState(false);
+  const [showClassForm, _setShowClassForm] = useState(false);
   const [selectedDayForForm, setSelectedDayForForm] = useState(0);
-  const [selectedClassDetail, setSelectedClassDetail] = useState(null);
+  const [selectedClassDetail, _setSelectedClassDetail] = useState(null);
 
   // Estado para modo edición
   const [editingClass, setEditingClass] = useState(null);
+
+  // --- INTERCEPTORES DE MODALES (Exclusión mutua) ---
+  // Esto asegura que si abres uno, cierras los otros. El FAB en ScheduleCalendar.jsx funcionará perfecto.
+  const setShowSettings = (val) => {
+    if (val) {
+      _setShowDayPicker(false);
+      _setShowClassForm(false);
+      _setSelectedClassDetail(null);
+    }
+    _setShowSettings(val);
+  };
+
+  const setShowDayPicker = (val) => {
+    if (val) {
+      _setShowSettings(false);
+      _setShowClassForm(false);
+      _setSelectedClassDetail(null);
+    }
+    _setShowDayPicker(val);
+  };
+
+  const setShowClassForm = (val) => {
+    if (val) {
+      _setShowSettings(false);
+      _setShowDayPicker(false);
+      _setSelectedClassDetail(null);
+    }
+    _setShowClassForm(val);
+  };
+
+  const setSelectedClassDetail = (val) => {
+    // Soporte para actualizaciones funcionales (ej. usado en handleUpdateAttendance)
+    if (typeof val === 'function') {
+      _setSelectedClassDetail(val);
+      return;
+    }
+    if (val) {
+      _setShowSettings(false);
+      _setShowDayPicker(false);
+      _setShowClassForm(false);
+    }
+    _setSelectedClassDetail(val);
+  };
+  // -------------------------------------------------
 
   const handleCloseClassForm = () => {
     setShowClassForm(false);
@@ -33,10 +77,10 @@ export function useScheduleCalendar(userId, scheduleId) {
   };
 
   const handleEditClassClick = (classItem) => {
-    setSelectedClassDetail(null); // Cierra el modal de detalle
+    setSelectedClassDetail(null); // El interceptor ya lo hace, pero lo dejamos por claridad
     setEditingClass(classItem);   // Guarda la clase que vamos a editar
     setSelectedDayForForm(classItem.dayIndex); // Asegura que estemos en el día correcto
-    setShowClassForm(true);       // Abre el formulario
+    setShowClassForm(true);       // Abre el formulario (y cierra los demás)
   };
 
   // Carga directa del horario por su ID específico con revalidación en segundo plano
@@ -70,7 +114,7 @@ export function useScheduleCalendar(userId, scheduleId) {
   useEffect(() => {
     if (selectedClassDetail && schedule) {
       const stillExists = schedule.classes.some((c) => c.id === selectedClassDetail.id);
-      if (!stillExists) setSelectedClassDetail(null);
+      if (!stillExists) _setSelectedClassDetail(null); // Usamos el interno para no disparar la lógica de cierre de otros modales
     }
   }, [schedule, selectedClassDetail]);
 
