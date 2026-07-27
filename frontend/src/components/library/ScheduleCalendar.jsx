@@ -46,8 +46,8 @@ export default function ScheduleCalendar({
     handleUpdateSettings,
   } = useScheduleCalendar(userId, scheduleId);
 
-  // ESTADO para el mini-menú del FAB
-  const [showFabMenu, setShowFabMenu] = useState(false);
+  // 1. ESTADO renombrado para el Action Sheet
+  const [showFabSheet, setShowFabSheet] = useState(false);
 
   if (loading) {
     return (
@@ -57,8 +57,8 @@ export default function ScheduleCalendar({
     );
   }
 
-  // Determinar si hay algún modal/acción activa para ocultar el FAB
-  const isAnyModalOpen = showSettings || showDayPicker || showClassForm || !!selectedClassDetail;
+  // 2. Incluimos showFabSheet para ocultar el FAB si el Action Sheet está desplegado
+  const isAnyModalOpen = showSettings || showDayPicker || showClassForm || !!selectedClassDetail || showFabSheet;
 
   return (
     <div className="w-full max-w-2xl mx-auto pb-20 animate-[fadeIn_0.15s_ease] select-none relative">
@@ -87,49 +87,59 @@ export default function ScheduleCalendar({
         onSelectClass={setSelectedClassDetail} 
       />
 
-      {/* BLOQUE DEL FAB INTELIGENTE CON MINI-MENÚ */}
+      {/* BLOQUE DEL FAB SIMPLIFICADO */}
       {!isAnyModalOpen && (
-        <>
-          {/* Overlay invisible para cerrar el menú si se toca fuera */}
-          {showFabMenu && (
-            <div 
-              className="fixed inset-0 z-30" 
-              onClick={() => setShowFabMenu(false)} 
-            />
-          )}
-
-          {/* Mini-menú de opciones rápidas */}
-          {showFabMenu && (
-            <div className="fixed bottom-24 right-4 md:right-8 z-40 w-48 bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden animate-[fadeIn_0.1s_ease]">
-              <button 
-                className="w-full text-left px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50 active:bg-slate-100 transition-colors"
-                onClick={() => {
-                  setSelectedDayForForm(activeDayIndex);
-                  setShowClassForm(true);
-                  setShowFabMenu(false);
-                }}
-              >
-                + Añadir a {WEEKDAYS[activeDayIndex] || `Día ${activeDayIndex + 1}`}
-              </button>
-              <button 
-                className="w-full text-left px-4 py-3 text-sm text-slate-500 hover:bg-slate-50 active:bg-slate-100 border-t border-slate-100 transition-colors"
-                onClick={() => {
-                  setShowDayPicker(true);
-                  setShowFabMenu(false);
-                }}
-              >
-                Elegir otro día...
-              </button>
-            </div>
-          )}
-
-          <CalendarFAB 
-            onClick={() => setShowFabMenu((prev) => !prev)} 
-            dashboardShell={dashboardShell} 
-          />
-        </>
+        <CalendarFAB 
+          onClick={() => setShowFabSheet(true)} 
+          dashboardShell={dashboardShell} 
+        />
       )}
 
+      {/* ACTION SHEET DEL FAB INTELIGENTE */}
+      {showFabSheet && (
+        <div 
+          className="fixed inset-0 z-40 bg-black/30 flex justify-center animate-[fadeIn_0.15s_ease]"
+          onClick={() => setShowFabSheet(false)}
+        >
+          <div 
+            className="absolute bottom-0 left-0 right-0 max-w-2xl mx-auto bg-white rounded-t-3xl p-4 pb-8 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Handlebar superior estilo iOS/Android */}
+            <div className="w-10 h-1.5 bg-slate-200 rounded-full mx-auto mb-4" />
+            
+            <button 
+              className="w-full text-left px-4 py-3.5 text-base font-semibold text-blue-600 active:bg-slate-50 rounded-xl mb-1 transition-colors"
+              onClick={() => {
+                setSelectedDayForForm(activeDayIndex);
+                setShowClassForm(true);
+                setShowFabSheet(false);
+              }}
+            >
+              + Añadir a {WEEKDAYS[activeDayIndex] || `Día ${activeDayIndex + 1}`}
+            </button>
+            
+            <button 
+              className="w-full text-left px-4 py-3.5 text-base text-slate-700 active:bg-slate-50 rounded-xl border-t border-slate-100 transition-colors"
+              onClick={() => {
+                setShowDayPicker(true);
+                setShowFabSheet(false);
+              }}
+            >
+              Elegir otro día...
+            </button>
+            
+            <button 
+              className="w-full text-left px-4 py-3.5 text-base font-medium text-red-500 active:bg-slate-50 rounded-xl border-t border-slate-100 mt-2 transition-colors"
+              onClick={() => setShowFabSheet(false)}
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* MODALES EXISTENTES */}
       <DayPickerModal 
         open={showDayPicker}
         daysCount={daysCount}
