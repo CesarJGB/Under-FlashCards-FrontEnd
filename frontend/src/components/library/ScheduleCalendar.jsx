@@ -61,6 +61,22 @@ export default function ScheduleCalendar({
 
   const isAnyModalOpen = showSettings || showDayPicker || showClassForm || !!selectedClassDetail || showFabSheet;
 
+  // Handlers para garantizar un cierre limpio del FabSheet antes de abrir la siguiente vista
+  const handleSelectAddCurrentDay = () => {
+    setShowFabSheet(false);
+    setTimeout(() => {
+      setSelectedDayForForm(activeDayIndex);
+      setShowClassForm(true);
+    }, 0);
+  };
+
+  const handleSelectPickOtherDay = () => {
+    setShowFabSheet(false);
+    setTimeout(() => {
+      setShowDayPicker(true);
+    }, 0);
+  };
+
   // Opciones para el ActionSheet reutilizable
   const fabOptions = [
     {
@@ -68,19 +84,14 @@ export default function ScheduleCalendar({
       label: `Añadir a ${WEEKDAYS[activeDayIndex] || `Día ${activeDayIndex + 1}`}`,
       description: 'Crear una nueva clase en el día seleccionado',
       icon: Plus,
-      onSelect: () => {
-        setSelectedDayForForm(activeDayIndex);
-        setShowClassForm(true);
-      },
+      onSelect: handleSelectAddCurrentDay,
     },
     {
       id: 'pick-other-day',
       label: 'Elegir otro día...',
       description: 'Seleccionar un día distinto del calendario',
       icon: Calendar,
-      onSelect: () => {
-        setShowDayPicker(true);
-      },
+      onSelect: handleSelectPickOtherDay,
     },
   ];
 
