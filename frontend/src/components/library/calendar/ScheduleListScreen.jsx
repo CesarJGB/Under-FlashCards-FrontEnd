@@ -269,17 +269,25 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
 
   return (
     <div className="w-full max-w-2xl mx-auto pb-24 animate-[fadeIn_0.2s_ease]">
-      {/* Header estilo botón cuadrado */}
-      <header className="flex items-center gap-3 mb-6 px-2 pt-4">
-        <button
-          type="button"
-          onClick={onBack}
-          className="h-9 w-9 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl flex items-center justify-center text-slate-600 dark:text-slate-300 active:scale-95 transition-all cursor-pointer shadow-3xs"
-          title="Volver"
-        >
-          <ArrowLeft className="w-4 h-4" />
-        </button>
-        <h2 className="text-xl font-black tracking-tight text-slate-900 dark:text-white">Horarios</h2>
+      {/* Header con Grid para centrado perfecto absoluto */}
+      <header className="grid grid-cols-3 items-center mb-6 px-2 pt-4">
+        {/* Columna Izquierda: Botón */}
+        <div className="justify-self-start">
+          <button
+            type="button"
+            onClick={onBack}
+            className="h-9 w-9 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl flex items-center justify-center text-slate-600 dark:text-slate-300 active:scale-95 transition-all cursor-pointer shadow-3xs"
+            title="Volver"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </button>
+        </div>
+        
+        {/* Columna Central: Título centrado forzado */}
+        <h2 className="justify-self-center text-xl font-black tracking-tight text-slate-900 dark:text-white">Horarios</h2>
+        
+        {/* Columna Derecha: Espaciador invisible para equilibrar */}
+        <div className="justify-self-end w-9" /> {/* w-9 simula el peso del botón izquierdo */}
       </header>
 
       {/* Estado de Error Mejorado */}
