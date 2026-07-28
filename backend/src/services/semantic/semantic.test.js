@@ -48,7 +48,7 @@ function runTests() {
   const survB = resolveDuplicates({ index: indexB, cards: cardsB, threshold: 0.92 });
   assert.ok(survB.includes('A') && !survB.includes('B'), 'Caso B: En empate sobrevive la primera aparición');
 
-  // Caso C: Undefined score (Corregido)
+  // Caso C: Undefined score
   const indexC = new InMemoryVectorIndex();
   const cardsC = [
     { id: 'A', vector: [1, 0] }, // undefined -> 1.0
@@ -70,9 +70,27 @@ function runTests() {
   ];
   indexM.insert(cardsM);
   
-  // Validar lambda fuera de rango
-  assert.throws(() => selectDiverse({ index: indexM, cards: cardsM, targetCount: 3, lambda: 1.5 }), /lambda debe estar entre 0 y 1/, 'Valida lambda > 1');
-  assert.throws(() => selectDiverse({ index: indexM, cards: cardsM, targetCount: 3, lambda: -0.5 }), /lambda debe estar entre 0 y 1/, 'Valida lambda < 0');
+  // Nuevas validaciones defensivas
+  assert.throws(
+    () => selectDiverse({
+      index: indexM,
+      cards: cardsM,
+      targetCount: 3,
+      lambda: NaN
+    }),
+    /lambda debe ser un número entre 0 y 1/,
+    'Valida lambda NaN'
+  );
+
+  assert.throws(
+    () => selectDiverse({
+      index: indexM,
+      cards: cardsM,
+      targetCount: -1
+    }),
+    /targetCount debe ser un entero positivo/,
+    'Valida targetCount negativo'
+  );
 
   const selectedM = selectDiverse({ index: indexM, cards: cardsM, targetCount: 3, lambda: 0.7 });
   assert.strictEqual(selectedM.length, 3, 'Debe seleccionar exactamente 3');
