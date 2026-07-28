@@ -7,31 +7,31 @@ const { resolveDuplicates } = require('./algorithms/DuplicateResolver');
 const { selectDiverse } = require('./algorithms/DiversitySelector');
 
 function runTests() {
-  console.log('Iniciando auditoría de Fase 2...');
+  console.log('Iniciando auditoría final Fase 2...');
 
-  // 1. InMemoryVectorIndex
+  // --- InMemoryVectorIndex ---
   const index = new InMemoryVectorIndex();
   
-  assert.throws(() => index.insert([{ id: 'nan', vector: [0.4, NaN, 0.2] }]), /NaN o Infinity/, 'Debe bloquear NaN');
-  assert.throws(() => index.insert([{ id: 'inf', vector: [0.4, Infinity, 0.2] }]), /NaN o Infinity/, 'Debe bloquear Infinity');
-  assert.throws(() => index.insert([{ id: 'empty', vector: [] }]), /arreglo no vacío/, 'Debe bloquear vector vacío');
+  assert.throws(() => index.insert([{ id: 'nan', vector: [0.4, NaN, 0.2] }]), /NaN o Infinity/, 'Bloquea NaN');
+  assert.throws(() => index.insert([{ id: 'inf', vector: [0.4, Infinity, 0.2] }]), /NaN o Infinity/, 'Bloquea Infinity');
+  assert.throws(() => index.insert([{ id: 'empty', vector: [] }]), /arreglo no vacío/, 'Bloquea vector vacío');
   
   index.clear();
   index.insert([{ id: 'dim1', vector: [1, 0, 0] }]);
-  assert.throws(() => index.insert([{ id: 'dim2', vector: [1, 0] }]), /Dimensión/, 'Debe bloquear dimensión inconsistente');
+  assert.throws(() => index.insert([{ id: 'dim2', vector: [1, 0] }]), /Dimensión/, 'Bloquea dimensión inconsistente');
   
   index.clear();
-  assert.strictEqual(index.dimension, null, 'clear() debe resetear la dimensión');
-  index.insert([{ id: 'new', vector: [0.5, 0.5] }]); // Debe funcionar tras clear()
-  assert.strictEqual(index.dimension, 2, 'Nueva dimensión asignada correctamente tras clear()');
-  console.log('✓ Validaciones de InMemoryVectorIndex correctas.');
+  assert.strictEqual(index.dimension, null, 'clear() resetea la dimensión');
+  index.insert([{ id: 'new', vector: [0.5, 0.5] }]);
+  assert.strictEqual(index.dimension, 2, 'Funciona correctamente tras clear()');
+  console.log('✓ InMemoryVectorIndex validado.');
 
-  // 2. DuplicateResolver
+  // --- DuplicateResolver ---
   // Caso A: Score diferente
   const indexA = new InMemoryVectorIndex();
   const cardsA = [
     { id: 'A', qualityScore: 0.9, vector: [1, 0] },
-    { id: 'B', qualityScore: 0.8, vector: [0.99, 0.01] } // Duplicado de A
+    { id: 'B', qualityScore: 0.8, vector: [0.99, 0.01] }
   ];
   indexA.insert(cardsA);
   const survA = resolveDuplicates({ index: indexA, cards: cardsA, threshold: 0.92 });
@@ -48,7 +48,7 @@ function runTests() {
   const survB = resolveDuplicates({ index: indexB, cards: cardsB, threshold: 0.92 });
   assert.ok(survB.includes('A') && !survB.includes('B'), 'Caso B: En empate sobrevive la primera aparición');
 
-  // Caso C: Undefined score
+  // Caso C: Undefined score (Corregido)
   const indexC = new InMemoryVectorIndex();
   const cardsC = [
     { id: 'A', vector: [1, 0] }, // undefined -> 1.0
@@ -56,11 +56,10 @@ function runTests() {
   ];
   indexC.insert(cardsC);
   const survC = resolveDuplicates({ index: indexC, cards: cardsC, threshold: 0.92 });
-  assert.ok(survC.includes('A') && !survC.includes('C'), 'Caso C: Undefined usa 1.0 por defecto y sobrevive');
+  assert.ok(survC.includes('A') && !survC.includes('B'), 'Caso C: Undefined usa 1.0 por defecto y sobrevive');
   console.log('✓ DuplicateResolver determinista y validado.');
 
-  // 3. DiversitySelector (MMR)
-  // Escenario: 5 tarjetas. 3 similares (farma), 2 diferentes (foto, quim)
+  // --- DiversitySelector (MMR) ---
   const indexM = new InMemoryVectorIndex();
   const cardsM = [
     { id: 'F1', qualityScore: 0.9, vector: [1, 0, 0] },      // Grupo Farma (Mejor calidad)
@@ -71,20 +70,23 @@ function runTests() {
   ];
   indexM.insert(cardsM);
   
+  // Validar lambda fuera de rango
+  assert.throws(() => selectDiverse({ index: indexM, cards: cardsM, targetCount: 3, lambda: 1.5 }), /lambda debe estar entre 0 y 1/, 'Valida lambda > 1');
+  assert.throws(() => selectDiverse({ index: indexM, cards: cardsM, targetCount: 3, lambda: -0.5 }), /lambda debe estar entre 0 y 1/, 'Valida lambda < 0');
+
   const selectedM = selectDiverse({ index: indexM, cards: cardsM, targetCount: 3, lambda: 0.7 });
   assert.strictEqual(selectedM.length, 3, 'Debe seleccionar exactamente 3');
-  assert.ok(selectedM[0] === 'F1', 'La primera seleccionada debe ser la de mayor calidad general');
+  assert.strictEqual(selectedM[0], 'F1', 'La primera seleccionada debe ser la de mayor calidad general');
   
-  // Verificar que no eligió las 3 del mismo grupo
   const farmaSelected = selectedM.filter(id => id.startsWith('F')).length;
   assert.ok(farmaSelected < 3, 'No debe seleccionar todas del mismo grupo semántico');
   assert.ok(selectedM.includes('Q1') || selectedM.includes('B1'), 'Debe incluir elementos diversos');
-  console.log('✓ DiversitySelector (MMR) prioriza diversidad correctamente.');
+  console.log('✓ DiversitySelector (MMR) validado.');
 
-  // 4. Contrato de Salida
-  assert.ok(selectedM.every(id => typeof id === 'string'), 'Contrato: DiversitySelector devuelve solo IDs');
-  assert.ok(survA.every(id => typeof id === 'string'), 'Contrato: DuplicateResolver devuelve solo IDs');
-  console.log('✓ Contratos de salida (IDs temporales) cumplidos.');
+  // --- Contrato de Salida ---
+  assert.ok(selectedM.every(id => typeof id === 'string'), 'DiversitySelector devuelve solo IDs');
+  assert.ok(survA.every(id => typeof id === 'string'), 'DuplicateResolver devuelve solo IDs');
+  console.log('✓ Contratos de salida cumplidos.');
 
   console.log('\nAuditoría de Fase 2 finalizada con éxito. Listo para commit.');
 }
