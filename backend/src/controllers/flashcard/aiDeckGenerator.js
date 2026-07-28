@@ -6,6 +6,7 @@ const { buildGenerationBatches, calculateTargetPadding } = require('../../utils/
 const { createConcurrencyLimiter, mapWithConcurrency } = require('../../utils/concurrency');
 const { processSemanticBatch } = require('../../services/semantic/orchestrator');
 const { createSemanticEmbedder } = require('../../services/semantic/embedderFactory');
+const { calculateQualityScore } = require('../../services/semantic/qualityScorer');
 const {
   MAX_AI_CARDS,
   MAX_RAW_AI_CARDS,
@@ -444,16 +445,37 @@ async function generateAiCardsPipeline(req, res, { combinedBatch = false } = {})
 
     const validCards = [];
     for (const state of batchStates) {
+      const segmentText = state.batch?.sourceChunk || '';
       for (const card of state.auditedCards || []) {
         const status = card?.status;
         if (['eliminada', 'fusionada'].includes(status)) continue;
         if (!['sin_cambios', 'corregida'].includes(status)) continue;
         if (!card.question?.trim() || !card.answer?.trim()) continue;
         
+        const { qualityScore, breakdown } = calculateQualityScore({
+          question: card.question,
+          answer: card.answer,
+          sourceEvidence: card.sourceEvidence,
+          status: card.status,
+          segmentText
+        });
+        
+        aiService.logAiEvent('semantic_v3_quality_score', {
+          qualityScore,
+          breakdown,
+          status: card.status,
+          // Reutilizamos los cálculos del scorer para evitar duplicar lógica
+          answerLength: breakdown.answerTokenCount,
+          hasSourceEvidence: Boolean(card.sourceEvidence),
+          hasSourceContext: Boolean(card.sourceEvidence || segmentText),
+          sourceTokenCount: breakdown.sourceTokenCount,
+          answerTokenCount: breakdown.answerTokenCount
+        });
+        
         validCards.push({
           question: String(card.question).trim(),
           answer: String(card.answer).trim(),
-          qualityScore: card.qualityScore ?? deriveQualityScore(card.status)
+          qualityScore: null // Shadow Mode: mantenemos null para no alterar el MMR/Dedup aún
         });
       }
     }
