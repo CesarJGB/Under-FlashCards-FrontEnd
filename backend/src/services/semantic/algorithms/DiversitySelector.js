@@ -8,7 +8,9 @@
  * @param {import('../core/InMemoryVectorIndex').InMemoryVectorIndex} params.index
  * @param {Array<{id: string, qualityScore?: number}>} params.cards
  * @param {number} params.targetCount - Número exacto a seleccionar.
- * @param {number} [params.lambda=0.7] - Peso de diversidad (0=solo calidad, 1=solo diversidad).
+ * @param {number} [params.lambda=0.7] - Peso de diversidad. 
+ *   Conceptualmente limitado entre 0 y 1. 
+ *   0 = selecciona solo por calidad. 1 = selecciona solo por diversidad.
  * @returns {Array<string>} IDs de las tarjetas seleccionadas.
  */
 function selectDiverse({ index, cards, targetCount, lambda = 0.7 }) {
@@ -22,6 +24,7 @@ function selectDiverse({ index, cards, targetCount, lambda = 0.7 }) {
   // 1. Elegir la primera tarjeta: la de mayor qualityScore
   let bestFirstCard = null;
   let maxScore = -Infinity;
+  
   for (const card of cards) {
     const score = card.qualityScore ?? 1.0;
     if (score > maxScore) {
@@ -41,8 +44,8 @@ function selectDiverse({ index, cards, targetCount, lambda = 0.7 }) {
     let bestMmrScore = -Infinity;
 
     for (const [candidateId, candidate] of available.entries()) {
-      // Calcular máxima similitud con las ya seleccionadas
       let maxSimToSelected = 0;
+      
       for (const selectedId of selected) {
         const sim = index.similarity(candidateId, selectedId);
         if (sim > maxSimToSelected) {
@@ -50,7 +53,6 @@ function selectDiverse({ index, cards, targetCount, lambda = 0.7 }) {
         }
       }
 
-      // Calcular MMR: (Relevancia * (1 - lambda)) - (Diversidad * lambda)
       const relevance = candidate.qualityScore ?? 1.0;
       const mmrScore = (relevance * (1 - lambda)) - (maxSimToSelected * lambda);
 
@@ -64,7 +66,7 @@ function selectDiverse({ index, cards, targetCount, lambda = 0.7 }) {
       selected.push(bestCandidateId);
       available.delete(bestCandidateId);
     } else {
-      break; // No quedan candidatos
+      break;
     }
   }
 
