@@ -12,8 +12,12 @@
  * @returns {Array<string>} IDs de las tarjetas seleccionadas.
  */
 function selectDiverse({ index, cards, targetCount, lambda = 0.7 }) {
-  if (lambda < 0 || lambda > 1) {
-    throw new Error("lambda debe estar entre 0 y 1.");
+  if (!Number.isInteger(targetCount) || targetCount < 0) {
+    throw new Error("targetCount debe ser un entero positivo.");
+  }
+
+  if (!Number.isFinite(lambda) || lambda < 0 || lambda > 1) {
+    throw new Error("lambda debe ser un número entre 0 y 1.");
   }
 
   if (cards.length <= targetCount) {
