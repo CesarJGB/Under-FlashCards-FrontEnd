@@ -11,6 +11,7 @@
  */
 function resolveDuplicates({ index, cards, threshold = 0.92 }) {
   const survivors = new Set(cards.map(c => c.id));
+  const cardMap = new Map(cards.map(card => [card.id, card]));
 
   for (const card of cards) {
     if (!survivors.has(card.id)) continue;
@@ -20,7 +21,7 @@ function resolveDuplicates({ index, cards, threshold = 0.92 }) {
     for (const neighbor of neighbors) {
       if (!survivors.has(neighbor.id)) continue;
 
-      const neighborCard = cards.find(c => c.id === neighbor.id);
+      const neighborCard = cardMap.get(neighbor.id);
       if (!neighborCard) continue;
 
       const scoreA = card.qualityScore ?? 1.0;
@@ -32,7 +33,7 @@ function resolveDuplicates({ index, cards, threshold = 0.92 }) {
       } else if (scoreB > scoreA) {
         survivors.delete(card.id);
         index.remove(card.id);
-        break; // La tarjeta actual murió, pasamos a la siguiente tarjeta
+        break; // La tarjeta actual murió, pasamos a la siguiente
       } else {
         // Empate exacto: Gana la primera aparición (card.id)
         survivors.delete(neighbor.id);
