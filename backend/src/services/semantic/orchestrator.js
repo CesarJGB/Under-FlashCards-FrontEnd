@@ -34,7 +34,15 @@ async function processSemanticBatch({ cards, embedder, targetCount, signal, conf
   if (inputCount === 0) {
     return { 
       selectedCards: [], 
-      stats: { inputCount: 0, duplicatesRemoved: 0, mmrDiscarded: 0, outputCount: 0 } 
+      stats: { 
+        inputCount: 0, 
+        duplicatesRemoved: 0, 
+        mmrDiscarded: 0, 
+        outputCount: 0,
+        conceptsDetected: 0,
+        conceptsCovered: 0,
+        coverageRate: 0
+      } 
     };
   }
 
@@ -108,7 +116,12 @@ async function processSemanticBatch({ cards, embedder, targetCount, signal, conf
       inputCount,
       duplicatesRemoved,
       mmrDiscarded,
-      outputCount
+      outputCount,
+      conceptsDetected: survivorIds.length,
+      conceptsCovered: outputCount,
+      coverageRate: survivorIds.length > 0
+        ? Number((outputCount / survivorIds.length).toFixed(4))
+        : 0
     }
   };
 }
