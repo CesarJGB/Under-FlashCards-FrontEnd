@@ -3,8 +3,16 @@
 /**
  * Módulo de cálculo de QualityScore para v3.2 (Fase A: Shadow Mode).
  * Fórmula multiplicativa: sourceCoverage * atomicity * answerQuality * auditStatus.
+ * Devuelve score y breakdown con metadata para telemetría.
  */
 
+/**
+ * Normaliza texto eliminando diacríticos y caracteres no alfanuméricos.
+ * 
+ * Nota: v3.2 usa normalización alfanumérica simple. Fórmulas con subíndices 
+ * o símbolos químicos (ej. CO₂, Na+, Ca2+) pueden perder precisión.
+ * Podría requerir un parser químico en futuras versiones si el dominio lo exige.
+ */
 function normalizeText(text) {
   return String(text || '')
     .normalize('NFD')
@@ -15,24 +23,46 @@ function normalizeText(text) {
 }
 
 /**
- * Calcula el solapamiento de tokens.
- * Abstracción preparada para migrar a similitud por embeddings en v3.3.
+ * Calcula la cobertura léxica de un texto objetivo respecto a una fuente.
+ * Abstracción preparada para convivir con calculateSemanticCoverage (embeddings) en v3.3.
  */
-function calculateTokenOverlap(targetText, sourceText) {
+function calculateLexicalCoverage(targetText, sourceText) {
   const targetTokens = normalizeText(targetText).split(/\s+/).filter(Boolean);
-  if (targetTokens.length === 0) return 0.0;
+  if (targetTokens.length === 0) return { score: 0.0, sourceTokenCount: 0, targetTokenCount: 0 };
 
   const sourceTokens = new Set(normalizeText(sourceText).split(/\s+/).filter(Boolean));
   const backedTokens = targetTokens.filter(token => sourceTokens.has(token)).length;
   
-  return backedTokens / targetTokens.length;
+  return {
+    score: backedTokens / targetTokens.length,
+    sourceTokenCount: sourceTokens.size,
+    targetTokenCount: targetTokens.length
+  };
 }
 
-function calculateSourceCoverageScore({ answer, sourceEvidence, segmentText }) {
-  if (!sourceEvidence && !segmentText) return 0.8; // Fallback defensivo
+function calculateSourceCoverageData({ answer, sourceEvidence, segmentText }) {
+  const answerTokens = normalizeText(answer).split(/\s+/).filter(Boolean);
+  const answerTokenCount = answerTokens.length;
+
+  // Caso no verificable: no existe evidencia ni texto fuente
+  if (!sourceEvidence && !segmentText) {
+    return {
+      score: 0.8,
+      isVerified: false,
+      sourceTokenCount: 0,
+      answerTokenCount
+    };
+  }
 
   const source = `${segmentText || ''} ${sourceEvidence || ''}`;
-  return calculateTokenOverlap(answer, source);
+  const coverage = calculateLexicalCoverage(answer, source);
+
+  return {
+    score: coverage.score,
+    isVerified: true,
+    sourceTokenCount: coverage.sourceTokenCount,
+    answerTokenCount: coverage.targetTokenCount
+  };
 }
 
 function calculateAtomicityScore(question) {
@@ -66,17 +96,20 @@ function calculateAuditMultiplier(status) {
 }
 
 function calculateQualityScore({ question, answer, sourceEvidence, status, segmentText }) {
-  const sourceCoverageScore = calculateSourceCoverageScore({ answer, sourceEvidence, segmentText });
+  const coverageData = calculateSourceCoverageData({ answer, sourceEvidence, segmentText });
   const atomicityScore = calculateAtomicityScore(question);
   const answerQualityScore = calculateAnswerQualityScore(answer);
   const auditScore = calculateAuditMultiplier(status);
   
-  const qualityScore = sourceCoverageScore * atomicityScore * answerQualityScore * auditScore;
+  const qualityScore = coverageData.score * atomicityScore * answerQualityScore * auditScore;
   
   return {
     qualityScore: Number(qualityScore.toFixed(4)),
     breakdown: {
-      sourceCoverageScore: Number(sourceCoverageScore.toFixed(4)),
+      sourceCoverageScore: Number(coverageData.score.toFixed(4)),
+      coverageVerified: coverageData.isVerified,
+      sourceTokenCount: coverageData.sourceTokenCount,
+      answerTokenCount: coverageData.answerTokenCount,
       atomicityScore,
       answerQualityScore: Number(answerQualityScore.toFixed(4)),
       auditScore
