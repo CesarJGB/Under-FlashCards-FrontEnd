@@ -19,6 +19,8 @@ const {
   AI_TARGET_PADDING_PER_BATCH,
   AI_BATCH_RECOVERY_ATTEMPTS,
   AI_SEMANTIC_MIN_ACCEPTANCE_RATIO,
+  deriveQualityScore,
+  resolveDeduplicationThreshold,
   createRequestError,
   getPaddingFactor,
   createTokenUsage,
@@ -437,9 +439,6 @@ async function generateAiCardsPipeline(req, res, { combinedBatch = false } = {})
     }, createTokenUsage());
 
     // --- INICIO INTEGRACIÓN V3 SEMÁNTICA ---
-    const parsedThreshold = Number.parseFloat(process.env.AI_SEMANTIC_DEDUP_THRESHOLD);
-    const deduplicationThreshold = Number.isFinite(parsedThreshold) ? parsedThreshold : 0.92;
-
     const parsedLambda = Number.parseFloat(process.env.AI_SEMANTIC_MMR_LAMBDA);
     const mmrLambda = Number.isFinite(parsedLambda) ? parsedLambda : 0.7;
 
@@ -454,10 +453,12 @@ async function generateAiCardsPipeline(req, res, { combinedBatch = false } = {})
         validCards.push({
           question: String(card.question).trim(),
           answer: String(card.answer).trim(),
-          qualityScore: card.qualityScore ?? null
+          qualityScore: card.qualityScore ?? deriveQualityScore(card.status)
         });
       }
     }
+
+    const deduplicationThreshold = resolveDeduplicationThreshold(validCards.length);
 
     let documentsToInsert = [];
     let semanticFallbackUsed = false;
