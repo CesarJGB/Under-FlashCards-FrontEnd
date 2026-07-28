@@ -19,6 +19,12 @@ function readBoundedInteger(value, fallback, minimum, maximum) {
   return Math.min(maximum, Math.max(minimum, parsed));
 }
 
+function readBoundedFloat(value, fallback, minimum, maximum) {
+  const parsed = Number.parseFloat(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(maximum, Math.max(minimum, parsed));
+}
+
 const MAX_AI_CARDS = readBoundedInteger(process.env.AI_MAX_CARDS, 100, 1, 1000);
 const MAX_RAW_AI_CARDS = readBoundedInteger(
   process.env.AI_MAX_RAW_CARDS,
@@ -40,6 +46,12 @@ const AI_DECK_LOCK_TTL_MS = readBoundedInteger(process.env.AI_DECK_LOCK_TTL_MS, 
 const AI_TARGET_PADDING_MAX = readBoundedInteger(process.env.AI_TARGET_PADDING_MAX, 20, 0, 500);
 const AI_TARGET_PADDING_PER_BATCH = readBoundedInteger(process.env.AI_TARGET_PADDING_PER_BATCH, 0, 0, 10);
 const AI_BATCH_RECOVERY_ATTEMPTS = readBoundedInteger(process.env.AI_BATCH_RECOVERY_ATTEMPTS, 1, 0, 2);
+const AI_SEMANTIC_MIN_ACCEPTANCE_RATIO = readBoundedFloat(
+  process.env.AI_SEMANTIC_MIN_ACCEPTANCE_RATIO,
+  0.85,
+  0.50,
+  1.0
+);
 const globalAiBatchLimiter = createConcurrencyLimiter(AI_GLOBAL_DECK_CONCURRENCY);
 
 function createRequestError(status, message, code = null) {
@@ -822,14 +834,30 @@ async function generateAiCardsPipeline(req, res, { combinedBatch = false } = {})
     }
     // --- FIN INTEGRACIÓN V3 SEMÁNTICA ---
 
-    // 5. Mantener lógica de quorum
-    if (documentsToInsert.length < targetCount) {
+    // 5. Lógica de Quorum Semántico Flexible (Soft Target)
+    const countAfterSemantics = documentsToInsert.length;
+    const semanticMinimumAcceptance = Math.max(1, Math.floor(targetCount * AI_SEMANTIC_MIN_ACCEPTANCE_RATIO));
+    const semanticPartialSuccess = countAfterSemantics < targetCount && countAfterSemantics >= semanticMinimumAcceptance;
+    const semanticRetentionRate = validCards.length > 0
+      ? Number((countAfterSemantics / validCards.length).toFixed(4))
+      : 0;
+
+    if (countAfterSemantics < semanticMinimumAcceptance) {
       throw createRequestError(
         422,
-        `La IA aceptó ${documentsToInsert.length} de ${targetCount} tarjetas después de procesar los reintentos disponibles. Inténtalo de nuevo.`,
-        'insufficient_valid_cards'
+        `El documento no contiene suficiente información única para generar ${targetCount} tarjetas. Solo se encontraron ${countAfterSemantics} conceptos suficientemente diferentes.`,
+        'insufficient_semantic_content'
       );
     }
+
+    const warningPayload = semanticPartialSuccess
+      ? {
+          type: 'INSUFFICIENT_SOURCE_CONTENT',
+          message: `Se generaron ${countAfterSemantics} tarjetas únicas de ${targetCount} solicitadas. El documento no tenía suficiente información distinta para crear ${targetCount} sin repetir conceptos.`,
+          requestedCards: targetCount,
+          generatedCards: countAfterSemantics,
+        }
+      : null;
 
     throwIfAborted(runAbortController.signal);
     let persistedDeck;
@@ -854,7 +882,7 @@ async function generateAiCardsPipeline(req, res, { combinedBatch = false } = {})
     throwIfAborted(runAbortController.signal);
     const backgrounds = persistedDeck.cardBackgrounds || [];
 
-    // 6. Actualizar métricas de run_completed
+    // 6. Telemetría y Actualización de métricas de run_completed
     aiService.logAiEvent('run_completed', {
       runId,
       flow: pipelineFlow,
@@ -872,6 +900,10 @@ async function generateAiCardsPipeline(req, res, { combinedBatch = false } = {})
         tokenUsage,
         semanticFallbackUsed,
         semanticSkipped,
+        semanticPartialSuccess,
+        semanticRetentionRate,
+        requestedCards: targetCount,
+        generatedCards: insertedFlashcards.length,
         ...(semanticStats ? { semantic: semanticStats } : {}),
       },
     });
@@ -881,6 +913,7 @@ async function generateAiCardsPipeline(req, res, { combinedBatch = false } = {})
         runId,
         createdCount: insertedFlashcards.length,
         target: targetCount,
+        warning: warningPayload,
         metrics: {
           ...summary.metrics,
           sourceCharacters: sourceText.length,
@@ -891,6 +924,10 @@ async function generateAiCardsPipeline(req, res, { combinedBatch = false } = {})
           tokenUsage,
           semanticFallbackUsed,
           semanticSkipped,
+          semanticPartialSuccess,
+          semanticRetentionRate,
+          requestedCards: targetCount,
+          generatedCards: insertedFlashcards.length,
           ...(semanticStats ? { semantic: semanticStats } : {}),
         },
       });
@@ -898,8 +935,12 @@ async function generateAiCardsPipeline(req, res, { combinedBatch = false } = {})
       requestFinished = true;
       return res.end();
     }
+
     requestFinished = true;
-    return res.status(201).json(insertedFlashcards.map((c) => c.serialize(backgrounds)));
+    return res.status(201).json({
+      cards: insertedFlashcards.map((c) => c.serialize(backgrounds)),
+      warning: warningPayload,
+    });
 
   } catch (err) {
     if (runAbortController.signal.aborted && insertedFlashcards?.length) {
