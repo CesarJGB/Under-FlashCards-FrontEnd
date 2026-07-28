@@ -43,6 +43,10 @@ class InMemoryVectorIndex {
     this.store.delete(id);
   }
 
+  /**
+   * Reinicia completamente el índice.
+   * Borra los vectores almacenados y permite iniciar un nuevo espacio vectorial.
+   */
   clear() {
     this.store.clear();
     this.dimension = null;
