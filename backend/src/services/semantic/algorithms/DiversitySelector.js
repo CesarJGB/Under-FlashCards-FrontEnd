@@ -8,12 +8,14 @@
  * @param {import('../core/InMemoryVectorIndex').InMemoryVectorIndex} params.index
  * @param {Array<{id: string, qualityScore?: number}>} params.cards
  * @param {number} params.targetCount - Número exacto a seleccionar.
- * @param {number} [params.lambda=0.7] - Peso de diversidad. 
- *   Conceptualmente limitado entre 0 y 1. 
- *   0 = selecciona solo por calidad. 1 = selecciona solo por diversidad.
+ * @param {number} [params.lambda=0.7] - Peso de diversidad (0 a 1).
  * @returns {Array<string>} IDs de las tarjetas seleccionadas.
  */
 function selectDiverse({ index, cards, targetCount, lambda = 0.7 }) {
+  if (lambda < 0 || lambda > 1) {
+    throw new Error("lambda debe estar entre 0 y 1.");
+  }
+
   if (cards.length <= targetCount) {
     return cards.map(c => c.id);
   }
