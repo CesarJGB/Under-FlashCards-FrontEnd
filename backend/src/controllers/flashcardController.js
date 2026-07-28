@@ -10,6 +10,8 @@ const {
   selectDocumentsAcrossChunks,
 } = require('../utils/aiSourceChunks');
 const { createConcurrencyLimiter, mapWithConcurrency } = require('../utils/concurrency');
+const { processSemanticBatch } = require('../services/semantic/orchestrator');
+const { createSemanticEmbedder } = require('../services/semantic/embedderFactory');
 
 function readBoundedInteger(value, fallback, minimum, maximum) {
   const parsed = Number.parseInt(value, 10);
@@ -546,8 +548,6 @@ async function generateAiCardsPipeline(req, res, { combinedBatch = false } = {})
             user.aiApiKey,
             context
           );
-          // The combined service returns already audited cards. Add the
-          // legacy status expected by summarizeBatches without another model call.
           state.auditedCards = state.rawCards.map((card) => ({
             ...card,
             status: 'sin_cambios',
@@ -709,25 +709,120 @@ async function generateAiCardsPipeline(req, res, { combinedBatch = false } = {})
       addTokenUsage(total, state.usage);
       return total;
     }, createTokenUsage());
-    const metrics = {
-      ...summary.metrics,
-      sourceCharacters: sourceText.length,
-      sourceChunks: sourcePlan.sourceChunks.length,
-      concurrency: AI_DECK_CONCURRENCY,
-      globalConcurrency: AI_GLOBAL_DECK_CONCURRENCY,
-      batchRecoveryAttempts: AI_BATCH_RECOVERY_ATTEMPTS,
-      tokenUsage,
-    };
-    const documentsToInsert = summary.documents.map((document) => ({
-      userId: user._id,
-      deckId,
-      ...document,
-      textAlign: ['left', 'center', 'right'].includes(globalAlign) ? globalAlign : 'center',
-      fontSize: globalSize,
-      contentImage: '',
-      imageSide: '',
-    }));
 
+    // --- INICIO INTEGRACIÓN V3 SEMÁNTICA ---
+    
+    // 1. Sanitización estricta de variables de entorno
+    const parsedThreshold = Number.parseFloat(process.env.AI_SEMANTIC_DEDUP_THRESHOLD);
+    const deduplicationThreshold = Number.isFinite(parsedThreshold) ? parsedThreshold : 0.92;
+
+    const parsedLambda = Number.parseFloat(process.env.AI_SEMANTIC_MMR_LAMBDA);
+    const mmrLambda = Number.isFinite(parsedLambda) ? parsedLambda : 0.7;
+
+    // 2. Filtrado básico
+    const validCards = [];
+    for (const state of batchStates) {
+      for (const card of state.auditedCards || []) {
+        const status = card?.status;
+        if (['eliminada', 'fusionada'].includes(status)) continue;
+        if (!['sin_cambios', 'corregida'].includes(status)) continue;
+        if (!card.question?.trim() || !card.answer?.trim()) continue;
+        
+        validCards.push({
+          question: String(card.question).trim(),
+          answer: String(card.answer).trim(),
+          qualityScore: card.qualityScore ?? null
+        });
+      }
+    }
+
+    let documentsToInsert = [];
+    let semanticFallbackUsed = false;
+    let semanticSkipped = false;
+    let semanticStats = null;
+
+    if (validCards.length === 0) {
+      // Escenario: No hay tarjetas para enviar a V3
+      semanticSkipped = true;
+      aiService.logAiEvent('semantic_v3_skipped', {
+        runId,
+        flow: pipelineFlow,
+        reason: 'NO_VALID_CARDS_FOR_V3',
+        inputCount: 0,
+        targetCount,
+        timestamp: Date.now()
+      });
+    } else {
+      let v3Result = null;
+      let v3Error = null;
+      
+      // 3. Aislamiento estricto de la ejecución V3
+      try {
+        const embedder = createSemanticEmbedder();
+        v3Result = await processSemanticBatch({
+          cards: validCards,
+          embedder,
+          targetCount,
+          signal: runAbortController.signal,
+          config: {
+            deduplicationThreshold,
+            mmrLambda
+          }
+        });
+      } catch (error) {
+        // Capturamos el error de infraestructura, no lo lanzamos
+        v3Error = error;
+      }
+
+      if (v3Error) {
+        // Escenario: Fallo de infraestructura V3 -> fallback silencioso a V2
+        semanticFallbackUsed = true;
+        aiService.logAiEvent('semantic_v3_fallback', {
+          runId,
+          flow: pipelineFlow,
+          reason: v3Error.message || 'UNKNOWN_V3_ERROR',
+          inputCount: validCards.length,
+          targetCount,
+          timestamp: Date.now()
+        });
+        
+        documentsToInsert = summary.documents.map(document => ({
+          userId: user._id,
+          deckId,
+          ...document,
+          textAlign: ['left', 'center', 'right'].includes(globalAlign) ? globalAlign : 'center',
+          fontSize: globalSize,
+          contentImage: '',
+          imageSide: '',
+        }));
+      } else {
+        // 4. Validación estricta del contrato (fuera del try/catch)
+        if (!v3Result || !Array.isArray(v3Result.selectedCards)) {
+          throw new Error('INVALID_SEMANTIC_RESULT');
+        }
+
+        // Escenario: Éxito de V3
+        documentsToInsert = v3Result.selectedCards.map(doc => ({
+          userId: user._id,
+          deckId,
+          ...doc,
+          textAlign: ['left', 'center', 'right'].includes(globalAlign) ? globalAlign : 'center',
+          fontSize: globalSize,
+          contentImage: '',
+          imageSide: '',
+        }));
+        
+        semanticStats = v3Result.stats;
+        aiService.logAiEvent('semantic_v3_success', { 
+          runId, 
+          flow: pipelineFlow, 
+          ...semanticStats 
+        });
+      }
+    }
+    // --- FIN INTEGRACIÓN V3 SEMÁNTICA ---
+
+    // 5. Mantener lógica de quorum
     if (documentsToInsert.length < targetCount) {
       throw createRequestError(
         422,
@@ -758,6 +853,8 @@ async function generateAiCardsPipeline(req, res, { combinedBatch = false } = {})
     insertedFlashcards = await Flashcard.insertMany(finalDocuments);
     throwIfAborted(runAbortController.signal);
     const backgrounds = persistedDeck.cardBackgrounds || [];
+
+    // 6. Actualizar métricas de run_completed
     aiService.logAiEvent('run_completed', {
       runId,
       flow: pipelineFlow,
@@ -765,7 +862,18 @@ async function generateAiCardsPipeline(req, res, { combinedBatch = false } = {})
       deckId: String(currentDeck._id),
       createdCount: insertedFlashcards.length,
       durationMs: Date.now() - startedAt,
-      metrics,
+      metrics: {
+        ...summary.metrics,
+        sourceCharacters: sourceText.length,
+        sourceChunks: sourcePlan.sourceChunks.length,
+        concurrency: AI_DECK_CONCURRENCY,
+        globalConcurrency: AI_GLOBAL_DECK_CONCURRENCY,
+        batchRecoveryAttempts: AI_BATCH_RECOVERY_ATTEMPTS,
+        tokenUsage,
+        semanticFallbackUsed,
+        semanticSkipped,
+        ...(semanticStats ? { semantic: semanticStats } : {}),
+      },
     });
 
     if (streamProgress) {
@@ -773,7 +881,18 @@ async function generateAiCardsPipeline(req, res, { combinedBatch = false } = {})
         runId,
         createdCount: insertedFlashcards.length,
         target: targetCount,
-        metrics,
+        metrics: {
+          ...summary.metrics,
+          sourceCharacters: sourceText.length,
+          sourceChunks: sourcePlan.sourceChunks.length,
+          concurrency: AI_DECK_CONCURRENCY,
+          globalConcurrency: AI_GLOBAL_DECK_CONCURRENCY,
+          batchRecoveryAttempts: AI_BATCH_RECOVERY_ATTEMPTS,
+          tokenUsage,
+          semanticFallbackUsed,
+          semanticSkipped,
+          ...(semanticStats ? { semantic: semanticStats } : {}),
+        },
       });
       stopEventStream?.();
       requestFinished = true;
