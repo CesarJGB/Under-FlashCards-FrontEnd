@@ -41,6 +41,56 @@ const AI_SEMANTIC_MIN_ACCEPTANCE_RATIO = readBoundedFloat(
   1.0
 );
 
+const AI_SEMANTIC_DEDUP_THRESHOLD_LOW = readBoundedFloat(
+  process.env.AI_SEMANTIC_DEDUP_THRESHOLD_LOW,
+  0.92,
+  0.50,
+  0.99
+);
+const AI_SEMANTIC_DEDUP_THRESHOLD_HIGH = readBoundedFloat(
+  process.env.AI_SEMANTIC_DEDUP_THRESHOLD_HIGH,
+  0.94,
+  0.50,
+  0.99
+);
+const AI_SEMANTIC_DEDUP_ADAPTIVE_BREAKPOINT = readBoundedInteger(
+  process.env.AI_SEMANTIC_DEDUP_ADAPTIVE_BREAKPOINT,
+  200,
+  10,
+  1500
+);
+
+const AUDIT_STATUS_QUALITY_SCORE = {
+  sin_cambios: 1.0,
+  corregida: 0.75,
+};
+
+/**
+ * Deriva qualityScore desde el status de auditoría del LLM.
+ * Solo se llama cuando card.qualityScore no viene seteado upstream.
+ * Fallback defensivo a 0.6 para cualquier status inesperado.
+ */
+function deriveQualityScore(status) {
+  if (typeof status !== 'string') return 0.6;
+  return AUDIT_STATUS_QUALITY_SCORE[status] ?? 0.6;
+}
+
+/**
+ * Resuelve el threshold de deduplicación de forma adaptativa.
+ * Si AI_SEMANTIC_DEDUP_THRESHOLD está seteada explícitamente, usa esa.
+ * Si no, usa threshold alto para >ADAPTIVE_BREAKPOINT candidatas,
+ * threshold bajo (comportamiento histórico) en caso contrario.
+ */
+function resolveDeduplicationThreshold(candidateCount) {
+  const envValue = process.env.AI_SEMANTIC_DEDUP_THRESHOLD;
+  if (envValue !== undefined && envValue !== '') {
+    return readBoundedFloat(envValue, AI_SEMANTIC_DEDUP_THRESHOLD_LOW, 0.50, 0.99);
+  }
+  return candidateCount > AI_SEMANTIC_DEDUP_ADAPTIVE_BREAKPOINT
+    ? AI_SEMANTIC_DEDUP_THRESHOLD_HIGH
+    : AI_SEMANTIC_DEDUP_THRESHOLD_LOW;
+}
+
 function createRequestError(status, message, code = null) {
   const error = new Error(message);
   error.httpStatus = status;
@@ -161,6 +211,11 @@ module.exports = {
   AI_TARGET_PADDING_PER_BATCH,
   AI_BATCH_RECOVERY_ATTEMPTS,
   AI_SEMANTIC_MIN_ACCEPTANCE_RATIO,
+  AI_SEMANTIC_DEDUP_THRESHOLD_LOW,
+  AI_SEMANTIC_DEDUP_THRESHOLD_HIGH,
+  AI_SEMANTIC_DEDUP_ADAPTIVE_BREAKPOINT,
+  deriveQualityScore,
+  resolveDeduplicationThreshold,
   createRequestError,
   getPaddingFactor,
   normalizeCardKey,
