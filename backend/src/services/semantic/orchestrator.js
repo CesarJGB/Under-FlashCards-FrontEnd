@@ -1,5 +1,8 @@
 // backend/src/services/semantic/orchestrator.js
 
+const crypto = require('crypto');
+const { logAiEvent } = require("../aiService");
+
 const { InMemoryVectorIndex } = require('./core/InMemoryVectorIndex');
 const { resolveDuplicates } = require('./algorithms/DuplicateResolver');
 const { selectDiverse } = require('./algorithms/DiversitySelector');
@@ -85,11 +88,42 @@ async function processSemanticBatch({ cards, embedder, targetCount, signal, conf
   
   index.insert(items); // Última barrera matemática para validar dimensiones consistentes
 
+  // Índice O(1) para acceso a tarjetas en callbacks de telemetría
+  const cardLookup = new Map(cardsWithIds.map(card => [card.id, card.originalCard]));
+
+  const onDuplicateDetected = ({ survivorId, removedId, similarity, survivorScore, removedScore }) => {
+    try {
+      const survivorCard = cardLookup.get(survivorId);
+      const removedCard = cardLookup.get(removedId);
+      if (!survivorCard || !removedCard) return;
+
+      const formatForTelemetry = (card) => {
+        const text = [card.question ?? "", card.answer ?? ""].join(" ").trim();
+        const snippet = text.length > 80 ? `${text.substring(0, 80)}...` : text;
+        // NOTA: MD5 se utiliza estrictamente como identificador estable no criptográfico para telemetría.
+        const hash = crypto.createHash('md5').update(text).digest('hex').slice(0, 8);
+        return { snippet, hash };
+      };
+
+      logAiEvent('semantic_v3_dedup_collapse', {
+        survivor: formatForTelemetry(survivorCard),
+        removed: formatForTelemetry(removedCard),
+        similarity: Number(similarity.toFixed(4)),
+        survivorScore,
+        removedScore
+      });
+    } catch (error) {
+      // Decisión consciente: la telemetría no debe romper el pipeline principal.
+      logAiEvent('semantic_v3_telemetry_error', { error: error.message });
+    }
+  };
+
   // 6. Ejecutar DuplicateResolver
   const survivorIds = resolveDuplicates({ 
     index, 
     cards: cardsWithIds.map(c => ({ id: c.id, qualityScore: c.qualityScore })), 
-    threshold: deduplicationThreshold 
+    threshold: deduplicationThreshold,
+    onDuplicateDetected
   });
   
   const survivorSet = new Set(survivorIds);
