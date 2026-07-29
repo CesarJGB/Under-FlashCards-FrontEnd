@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { 
   SlidersHorizontal, Loader2, Plus, Check, Eye, EyeOff, Trash2, 
   AlignLeft, AlignCenter, AlignRight, Sparkles, Layers, X 
@@ -40,7 +40,7 @@ export default function FlashcardCreator({
   fontSize, setFontSize, showStyles, setShowStyles, isBulk, setIsBulk, bulkText, setBulkText,
   editingId, saving, error, setError, onSubmit, onCancel, contentImage, setContentImage,
   imageSide, setImageSide, onFastDelete, hasCards,
-  userId, deckId, authToken, onAiSuccess, onInviteRequired
+  userId, deckId, authToken, onAiSuccess, onInviteRequired, onFooterHeightChange
 }) {
   const [showPreview, setShowPreview] = useState(() => Boolean(getJSON(PREVIEW_VISIBLE_KEY)));
   const [previewMode, setPreviewMode] = useState(() => getStoredPreviewPanelMode());
@@ -50,6 +50,27 @@ export default function FlashcardCreator({
   const [aiNumCards, setAiNumCards] = useState(5);
   const [aiSaving, setAiSaving] = useState(false);
   const [aiProgress, setAiProgress] = useState(null);
+  const footerRef = useRef(null);
+
+  useLayoutEffect(() => {
+    const footer = footerRef.current;
+    if (!footer || typeof onFooterHeightChange !== 'function') return undefined;
+
+    const updateHeight = () => {
+      onFooterHeightChange(Math.ceil(footer.getBoundingClientRect().height));
+    };
+
+    updateHeight();
+
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', updateHeight);
+      return () => window.removeEventListener('resize', updateHeight);
+    }
+
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(footer);
+    return () => observer.disconnect();
+  }, [onFooterHeightChange]);
 
   const activeTab = editingId ? 'single' : (isAi ? 'ai' : (isBulk ? 'bulk' : 'single'));
 
@@ -277,7 +298,10 @@ export default function FlashcardCreator({
       {/* =========================================
           FOOTER FIJO (Glassmorphism Toolbar)
           ========================================= */}
-      <footer className="fixed bottom-0 inset-x-0 z-30 bg-white/95 backdrop-blur-xl border-t border-slate-200 p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] shadow-lg">
+      <footer
+        ref={footerRef}
+        className="fixed bottom-0 inset-x-0 z-30 bg-white/95 backdrop-blur-xl border-t border-slate-200 p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] shadow-lg"
+      >
         <div className="flex items-center justify-between max-w-2xl mx-auto w-full gap-2">
           
           {/* Grupo de Herramientas (Iconos Micro) */}
