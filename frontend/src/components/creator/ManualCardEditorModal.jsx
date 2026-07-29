@@ -74,10 +74,6 @@ export default function ManualCardEditorModal({
   const imagePickerReturnReadyRef = useRef(false);
   const imageRestoreTimersRef = useRef([]);
 
-  // Retención de foco en cambio rápido de lado
-  const sideSwitchKeepFocusRef = useRef(false);
-  const focusTimerRef = useRef(null);
-
   const alignOptions = Array.isArray(ALIGNS) && ALIGNS.length ? ALIGNS : DEFAULT_ALIGNS;
   const swatches = Array.isArray(SWATCHES) && SWATCHES.length ? SWATCHES : DEFAULT_SWATCHES;
 
@@ -97,16 +93,6 @@ export default function ManualCardEditorModal({
       textarea.focus();
     }
   }, []);
-
-  const scheduleTextareaFocus = useCallback((delay = 0) => {
-    if (typeof window === 'undefined') return;
-
-    if (focusTimerRef.current) window.clearTimeout(focusTimerRef.current);
-    focusTimerRef.current = window.setTimeout(() => {
-      focusTimerRef.current = null;
-      focusTextarea();
-    }, delay);
-  }, [focusTextarea]);
 
   const restoreAfterImagePicker = useCallback(() => {
     if (!imagePickerActiveRef.current || !imagePickerReturnReadyRef.current || typeof window === 'undefined') return;
@@ -188,7 +174,6 @@ export default function ManualCardEditorModal({
     };
   }, [clearImageRestoreTimers, open, restoreAfterImagePicker]);
 
-  // Cálculo preciso de altura y desplazamiento vertical del viewport visual (v3)
   useLayoutEffect(() => {
     if (!open || typeof window === 'undefined') return undefined;
 
@@ -232,6 +217,7 @@ export default function ManualCardEditorModal({
     };
   }, [open]);
 
+  // Enfoque síncrono en montaje Y al cambiar de lado (activeSide en dependencias)
   useLayoutEffect(() => {
     if (!open || typeof window === 'undefined') return undefined;
 
@@ -241,13 +227,7 @@ export default function ManualCardEditorModal({
     });
 
     return () => window.cancelAnimationFrame(frame);
-  }, [focusTextarea, open]);
-
-  useEffect(() => () => {
-    if (focusTimerRef.current && typeof window !== 'undefined') {
-      window.clearTimeout(focusTimerRef.current);
-    }
-  }, []);
+  }, [focusTextarea, open, activeSide]);
 
   useEffect(() => {
     setOpenMenu(null);
@@ -268,7 +248,8 @@ export default function ManualCardEditorModal({
   const activeColor = typeof styles?.[activeColorKey] === 'string' ? styles[activeColorKey] : '';
   const activeSize = Number(styles?.[activeSizeKey]);
 
-  const currentAlign = textAlign || 'left';
+  // Garantizar 'left' como alineación por defecto
+  const currentAlign = (textAlign && textAlign !== '') ? textAlign : 'left';
   const currentAlignOption = alignOptions.find((option) => option.value === currentAlign) || alignOptions[0] || DEFAULT_ALIGNS[0];
   const CurrentAlignIcon = currentAlignOption.Icon || AlignLeft;
 
@@ -277,7 +258,6 @@ export default function ManualCardEditorModal({
   const hasActiveImage = Boolean(contentImage && imageSide === activeSide);
   const canSave = Boolean(question.trim() && answer.trim() && !saving);
 
-  // Estilos de posición dinámicos para el panel interno
   const modalViewportStyle = viewportFrame
     ? { height: `${viewportFrame.height}px`, top: `${viewportFrame.offsetTop}px` }
     : { height: '100dvh', top: 0 };
@@ -307,20 +287,9 @@ export default function ManualCardEditorModal({
     event.preventDefault();
   };
 
-  const rememberSideSwitchFocus = (event) => {
-    event.preventDefault();
-    sideSwitchKeepFocusRef.current = Boolean(
-      document.activeElement === textareaRef.current || viewportFrame?.keyboardOpen,
-    );
-  };
-
   const switchSide = () => {
-    const keepFocus = sideSwitchKeepFocusRef.current;
-    sideSwitchKeepFocusRef.current = false;
     setOpenMenu(null);
     setActiveSide((previousSide) => (previousSide === 'question' ? 'answer' : 'question'));
-
-    if (keepFocus) scheduleTextareaFocus();
   };
 
   const saveCard = async (keepEditing) => {
@@ -389,7 +358,6 @@ export default function ManualCardEditorModal({
         : 'text-slate-600';
 
   const modal = (
-    /* CAPA 1: Backdrop opaco estático a pantalla completa (bloquea la app por completo) */
     <div
       className="fixed inset-0 z-[70] isolate overflow-hidden bg-white text-slate-900"
       role="dialog"
@@ -398,7 +366,6 @@ export default function ManualCardEditorModal({
       data-keyboard-open={viewportFrame?.keyboardOpen ? 'true' : 'false'}
       data-testid="manual-card-editor-modal"
     >
-      {/* CAPA 2: Panel de contenido responsivo que se ajusta exacto al visualViewport */}
       <div
         className="fixed inset-x-0 z-[71] flex min-h-0 flex-col overflow-hidden bg-white pt-[env(safe-area-inset-top)]"
         style={modalViewportStyle}
@@ -434,8 +401,7 @@ export default function ManualCardEditorModal({
           <div className="relative z-10 mx-auto flex w-full max-w-2xl gap-2 border-b border-slate-100 bg-white px-3 py-2 sm:px-4">
             <button
               type="button"
-              onPointerDown={rememberSideSwitchFocus}
-              onMouseDown={rememberSideSwitchFocus}
+              onPointerDown={preserveToolbarFocus}
               onClick={switchSide}
               className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 shadow-sm transition-colors active:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 sm:text-sm"
               data-testid="manual-card-editor-switch-side"
@@ -545,6 +511,7 @@ export default function ManualCardEditorModal({
                   <>
                     <div
                       className="fixed inset-0 z-[80] bg-transparent"
+                      onPointerDown={preserveToolbarFocus}
                       onClick={() => setOpenMenu(null)}
                     />
                     <div className="absolute bottom-[calc(100%+0.5rem)] right-0 z-[90] w-[196px] rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl animate-[slideUp_0.1s_ease-out]">
@@ -606,6 +573,7 @@ export default function ManualCardEditorModal({
                   <>
                     <div
                       className="fixed inset-0 z-[80] bg-transparent"
+                      onPointerDown={preserveToolbarFocus}
                       onClick={() => setOpenMenu(null)}
                     />
                     <div className="absolute bottom-[calc(100%+0.5rem)] right-0 z-[90] w-[168px] rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl animate-[slideUp_0.1s_ease-out]">
