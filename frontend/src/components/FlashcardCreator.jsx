@@ -182,62 +182,49 @@ export default function FlashcardCreator({
     }
   };
 
-  const togglePreview = () => {
-    const nextShowPreview = !showPreview;
-    setShowPreview(nextShowPreview);
-    if (nextShowPreview && previewMode === 'docked') setShowStyles(false);
-  };
-
-  const toggleStyles = () => {
-    if (!previewLocksStandaloneStyles) setShowStyles(!showStyles);
-  };
-
   return (
-    <form onSubmit={handleFormSubmit} className="flex flex-col h-[calc(100vh-4rem)] min-h-0 w-full bg-slate-50 sm:h-[calc(100vh-5rem)]">
+    <form onSubmit={handleFormSubmit} className="fixed inset-0 z-50 bg-slate-50 flex flex-col h-full w-full overflow-hidden">
       
       {/* =========================================
-          1. HEADER FIJO (Barra Superior de Contexto)
+          1. HEADER FIJO (56px - Una Sola Fila)
           ========================================= */}
-      <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-200 px-4 py-2.5 flex items-center justify-between shrink-0">
-        {/* Izquierda: Back */}
-        <div className="flex items-center gap-2 flex-1">
+      <header className="bg-white/90 backdrop-blur-xl border-b border-slate-200/80 px-3 h-14 flex items-center justify-between shrink-0 z-20">
+        
+        {/* Izquierda: Back + Title */}
+        <div className="flex items-center gap-2 min-w-0 flex-1">
           {onBack && (
-            <button type="button" onClick={onBack} className="p-2 hover:bg-slate-100 rounded-full transition-colors cursor-pointer">
-              <ChevronLeft className="w-5 h-5 text-slate-700" />
+            <button type="button" onClick={onBack} className="p-2 hover:bg-slate-100 rounded-full transition-colors cursor-pointer shrink-0">
+              <ChevronLeft className="w-5 h-5 text-slate-800" />
             </button>
           )}
+          <h2 className="text-sm font-bold text-slate-900 truncate">
+            {editingId ? 'Editando Tarjeta' : deckTitle}
+          </h2>
         </div>
 
-        {/* Centro: Título + Switcher */}
-        <div className="flex flex-col items-center justify-center flex-[2] min-w-0 px-2">
-          <span className="text-sm font-bold text-slate-800 truncate max-w-[150px] sm:max-w-xs">
-            {editingId ? 'Editando Tarjeta' : deckTitle}
-          </span>
+        {/* Centro/Derecha: Switcher + Export */}
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           {onToggleReview && (
-            <div className="flex bg-slate-100 p-0.5 rounded-full text-[10px] font-bold mt-1">
+            <div className="flex bg-slate-100 p-0.5 rounded-full text-[11px] font-bold">
               <button 
                 type="button"
                 onClick={() => onToggleReview(false)} 
-                className={`px-3 py-0.5 rounded-full transition-all cursor-pointer ${!isReviewMode ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500'}`}
+                className={`px-3 py-1 rounded-full transition-all cursor-pointer ${!isReviewMode ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500'}`}
               >
-                Edición
+                Editar
               </button>
               <button 
                 type="button"
                 onClick={() => onToggleReview(true)} 
-                className={`px-3 py-0.5 rounded-full transition-all cursor-pointer ${isReviewMode ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500'}`}
+                className={`px-3 py-1 rounded-full transition-all cursor-pointer ${isReviewMode ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500'}`}
               >
-                Repaso
+                Repasar
               </button>
             </div>
           )}
-        </div>
-
-        {/* Derecha: Export */}
-        <div className="flex items-center justify-end gap-2 flex-1">
           {onExport && (
             <button type="button" onClick={onExport} className="p-2 hover:bg-slate-100 rounded-full transition-colors cursor-pointer" title="Exportar mazo">
-              <Download className="w-5 h-5 text-slate-700" />
+              <Download className="w-5 h-5 text-slate-800" />
             </button>
           )}
         </div>
@@ -246,12 +233,12 @@ export default function FlashcardCreator({
       {/* =========================================
           2. WORKSPACE CENTRAL (Lienzo Escusable)
           ========================================= */}
-      <main className="flex-1 overflow-y-auto px-4 py-4 space-y-4 max-w-4xl mx-auto w-full">
+      <main className="flex-1 overflow-y-auto px-4 py-4 space-y-4 max-w-2xl mx-auto w-full">
         
         {/* Selector de Pestañas (Manual / Lote / IA) */}
         {!editingId && (
           <div className="flex justify-center">
-            <div className="grid grid-cols-3 sm:flex bg-white p-1 border border-slate-200 rounded-xl items-center w-full sm:w-auto shadow-sm">
+            <div className="flex bg-white p-1 border border-slate-200 rounded-xl items-center w-full shadow-sm">
               {[
                 { id: 'single', label: 'Manual', Icon: Plus },
                 { id: 'bulk', label: 'Lote', Icon: Layers },
@@ -264,10 +251,10 @@ export default function FlashcardCreator({
                     key={tab.id}
                     type="button"
                     onClick={() => handleTabChange(tab.id)}
-                    className={`inline-flex items-center justify-center gap-1.5 px-3 sm:px-6 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                    className={`flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
                       isSelected 
                         ? 'bg-slate-900 text-white shadow-md' 
-                        : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'
+                        : 'text-slate-500 hover:text-slate-900'
                     }`}
                   >
                     <TabIcon className={`w-3.5 h-3.5 shrink-0 ${isSelected && tab.id === 'ai' ? 'text-indigo-400 animate-pulse' : ''}`} />
@@ -308,7 +295,7 @@ export default function FlashcardCreator({
 
         {showStandaloneStylePanel && (
           <StylePanel 
-            ALIGNS={ALIGNS} SWATCHES={SWATCHES} textAlign={textAlign} setTextAlign={textAlignAlign} bgImage={bgImage} setBgImage={setBgImage}
+            ALIGNS={ALIGNS} SWATCHES={SWATCHES} textAlign={textAlign} setTextAlign={setTextAlign} bgImage={bgImage} setBgImage={setBgImage}
             styles={styles} updateStyle={updateStyle} handleBgFile={handleBgFile}
           />
         )}
@@ -334,34 +321,38 @@ export default function FlashcardCreator({
           </section>
         )}
 
-        {error && <p className="text-xs text-red-600 font-semibold bg-red-50 border border-red-100 px-4 py-2.5 rounded-2xl animate-[fadeIn_0.1s_ease]">{error}</p>}
+        {error && <p className="text-xs text-red-600 font-semibold bg-red-50 border border-red-100 px-4 py-2.5 rounded-2xl">{error}</p>}
       </main>
 
       {/* =========================================
-          3. FOOTER FIJO (Barra de Acción Inferior)
+          3. FOOTER FIJO (Barra Herramientas Inferior)
           ========================================= */}
-      <footer className="sticky bottom-0 z-30 bg-white/95 backdrop-blur-lg border-t border-slate-200/80 px-4 pt-2.5 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
-        <div className="max-w-4xl mx-auto w-full flex items-center justify-between gap-2 sm:gap-4">
+      <footer className="bg-white/95 backdrop-blur-xl border-t border-slate-200/80 px-4 py-2.5 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] shrink-0 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] z-20">
+        <div className="flex items-center justify-between max-w-2xl mx-auto w-full gap-2">
           
-          {/* Grupo de Herramientas (Botones de Toolbar) */}
+          {/* Grupo de Herramientas (Iconos Micro) */}
           <div className="flex items-center gap-1 sm:gap-2">
             <button 
               type="button" 
-              onClick={togglePreview} 
-              className={`flex flex-col items-center justify-center gap-0.5 p-2 rounded-xl transition-colors w-14 sm:w-16 ${showPreview ? 'text-indigo-600 bg-indigo-50' : 'text-slate-500 hover:bg-slate-100'}`}
+              onClick={() => {
+                const nextShowPreview = !showPreview;
+                setShowPreview(nextShowPreview);
+                if (nextShowPreview && previewMode === 'docked') setShowStyles(false);
+              }} 
+              className={`flex flex-col items-center justify-center gap-0.5 p-2 rounded-xl transition-colors w-14 sm:w-16 ${showPreview ? 'text-indigo-600 bg-indigo-50' : 'text-slate-600 hover:bg-slate-100'}`}
             >
-              {showPreview ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              <span className="text-[9px] sm:text-[10px] font-bold">Vista</span>
+              {showPreview ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              <span className="text-[10px] font-bold">Vista</span>
             </button>
 
             <button 
               type="button" 
-              onClick={toggleStyles} 
+              onClick={() => { if (!previewLocksStandaloneStyles) setShowStyles(!showStyles); }} 
               disabled={previewLocksStandaloneStyles} 
-              className={`flex flex-col items-center justify-center gap-0.5 p-2 rounded-xl transition-colors w-14 sm:w-16 disabled:opacity-40 disabled:cursor-not-allowed ${showStyles ? 'text-indigo-600 bg-indigo-50' : 'text-slate-500 hover:bg-slate-100'}`}
+              className={`flex flex-col items-center justify-center gap-0.5 p-2 rounded-xl transition-colors w-14 sm:w-16 disabled:opacity-40 disabled:cursor-not-allowed ${showStyles ? 'text-indigo-600 bg-indigo-50' : 'text-slate-600 hover:bg-slate-100'}`}
             >
-              <SlidersHorizontal className="w-4 h-4" />
-              <span className="text-[9px] sm:text-[10px] font-bold">Estilo</span>
+              <SlidersHorizontal className="w-5 h-5" />
+              <span className="text-[10px] font-bold">Estilo</span>
             </button>
 
             {!editingId ? (
@@ -370,29 +361,29 @@ export default function FlashcardCreator({
                   type="button" 
                   disabled={aiSaving} 
                   onClick={onFastDelete} 
-                  className="flex flex-col items-center justify-center gap-0.5 p-2 rounded-xl transition-colors w-14 sm:w-16 text-slate-500 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                  className="flex flex-col items-center justify-center gap-0.5 p-2 rounded-xl transition-colors w-14 sm:w-16 text-slate-600 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
                 >
-                  <Trash2 className="w-4 h-4" />
-                  <span className="text-[9px] sm:text-[10px] font-bold">Borrar</span>
+                  <Trash2 className="w-5 h-5" />
+                  <span className="text-[10px] font-bold">Borrar</span>
                 </button>
               ) : <div className="hidden sm:block w-16" />
             ) : (
               <button 
                 type="button" 
                 onClick={onCancel} 
-                className="flex flex-col items-center justify-center gap-0.5 p-2 rounded-xl transition-colors w-14 sm:w-16 text-slate-500 hover:bg-slate-100"
+                className="flex flex-col items-center justify-center gap-0.5 p-2 rounded-xl transition-colors w-14 sm:w-16 text-slate-600 hover:bg-slate-100"
               >
-                <X className="w-4 h-4" />
-                <span className="text-[9px] sm:text-[10px] font-bold">Cancelar</span>
+                <X className="w-5 h-5" />
+                <span className="text-[10px] font-bold">Cancelar</span>
               </button>
             )}
           </div>
 
-          {/* Botón Principal de Acción */}
+          {/* Botón Principal de Acción (Capsule) */}
           <button 
             type="submit" 
             disabled={saving || aiSaving || (activeTab === 'ai' ? !aiText.trim() : (activeTab === 'bulk' ? !bulkText.trim() : (!question.trim() || !answer.trim())))} 
-            className={`flex items-center justify-center gap-2 h-11 px-6 sm:px-8 rounded-xl text-sm font-bold transition-all active:scale-[0.98] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex-1 sm:flex-initial sm:min-w-[180px] shadow-md ${
+            className={`flex items-center justify-center gap-2 h-12 px-6 sm:px-8 rounded-2xl text-sm font-bold transition-all active:scale-[0.98] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex-1 sm:flex-initial sm:min-w-[200px] shadow-md ${
               activeTab === 'ai' 
                 ? 'bg-gradient-to-r from-indigo-600 via-violet-600 to-indigo-600 hover:from-indigo-500 hover:to-indigo-500 text-white' 
                 : 'bg-slate-900 hover:bg-slate-800 text-white'
