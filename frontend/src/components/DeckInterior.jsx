@@ -41,6 +41,8 @@ export default function DeckInterior({ deck, userId, authToken, onBack, initialM
   const [editingId, setEditingId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [headerHeight, setHeaderHeight] = useState(76);
+  const [footerHeight, setFooterHeight] = useState(96);
   const pdfExport = usePdfExport();
 
   useEffect(() => { 
@@ -279,16 +281,19 @@ export default function DeckInterior({ deck, userId, authToken, onBack, initialM
 
   const isSessionMode = SESSION_MODES.includes(mode);
 
-  // El footer de acciones de FlashcardCreator es `fixed`, así que flota por
-  // encima de lo que venga después de él en el documento (la sección de
-  // colección de tarjetas). Sin este colchón, ese botón y el grid quedan
-  // tapados por el footer sin importar el modo de creación activo.
+  // Header y footer son elementos `fixed`. Reservamos sus alturas reales para
+  // que el safe area y los cambios de layout en móvil no tapen el contenido.
   const reserveFooterSpace = mode === 'edit' && canEdit;
+  const shellStyle = {
+    '--deck-header-height': `${headerHeight}px`,
+    '--deck-footer-height': `${footerHeight}px`,
+  };
 
   return (
     <div 
       data-testid="deck-interior" 
-      className={`w-full ${!isSessionMode ? 'pt-16' : ''} ${reserveFooterSpace ? 'pb-28' : ''}`}
+      className={`w-full min-h-[100dvh] ${!isSessionMode ? 'pt-[var(--deck-header-height)]' : ''} ${reserveFooterSpace ? 'pb-[var(--deck-footer-height)]' : ''}`}
+      style={shellStyle}
     >
       <PdfExportOverlay
         isOpen={pdfExport.isExporting}
@@ -311,6 +316,7 @@ export default function DeckInterior({ deck, userId, authToken, onBack, initialM
           pdfWarnings={pdfExport.warnings}
           onCancelPdfExport={pdfExport.cancel}
           onImport={canEdit ? handleImportJSON : undefined} 
+          onHeightChange={setHeaderHeight}
         />
       )}
 
@@ -365,6 +371,7 @@ export default function DeckInterior({ deck, userId, authToken, onBack, initialM
               deckId={deck.id}
               authToken={authToken}
               onInviteRequired={onInviteRequired}
+              onFooterHeightChange={setFooterHeight}
               onAiSuccess={async () => {
                 await loadCards();
                 if (typeof onRefreshData === 'function') onRefreshData();
