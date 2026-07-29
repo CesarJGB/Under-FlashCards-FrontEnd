@@ -144,9 +144,9 @@ export default function FlashcardCreator({
   };
 
   const handleFormSubmit = async (e) => {
-    e.preventDefault();
+    e?.preventDefault?.();
     if (activeTab === 'ai') {
-      if (!aiText.trim() || aiSaving) return;
+      if (!aiText.trim() || aiSaving) return false;
       setAiSaving(true);
       setError('');
       setAiProgress({
@@ -174,7 +174,7 @@ export default function FlashcardCreator({
           const errData = await res.json().catch(() => ({}));
           if (res.status === 403 && errData.code === 'INVITE_REQUIRED') {
             onInviteRequired?.();
-            return;
+            return false;
           }
           if (res.status === 401) {
             throw new Error('Tu sesión expiró. Cierra sesión e inicia sesión de nuevo para generar con IA.');
@@ -187,14 +187,16 @@ export default function FlashcardCreator({
         
         setAiText('');
         setIsAi(false); 
+        return true;
       } catch (err) {
         setError(err.message || 'Error de conexión con el nodo de Inteligencia Artificial.');
+        return false;
       } finally {
         setAiProgress(null);
         setAiSaving(false);
       }
     } else {
-      onSubmit(e);
+      return await onSubmit?.();
     }
   };
 
@@ -204,7 +206,9 @@ export default function FlashcardCreator({
       {/* =========================================
           CUERPO CON SCROLL NATIVO
           ========================================= */}
-      <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col space-y-5 px-3 py-5 sm:px-4">
+      <div className={`mx-auto flex w-full max-w-2xl flex-1 flex-col px-3 sm:px-4 ${
+        activeTab === 'single' ? 'space-y-4 py-4' : 'space-y-5 py-5'
+      }`}>
         
         {/* Selector de Pestañas (Manual / Lote / IA) */}
         {!editingId && (
@@ -240,7 +244,9 @@ export default function FlashcardCreator({
         )}
 
         {/* Formulario Dinámico */}
-        <div className="rounded-3xl border border-slate-200/70 bg-white p-4 shadow-[0_10px_35px_-30px_rgba(15,23,42,0.45)] sm:p-6">
+        <div className={`border border-slate-200/70 bg-white shadow-[0_10px_35px_-30px_rgba(15,23,42,0.45)] ${
+          activeTab === 'single' ? 'rounded-2xl p-3.5 sm:p-4' : 'rounded-3xl p-4 sm:p-6'
+        }`}>
           <FormInputs 
             isBulk={isBulk} 
             isAi={isAi}
@@ -251,6 +257,9 @@ export default function FlashcardCreator({
             contentImage={contentImage} imageSide={imageSide} 
             handleContentImageFile={handleContentImageFile} 
             removeContentImage={() => { setContentImage(''); setImageSide(''); }}
+            onSaveManualCard={() => handleFormSubmit()}
+            saving={saving || aiSaving}
+            error={error}
             aiText={aiText} setAiText={setAiText}
             aiNumCards={aiNumCards} setAiNumCards={setAiNumCards}
           />
