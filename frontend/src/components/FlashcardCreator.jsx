@@ -1,10 +1,7 @@
-// FILE: frontend/src/components/FlashcardCreator.jsx
-
 import { useState, useEffect } from 'react';
 import { 
   SlidersHorizontal, Loader2, Plus, Check, Eye, EyeOff, Trash2, 
-  AlignLeft, AlignCenter, AlignRight, Sparkles, Layers, 
-  ChevronLeft, X 
+  AlignLeft, AlignCenter, AlignRight, Sparkles, Layers, X 
 } from 'lucide-react';
 
 import FormInputs from './creator/FormInputs';
@@ -181,37 +178,10 @@ export default function FlashcardCreator({
   };
 
   return (
-    <form onSubmit={handleFormSubmit} className="flex flex-col min-h-[100dvh] bg-slate-50 relative pb-28 w-full">
-      
-      {/* =========================================
-          1. HEADER STICKY (Una Sola Línea)
-          ========================================= */}
-      <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-xl border-b border-slate-200 px-4 h-14 flex items-center justify-between shrink-0">
-        {/* Izquierda: Back + Title */}
-        <div className="flex items-center gap-2 min-w-0 flex-1">
-          {onCancel && (
-            <button 
-              type="button" 
-              onClick={onCancel} 
-              className="p-2 -ml-2 hover:bg-slate-100 rounded-full transition-colors cursor-pointer shrink-0"
-              title="Regresar"
-            >
-              <ChevronLeft className="w-5 h-5 text-slate-800" />
-            </button>
-          )}
-          <h2 className="text-sm font-bold text-slate-900 truncate">
-            {editingId ? 'Editando Tarjeta' : 'Editor de Mazo'}
-          </h2>
-        </div>
-
-        {/* Derecha: Reservado para futuros toggles/acciones del mazo si es necesario */}
-        <div className="flex items-center gap-2 shrink-0">
-          {/* El switcher de modo se mantiene a nivel de app padre para evitar inventar props aquí */}
-        </div>
-      </header>
+    <form onSubmit={handleFormSubmit} className="flex flex-col bg-slate-50 relative pb-28 w-full">
 
       {/* =========================================
-          2. CUERPO CON SCROLL NATIVO
+          CUERPO CON SCROLL NATIVO
           ========================================= */}
       <div className="flex-1 px-4 py-4 space-y-4 max-w-2xl mx-auto w-full">
         
@@ -305,7 +275,7 @@ export default function FlashcardCreator({
       </div>
 
       {/* =========================================
-          3. FOOTER FIJO (Glassmorphism Toolbar)
+          FOOTER FIJO (Glassmorphism Toolbar)
           ========================================= */}
       <footer className="fixed bottom-0 inset-x-0 z-30 bg-white/95 backdrop-blur-xl border-t border-slate-200 p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] shadow-lg">
         <div className="flex items-center justify-between max-w-2xl mx-auto w-full gap-2">
