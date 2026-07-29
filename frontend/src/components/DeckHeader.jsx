@@ -1,4 +1,3 @@
-// FILE: frontend/src/components/DeckHeader.jsx
 import { useState } from 'react';
 import { ArrowLeft, ChevronDown, FileText, Download, FileJson, Loader2, X } from 'lucide-react';
 
@@ -18,11 +17,11 @@ export default function DeckHeader({
   const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <div className="relative w-full flex items-center justify-center pb-4 border-b border-slate-200 min-h-[46px]">
+    <div className="sticky top-0 z-30 w-full flex items-center justify-center bg-white/95 backdrop-blur-xl px-4 py-3 border-b border-slate-200 min-h-[46px]">
       
       {/* 1. LADO IZQUIERDO: Botón de regreso compacto (Oculto en modo repaso) */}
       {mode !== 'review' && (
-        <div className="absolute left-0 flex items-center z-20 animate-[fadeIn_0.1s_ease]">
+        <div className="absolute left-4 flex items-center z-20 animate-[fadeIn_0.1s_ease]">
           <button 
             onClick={onBack} 
             title="Volver a la biblioteca"
@@ -54,7 +53,7 @@ export default function DeckHeader({
       </div>
 
       {/* 3. LADO DERECHO: Menú de Opciones (Oculto en modo repaso) */}
-      <div className="absolute right-0 flex items-center z-20">
+      <div className="absolute right-4 flex items-center z-20">
         {mode !== 'review' && (
           <div className="relative">
             <button
