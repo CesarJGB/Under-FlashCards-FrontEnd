@@ -1,4 +1,4 @@
-import { useCallback, useState, useEffect } from 'react';
+import { useCallback, useState, useEffect, useLayoutEffect, useRef } from 'react';
 import {
   SlidersHorizontal, Loader2, Plus, Check, Eye, EyeOff, Trash2,
   AlignLeft, AlignCenter, AlignRight, Sparkles, Layers, X,
@@ -38,7 +38,7 @@ export default function FlashcardCreator({
   fontSize, setFontSize, showStyles, setShowStyles, isBulk, setIsBulk, bulkText, setBulkText,
   editingId, saving, error, setError, onSubmit, onCancel, contentImage, setContentImage,
   imageSide, setImageSide, onFastDelete, hasCards,
-  userId, deckId, authToken, onAiSuccess, onInviteRequired, onSaveManualCard,
+  userId, deckId, authToken, onAiSuccess, onInviteRequired, onSaveManualCard, onFooterHeightChange,
 }) {
   const [showPreview, setShowPreview] = useState(() => Boolean(getJSON(PREVIEW_VISIBLE_KEY)));
   const [previewMode, setPreviewMode] = useState(() => getStoredPreviewPanelMode());
@@ -49,7 +49,30 @@ export default function FlashcardCreator({
   const [aiSaving, setAiSaving] = useState(false);
   const [aiProgress, setAiProgress] = useState(null);
 
+  const footerRef = useRef(null);
+
   const activeTab = editingId ? 'single' : (isAi ? 'ai' : (isBulk ? 'bulk' : 'single'));
+
+  // Medidor de altura del footer dinámico de v3
+  useLayoutEffect(() => {
+    const footer = footerRef.current;
+    if (!footer || typeof onFooterHeightChange !== 'function') return;
+
+    const updateHeight = () => {
+      onFooterHeightChange(Math.ceil(footer.getBoundingClientRect().height));
+    };
+
+    updateHeight();
+
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', updateHeight);
+      return () => window.removeEventListener('resize', updateHeight);
+    }
+
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(footer);
+    return () => observer.disconnect();
+  }, [onFooterHeightChange]);
 
   useEffect(() => {
     setJSON(PREVIEW_VISIBLE_KEY, showPreview);
@@ -129,13 +152,14 @@ export default function FlashcardCreator({
     event.target.value = '';
   };
 
+  // Lógica de guardado manual recuperada de v1
   const submitManualCard = useCallback(() => {
     const submitEvent = { preventDefault() {} };
     return (onSaveManualCard || onSubmit)?.(submitEvent);
   }, [onSaveManualCard, onSubmit]);
 
   const handleFormSubmit = async (event) => {
-    event.preventDefault();
+    event?.preventDefault?.();
     if (activeTab === 'ai') {
       if (!aiText.trim() || aiSaving) return;
       setAiSaving(true);
@@ -199,7 +223,12 @@ export default function FlashcardCreator({
       <div className="flex-1 px-4 py-4 space-y-4 max-w-2xl mx-auto w-full">
         {!editingId && (
           <div className="flex justify-center">
-            <div className="flex bg-white p-1 border border-slate-200 rounded-xl items-center w-full shadow-sm">
+            {/* Grid selector de v3 con animaciones de pestaña de v1 */}
+            <div 
+              role="tablist"
+              aria-label="Modo de creación"
+              className="grid grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1 w-full shadow-sm border border-slate-200"
+            >
               {[
                 { id: 'single', label: 'Manual', Icon: Plus },
                 { id: 'bulk', label: 'Lote', Icon: Layers },
@@ -211,14 +240,18 @@ export default function FlashcardCreator({
                   <button
                     key={tab.id}
                     type="button"
+                    role="tab"
+                    aria-selected={isSelected}
                     onClick={() => handleTabChange(tab.id)}
-                    className={`flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                    className={`inline-flex min-h-10 items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
                       isSelected
-                        ? 'bg-slate-900 text-white shadow-md'
-                        : 'text-slate-500 hover:text-slate-900'
+                        ? tab.id === 'ai'
+                          ? 'bg-indigo-600 text-white shadow-md'
+                          : 'bg-slate-900 text-white shadow-md'
+                        : 'text-slate-500 hover:text-slate-900 hover:bg-white/60'
                     }`}
                   >
-                    <TabIcon className={`w-3.5 h-3.5 shrink-0 ${isSelected && tab.id === 'ai' ? 'text-indigo-400 animate-pulse' : ''}`} />
+                    <TabIcon className={`w-3.5 h-3.5 shrink-0 ${isSelected && tab.id === 'ai' ? 'text-indigo-300 animate-pulse' : ''}`} />
                     <span className="truncate">{tab.label}</span>
                   </button>
                 );
@@ -291,6 +324,7 @@ export default function FlashcardCreator({
           />
         )}
 
+        {/* Panel de progreso de IA detallado recuperado de v1 */}
         {aiSaving && aiProgress && (
           <section role="status" aria-live="polite" className="rounded-2xl border border-indigo-100 bg-white p-4 shadow-sm">
             <div className="flex items-center justify-between gap-3">
@@ -323,7 +357,11 @@ export default function FlashcardCreator({
         {error && <p className="text-xs text-red-600 font-semibold bg-red-50 border border-red-100 px-4 py-2.5 rounded-2xl">{error}</p>}
       </div>
 
-      <footer className="fixed bottom-0 inset-x-0 z-30 bg-white/95 backdrop-blur-xl border-t border-slate-200 p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] shadow-lg">
+      {/* Footer con disposición vertical de v1, color blanco sólido y medición ref de v3 */}
+      <footer 
+        ref={footerRef}
+        className="fixed bottom-0 inset-x-0 z-30 bg-white border-t border-slate-200 p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] shadow-lg"
+      >
         <div className="flex items-center justify-between max-w-2xl mx-auto w-full gap-2">
           <div className="flex items-center gap-1 sm:gap-2">
             <button
@@ -373,6 +411,7 @@ export default function FlashcardCreator({
             )}
           </div>
 
+          {/* Botón submit con degradado e ícono animado de v1 */}
           <button
             type="submit"
             disabled={saving || aiSaving || (activeTab === 'ai' ? !aiText.trim() : (activeTab === 'bulk' ? !bulkText.trim() : (!question.trim() || !answer.trim())))}
