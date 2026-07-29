@@ -13,7 +13,8 @@ export default function FormInputs({
   isBulk, isAi, question, setQuestion, answer, setAnswer, bulkText, setBulkText,
   contentImage, imageSide, handleContentImageFile, removeContentImage,
   aiText, setAiText, aiNumCards, setAiNumCards,
-  editingId, saving, error, onSaveManualCard
+  editingId, saving, error, onSaveManualCard,
+  styles, updateStyle, ALIGNS, SWATCHES, textAlign, setTextAlign
 }) {
   const [customCardCount, setCustomCardCount] = useState('');
   const [manualEditorSide, setManualEditorSide] = useState(null);
@@ -189,7 +190,6 @@ export default function FormInputs({
       </div>
 
       <ManualCardEditorModal
-        key={manualEditorSide || 'manual-card-editor-closed'}
         open={Boolean(manualEditorSide)}
         initialSide={manualEditorSide || 'question'}
         question={question}
@@ -205,6 +205,12 @@ export default function FormInputs({
         saving={saving}
         error={error}
         isEditing={Boolean(editingId)}
+        styles={styles}
+        updateStyle={updateStyle}
+        ALIGNS={ALIGNS}
+        SWATCHES={SWATCHES}
+        textAlign={textAlign}
+        setTextAlign={setTextAlign}
       />
     </>
   );
