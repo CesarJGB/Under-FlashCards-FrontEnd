@@ -1,119 +1,190 @@
-import { lazy, Suspense, startTransition, useCallback, useState } from 'react';
+import {
+  lazy,
+  Suspense,
+  startTransition,
+  useCallback,
+  useMemo,
+  useState,
+} from 'react';
 import { FileText, Layers } from 'lucide-react';
 import ManualCardEditorModal from './ManualCardEditorModal';
 
 const PdfExtractor = lazy(() => import('./PdfExtractor'));
 const MAX_AI_DOCUMENT_TEXT_LENGTH = 600000;
-const configuredMaxAiCards = Number.parseInt(import.meta.env.VITE_MAX_AI_CARDS, 10);
-const MAX_AI_CARDS = Number.isInteger(configuredMaxAiCards) && configuredMaxAiCards > 0
-  ? configuredMaxAiCards
-  : 500;
+const configuredMaxAiCards = Number.parseInt(
+  import.meta.env.VITE_MAX_AI_CARDS,
+  10,
+);
+const MAX_AI_CARDS =
+  Number.isInteger(configuredMaxAiCards) && configuredMaxAiCards > 0
+    ? configuredMaxAiCards
+    : 500;
 
 export default function FormInputs({
-  isBulk, isAi, question, setQuestion, answer, setAnswer, bulkText, setBulkText,
-  contentImage, imageSide, handleContentImageFile, removeContentImage,
-  aiText, setAiText, aiNumCards, setAiNumCards,
-  editingId, saving, error, onSaveManualCard,
-  styles, updateStyle, ALIGNS, SWATCHES, textAlign, setTextAlign,
+  isBulk,
+  isAi,
+  question,
+  setQuestion,
+  answer,
+  setAnswer,
+  bulkText,
+  setBulkText,
+  contentImage,
+  imageSide,
+  handleContentImageFile,
+  removeContentImage,
+  aiText,
+  setAiText,
+  aiNumCards,
+  setAiNumCards,
+  editingId,
+  saving,
+  error,
+  onSaveManualCard,
+  styles,
+  updateStyle,
+  ALIGNS,
+  SWATCHES,
+  textAlign,
+  setTextAlign,
 }) {
   const [customCardCount, setCustomCardCount] = useState('');
   const [manualEditorSide, setManualEditorSide] = useState(null);
+
   const closeManualEditor = useCallback(() => setManualEditorSide(null), []);
   const openManualEditor = useCallback((side) => setManualEditorSide(side), []);
 
-  // 1. MODO IA
+  // Analizador inteligente de pares P: / R: recuperado de v3
+  const bulkStats = useMemo(() => {
+    const lines = bulkText.split(/\r?\n/);
+    let completePairs = 0;
+    let pendingQuestion = false;
+
+    lines.forEach((line) => {
+      const cleanLine = line.trim();
+
+      if (/^[pP]\s*:/i.test(cleanLine)) {
+        pendingQuestion = Boolean(cleanLine.replace(/^[pP]\s*:/i, '').trim());
+      } else if (/^[rR]\s*:/i.test(cleanLine)) {
+        const hasAnswer = Boolean(cleanLine.replace(/^[rR]\s*:/i, '').trim());
+
+        if (pendingQuestion && hasAnswer) {
+          completePairs += 1;
+          pendingQuestion = false;
+        }
+      }
+    });
+
+    return {
+      completePairs,
+      lines: bulkText ? lines.length : 0,
+    };
+  }, [bulkText]);
+
+  // 1. MODO IA (Estilo pulido de v3 con funcional de v4)
   if (isAi) {
     return (
-      <div className="animate-[fadeIn_0.2s_ease] flex flex-col gap-4">
+      <div className="flex animate-[fadeIn_0.2s_ease] flex-col gap-3">
         <Suspense
           fallback={
-            <div className="border border-slate-200 rounded-xl bg-slate-50/70 p-4 flex items-center gap-3 text-xs font-semibold text-slate-500 animate-[fadeIn_0.15s_ease]">
-              <FileText className="w-4 h-4 text-indigo-500 shrink-0" />
-              <span>Preparando el módulo PDF bajo demanda...</span>
+            <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-semibold text-slate-500">
+              <FileText className="h-4 w-4 shrink-0 text-indigo-500" />
+              <span>Preparando módulo PDF...</span>
             </div>
           }
         >
           <PdfExtractor
             onTextExtracted={(extractedText) => {
               startTransition(() => {
-                setAiText((previousText) => (previousText ? `${previousText}\n${extractedText}` : extractedText));
+                setAiText((previousText) =>
+                  previousText ? `${previousText}\n${extractedText}` : extractedText,
+                );
               });
             }}
           />
         </Suspense>
 
         <div>
-          <label className="block text-xs font-bold text-slate-600 mb-1.5 flex items-center gap-1.5">
-            <FileText className="w-3.5 h-3.5 text-slate-400" />
-            Apuntes, lecturas o indicaciones para la IA:
-          </label>
+          <div className="mb-1.5 flex items-center justify-between gap-3">
+            <label
+              htmlFor="ai-source-text"
+              className="flex items-center gap-1.5 text-xs font-bold text-slate-700"
+            >
+              <FileText className="h-3.5 w-3.5 text-slate-400" />
+              <span>Apuntes e indicaciones:</span>
+            </label>
+            <span className="shrink-0 text-[10px] font-semibold tabular-nums text-slate-400">
+              {aiText.length.toLocaleString('es-MX')} /{' '}
+              {MAX_AI_DOCUMENT_TEXT_LENGTH.toLocaleString('es-MX')}
+            </span>
+          </div>
           <textarea
+            id="ai-source-text"
             value={aiText}
             onChange={(event) => setAiText(event.target.value)}
             maxLength={MAX_AI_DOCUMENT_TEXT_LENGTH}
-            placeholder="Pega tu información aquí o usa el extractor de PDF de arriba para rellenar este campo de forma automática."
-            className="min-h-[160px] w-full text-xs rounded-xl border border-slate-200 px-3 py-2.5 outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 placeholder:text-slate-300 leading-relaxed font-medium"
+            placeholder="Pega tu información aquí o usa el extractor de PDF de arriba para rellenar este campo automáticamente."
+            className="min-h-[160px] w-full resize-y rounded-xl border border-slate-200 bg-slate-50/40 px-3 py-2.5 text-xs font-medium leading-relaxed text-slate-800 outline-none transition-colors placeholder:text-slate-300 focus:border-indigo-300 focus:bg-white focus:ring-4 focus:ring-indigo-500/[0.08]"
           />
-          <p className="mt-1 text-right text-[10px] font-medium text-slate-400">
-            {aiText.length.toLocaleString('es-MX')} / {MAX_AI_DOCUMENT_TEXT_LENGTH.toLocaleString('es-MX')} caracteres
-          </p>
         </div>
 
-        <div className="bg-slate-50 border border-slate-200/60 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <Layers className="w-4 h-4 text-slate-400 shrink-0" />
-            <div>
-              <p className="text-xs font-bold text-slate-700">Densidad del mazo</p>
-              <p className="text-[10px] text-slate-400 font-medium leading-none mt-0.5">¿Cuántas tarjetas deseas extraer aproximadamente?</p>
-            </div>
+        <div className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <span className="text-xs font-bold text-slate-700 block">Densidad del mazo</span>
+            <span className="text-[10px] text-slate-400 font-medium block">¿Cuántas tarjetas aproximadas deseas generar?</span>
           </div>
 
-          <div className="grid grid-cols-3 sm:flex bg-white p-1 rounded-xl border border-slate-200 items-center gap-1 shrink-0 w-full sm:w-auto">
-            {[5, 10, 15].map((num) => {
-              const isSelected = customCardCount === '' && aiNumCards === num;
+          <div className="grid w-full grid-cols-4 gap-1 rounded-xl bg-white p-1 sm:w-auto sm:min-w-[220px]">
+            {[5, 10, 15].map((number) => {
+              const isSelected = customCardCount === '' && aiNumCards === number;
+
               return (
                 <button
-                  key={num}
+                  key={number}
                   type="button"
                   onClick={() => {
                     setCustomCardCount('');
-                    setAiNumCards(num);
+                    setAiNumCards(number);
                   }}
-                  className={`px-2 sm:px-3 py-2 sm:py-1.5 text-[11px] font-bold rounded-lg transition-all cursor-pointer text-center ${
+                  className={`min-h-9 rounded-lg px-2 text-xs font-extrabold transition-colors cursor-pointer ${
                     isSelected
-                      ? 'bg-slate-900 text-white shadow-3xs'
-                      : 'text-slate-500 hover:text-slate-900'
+                      ? 'bg-slate-900 text-white shadow-sm'
+                      : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'
                   }`}
                 >
-                  {num} tarjetas
+                  {number}
                 </button>
               );
             })}
-
-            <div className="hidden sm:block h-4 w-[1px] bg-slate-200 mx-1" />
 
             <input
               type="number"
               min="1"
               max={MAX_AI_CARDS}
-              placeholder="Cantidad libre (ej. 8)"
+              placeholder="Libre"
               value={customCardCount}
               onChange={(event) => {
                 const rawValue = event.target.value;
+
                 if (rawValue === '') {
                   setCustomCardCount('');
                   setAiNumCards('');
-                } else {
-                  const parsed = parseInt(rawValue, 10);
-                  const nextValue = Number.isNaN(parsed) ? '' : Math.min(MAX_AI_CARDS, Math.max(1, parsed));
-                  setCustomCardCount(nextValue === '' ? '' : String(nextValue));
-                  setAiNumCards(nextValue);
+                  return;
                 }
+
+                const parsed = Number.parseInt(rawValue, 10);
+                const nextValue = Number.isNaN(parsed)
+                  ? ''
+                  : Math.min(MAX_AI_CARDS, Math.max(1, parsed));
+
+                setCustomCardCount(nextValue === '' ? '' : String(nextValue));
+                setAiNumCards(nextValue);
               }}
-              className={`col-span-3 w-full sm:w-36 text-center text-[11px] font-bold rounded-lg py-2 sm:py-1.5 border transition-all outline-none ${
+              aria-label="Cantidad libre de tarjetas"
+              className={`min-h-9 w-full rounded-lg border px-1 text-center text-xs font-extrabold outline-none transition-colors ${
                 customCardCount !== ''
-                  ? 'bg-slate-900 text-white border-slate-900 shadow-3xs placeholder:text-slate-400'
-                  : 'bg-slate-50 text-slate-600 border-slate-200 placeholder:text-slate-400 focus:bg-white focus:border-slate-300'
+                  ? 'border-slate-900 bg-slate-900 text-white placeholder:text-slate-400'
+                  : 'border-transparent bg-slate-50 text-slate-600 placeholder:text-slate-400 focus:border-slate-300 focus:bg-white'
               }`}
             />
           </div>
@@ -122,17 +193,38 @@ export default function FormInputs({
     );
   }
 
-  // 2. MODO EN LOTE
+  // 2. MODO EN LOTE (Con métricas en tiempo real de v3)
   if (isBulk) {
     return (
-      <div className="animate-[fadeIn_0.2s_ease]">
-        <label className="block text-xs font-medium text-slate-500 mb-1.5">Pega tu texto estructurado abajo:</label>
+      <div className="flex animate-[fadeIn_0.2s_ease] flex-col gap-2.5">
+        <div className="flex items-center justify-between gap-3">
+          <label
+            htmlFor="bulk-card-text"
+            className="flex min-w-0 items-center gap-1.5 text-xs font-bold text-slate-700"
+          >
+            <Layers className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+            <span>Pega tu texto estructurado (P: / R:):</span>
+          </label>
+          <span className="shrink-0 text-[10px] font-bold tabular-nums text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100/60">
+            {bulkStats.completePairs}{' '}
+            {bulkStats.completePairs === 1 ? 'par listo' : 'pares listos'}
+          </span>
+        </div>
+
         <textarea
+          id="bulk-card-text"
           value={bulkText}
           onChange={(event) => setBulkText(event.target.value)}
-          placeholder={'P: ¿Qué día fue teóricamente ayer?\nR: 20 de junio\n\nP: ¿Cuál es el número atómico del Hidrógeno?\nR: 1'}
-          className="min-h-[160px] w-full font-mono text-xs rounded-xl border border-slate-200 px-3 py-2.5 outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 placeholder:text-slate-300"
+          placeholder={
+            'P: ¿Qué día fue teóricamente ayer?\nR: 20 de junio\n\nP: ¿Cuál es el número atómico del Hidrógeno?\nR: 1'
+          }
+          className="min-h-[170px] w-full resize-y rounded-xl border border-slate-200 bg-slate-50/40 px-3 py-2.5 font-mono text-xs leading-relaxed text-slate-800 outline-none transition-colors placeholder:text-slate-300 focus:border-slate-400 focus:bg-white focus:ring-4 focus:ring-slate-900/[0.06]"
         />
+
+        <div className="flex items-center justify-between gap-3 text-[10px] font-medium text-slate-400">
+          <span>{bulkText.length.toLocaleString('es-MX')} caracteres</span>
+          <span>{bulkStats.lines || 0} líneas</span>
+        </div>
       </div>
     );
   }
@@ -144,24 +236,29 @@ export default function FormInputs({
       <button
         type="button"
         onPointerDown={(event) => {
-          // El trigger no debe conservar el foco cuando el modal toma el control.
           event.preventDefault();
           openManualEditor(side);
         }}
         onClick={() => openManualEditor(side)}
-        className="relative flex min-h-[108px] w-full flex-col rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left transition-colors active:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2"
+        className="relative flex min-h-[96px] w-full flex-col rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left transition-colors active:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2"
         aria-label={`Editar ${label.toLowerCase()}`}
         data-testid={`manual-${side}-editor-trigger`}
       >
         <span className="text-xs font-medium text-slate-500">{label}</span>
-        <span className={`mt-1.5 max-h-[66px] overflow-hidden whitespace-pre-wrap break-words pr-9 text-sm font-medium leading-relaxed ${
-          value ? 'text-slate-800' : 'text-slate-300'
-        }`}>
+        <span
+          className={`mt-1.5 max-h-[58px] overflow-hidden whitespace-pre-wrap break-words pr-9 text-sm font-medium leading-relaxed ${
+            value ? 'text-slate-800' : 'text-slate-300'
+          }`}
+        >
           {value || placeholder}
         </span>
         {hasImage && (
           <span className="absolute bottom-2 right-2 flex h-7 w-7 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50 shadow-sm">
-            <img src={contentImage} alt={`Imagen de ${label.toLowerCase()}`} className="h-full w-full object-cover" />
+            <img
+              src={contentImage}
+              alt={`Imagen de ${label.toLowerCase()}`}
+              className="h-full w-full object-cover"
+            />
           </span>
         )}
       </button>
@@ -171,7 +268,7 @@ export default function FormInputs({
   // 3. MODO INDIVIDUAL
   return (
     <>
-      <div className="grid gap-4 animate-[fadeIn_0.2s_ease] sm:grid-cols-2">
+      <div className="grid animate-[fadeIn_0.2s_ease] gap-2.5 sm:grid-cols-2">
         {renderEditorTrigger({
           side: 'question',
           label: 'Pregunta',
