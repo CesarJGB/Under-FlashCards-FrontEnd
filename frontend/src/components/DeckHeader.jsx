@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { ArrowLeft, FileText, Download, FileJson, Loader2, X } from 'lucide-react';
 
 export default function DeckHeader({
@@ -13,12 +13,37 @@ export default function DeckHeader({
   pdfError,
   pdfWarnings = [],
   onCancelPdfExport,
+  onHeightChange,
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  const headerRef = useRef(null);
+
+  useLayoutEffect(() => {
+    const header = headerRef.current;
+    if (!header || typeof onHeightChange !== 'function') return undefined;
+
+    const updateHeight = () => {
+      onHeightChange(Math.ceil(header.getBoundingClientRect().height));
+    };
+
+    updateHeight();
+
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', updateHeight);
+      return () => window.removeEventListener('resize', updateHeight);
+    }
+
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(header);
+    return () => observer.disconnect();
+  }, [onHeightChange]);
 
   return (
-    /* 🚀 position: fixed fuerza al header a pegar con el borde superior del viewport */
-    <header className="fixed top-0 left-0 right-0 z-50 w-full flex items-center justify-center bg-white/95 backdrop-blur-xl px-4 py-3 border-b border-slate-200 min-h-[46px]">
+    /* ð position: fixed fuerza al header a pegar con el borde superior del viewport */
+    <header
+      ref={headerRef}
+      className="fixed top-0 left-0 right-0 z-50 w-full flex items-center justify-center bg-white/95 backdrop-blur-xl px-4 pt-[calc(env(safe-area-inset-top)+0.75rem)] pb-3 border-b border-slate-200 min-h-[64px] isolate"
+    >
       
       {/* 1. LADO IZQUIERDO */}
       {mode !== 'review' && (
@@ -26,7 +51,7 @@ export default function DeckHeader({
           <button 
             onClick={onBack} 
             title="Volver a la biblioteca"
-            className="p-2.5 bg-white border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-xl shadow-3xs transition-all active:scale-[0.97] flex items-center justify-center aspect-square cursor-pointer"
+            className="min-h-11 min-w-11 p-2.5 bg-white border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-xl shadow-3xs transition-all active:scale-[0.97] flex items-center justify-center aspect-square cursor-pointer"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
@@ -62,7 +87,7 @@ export default function DeckHeader({
               onClick={() => !isExportingPdf && setIsOpen(!isOpen)}
               disabled={isExportingPdf}
               title="Opciones del mazo"
-              className="p-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl shadow-sm transition-all active:scale-[0.97] flex items-center justify-center aspect-square cursor-pointer disabled:cursor-wait disabled:opacity-80"
+              className="min-h-11 min-w-11 p-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl shadow-sm transition-all active:scale-[0.97] flex items-center justify-center aspect-square cursor-pointer disabled:cursor-wait disabled:opacity-80"
             >
               {isExportingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
             </button>
@@ -78,8 +103,8 @@ export default function DeckHeader({
                   >
                     <FileText className="w-4 h-4 text-slate-400 group-hover:text-slate-900 mt-0.5 shrink-0 transition-colors" />
                     <div>
-                      <p className="text-xs font-bold text-slate-800 group-hover:text-slate-950">Guía de estudio</p>
-                      <p className="text-[10px] text-slate-400 font-medium mt-0.5 leading-relaxed">Descarga un archivo PDF continuo con formato de lista para lectura estática.</p>
+                      <p className="text-xs font-bold text-slate-800 group-hover:text-slate-950">GuÃ­a de estudio</p>
+                      <p className="text-[10px] text-slate-400 font-medium mt-0.5 leading-relaxed">Descarga un archivo PDF continuo con formato de lista para lectura estÃ¡tica.</p>
                     </div>
                   </button>
 
@@ -91,7 +116,7 @@ export default function DeckHeader({
                     <Download className="w-4 h-4 text-slate-400 group-hover:text-slate-900 mt-0.5 shrink-0 transition-colors" />
                     <div>
                       <p className="text-xs font-bold text-slate-800 group-hover:text-slate-950">Tarjetas imprimibles</p>
-                      <p className="text-[10px] text-slate-400 font-medium mt-0.5 leading-relaxed">Genera un PDF con cuadrículas de tamaño real listas para imprimir y recortar.</p>
+                      <p className="text-[10px] text-slate-400 font-medium mt-0.5 leading-relaxed">Genera un PDF con cuadrÃ­culas de tamaÃ±o real listas para imprimir y recortar.</p>
                     </div>
                   </button>
 
@@ -103,7 +128,7 @@ export default function DeckHeader({
                     <FileText className="w-4 h-4 text-slate-400 group-hover:text-slate-900 mt-0.5 shrink-0 transition-colors" />
                     <div>
                       <p className="text-xs font-bold text-slate-800 group-hover:text-slate-950">Banco de preguntas</p>
-                      <p className="text-[10px] text-slate-400 font-medium mt-0.5 leading-relaxed">Exporta únicamente las preguntas numeradas con soporte para imágenes frontales.</p>
+                      <p className="text-[10px] text-slate-400 font-medium mt-0.5 leading-relaxed">Exporta Ãºnicamente las preguntas numeradas con soporte para imÃ¡genes frontales.</p>
                     </div>
                   </button>
 
@@ -115,7 +140,7 @@ export default function DeckHeader({
                     <FileText className="w-4 h-4 text-slate-400 group-hover:text-slate-900 mt-0.5 shrink-0 transition-colors" />
                     <div>
                       <p className="text-xs font-bold text-slate-800 group-hover:text-slate-950">Banco de respuestas</p>
-                      <p className="text-[10px] text-slate-400 font-medium mt-0.5 leading-relaxed">Genera una hoja con las respuestas numeradas correspondientes para autoevaluación.</p>
+                      <p className="text-[10px] text-slate-400 font-medium mt-0.5 leading-relaxed">Genera una hoja con las respuestas numeradas correspondientes para autoevaluaciÃ³n.</p>
                     </div>
                   </button>
 
@@ -147,7 +172,7 @@ export default function DeckHeader({
                 type="button"
                 onClick={onCancelPdfExport}
                 className="rounded-lg p-1 text-indigo-500 transition-colors hover:bg-indigo-100 hover:text-indigo-700 cursor-pointer"
-                title="Cancelar exportación"
+                title="Cancelar exportaciÃ³n"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -163,7 +188,7 @@ export default function DeckHeader({
 
         {!isExportingPdf && pdfWarnings.length > 0 && (
           <div className="absolute right-0 top-full z-20 mt-2 w-72 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700 shadow-sm">
-            {pdfWarnings.length === 1 ? pdfWarnings[0].message : `El PDF se generó con ${pdfWarnings.length} advertencias.`}
+            {pdfWarnings.length === 1 ? pdfWarnings[0].message : `El PDF se generÃ³ con ${pdfWarnings.length} advertencias.`}
           </div>
         )}
       </div>
