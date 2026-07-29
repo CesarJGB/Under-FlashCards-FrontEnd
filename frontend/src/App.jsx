@@ -65,13 +65,16 @@ function DashboardScreen({ user, onLogout, onInviteRequired }) {
   const [currentDeck, setCurrentDeck] = useState(null);
   const [initialMode, setInitialMode] = useState('edit');
 
+  // 💡 Determinamos si se está en el editor de un mazo en la biblioteca
+  const isEditingDeck = tab === 'library' && currentDeck !== null && initialMode === 'edit';
+
   const loadDecks = useCallback(async (showSpinner = false, signal) => {
     if (showSpinner) setLoading(true);
     try {
       const res = await fetch(`${BACKEND_URL}/api/decks/${user.id}?t=${Date.now()}`, { 
         signal,
         headers: {
-          'X-User-Id': user.id // 🔑 Pasamos la identidad del usuario requerida por tu backend
+          'X-User-Id': user.id
         }
       });
       if (!res.ok) throw new Error();
@@ -91,7 +94,7 @@ function DashboardScreen({ user, onLogout, onInviteRequired }) {
       const res = await fetch(`${BACKEND_URL}/api/academic/materias/${user.id}?t=${Date.now()}`, { 
         signal,
         headers: {
-          'X-User-Id': user.id // 🔑 Pasamos la identidad del usuario requerida por tu backend
+          'X-User-Id': user.id
         }
       });
       if (!res.ok) throw new Error();
@@ -152,7 +155,6 @@ function DashboardScreen({ user, onLogout, onInviteRequired }) {
   // Ensure viewport resets to top when switching main tabs (SPA behavior)
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    // schedule on next frame to allow DOM updates
     requestAnimationFrame(() => {
       contentScrollRef.current?.scrollTo({ top: 0, left: 0, behavior: 'auto' });
       window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
@@ -247,7 +249,8 @@ function DashboardScreen({ user, onLogout, onInviteRequired }) {
           </div>
         )}
 
-        <div className={`max-w-5xl mx-auto px-4 pt-4 ${tab === 'home' ? 'pb-0' : 'pb-[calc(env(safe-area-inset-bottom)+6rem)]'} md:px-6 md:pt-8 md:pb-8`}>
+        {/* 💡 Si se está editando un mazo, pb-0 remueve el padding inferior reservado para la barra móvil */}
+        <div className={`max-w-5xl mx-auto px-4 pt-4 ${tab === 'home' || isEditingDeck ? 'pb-0' : 'pb-[calc(env(safe-area-inset-bottom)+6rem)]'} md:px-6 md:pt-8 md:pb-8`}>
           {tab === 'home' && (
             <HomeSection 
               key={homeKey}
@@ -333,35 +336,37 @@ function DashboardScreen({ user, onLogout, onInviteRequired }) {
 
       </main>
 
-      {/* 👇 MENÚ DE NAVEGACIÓN MÓVIL OPTIMIZADO 👇 */}
-      <div ref={mobileNavRef} className="md:hidden absolute inset-x-0 mx-auto w-fit bg-white/90 backdrop-blur-xl border border-slate-200/80 h-14 rounded-full px-2 flex items-center gap-1.5 z-40 shadow-[0_8px_32px_rgba(0,0,0,0.12)] animate-[slideUp_0.2s_ease-out]" style={{ bottom: 'calc(env(safe-area-inset-bottom) + 0.75rem)' }}>
-        {[
-          { id: 'home', title: 'Inicio', Icon: Home },
-          { id: 'study', title: 'Estudio', Icon: BookOpen },
-          { id: 'library', title: 'Biblioteca', Icon: Library },
-          { id: 'chat', title: 'Chat', Icon: MessageSquare }
-        ].map((item) => {
-          const isActive = tab === item.id;
-          const IconComponent = item.Icon;
+      {/* 👇 MENÚ DE NAVEGACIÓN MÓVIL OPTIMIZADO (Se oculta en modo edición de mazo) 👇 */}
+      {!isEditingDeck && (
+        <div ref={mobileNavRef} className="md:hidden absolute inset-x-0 mx-auto w-fit bg-white/90 backdrop-blur-xl border border-slate-200/80 h-14 rounded-full px-2 flex items-center gap-1.5 z-40 shadow-[0_8px_32px_rgba(0,0,0,0.12)] animate-[slideUp_0.2s_ease-out]" style={{ bottom: 'calc(env(safe-area-inset-bottom) + 0.75rem)' }}>
+          {[
+            { id: 'home', title: 'Inicio', Icon: Home },
+            { id: 'study', title: 'Estudio', Icon: BookOpen },
+            { id: 'library', title: 'Biblioteca', Icon: Library },
+            { id: 'chat', title: 'Chat', Icon: MessageSquare }
+          ].map((item) => {
+            const isActive = tab === item.id;
+            const IconComponent = item.Icon;
 
-          return (
-            <button
-              key={item.id}
-              onClick={() => handleTabChange(item.id)}
-              className={`h-10 px-4 flex items-center justify-center transition-all duration-200 rounded-full cursor-pointer active:scale-95 ${
-                isActive
-                  ? 'bg-slate-900 text-white shadow-lg shadow-slate-900/30'
-                  : 'text-slate-500 hover:text-slate-700'
-              }`}
-              title={item.title}
-            >
-              <IconComponent className={`w-6 h-6 transition-all duration-200 ${
-                isActive ? 'stroke-[2.5]' : 'stroke-[1.8]'
-              }`} />
-            </button>
-          );
-        })}
-      </div>
+            return (
+              <button
+                key={item.id}
+                onClick={() => handleTabChange(item.id)}
+                className={`h-10 px-4 flex items-center justify-center transition-all duration-200 rounded-full cursor-pointer active:scale-95 ${
+                  isActive
+                    ? 'bg-slate-900 text-white shadow-lg shadow-slate-900/30'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+                title={item.title}
+              >
+                <IconComponent className={`w-6 h-6 transition-all duration-200 ${
+                  isActive ? 'stroke-[2.5]' : 'stroke-[1.8]'
+                }`} />
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* DebugPanel (lazy-loaded) - rendered only when ?debug=true or in DEV */}
       {typeof window !== 'undefined' && (new URLSearchParams(window.location.search).get('debug') === 'true' || import.meta.env.DEV) && (
