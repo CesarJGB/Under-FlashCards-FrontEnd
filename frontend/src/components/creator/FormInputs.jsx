@@ -138,17 +138,29 @@ export default function FormInputs({
 
     if (isAttachedHere) {
       return (
-        <div className="flex min-h-11 min-w-0 max-w-full items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-1">
-          <img
-            src={contentImage}
-            alt="Imagen adjunta"
-            className="h-8 w-8 shrink-0 rounded-lg border border-slate-200 object-cover bg-slate-200"
-          />
+        <div className="absolute inset-x-2 bottom-1.5 flex items-center justify-between gap-2">
+          <label
+            className="flex h-9 min-w-0 max-w-[calc(100%-3rem)] cursor-pointer items-center rounded-lg border border-slate-200 bg-slate-50/95 p-0.5 shadow-[0_2px_5px_-4px_rgba(15,23,42,0.45)] transition-colors hover:border-slate-300 hover:bg-white focus-within:ring-2 focus-within:ring-slate-300"
+            title={`Cambiar imagen de ${side === 'question' ? 'pregunta' : 'respuesta'}`}
+          >
+            <img
+              src={contentImage}
+              alt={`Imagen de ${side === 'question' ? 'pregunta' : 'respuesta'}`}
+              className="h-8 w-8 shrink-0 rounded-md border border-slate-200 object-cover bg-slate-200"
+            />
+            <span className="sr-only">Cambiar imagen de {side === 'question' ? 'pregunta' : 'respuesta'}</span>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => handleContentImageFile(e, side)}
+              className="hidden"
+            />
+          </label>
           <button
             type="button"
             onClick={removeContentImage}
             aria-label="Eliminar imagen adjunta"
-            className="ml-auto flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white/95 text-slate-400 shadow-[0_2px_5px_-4px_rgba(15,23,42,0.45)] transition-colors hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300"
           >
             <X className="h-4 w-4" />
           </button>
@@ -160,9 +172,12 @@ export default function FormInputs({
     if (contentImage) return null;
 
     return (
-      <label className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-[11px] font-semibold text-slate-600 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus-within:ring-2 focus-within:ring-slate-300 focus-within:ring-offset-1">
-        <ImagePlus className="h-4 w-4 text-slate-400" />
-        <span>Imagen</span>
+      <label
+        className="absolute bottom-1.5 right-1.5 flex h-11 w-11 cursor-pointer items-center justify-center rounded-lg border border-slate-200 bg-white/95 text-slate-400 shadow-[0_2px_5px_-4px_rgba(15,23,42,0.45)] transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700 focus-within:outline-none focus-within:ring-2 focus-within:ring-slate-300"
+        title={`Añadir imagen a ${side === 'question' ? 'pregunta' : 'respuesta'}`}
+      >
+        <ImagePlus className="h-4 w-4" />
+        <span className="sr-only">Añadir imagen a {side === 'question' ? 'pregunta' : 'respuesta'}</span>
         <input
           type="file"
           accept="image/*"
@@ -178,15 +193,15 @@ export default function FormInputs({
       <label className="mb-1 block text-xs font-medium text-slate-500">
         {label}
       </label>
-      <textarea
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        aria-label={label}
-        required
-        className="min-h-[88px] w-full resize-y rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium leading-relaxed text-slate-800 outline-none transition-colors placeholder:text-slate-300 focus:border-slate-400 focus:ring-2 focus:ring-slate-900/[0.08]"
-      />
-      <div className="mt-1.5 flex min-h-11 items-center">
+      <div className="relative rounded-xl border border-slate-200 bg-white transition-colors focus-within:border-slate-400 focus-within:ring-2 focus-within:ring-slate-900/[0.08]">
+        <textarea
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          aria-label={label}
+          required
+          className="min-h-[108px] w-full resize-y rounded-xl border-0 bg-transparent px-3 pb-14 pt-2.5 text-sm font-medium leading-relaxed text-slate-800 outline-none placeholder:text-slate-300 focus:ring-0"
+        />
         {renderImageControl(side)}
       </div>
     </div>
@@ -194,7 +209,7 @@ export default function FormInputs({
 
   // 3. MODO INDIVIDUAL: captura directa y compacta de una tarjeta.
   return (
-    <div className="grid gap-3 animate-[fadeIn_0.2s_ease] sm:grid-cols-2">
+    <div className="grid gap-4 animate-[fadeIn_0.2s_ease] sm:grid-cols-2">
       {renderEditorField({
         side: 'question',
         label: 'Pregunta',
