@@ -381,7 +381,7 @@ export default function DeckInterior({ deck, userId, authToken, onBack, initialM
           <button
             type="button"
             onClick={() => setShowGrid(!showGrid)}
-            className="mt-6 w-full flex items-center justify-between bg-white border border-slate-200 hover:bg-slate-50 rounded-2xl px-5 py-3.5 transition-colors shadow-xs active:scale-[0.99]"
+            className="mt-8 w-full flex items-center justify-between bg-white border border-slate-200 hover:bg-slate-50 rounded-2xl px-5 py-3.5 transition-colors shadow-xs active:scale-[0.99]"
           >
             <div className="flex items-center gap-2.5">
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
