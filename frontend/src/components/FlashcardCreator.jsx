@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   SlidersHorizontal, Loader2, Plus, Check, Eye, EyeOff, Trash2, 
   AlignLeft, AlignCenter, AlignRight, Sparkles, Layers, X 
@@ -40,7 +40,7 @@ export default function FlashcardCreator({
   fontSize, setFontSize, showStyles, setShowStyles, isBulk, setIsBulk, bulkText, setBulkText,
   editingId, saving, error, setError, onSubmit, onCancel, contentImage, setContentImage,
   imageSide, setImageSide, onFastDelete, hasCards,
-  userId, deckId, authToken, onAiSuccess, onInviteRequired, onFooterHeightChange
+  userId, deckId, authToken, onAiSuccess, onInviteRequired
 }) {
   const [showPreview, setShowPreview] = useState(() => Boolean(getJSON(PREVIEW_VISIBLE_KEY)));
   const [previewMode, setPreviewMode] = useState(() => getStoredPreviewPanelMode());
@@ -50,27 +50,6 @@ export default function FlashcardCreator({
   const [aiNumCards, setAiNumCards] = useState(5);
   const [aiSaving, setAiSaving] = useState(false);
   const [aiProgress, setAiProgress] = useState(null);
-  const footerRef = useRef(null);
-
-  useLayoutEffect(() => {
-    const footer = footerRef.current;
-    if (!footer || typeof onFooterHeightChange !== 'function') return undefined;
-
-    const updateHeight = () => {
-      onFooterHeightChange(Math.ceil(footer.getBoundingClientRect().height));
-    };
-
-    updateHeight();
-
-    if (typeof ResizeObserver === 'undefined') {
-      window.addEventListener('resize', updateHeight);
-      return () => window.removeEventListener('resize', updateHeight);
-    }
-
-    const observer = new ResizeObserver(updateHeight);
-    observer.observe(footer);
-    return () => observer.disconnect();
-  }, [onFooterHeightChange]);
 
   const activeTab = editingId ? 'single' : (isAi ? 'ai' : (isBulk ? 'bulk' : 'single'));
 
@@ -144,9 +123,9 @@ export default function FlashcardCreator({
   };
 
   const handleFormSubmit = async (e) => {
-    e?.preventDefault?.();
+    e.preventDefault();
     if (activeTab === 'ai') {
-      if (!aiText.trim() || aiSaving) return false;
+      if (!aiText.trim() || aiSaving) return;
       setAiSaving(true);
       setError('');
       setAiProgress({
@@ -174,7 +153,7 @@ export default function FlashcardCreator({
           const errData = await res.json().catch(() => ({}));
           if (res.status === 403 && errData.code === 'INVITE_REQUIRED') {
             onInviteRequired?.();
-            return false;
+            return;
           }
           if (res.status === 401) {
             throw new Error('Tu sesión expiró. Cierra sesión e inicia sesión de nuevo para generar con IA.');
@@ -187,33 +166,37 @@ export default function FlashcardCreator({
         
         setAiText('');
         setIsAi(false); 
-        return true;
       } catch (err) {
         setError(err.message || 'Error de conexión con el nodo de Inteligencia Artificial.');
-        return false;
       } finally {
         setAiProgress(null);
         setAiSaving(false);
       }
     } else {
-      return await onSubmit?.();
+      onSubmit(e);
     }
   };
 
+  // El editor de pantalla completa guarda la tarjeta sin depender de un
+  // evento DOM real. El contenedor padre devuelve true/false para que el
+  // modal solo se cierre después de una respuesta exitosa del backend.
+  const handleManualCardSave = async () => {
+    if (typeof onSubmit !== 'function') return false;
+    return onSubmit({ preventDefault() {} });
+  };
+
   return (
-    <form onSubmit={handleFormSubmit} className="relative flex w-full flex-col bg-[#f7f8fc] text-slate-900">
+    <form onSubmit={handleFormSubmit} className="flex flex-col bg-slate-50 relative w-full">
 
       {/* =========================================
           CUERPO CON SCROLL NATIVO
           ========================================= */}
-      <div className={`mx-auto flex w-full max-w-2xl flex-1 flex-col px-3 sm:px-4 ${
-        activeTab === 'single' ? 'space-y-4 py-4' : 'space-y-5 py-5'
-      }`}>
+      <div className="flex-1 px-4 py-4 space-y-4 max-w-2xl mx-auto w-full">
         
         {/* Selector de Pestañas (Manual / Lote / IA) */}
         {!editingId && (
           <div className="flex justify-center">
-            <div className="flex w-full items-center rounded-2xl border border-slate-200/70 bg-slate-100/80 p-1">
+            <div className="flex bg-white p-1 border border-slate-200 rounded-xl items-center w-full shadow-sm">
               {[
                 { id: 'single', label: 'Manual', Icon: Plus },
                 { id: 'bulk', label: 'Lote', Icon: Layers },
@@ -226,15 +209,13 @@ export default function FlashcardCreator({
                     key={tab.id}
                     type="button"
                     onClick={() => handleTabChange(tab.id)}
-                    className={`inline-flex min-h-11 flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-1 ${
-                      isSelected
-                        ? tab.id === 'ai'
-                          ? 'bg-indigo-600 text-white shadow-sm'
-                          : 'bg-white text-slate-900 shadow-sm'
-                        : 'text-slate-500 hover:bg-white/60 hover:text-slate-900'
+                    className={`flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                      isSelected 
+                        ? 'bg-slate-900 text-white shadow-md' 
+                        : 'text-slate-500 hover:text-slate-900'
                     }`}
                   >
-                    <TabIcon className={`h-3.5 w-3.5 shrink-0 ${isSelected && tab.id === 'ai' ? 'animate-pulse text-indigo-200' : ''}`} />
+                    <TabIcon className={`w-3.5 h-3.5 shrink-0 ${isSelected && tab.id === 'ai' ? 'text-indigo-400 animate-pulse' : ''}`} />
                     <span className="truncate">{tab.label}</span>
                   </button>
                 );
@@ -244,24 +225,28 @@ export default function FlashcardCreator({
         )}
 
         {/* Formulario Dinámico */}
-        <div className={`border border-slate-200/70 bg-white shadow-[0_10px_35px_-30px_rgba(15,23,42,0.45)] ${
-          activeTab === 'single' ? 'rounded-2xl p-3.5 sm:p-4' : 'rounded-3xl p-4 sm:p-6'
-        }`}>
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm">
           <FormInputs 
             isBulk={isBulk} 
             isAi={isAi}
-            editingId={editingId}
             question={question} setQuestion={setQuestion} 
             answer={answer} setAnswer={setAnswer} 
             bulkText={bulkText} setBulkText={setBulkText}
             contentImage={contentImage} imageSide={imageSide} 
             handleContentImageFile={handleContentImageFile} 
             removeContentImage={() => { setContentImage(''); setImageSide(''); }}
-            onSaveManualCard={() => handleFormSubmit()}
-            saving={saving || aiSaving}
-            error={error}
+            styles={styles}
+            updateStyle={updateStyle}
+            ALIGNS={ALIGNS}
+            SWATCHES={SWATCHES}
+            textAlign={textAlign}
+            setTextAlign={setTextAlign}
             aiText={aiText} setAiText={setAiText}
             aiNumCards={aiNumCards} setAiNumCards={setAiNumCards}
+            editingId={editingId}
+            saving={saving}
+            error={error}
+            onSaveManualCard={handleManualCardSave}
           />
         </div>
 
@@ -285,7 +270,7 @@ export default function FlashcardCreator({
 
         {/* Estado de Progreso IA y Errores */}
         {aiSaving && aiProgress && (
-          <section role="status" aria-live="polite" className="rounded-2xl border border-indigo-100/80 bg-white p-4 shadow-[0_8px_24px_-22px_rgba(79,70,229,0.7)]">
+          <section role="status" aria-live="polite" className="rounded-2xl border border-indigo-100 bg-white p-4 shadow-sm">
             <div className="flex items-center justify-between gap-3">
               <div className="flex min-w-0 items-center gap-2">
                 <Loader2 className="h-4 w-4 shrink-0 animate-spin text-indigo-600" aria-hidden="true" />
@@ -304,20 +289,17 @@ export default function FlashcardCreator({
           </section>
         )}
 
-        {error && <p className="rounded-2xl border border-rose-200/80 bg-rose-50/80 px-4 py-3 text-xs font-semibold text-rose-700">{error}</p>}
+        {error && <p className="text-xs text-red-600 font-semibold bg-red-50 border border-red-100 px-4 py-2.5 rounded-2xl">{error}</p>}
       </div>
 
       {/* =========================================
           FOOTER FIJO (Glassmorphism Toolbar)
           ========================================= */}
-      <footer
-        ref={footerRef}
-        className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200/70 bg-white/90 p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] shadow-[0_-12px_35px_-28px_rgba(15,23,42,0.7)] backdrop-blur-xl"
-      >
-        <div className="mx-auto flex w-full max-w-2xl items-center justify-between gap-1.5 sm:gap-2">
+      <footer className="fixed bottom-0 inset-x-0 z-30 bg-white/95 backdrop-blur-xl border-t border-slate-200 p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] shadow-lg">
+        <div className="flex items-center justify-between max-w-2xl mx-auto w-full gap-2">
           
           {/* Grupo de Herramientas (Iconos Micro) */}
-          <div className="flex items-center gap-0.5 sm:gap-2">
+          <div className="flex items-center gap-1 sm:gap-2">
             <button 
               type="button" 
               onClick={() => {
@@ -325,7 +307,7 @@ export default function FlashcardCreator({
                 setShowPreview(nextShowPreview);
                 if (nextShowPreview && previewMode === 'docked') setShowStyles(false);
               }} 
-              className={`flex min-h-11 w-12 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-xl p-1.5 transition-colors sm:w-16 sm:p-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-1 ${showPreview ? 'bg-indigo-50 text-indigo-600' : 'text-slate-600 hover:bg-slate-100'}`}
+              className={`flex flex-col items-center justify-center gap-0.5 p-2 rounded-xl transition-colors w-14 sm:w-16 ${showPreview ? 'text-indigo-600 bg-indigo-50' : 'text-slate-600 hover:bg-slate-100'}`}
             >
               {showPreview ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
               <span className="text-[10px] font-bold">Vista</span>
@@ -335,7 +317,7 @@ export default function FlashcardCreator({
               type="button" 
               onClick={() => { if (!previewLocksStandaloneStyles) setShowStyles(!showStyles); }} 
               disabled={previewLocksStandaloneStyles} 
-              className={`flex min-h-11 w-12 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-xl p-1.5 transition-colors sm:w-16 sm:p-2 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-1 ${showStyles ? 'bg-indigo-50 text-indigo-600' : 'text-slate-600 hover:bg-slate-100'}`}
+              className={`flex flex-col items-center justify-center gap-0.5 p-2 rounded-xl transition-colors w-14 sm:w-16 disabled:opacity-40 disabled:cursor-not-allowed ${showStyles ? 'text-indigo-600 bg-indigo-50' : 'text-slate-600 hover:bg-slate-100'}`}
             >
               <SlidersHorizontal className="w-5 h-5" />
               <span className="text-[10px] font-bold">Estilo</span>
@@ -347,17 +329,17 @@ export default function FlashcardCreator({
                   type="button" 
                   disabled={aiSaving} 
                   onClick={onFastDelete} 
-                  className="flex min-h-11 w-12 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-xl p-1.5 text-slate-600 transition-colors hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:ring-offset-1 sm:w-16 sm:p-2"
+                  className="flex flex-col items-center justify-center gap-0.5 p-2 rounded-xl transition-colors w-14 sm:w-16 text-slate-600 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
                 >
                   <Trash2 className="w-5 h-5" />
                   <span className="text-[10px] font-bold">Borrar</span>
                 </button>
-              ) : <div className="hidden w-12 sm:block sm:w-16" />
+              ) : <div className="hidden sm:block w-16" />
             ) : (
               <button 
                 type="button" 
                 onClick={onCancel} 
-                className="flex min-h-11 w-12 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-xl p-1.5 text-slate-600 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 focus-visible:ring-offset-1 sm:w-16 sm:p-2"
+                className="flex flex-col items-center justify-center gap-0.5 p-2 rounded-xl transition-colors w-14 sm:w-16 text-slate-600 hover:bg-slate-100"
               >
                 <X className="w-5 h-5" />
                 <span className="text-[10px] font-bold">Cancelar</span>
@@ -369,10 +351,10 @@ export default function FlashcardCreator({
           <button 
             type="submit" 
             disabled={saving || aiSaving || (activeTab === 'ai' ? !aiText.trim() : (activeTab === 'bulk' ? !bulkText.trim() : (!question.trim() || !answer.trim())))} 
-            className={`flex min-h-12 min-w-0 flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl px-3 text-xs font-bold shadow-sm transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 sm:flex-initial sm:min-w-[200px] sm:px-8 sm:text-sm ${
+            className={`flex items-center justify-center gap-2 h-12 px-6 sm:px-8 rounded-2xl text-sm font-bold transition-all active:scale-[0.98] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex-1 sm:flex-initial sm:min-w-[200px] shadow-md ${
               activeTab === 'ai' 
-                ? 'bg-gradient-to-r from-indigo-600 via-violet-600 to-indigo-600 text-white hover:from-indigo-500 hover:to-indigo-500' 
-                : 'bg-slate-900 text-white hover:bg-slate-800'
+                ? 'bg-gradient-to-r from-indigo-600 via-violet-600 to-indigo-600 hover:from-indigo-500 hover:to-indigo-500 text-white' 
+                : 'bg-slate-900 hover:bg-slate-800 text-white'
             }`}
           >
             {saving || aiSaving ? (
@@ -385,7 +367,7 @@ export default function FlashcardCreator({
               <Plus className="w-4 h-4 shrink-0" />
             )}
             <span className="truncate">
-              {editingId ? 'Guardar cambios' : activeTab === 'ai' ? 'Generar IA' : activeTab === 'bulk' ? 'Crear Lote' : 'Agregar Tarjeta'}
+              {editingId ? 'Guardar' : activeTab === 'ai' ? 'Generar IA' : activeTab === 'bulk' ? 'Crear Lote' : 'Agregar Tarjeta'}
             </span>
           </button>
         </div>
