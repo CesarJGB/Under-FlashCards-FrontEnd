@@ -143,6 +143,12 @@ export default function FormInputs({
     return (
       <button
         type="button"
+        onPointerDown={(event) => {
+          // Abrimos en el primer contacto y evitamos que el botón original
+          // recupere el foco después de que el modal enfoque el textarea.
+          event.preventDefault();
+          setManualEditorSide(side);
+        }}
         onClick={() => setManualEditorSide(side)}
         className="relative flex min-h-[108px] w-full flex-col rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left transition-colors active:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2"
         aria-label={`Editar ${label.toLowerCase()}`}
@@ -183,6 +189,7 @@ export default function FormInputs({
       </div>
 
       <ManualCardEditorModal
+        key={manualEditorSide || 'manual-card-editor-closed'}
         open={Boolean(manualEditorSide)}
         initialSide={manualEditorSide || 'question'}
         question={question}
