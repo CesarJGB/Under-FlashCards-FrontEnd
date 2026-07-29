@@ -1,5 +1,5 @@
 import { lazy, Suspense, startTransition, useState } from 'react';
-import { FileText, HelpCircle, ImagePlus, Layers, MessageCircle, X } from 'lucide-react';
+import { FileText, ImagePlus, Layers, X } from 'lucide-react';
 
 const PdfExtractor = lazy(() => import('./PdfExtractor'));
 const MAX_AI_DOCUMENT_TEXT_LENGTH = 600000;
@@ -9,7 +9,7 @@ const MAX_AI_CARDS = Number.isInteger(configuredMaxAiCards) && configuredMaxAiCa
   : 500;
 
 export default function FormInputs({
-  isBulk, isAi, editingId, question, setQuestion, answer, setAnswer, bulkText, setBulkText,
+  isBulk, isAi, question, setQuestion, answer, setAnswer, bulkText, setBulkText,
   contentImage, imageSide, handleContentImageFile, removeContentImage,
   aiText, setAiText, aiNumCards, setAiNumCards
 }) {
@@ -133,28 +133,22 @@ export default function FormInputs({
     );
   }
 
-  const isEditing = Boolean(editingId);
-
   const renderImageControl = (side) => {
     const isAttachedHere = Boolean(contentImage && imageSide === side);
 
     if (isAttachedHere) {
       return (
-        <div className="flex min-w-0 max-w-full items-center gap-2 rounded-xl border border-slate-200 bg-white px-2 py-1.5 shadow-[0_3px_12px_-10px_rgba(15,23,42,0.6)]">
+        <div className="flex min-h-11 min-w-0 max-w-full items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-1">
           <img
             src={contentImage}
-            alt={`Imagen de ${side === 'question' ? 'pregunta' : 'respuesta'}`}
-            className="h-9 w-9 shrink-0 rounded-lg border border-slate-200 object-cover bg-slate-100"
+            alt="Imagen adjunta"
+            className="h-8 w-8 shrink-0 rounded-lg border border-slate-200 object-cover bg-slate-200"
           />
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-[11px] font-bold text-slate-700">Imagen adjunta</p>
-            <p className="truncate text-[10px] font-medium text-slate-400">Se mostrará en la tarjeta</p>
-          </div>
           <button
             type="button"
             onClick={removeContentImage}
             aria-label="Eliminar imagen adjunta"
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300"
+            className="ml-auto flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300"
           >
             <X className="h-4 w-4" />
           </button>
@@ -162,13 +156,13 @@ export default function FormInputs({
       );
     }
 
-    // Solo se conserva una imagen por tarjeta, igual que en el flujo original.
+    // Una tarjeta conserva una sola imagen, pero puede estar en cualquiera de sus lados.
     if (contentImage) return null;
 
     return (
-      <label className="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-xl border border-dashed border-slate-300 bg-white px-3 text-[11px] font-bold text-slate-600 transition-colors hover:border-slate-400 hover:bg-slate-50 hover:text-slate-900 focus-within:ring-2 focus-within:ring-slate-300 focus-within:ring-offset-1">
+      <label className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-[11px] font-semibold text-slate-600 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus-within:ring-2 focus-within:ring-slate-300 focus-within:ring-offset-1">
         <ImagePlus className="h-4 w-4 text-slate-400" />
-        <span>Añadir imagen</span>
+        <span>Imagen</span>
         <input
           type="file"
           accept="image/*"
@@ -179,84 +173,43 @@ export default function FormInputs({
     );
   };
 
-  const renderEditorField = ({ side, label, icon: Icon, value, onChange, placeholder, helper }) => (
-    <section className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-slate-50/70 p-3.5 transition-colors focus-within:border-slate-300 focus-within:bg-slate-50 sm:p-4">
-      <div className={`absolute inset-y-0 left-0 w-1 ${side === 'question' ? 'bg-slate-800' : 'bg-emerald-500'}`} aria-hidden="true" />
-
-      <div className="flex items-start gap-3">
-        <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-[11px] font-black ${side === 'question' ? 'bg-slate-900 text-white' : 'bg-emerald-100 text-emerald-700'}`}>
-          {side === 'question' ? '01' : '02'}
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5 text-sm font-extrabold tracking-tight text-slate-800">
-            <Icon className="h-4 w-4 text-slate-500" aria-hidden="true" />
-            {label}
-          </div>
-          <p className="mt-0.5 text-[11px] font-medium leading-relaxed text-slate-400">{helper}</p>
-        </div>
-      </div>
-
+  const renderEditorField = ({ side, label, value, onChange, placeholder }) => (
+    <div className="flex min-w-0 flex-col">
+      <label className="mb-1 block text-xs font-medium text-slate-500">
+        {label}
+      </label>
       <textarea
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         aria-label={label}
-        className="mt-3 min-h-[116px] w-full resize-y rounded-xl border border-slate-200/90 bg-white px-3.5 py-3 text-sm font-medium leading-relaxed text-slate-800 outline-none transition-shadow placeholder:text-slate-300 focus:border-slate-400 focus:ring-4 focus:ring-slate-900/[0.06]"
+        required
+        className="min-h-[88px] w-full resize-y rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium leading-relaxed text-slate-800 outline-none transition-colors placeholder:text-slate-300 focus:border-slate-400 focus:ring-2 focus:ring-slate-900/[0.08]"
       />
-
-      <div className="mt-3 flex min-h-10 items-center justify-between gap-2">
-        <span className="text-[10px] font-semibold text-slate-400">{value.length > 0 ? `${value.length} caracteres` : 'Campo requerido'}</span>
+      <div className="mt-1.5 flex min-h-11 items-center">
         {renderImageControl(side)}
       </div>
-    </section>
+    </div>
   );
 
-  // 3. MODO INDIVIDUAL: editor de una tarjeta con jerarquía de creación y edición.
+  // 3. MODO INDIVIDUAL: captura directa y compacta de una tarjeta.
   return (
-    <div className="animate-[fadeIn_0.2s_ease]">
-      <div className="mb-5 flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
-            {isEditing ? 'Editando tarjeta' : 'Nueva tarjeta'}
-          </p>
-          <h2 className="mt-1 text-xl font-black tracking-tight text-slate-900">
-            {isEditing ? 'Refina el contenido' : 'Crea una tarjeta'}
-          </h2>
-          <p className="mt-1 max-w-[30rem] text-xs font-medium leading-relaxed text-slate-500">
-            Escribe una pregunta clara y una respuesta que puedas recordar.
-          </p>
-        </div>
+    <div className="grid gap-3 animate-[fadeIn_0.2s_ease] sm:grid-cols-2">
+      {renderEditorField({
+        side: 'question',
+        label: 'Pregunta',
+        value: question,
+        onChange: setQuestion,
+        placeholder: '¿Cuál es la capital de Francia?'
+      })}
 
-        <span className="shrink-0 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-extrabold text-slate-500">
-          1 tarjeta
-        </span>
-      </div>
-
-      <div className="space-y-3">
-        {renderEditorField({
-          side: 'question',
-          label: 'Pregunta',
-          icon: HelpCircle,
-          value: question,
-          onChange: setQuestion,
-          placeholder: '¿Cuál es la capital de Francia?',
-          helper: 'Formula algo que puedas responder sin ver la solución.'
-        })}
-
-        {renderEditorField({
-          side: 'answer',
-          label: 'Respuesta',
-          icon: MessageCircle,
-          value: answer,
-          onChange: setAnswer,
-          placeholder: 'París',
-          helper: 'Añade la respuesta directa, una explicación o un ejemplo.'
-        })}
-      </div>
-
-      <p className="mt-4 text-center text-[10px] font-semibold text-slate-400">
-        Puedes ajustar el estilo y ver una previsualización desde la barra inferior.
-      </p>
+      {renderEditorField({
+        side: 'answer',
+        label: 'Respuesta',
+        value: answer,
+        onChange: setAnswer,
+        placeholder: 'París'
+      })}
     </div>
   );
 }
