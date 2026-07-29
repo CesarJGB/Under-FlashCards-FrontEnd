@@ -278,10 +278,15 @@ export default function DeckInterior({ deck, userId, authToken, onBack, initialM
   };
 
   const isSessionMode = SESSION_MODES.includes(mode);
-console.log('DEBUG mode actual:', mode, '| isSessionMode:', isSessionMode);
-  
+
+  // El footer de acciones de FlashcardCreator es `fixed`, así que flota por
+  // encima de lo que venga después de él en el documento (la sección de
+  // colección de tarjetas). Sin este colchón, ese botón y el grid quedan
+  // tapados por el footer sin importar el modo de creación activo.
+  const reserveFooterSpace = mode === 'edit' && canEdit;
+
   return (
-    <div data-testid="deck-interior">
+    <div data-testid="deck-interior" className={reserveFooterSpace ? 'pb-28' : ''}>
       <PdfExportOverlay
         isOpen={pdfExport.isExporting}
         progress={pdfExport.progress}
