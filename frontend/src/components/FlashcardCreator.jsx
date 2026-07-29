@@ -178,7 +178,7 @@ export default function FlashcardCreator({
   };
 
   return (
-    <form onSubmit={handleFormSubmit} className="flex flex-col bg-slate-50 relative pb-28 w-full">
+    <form onSubmit={handleFormSubmit} className="flex flex-col bg-slate-50 relative w-full">
 
       {/* =========================================
           CUERPO CON SCROLL NATIVO
