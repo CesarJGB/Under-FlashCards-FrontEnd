@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   ArrowDown,
   ArrowUp,
@@ -40,6 +40,26 @@ export default function ManualCardEditorModal({
   const [activeSide, setActiveSide] = useState(() => normalizeSide(initialSide));
   const [viewportFrame, setViewportFrame] = useState(null);
   const textareaRef = useRef(null);
+  const imageInputRef = useRef(null);
+  const imagePickerActiveRef = useRef(false);
+
+  const focusTextarea = useCallback(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    try {
+      textarea.focus({ preventScroll: true });
+    } catch {
+      textarea.focus();
+    }
+  }, []);
+
+  const restoreAfterImagePicker = useCallback((delay = 80) => {
+    if (!imagePickerActiveRef.current || typeof window === 'undefined') return;
+
+    imagePickerActiveRef.current = false;
+    window.setTimeout(focusTextarea, delay);
+  }, [focusTextarea]);
 
   useLayoutEffect(() => {
     if (!open) return;
@@ -70,6 +90,28 @@ export default function ManualCardEditorModal({
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [onClose, open]);
+
+  // El selector nativo de iOS puede ocultar el teclado mientras está abierto.
+  // Cuando el usuario vuelve de Fotos/Cámara/Archivos, recuperamos el foco del
+  // textarea sin desmontar el modal ni cambiar de lado.
+  useEffect(() => {
+    if (!open || typeof window === 'undefined') return undefined;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') restoreAfterImagePicker();
+    };
+
+    const handleWindowFocus = () => restoreAfterImagePicker();
+
+    window.addEventListener('focus', handleWindowFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      imagePickerActiveRef.current = false;
+      window.removeEventListener('focus', handleWindowFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [open, restoreAfterImagePicker]);
 
   // iOS no siempre reduce el layout viewport al abrir el teclado. Usamos el
   // viewport visual para que la barra de acciones quede anclada justo arriba.
@@ -113,14 +155,6 @@ export default function ManualCardEditorModal({
   useLayoutEffect(() => {
     if (!open) return undefined;
 
-    const focusTextarea = () => {
-      try {
-        textareaRef.current?.focus({ preventScroll: true });
-      } catch {
-        textareaRef.current?.focus();
-      }
-    };
-
     focusTextarea();
 
     // Fallback para iOS cuando el ref todavía no está disponible durante el
@@ -130,7 +164,7 @@ export default function ManualCardEditorModal({
     });
 
     return () => window.cancelAnimationFrame(frame);
-  }, [open]);
+  }, [focusTextarea, open]);
 
   if (!open) return null;
 
@@ -181,6 +215,27 @@ export default function ManualCardEditorModal({
     await saveCard(false);
   };
 
+  const handleImagePickerPress = (event) => {
+    // Evita que el botón tome el foco y provoque un blur adicional del textarea.
+    event.preventDefault();
+    imagePickerActiveRef.current = true;
+    focusTextarea();
+  };
+
+  const openImagePicker = () => {
+    imagePickerActiveRef.current = true;
+    imageInputRef.current?.click();
+  };
+
+  const handleImageInputChange = (event) => {
+    handleContentImageFile?.(event, activeSide);
+
+    // La lectura de la imagen y el cierre de la hoja nativa son asíncronos en
+    // iOS; este segundo intento cubre también el caso en que no hay evento de
+    // focus al regresar del selector.
+    restoreAfterImagePicker(140);
+  };
+
   return (
     <div
       className="fixed inset-x-0 top-0 z-[70] isolate flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-white pt-[env(safe-area-inset-top)] text-slate-900"
@@ -193,7 +248,7 @@ export default function ManualCardEditorModal({
     >
       <main className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain bg-[#f7f8fc] px-4 py-3 sm:px-6 sm:py-5">
         <div className="mx-auto flex w-full max-w-2xl flex-col gap-3">
-          <div className="h-[clamp(11rem,28dvh,15rem)] shrink-0 overflow-hidden rounded-[1.5rem] border-2 border-slate-500/80 bg-white shadow-[0_18px_45px_-36px_rgba(15,23,42,0.55)] focus-within:border-slate-700 focus-within:ring-4 focus-within:ring-slate-900/[0.06]">
+          <div className="h-[clamp(9rem,24dvh,12rem)] shrink-0 overflow-hidden rounded-[1.5rem] border-2 border-slate-500/80 bg-white shadow-[0_18px_45px_-36px_rgba(15,23,42,0.55)] focus-within:border-slate-700 focus-within:ring-4 focus-within:ring-slate-900/[0.06]">
             <textarea
               ref={textareaRef}
               value={activeValue}
@@ -247,9 +302,13 @@ export default function ManualCardEditorModal({
             <div className="flex h-12 w-14 shrink-0 items-center justify-center">
               {hasActiveImage ? (
                 <div className="flex h-10 items-center gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
-                  <label
-                    className="flex h-8 w-8 cursor-pointer overflow-hidden rounded-lg border border-slate-200 bg-slate-50 focus-within:outline-none focus-within:ring-2 focus-within:ring-slate-300"
+                  <button
+                    type="button"
+                    onMouseDown={handleImagePickerPress}
+                    onClick={openImagePicker}
+                    className="flex h-8 w-8 cursor-pointer overflow-hidden rounded-lg border border-slate-200 bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
                     title={`Cambiar imagen de ${activeCopy.label.toLowerCase()}`}
+                    aria-label={`Cambiar imagen de ${activeCopy.label.toLowerCase()}`}
                     data-testid="manual-card-editor-image-control"
                   >
                     <img
@@ -258,15 +317,10 @@ export default function ManualCardEditorModal({
                       className="h-full w-full object-cover"
                     />
                     <span className="sr-only">Cambiar imagen de {activeCopy.label.toLowerCase()}</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(event) => handleContentImageFile(event, activeSide)}
-                      className="hidden"
-                    />
-                  </label>
+                  </button>
                   <button
                     type="button"
+                    onMouseDown={(event) => event.preventDefault()}
                     onClick={removeContentImage}
                     aria-label="Eliminar imagen adjunta"
                     data-testid="manual-card-editor-remove-image"
@@ -274,22 +328,38 @@ export default function ManualCardEditorModal({
                   >
                     <X className="h-3.5 w-3.5" />
                   </button>
-                </div>
-              ) : (
-                <label
-                  className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition-colors active:bg-slate-100 focus-within:outline-none focus-within:ring-2 focus-within:ring-slate-300"
-                  title={`Añadir imagen a ${activeCopy.label.toLowerCase()}`}
-                  data-testid="manual-card-editor-image-control"
-                >
-                  <ImagePlus className="h-5 w-5" />
-                  <span className="sr-only">Añadir imagen a {activeCopy.label.toLowerCase()}</span>
                   <input
+                    ref={imageInputRef}
                     type="file"
                     accept="image/*"
-                    onChange={(event) => handleContentImageFile(event, activeSide)}
+                    onChange={handleImageInputChange}
+                    onCancel={() => restoreAfterImagePicker()}
                     className="hidden"
                   />
-                </label>
+                </div>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onMouseDown={handleImagePickerPress}
+                    onClick={openImagePicker}
+                    className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition-colors active:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
+                    title={`Añadir imagen a ${activeCopy.label.toLowerCase()}`}
+                    aria-label={`Añadir imagen a ${activeCopy.label.toLowerCase()}`}
+                    data-testid="manual-card-editor-image-control"
+                  >
+                    <ImagePlus className="h-5 w-5" />
+                    <span className="sr-only">Añadir imagen a {activeCopy.label.toLowerCase()}</span>
+                  </button>
+                  <input
+                    ref={imageInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageInputChange}
+                    onCancel={() => restoreAfterImagePicker()}
+                    className="hidden"
+                  />
+                </>
               )}
             </div>
 
