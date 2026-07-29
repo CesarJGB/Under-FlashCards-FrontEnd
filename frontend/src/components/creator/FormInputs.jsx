@@ -1,5 +1,6 @@
-import { lazy, Suspense, startTransition, useState } from 'react';
-import { FileText, ImagePlus, Layers, X } from 'lucide-react';
+import { lazy, Suspense, startTransition, useCallback, useState } from 'react';
+import { FileText, Layers } from 'lucide-react';
+import ManualCardEditorModal from './ManualCardEditorModal';
 
 const PdfExtractor = lazy(() => import('./PdfExtractor'));
 const MAX_AI_DOCUMENT_TEXT_LENGTH = 600000;
@@ -11,9 +12,12 @@ const MAX_AI_CARDS = Number.isInteger(configuredMaxAiCards) && configuredMaxAiCa
 export default function FormInputs({
   isBulk, isAi, question, setQuestion, answer, setAnswer, bulkText, setBulkText,
   contentImage, imageSide, handleContentImageFile, removeContentImage,
-  aiText, setAiText, aiNumCards, setAiNumCards
+  aiText, setAiText, aiNumCards, setAiNumCards,
+  editingId, saving, error, onSaveManualCard
 }) {
   const [customCardCount, setCustomCardCount] = useState('');
+  const [manualEditorSide, setManualEditorSide] = useState(null);
+  const closeManualEditor = useCallback(() => setManualEditorSide(null), []);
 
   // 1. MODO IA: Panel de procesamiento inteligente integrado con PdfExtractor
   if (isAi) {
@@ -133,98 +137,68 @@ export default function FormInputs({
     );
   }
 
-  const renderImageControl = (side) => {
-    const isAttachedHere = Boolean(contentImage && imageSide === side);
-
-    if (isAttachedHere) {
-      return (
-        <div className="absolute bottom-1.5 left-1.5 flex h-10 items-center gap-1 rounded-xl border border-slate-200 bg-white/95 p-1 shadow-[0_2px_5px_-4px_rgba(15,23,42,0.45)]">
-          <label
-            className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50 transition-colors [@media(hover:hover)]:hover:border-slate-300 [@media(hover:hover)]:hover:bg-white focus-within:ring-2 focus-within:ring-slate-300"
-            title={`Cambiar imagen de ${side === 'question' ? 'pregunta' : 'respuesta'}`}
-          >
-            <img
-              src={contentImage}
-              alt={`Imagen de ${side === 'question' ? 'pregunta' : 'respuesta'}`}
-              className="h-full w-full object-cover"
-            />
-            <span className="sr-only">Cambiar imagen de {side === 'question' ? 'pregunta' : 'respuesta'}</span>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={(e) => handleContentImageFile(e, side)}
-              className="hidden"
-            />
-          </label>
-          <button
-            type="button"
-            onClick={removeContentImage}
-            aria-label="Eliminar imagen adjunta"
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-transparent bg-white text-slate-400 transition-colors active:border-rose-200 active:bg-rose-50 active:text-rose-600 [@media(hover:hover)]:hover:border-rose-200 [@media(hover:hover)]:hover:bg-rose-50 [@media(hover:hover)]:hover:text-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      );
-    }
-
-    // Una tarjeta conserva una sola imagen, pero puede estar en cualquiera de sus lados.
-    if (contentImage) return null;
+  const renderEditorTrigger = ({ side, label, value, placeholder }) => {
+    const hasImage = Boolean(contentImage && imageSide === side);
 
     return (
-      <label
-        className="absolute bottom-1.5 right-1.5 flex h-11 w-11 cursor-pointer items-center justify-center rounded-lg border border-slate-200 bg-white/95 text-slate-400 shadow-[0_2px_5px_-4px_rgba(15,23,42,0.45)] transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700 focus-within:outline-none focus-within:ring-2 focus-within:ring-slate-300"
-        title={`Añadir imagen a ${side === 'question' ? 'pregunta' : 'respuesta'}`}
+      <button
+        type="button"
+        onClick={() => setManualEditorSide(side)}
+        className="relative flex min-h-[108px] w-full flex-col rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left transition-colors active:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2"
+        aria-label={`Editar ${label.toLowerCase()}`}
+        data-testid={`manual-${side}-editor-trigger`}
       >
-        <ImagePlus className="h-4 w-4" />
-        <span className="sr-only">Añadir imagen a {side === 'question' ? 'pregunta' : 'respuesta'}</span>
-        <input
-          type="file"
-          accept="image/*"
-          onChange={(e) => handleContentImageFile(e, side)}
-          className="hidden"
-        />
-      </label>
+        <span className="text-xs font-medium text-slate-500">{label}</span>
+        <span className={`mt-1.5 max-h-[66px] overflow-hidden whitespace-pre-wrap break-words pr-9 text-sm font-medium leading-relaxed ${
+          value ? 'text-slate-800' : 'text-slate-300'
+        }`}>
+          {value || placeholder}
+        </span>
+        {hasImage && (
+          <span className="absolute bottom-2 right-2 flex h-7 w-7 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50 shadow-sm">
+            <img src={contentImage} alt={`Imagen de ${label.toLowerCase()}`} className="h-full w-full object-cover" />
+          </span>
+        )}
+      </button>
     );
   };
 
-  const renderEditorField = ({ side, label, value, onChange, placeholder }) => (
-    <div className="flex min-w-0 flex-col">
-      <label className="mb-1 block text-xs font-medium text-slate-500">
-        {label}
-      </label>
-      <div className="relative rounded-xl border border-slate-200 bg-white transition-colors focus-within:border-slate-400 focus-within:ring-2 focus-within:ring-slate-900/[0.08]">
-        <textarea
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-          aria-label={label}
-          required
-          className="min-h-[108px] w-full resize-y rounded-xl border-0 bg-transparent px-3 pb-14 pt-2.5 text-sm font-medium leading-relaxed text-slate-800 outline-none placeholder:text-slate-300 focus:ring-0"
-        />
-        {renderImageControl(side)}
-      </div>
-    </div>
-  );
-
-  // 3. MODO INDIVIDUAL: captura directa y compacta de una tarjeta.
+  // 3. MODO INDIVIDUAL: mantiene la vista compacta y delega la captura al editor de pantalla completa.
   return (
-    <div className="grid gap-4 animate-[fadeIn_0.2s_ease] sm:grid-cols-2">
-      {renderEditorField({
-        side: 'question',
-        label: 'Pregunta',
-        value: question,
-        onChange: setQuestion,
-        placeholder: '¿Cuál es la capital de Francia?'
-      })}
+    <>
+      <div className="grid gap-4 animate-[fadeIn_0.2s_ease] sm:grid-cols-2">
+        {renderEditorTrigger({
+          side: 'question',
+          label: 'Pregunta',
+          value: question,
+          placeholder: '¿Cuál es la capital de Francia?'
+        })}
 
-      {renderEditorField({
-        side: 'answer',
-        label: 'Respuesta',
-        value: answer,
-        onChange: setAnswer,
-        placeholder: 'París'
-      })}
-    </div>
+        {renderEditorTrigger({
+          side: 'answer',
+          label: 'Respuesta',
+          value: answer,
+          placeholder: 'París'
+        })}
+      </div>
+
+      <ManualCardEditorModal
+        open={Boolean(manualEditorSide)}
+        initialSide={manualEditorSide || 'question'}
+        question={question}
+        setQuestion={setQuestion}
+        answer={answer}
+        setAnswer={setAnswer}
+        contentImage={contentImage}
+        imageSide={imageSide}
+        handleContentImageFile={handleContentImageFile}
+        removeContentImage={removeContentImage}
+        onSaveCard={onSaveManualCard}
+        onClose={closeManualEditor}
+        saving={saving}
+        error={error}
+        isEditing={Boolean(editingId)}
+      />
+    </>
   );
 }
