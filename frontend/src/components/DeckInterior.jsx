@@ -307,7 +307,7 @@ export default function DeckInterior({ deck, userId, authToken, onBack, initialM
           onExportPDF={handleExportPDF} 
           isExportingPdf={pdfExport.isExporting}
           pdfProgress={pdfExport.progress}
-          pdfError={pdfError}
+          pdfError={pdfExport.error}
           pdfWarnings={pdfExport.warnings}
           onCancelPdfExport={pdfExport.cancel}
           onImport={canEdit ? handleImportJSON : undefined} 
