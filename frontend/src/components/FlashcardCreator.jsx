@@ -42,6 +42,9 @@ export default function FlashcardCreator({
 }) {
   const [showPreview, setShowPreview] = useState(() => Boolean(getJSON(PREVIEW_VISIBLE_KEY)));
   const [previewMode, setPreviewMode] = useState(() => getStoredPreviewPanelMode());
+  
+  // Estado para saber si el modal a pantalla completa está activo
+  const [isManualModalOpen, setIsManualModalOpen] = useState(false);
 
   const [isAi, setIsAi] = useState(false);
   const [aiText, setAiText] = useState('');
@@ -53,8 +56,10 @@ export default function FlashcardCreator({
 
   const activeTab = editingId ? 'single' : (isAi ? 'ai' : (isBulk ? 'bulk' : 'single'));
 
-  // Medidor de altura del footer dinámico de v3
+  // Medidor de altura del footer: Se PAUSA si el modal manual está abierto
   useLayoutEffect(() => {
+    if (isManualModalOpen) return; // Evita recalcular y re-renderizar en segundo plano al desplegar el teclado
+
     const footer = footerRef.current;
     if (!footer || typeof onFooterHeightChange !== 'function') return;
 
@@ -72,7 +77,7 @@ export default function FlashcardCreator({
     const observer = new ResizeObserver(updateHeight);
     observer.observe(footer);
     return () => observer.disconnect();
-  }, [onFooterHeightChange]);
+  }, [onFooterHeightChange, isManualModalOpen]);
 
   useEffect(() => {
     setJSON(PREVIEW_VISIBLE_KEY, showPreview);
@@ -152,7 +157,6 @@ export default function FlashcardCreator({
     event.target.value = '';
   };
 
-  // Lógica de guardado manual recuperada de v1
   const submitManualCard = useCallback(() => {
     const submitEvent = { preventDefault() {} };
     return (onSaveManualCard || onSubmit)?.(submitEvent);
@@ -223,7 +227,6 @@ export default function FlashcardCreator({
       <div className="flex-1 px-4 py-4 space-y-4 max-w-2xl mx-auto w-full">
         {!editingId && (
           <div className="flex justify-center">
-            {/* Grid selector de v3 con animaciones de pestaña de v1 */}
             <div 
               role="tablist"
               aria-label="Modo de creación"
@@ -288,10 +291,11 @@ export default function FlashcardCreator({
             SWATCHES={SWATCHES}
             textAlign={textAlign}
             setTextAlign={setTextAlign}
+            onModalStateChange={setIsManualModalOpen} // Comunicamos la apertura del modal al padre
           />
         </div>
 
-        {showPreview && (
+        {showPreview && !isManualModalOpen && (
           <FloatingPreviewPanel
             question={activeTab === 'ai' ? '¿Pregunta muestra generada por la IA?' : question}
             answer={activeTab === 'ai' ? 'Esta será la respuesta explicativa de tu tarjeta inteligente.' : answer}
@@ -310,7 +314,7 @@ export default function FlashcardCreator({
           />
         )}
 
-        {showStandaloneStylePanel && (
+        {showStandaloneStylePanel && !isManualModalOpen && (
           <StylePanel
             ALIGNS={ALIGNS}
             SWATCHES={SWATCHES}
@@ -324,7 +328,6 @@ export default function FlashcardCreator({
           />
         )}
 
-        {/* Panel de progreso de IA detallado recuperado de v1 */}
         {aiSaving && aiProgress && (
           <section role="status" aria-live="polite" className="rounded-2xl border border-indigo-100 bg-white p-4 shadow-sm">
             <div className="flex items-center justify-between gap-3">
@@ -357,7 +360,6 @@ export default function FlashcardCreator({
         {error && <p className="text-xs text-red-600 font-semibold bg-red-50 border border-red-100 px-4 py-2.5 rounded-2xl">{error}</p>}
       </div>
 
-      {/* Footer con disposición vertical de v1, color blanco sólido y medición ref de v3 */}
       <footer 
         ref={footerRef}
         className="fixed bottom-0 inset-x-0 z-30 bg-white border-t border-slate-200 p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] shadow-lg"
@@ -411,7 +413,6 @@ export default function FlashcardCreator({
             )}
           </div>
 
-          {/* Botón submit con degradado e ícono animado de v1 */}
           <button
             type="submit"
             disabled={saving || aiSaving || (activeTab === 'ai' ? !aiText.trim() : (activeTab === 'bulk' ? !bulkText.trim() : (!question.trim() || !answer.trim())))}
