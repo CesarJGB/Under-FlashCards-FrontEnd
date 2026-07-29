@@ -1,7 +1,11 @@
 // FILE: frontend/src/components/FlashcardCreator.jsx
 
 import { useState, useEffect } from 'react';
-import { SlidersHorizontal, Loader2, Plus, Check, Eye, EyeOff, Trash2, AlignLeft, AlignCenter, AlignRight, Sparkles, Layers } from 'lucide-react';
+import { 
+  SlidersHorizontal, Loader2, Plus, Check, Eye, EyeOff, Trash2, 
+  AlignLeft, AlignCenter, AlignRight, Sparkles, Layers, 
+  ChevronLeft, Download, X 
+} from 'lucide-react';
 
 import FormInputs from './creator/FormInputs';
 import StylePanel from './creator/StylePanel';
@@ -34,11 +38,14 @@ const AI_GENERATION_ENDPOINT = import.meta.env.VITE_AI_GENERATION_MODE === 'v1'
   : '/api/flashcards/generate-ai-v2';
 
 export default function FlashcardCreator({
+  // Props existentes
   question, setQuestion, answer, setAnswer, bgImage, setBgImage, textAlign, setTextAlign,
   fontSize, setFontSize, showStyles, setShowStyles, isBulk, setIsBulk, bulkText, setBulkText,
   editingId, saving, error, setError, onSubmit, onCancel, contentImage, setContentImage,
   imageSide, setImageSide, onFastDelete, hasCards,
-  userId, deckId, authToken, onAiSuccess, onInviteRequired
+  userId, deckId, authToken, onAiSuccess, onInviteRequired,
+  // Nuevas props opcionales para el Studio Header
+  deckTitle = 'Editor de Mazo', onBack, onExport, onToggleReview, isReviewMode = false
 }) {
   const [showPreview, setShowPreview] = useState(() => Boolean(getJSON(PREVIEW_VISIBLE_KEY)));
   const [previewMode, setPreviewMode] = useState(() => getStoredPreviewPanelMode());
@@ -76,8 +83,6 @@ export default function FlashcardCreator({
     }
   };
 
-  // El motor redundante parseCurrentStyles fue removido con éxito.
-  // Ahora consumimos directamente la utilidad unificada de la aplicación.
   const styles = parseCardStyles(fontSize);
   const previewLocksStandaloneStyles = showPreview && previewMode === 'docked';
   const showStandaloneStylePanel = showStyles && (!showPreview || previewMode !== 'docked');
@@ -129,11 +134,8 @@ export default function FlashcardCreator({
       setAiSaving(true);
       setError('');
       setAiProgress({
-        generated: 0,
-        audited: 0,
-        accepted: 0,
-        target: Number(aiNumCards) || 0,
-        total: Number(aiNumCards) || 0,
+        generated: 0, audited: 0, accepted: 0,
+        target: Number(aiNumCards) || 0, total: Number(aiNumCards) || 0,
         message: 'Preparando la generación con IA...',
       });
 
@@ -147,10 +149,7 @@ export default function FlashcardCreator({
             ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
           },
           body: JSON.stringify({
-            userId,
-            deckId,
-            text: aiText,
-            count: aiNumCards,
+            userId, deckId, text: aiText, count: aiNumCards,
             batchStyles: { bgImage, textAlign, fontSize }
           })
         });
@@ -183,168 +182,238 @@ export default function FlashcardCreator({
     }
   };
 
+  const togglePreview = () => {
+    const nextShowPreview = !showPreview;
+    setShowPreview(nextShowPreview);
+    if (nextShowPreview && previewMode === 'docked') setShowStyles(false);
+  };
+
+  const toggleStyles = () => {
+    if (!previewLocksStandaloneStyles) setShowStyles(!showStyles);
+  };
+
   return (
-    <form onSubmit={handleFormSubmit} className="mt-4 bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+    <form onSubmit={handleFormSubmit} className="flex flex-col h-[calc(100vh-4rem)] min-h-0 w-full bg-slate-50 sm:h-[calc(100vh-5rem)]">
       
-      {/* SECTOR DE CABECERA CON CONTROL SEGMENTADO GEOMÉTRICO */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 border-b border-slate-100 pb-3">
-        <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
-          {editingId ? 'Modo de edición activa' : 'Método de construcción'}
-        </p>
-        
-        {!editingId && (
-          <div className="grid grid-cols-3 sm:flex bg-slate-100 p-1 border border-slate-200/60 rounded-xl items-center w-full sm:w-auto self-center">
-            {[
-              { id: 'single', label: 'Manual', Icon: Plus },
-              { id: 'bulk', label: 'Lote', Icon: Layers },
-              { id: 'ai', label: 'IA', Icon: Sparkles }
-            ].map((tab) => {
-              const TabIcon = tab.Icon;
-              const isSelected = activeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => handleTabChange(tab.id)}
-                  className={`inline-flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                    isSelected 
-                      ? 'bg-white text-slate-900 shadow-2xs' 
-                      : 'text-slate-500 hover:text-slate-800'
-                  }`}
-                >
-                  <TabIcon className={`w-3.5 h-3.5 shrink-0 ${isSelected && tab.id === 'ai' ? 'text-indigo-500 animate-pulse' : ''}`} />
-                  <span className="truncate">{tab.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      <FormInputs 
-        isBulk={isBulk} 
-        isAi={isAi}
-        question={question} setQuestion={setQuestion} 
-        answer={answer} setAnswer={setAnswer} 
-        bulkText={bulkText} setBulkText={setBulkText}
-        contentImage={contentImage} imageSide={imageSide} 
-        handleContentImageFile={handleContentImageFile} 
-        removeContentImage={() => { setContentImage(''); setImageSide(''); }}
-        aiText={aiText} setAiText={setAiText}
-        aiNumCards={aiNumCards} setAiNumCards={setAiNumCards}
-      />
-
-      {/* ✨ ACTUALIZADO: Retiramos 'activeTab !== "ai"' para que la botonera de estilos esté siempre disponible */}
-      <div className="mt-4 grid grid-cols-2 gap-3">
-        <button 
-          type="button" 
-          onClick={() => {
-            const nextShowPreview = !showPreview;
-            setShowPreview(nextShowPreview);
-            if (nextShowPreview && previewMode === 'docked') setShowStyles(false);
-          }} 
-          className={`flex w-full flex-col sm:flex-row items-center justify-center text-center gap-1 sm:gap-2 text-xs font-bold rounded-xl h-12 sm:h-11 border transition-all active:scale-[0.98] shadow-3xs cursor-pointer p-1 ${
-            showPreview ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
-          }`}
-        >
-          {showPreview ? <EyeOff className="w-3.5 h-3.5 shrink-0" /> : <Eye className="w-3.5 h-3.5 shrink-0" />}
-          <span className="text-center leading-tight">{showPreview ? 'Cerrar vista' : 'Previsualizar Tarjeta'}</span>
-        </button>
-
-        <button 
-          type="button" 
-          onClick={() => { if (!previewLocksStandaloneStyles) setShowStyles(!showStyles); }} 
-          disabled={previewLocksStandaloneStyles} 
-          className={`flex w-full flex-col sm:flex-row items-center justify-center text-center gap-1 sm:gap-2 text-xs font-bold rounded-xl h-12 sm:h-11 border transition-all active:scale-[0.98] shadow-3xs cursor-pointer p-1 ${
-            previewLocksStandaloneStyles 
-              ? 'opacity-40 cursor-not-allowed bg-slate-50 text-slate-400 border-slate-200' 
-              : showStyles 
-              ? 'bg-slate-100 text-slate-900 border-slate-300' 
-              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
-          }`}
-        >
-          <SlidersHorizontal className="w-3.5 h-3.5 shrink-0" />
-          <span className="text-center leading-tight">Estilo rápido</span>
-        </button>
-      </div>
-
-      {/* ✨ ACTUALIZADO: Inyección inteligente de placeholders dinámicos si están en modo IA */}
-      {showPreview && (
-        <FloatingPreviewPanel 
-          question={activeTab === 'ai' ? '¿Pregunta muestra generada por la IA?' : question} 
-          answer={activeTab === 'ai' ? 'Esta será la respuesta explicativa de tu tarjeta inteligente.' : answer} 
-          bgImage={bgImage} textAlign={textAlign} styles={styles} contentImage={contentImage} imageSide={imageSide}
-          ALIGNS={ALIGNS} SWATCHES={SWATCHES} setTextAlign={setTextAlign} handleBgFile={handleBgFile} updateStyle={updateStyle} setBgImage={setBgImage}
-          onModeChange={setPreviewMode}
-        />
-      )}
-
-      {/* ✨ ACTUALIZADO: Unificado el panel de control estético rápido para los 3 modos */}
-      {showStandaloneStylePanel && (
-        <StylePanel 
-          ALIGNS={ALIGNS} SWATCHES={SWATCHES} textAlign={textAlign} setTextAlign={setTextAlign} bgImage={bgImage} setBgImage={setBgImage}
-          styles={styles} updateStyle={updateStyle} handleBgFile={handleBgFile}
-        />
-      )}
-
-      <div className="mt-3 grid grid-cols-2 gap-3 border-t border-slate-100 pt-3.5">
-        {!editingId ? (
-          onFastDelete && hasCards ? (
-            <button type="button" disabled={aiSaving} onClick={onFastDelete} className="flex w-full flex-col sm:flex-row items-center justify-center text-center gap-1 sm:gap-2 text-xs font-bold h-12 sm:h-11 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all active:scale-[0.98] shadow-3xs cursor-pointer disabled:opacity-50">
-              <Trash2 className="w-3.5 h-3.5 text-red-500 shrink-0" /> <span className="text-center">Borrado Rápido</span>
+      {/* =========================================
+          1. HEADER FIJO (Barra Superior de Contexto)
+          ========================================= */}
+      <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-200 px-4 py-2.5 flex items-center justify-between shrink-0">
+        {/* Izquierda: Back */}
+        <div className="flex items-center gap-2 flex-1">
+          {onBack && (
+            <button type="button" onClick={onBack} className="p-2 hover:bg-slate-100 rounded-full transition-colors cursor-pointer">
+              <ChevronLeft className="w-5 h-5 text-slate-700" />
             </button>
-          ) : <div className="w-full h-12 sm:h-11" />
-        ) : (
-          <button type="button" onClick={onCancel} className="flex w-full flex-col sm:flex-row items-center justify-center text-center gap-1 sm:gap-2 rounded-xl border border-slate-200 h-12 sm:h-11 text-xs font-bold text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-all active:scale-[0.98] shadow-3xs cursor-pointer">
-            <span className="text-center">Cancelar</span>
-          </button>
+          )}
+        </div>
+
+        {/* Centro: Título + Switcher */}
+        <div className="flex flex-col items-center justify-center flex-[2] min-w-0 px-2">
+          <span className="text-sm font-bold text-slate-800 truncate max-w-[150px] sm:max-w-xs">
+            {editingId ? 'Editando Tarjeta' : deckTitle}
+          </span>
+          {onToggleReview && (
+            <div className="flex bg-slate-100 p-0.5 rounded-full text-[10px] font-bold mt-1">
+              <button 
+                type="button"
+                onClick={() => onToggleReview(false)} 
+                className={`px-3 py-0.5 rounded-full transition-all cursor-pointer ${!isReviewMode ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500'}`}
+              >
+                Edición
+              </button>
+              <button 
+                type="button"
+                onClick={() => onToggleReview(true)} 
+                className={`px-3 py-0.5 rounded-full transition-all cursor-pointer ${isReviewMode ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500'}`}
+              >
+                Repaso
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Derecha: Export */}
+        <div className="flex items-center justify-end gap-2 flex-1">
+          {onExport && (
+            <button type="button" onClick={onExport} className="p-2 hover:bg-slate-100 rounded-full transition-colors cursor-pointer" title="Exportar mazo">
+              <Download className="w-5 h-5 text-slate-700" />
+            </button>
+          )}
+        </div>
+      </header>
+
+      {/* =========================================
+          2. WORKSPACE CENTRAL (Lienzo Escusable)
+          ========================================= */}
+      <main className="flex-1 overflow-y-auto px-4 py-4 space-y-4 max-w-4xl mx-auto w-full">
+        
+        {/* Selector de Pestañas (Manual / Lote / IA) */}
+        {!editingId && (
+          <div className="flex justify-center">
+            <div className="grid grid-cols-3 sm:flex bg-white p-1 border border-slate-200 rounded-xl items-center w-full sm:w-auto shadow-sm">
+              {[
+                { id: 'single', label: 'Manual', Icon: Plus },
+                { id: 'bulk', label: 'Lote', Icon: Layers },
+                { id: 'ai', label: 'IA', Icon: Sparkles }
+              ].map((tab) => {
+                const TabIcon = tab.Icon;
+                const isSelected = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => handleTabChange(tab.id)}
+                    className={`inline-flex items-center justify-center gap-1.5 px-3 sm:px-6 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                      isSelected 
+                        ? 'bg-slate-900 text-white shadow-md' 
+                        : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'
+                    }`}
+                  >
+                    <TabIcon className={`w-3.5 h-3.5 shrink-0 ${isSelected && tab.id === 'ai' ? 'text-indigo-400 animate-pulse' : ''}`} />
+                    <span className="truncate">{tab.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         )}
 
-        <button 
-          type="submit" 
-          disabled={saving || aiSaving || (activeTab === 'ai' ? !aiText.trim() : (activeTab === 'bulk' ? !bulkText.trim() : (!question.trim() || !answer.trim())))} 
-          className={`flex w-full flex-col sm:flex-row items-center justify-center text-center gap-1 sm:gap-2 rounded-xl text-xs font-bold h-12 sm:h-11 transition-all active:scale-[0.98] cursor-pointer shadow-sm ${
-            activeTab === 'ai' 
-              ? 'bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 hover:from-slate-800 hover:to-slate-800 text-white border border-indigo-950/20' 
-              : 'bg-slate-900 hover:bg-slate-800 text-white'
-          }`}
-        >
-          {saving || aiSaving ? (
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-          ) : editingId ? (
-            <Check className="w-3.5 h-3.5 shrink-0" />
-          ) : activeTab === 'ai' ? (
-            <Sparkles className="w-3.5 h-3.5 text-indigo-400 shrink-0 animate-[pulse_1.5s_infinite]" />
-          ) : (
-            <Plus className="w-3.5 h-3.5 shrink-0" />
-          )}
-          <span className="text-center">
-            {editingId ? 'Guardar' : activeTab === 'ai' ? 'Generar con IA' : activeTab === 'bulk' ? 'Generar lote' : 'Agregar tarjeta'}
-          </span>
-        </button>
-      </div>
+        {/* Formulario Dinámico */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm">
+          <FormInputs 
+            isBulk={isBulk} 
+            isAi={isAi}
+            question={question} setQuestion={setQuestion} 
+            answer={answer} setAnswer={setAnswer} 
+            bulkText={bulkText} setBulkText={setBulkText}
+            contentImage={contentImage} imageSide={imageSide} 
+            handleContentImageFile={handleContentImageFile} 
+            removeContentImage={() => { setContentImage(''); setImageSide(''); }}
+            aiText={aiText} setAiText={setAiText}
+            aiNumCards={aiNumCards} setAiNumCards={setAiNumCards}
+          />
+        </div>
 
-      {aiSaving && aiProgress && (
-        <section role="status" aria-live="polite" className="mt-3 rounded-xl border border-indigo-100 bg-indigo-50 p-3">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-2">
-              <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-indigo-600" aria-hidden="true" />
-              <p className="truncate text-xs font-bold text-indigo-950">{aiProgress.message}</p>
+        {/* Inyección de Paneles Desplegables */}
+        {showPreview && (
+          <FloatingPreviewPanel 
+            question={activeTab === 'ai' ? '¿Pregunta muestra generada por la IA?' : question} 
+            answer={activeTab === 'ai' ? 'Esta será la respuesta explicativa de tu tarjeta inteligente.' : answer} 
+            bgImage={bgImage} textAlign={textAlign} styles={styles} contentImage={contentImage} imageSide={imageSide}
+            ALIGNS={ALIGNS} SWATCHES={SWATCHES} setTextAlign={setTextAlign} handleBgFile={handleBgFile} updateStyle={updateStyle} setBgImage={setBgImage}
+            onModeChange={setPreviewMode}
+          />
+        )}
+
+        {showStandaloneStylePanel && (
+          <StylePanel 
+            ALIGNS={ALIGNS} SWATCHES={SWATCHES} textAlign={textAlign} setTextAlign={textAlignAlign} bgImage={bgImage} setBgImage={setBgImage}
+            styles={styles} updateStyle={updateStyle} handleBgFile={handleBgFile}
+          />
+        )}
+
+        {/* Estado de Progreso IA y Errores */}
+        {aiSaving && aiProgress && (
+          <section role="status" aria-live="polite" className="rounded-2xl border border-indigo-100 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-2">
+                <Loader2 className="h-4 w-4 shrink-0 animate-spin text-indigo-600" aria-hidden="true" />
+                <p className="truncate text-xs font-bold text-slate-800">{aiProgress.message}</p>
+              </div>
+              <span className="shrink-0 text-xs font-black tabular-nums text-indigo-700">
+                {aiProgress.accepted || 0}/{aiProgress.target || 0}
+              </span>
             </div>
-            <span className="shrink-0 text-xs font-black tabular-nums text-indigo-700">
-              {aiProgress.accepted || 0}/{aiProgress.target || 0}
-            </span>
-          </div>
-          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-indigo-200/70" role="progressbar" aria-valuemin={0} aria-valuemax={aiProgress.total || 1} aria-valuenow={Math.min(aiProgress.generated || 0, aiProgress.total || 0)} aria-label="Tarjetas generadas">
-            <div className="h-full rounded-full bg-indigo-600 transition-[width] duration-300" style={{ width: `${aiProgress.total ? Math.min(100, ((aiProgress.generated || 0) / aiProgress.total) * 100) : 0}%` }} />
-          </div>
-          <p className="mt-2 text-[11px] font-medium text-indigo-700">
-            {aiProgress.generated || 0} generadas · {aiProgress.audited || 0} auditadas · {aiProgress.accepted || 0} listas para guardar
-          </p>
-        </section>
-      )}
+            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-valuemin={0} aria-valuemax={aiProgress.total || 1} aria-valuenow={Math.min(aiProgress.generated || 0, aiProgress.total || 0)}>
+              <div className="h-full rounded-full bg-indigo-600 transition-[width] duration-300" style={{ width: `${aiProgress.total ? Math.min(100, ((aiProgress.generated || 0) / aiProgress.total) * 100) : 0}%` }} />
+            </div>
+            <p className="mt-2 text-[11px] font-medium text-slate-500">
+              {aiProgress.generated || 0} generadas · {aiProgress.audited || 0} auditadas · {aiProgress.accepted || 0} listas
+            </p>
+          </section>
+        )}
 
-      {error && <p className="mt-2 text-xs text-red-600 font-semibold bg-red-50 border border-red-100 px-3 py-1.5 rounded-xl animate-[fadeIn_0.1s_ease]">{error}</p>}
+        {error && <p className="text-xs text-red-600 font-semibold bg-red-50 border border-red-100 px-4 py-2.5 rounded-2xl animate-[fadeIn_0.1s_ease]">{error}</p>}
+      </main>
+
+      {/* =========================================
+          3. FOOTER FIJO (Barra de Acción Inferior)
+          ========================================= */}
+      <footer className="sticky bottom-0 z-30 bg-white/95 backdrop-blur-lg border-t border-slate-200/80 px-4 pt-2.5 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
+        <div className="max-w-4xl mx-auto w-full flex items-center justify-between gap-2 sm:gap-4">
+          
+          {/* Grupo de Herramientas (Botones de Toolbar) */}
+          <div className="flex items-center gap-1 sm:gap-2">
+            <button 
+              type="button" 
+              onClick={togglePreview} 
+              className={`flex flex-col items-center justify-center gap-0.5 p-2 rounded-xl transition-colors w-14 sm:w-16 ${showPreview ? 'text-indigo-600 bg-indigo-50' : 'text-slate-500 hover:bg-slate-100'}`}
+            >
+              {showPreview ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              <span className="text-[9px] sm:text-[10px] font-bold">Vista</span>
+            </button>
+
+            <button 
+              type="button" 
+              onClick={toggleStyles} 
+              disabled={previewLocksStandaloneStyles} 
+              className={`flex flex-col items-center justify-center gap-0.5 p-2 rounded-xl transition-colors w-14 sm:w-16 disabled:opacity-40 disabled:cursor-not-allowed ${showStyles ? 'text-indigo-600 bg-indigo-50' : 'text-slate-500 hover:bg-slate-100'}`}
+            >
+              <SlidersHorizontal className="w-4 h-4" />
+              <span className="text-[9px] sm:text-[10px] font-bold">Estilo</span>
+            </button>
+
+            {!editingId ? (
+              onFastDelete && hasCards ? (
+                <button 
+                  type="button" 
+                  disabled={aiSaving} 
+                  onClick={onFastDelete} 
+                  className="flex flex-col items-center justify-center gap-0.5 p-2 rounded-xl transition-colors w-14 sm:w-16 text-slate-500 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span className="text-[9px] sm:text-[10px] font-bold">Borrar</span>
+                </button>
+              ) : <div className="hidden sm:block w-16" />
+            ) : (
+              <button 
+                type="button" 
+                onClick={onCancel} 
+                className="flex flex-col items-center justify-center gap-0.5 p-2 rounded-xl transition-colors w-14 sm:w-16 text-slate-500 hover:bg-slate-100"
+              >
+                <X className="w-4 h-4" />
+                <span className="text-[9px] sm:text-[10px] font-bold">Cancelar</span>
+              </button>
+            )}
+          </div>
+
+          {/* Botón Principal de Acción */}
+          <button 
+            type="submit" 
+            disabled={saving || aiSaving || (activeTab === 'ai' ? !aiText.trim() : (activeTab === 'bulk' ? !bulkText.trim() : (!question.trim() || !answer.trim())))} 
+            className={`flex items-center justify-center gap-2 h-11 px-6 sm:px-8 rounded-xl text-sm font-bold transition-all active:scale-[0.98] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex-1 sm:flex-initial sm:min-w-[180px] shadow-md ${
+              activeTab === 'ai' 
+                ? 'bg-gradient-to-r from-indigo-600 via-violet-600 to-indigo-600 hover:from-indigo-500 hover:to-indigo-500 text-white' 
+                : 'bg-slate-900 hover:bg-slate-800 text-white'
+            }`}
+          >
+            {saving || aiSaving ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : editingId ? (
+              <Check className="w-4 h-4 shrink-0" />
+            ) : activeTab === 'ai' ? (
+              <Sparkles className="w-4 h-4 text-indigo-300 shrink-0 animate-pulse" />
+            ) : (
+              <Plus className="w-4 h-4 shrink-0" />
+            )}
+            <span className="truncate">
+              {editingId ? 'Guardar' : activeTab === 'ai' ? 'Generar IA' : activeTab === 'bulk' ? 'Crear Lote' : 'Agregar Tarjeta'}
+            </span>
+          </button>
+        </div>
+      </footer>
+
     </form>
   );
 }
