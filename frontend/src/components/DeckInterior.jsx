@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Loader2, ChevronDown, ChevronUp, Eye } from 'lucide-react'; 
 import ReviewMode from './ReviewMode';
 import DeckHeader from './DeckHeader';
@@ -40,6 +40,7 @@ export default function DeckInterior({ deck, userId, authToken, onBack, initialM
   
   const [editingId, setEditingId] = useState(null);
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const [error, setError] = useState('');
   const [headerHeight, setHeaderHeight] = useState(76);
   const [footerHeight, setFooterHeight] = useState(96);
@@ -152,10 +153,10 @@ export default function DeckInterior({ deck, userId, authToken, onBack, initialM
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!canEdit) return;
-    setSaving(true);
+  const handleSubmit = async (event) => {
+    event?.preventDefault?.();
+    if (!canEdit || savingRef.current) return false;
+
     setError('');
 
     if (isBulk && !editingId) {
@@ -177,8 +178,11 @@ export default function DeckInterior({ deck, userId, authToken, onBack, initialM
 
       if (parsedCards.length === 0) {
         setError('No se encontraron bloques válidos (P: ... R: ...)');
-        setSaving(false); return;
+        return false;
       }
+
+      savingRef.current = true;
+      setSaving(true);
 
       try {
         const res = await fetch(`${BACKEND_URL}/api/flashcards/bulk`, {
@@ -189,17 +193,25 @@ export default function DeckInterior({ deck, userId, authToken, onBack, initialM
         if (!res.ok) throw new Error('No se pudo guardar el lote.');
         const batchData = await res.json();
         setCards((prev) => [...batchData, ...prev]);
-        resetForm(); setIsBulk(false);
-        
+        resetForm();
+        setIsBulk(false);
+
         // 🚀 Sincronizar recuento tras guardar un lote manual por texto
         if (typeof onRefreshData === 'function') onRefreshData();
-
-      } catch (err) { setError(err.message); } finally { setSaving(false); }
-      return;
+        return true;
+      } catch (err) {
+        setError(err.message);
+        return false;
+      } finally {
+        savingRef.current = false;
+        setSaving(false);
+      }
     }
 
-    if (!question.trim() || !answer.trim()) { setSaving(false); return; }
+    if (!question.trim() || !answer.trim()) return false;
 
+    savingRef.current = true;
+    setSaving(true);
     const body = { question, answer, bgImage, textAlign, fontSize, contentImage, imageSide };
 
     try {
@@ -211,12 +223,11 @@ export default function DeckInterior({ deck, userId, authToken, onBack, initialM
         });
         if (!res.ok) throw new Error('No se pudo actualizar.');
         const updated = await res.json();
-        setCards((prev) => prev.map((c) => (c.id === editingId ? updated : c)));
-        resetForm(); 
-        
+        setCards((prev) => prev.map((card) => (card.id === editingId ? updated : card)));
+        resetForm();
+
         // 🚀 Sincronizar cambios por si mutaron métricas de estilo o contenido
         if (typeof onRefreshData === 'function') onRefreshData();
-
       } else {
         const res = await fetch(`${BACKEND_URL}/api/flashcards`, {
           method: 'POST',
@@ -226,19 +237,23 @@ export default function DeckInterior({ deck, userId, authToken, onBack, initialM
         if (!res.ok) throw new Error('No se pudo crear.');
         const newCard = await res.json();
         setCards((prev) => [newCard, ...prev]);
-        
-        setQuestion(''); 
+
+        setQuestion('');
         setAnswer('');
-        setContentImage(''); 
-        setImageSide(''); 
-        
+        setContentImage('');
+        setImageSide('');
+
         // 🚀 Sincronizar incremento en el contador de tarjetas del mazo
         if (typeof onRefreshData === 'function') onRefreshData();
       }
-    } catch (e) { 
-      setError(e.message); 
-    } finally { 
-      setSaving(false); 
+
+      return true;
+    } catch (err) {
+      setError(err.message);
+      return false;
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
     }
   };
 
@@ -292,7 +307,7 @@ export default function DeckInterior({ deck, userId, authToken, onBack, initialM
   return (
     <div 
       data-testid="deck-interior" 
-      className={`w-full min-h-[100dvh] ${!isSessionMode ? 'pt-[var(--deck-header-height)]' : ''} ${reserveFooterSpace ? 'pb-[var(--deck-footer-height)]' : ''}`}
+      className={`min-h-[100dvh] w-full overflow-x-hidden bg-[#f7f8fc] text-slate-900 ${!isSessionMode ? 'pt-[var(--deck-header-height)]' : ''} ${reserveFooterSpace ? 'pb-[var(--deck-footer-height)]' : ''}`}
       style={shellStyle}
     >
       <PdfExportOverlay
@@ -378,13 +393,13 @@ export default function DeckInterior({ deck, userId, authToken, onBack, initialM
               }}
             />
           ) : (
-            <div className="bg-blue-50/60 border border-blue-200/50 rounded-2xl p-4 flex items-center gap-3.5 text-blue-800 text-xs font-semibold shadow-3xs animate-[fadeIn_0.15s_ease] mb-2">
-              <div className="w-8 h-8 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-600 shrink-0">
+            <div className="mb-2 flex items-center gap-3.5 rounded-2xl border border-slate-200/80 bg-white/80 p-4 text-xs font-semibold text-slate-700 shadow-3xs animate-[fadeIn_0.15s_ease]">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600">
                 <Eye className="w-4 h-4 stroke-[2.5]" />
               </div>
               <div className="flex-1">
-                <p className="text-blue-950 font-bold text-sm">Plantilla Protegida de Solo Lectura</p>
-                <p className="text-blue-600/90 font-medium mt-0.5">Estás explorando un mazo oficial configurado en modo consulta. Puedes ver y repasar todas sus tarjetas libremente, pero no se permiten modificaciones.</p>
+                <p className="text-sm font-bold text-slate-900">Plantilla Protegida de Solo Lectura</p>
+                <p className="mt-0.5 font-medium text-slate-500">Estás explorando un mazo oficial configurado en modo consulta. Puedes ver y repasar todas sus tarjetas libremente, pero no se permiten modificaciones.</p>
               </div>
             </div>
           )}
@@ -392,14 +407,14 @@ export default function DeckInterior({ deck, userId, authToken, onBack, initialM
           <button
             type="button"
             onClick={() => setShowGrid(!showGrid)}
-            className="mt-8 w-full flex items-center justify-between bg-white border border-slate-200 hover:bg-slate-50 rounded-2xl px-5 py-3.5 transition-colors shadow-xs active:scale-[0.99]"
+            className="mt-6 flex min-h-14 w-full items-center justify-between rounded-2xl border border-slate-200/80 bg-white px-4 py-3.5 shadow-xs transition-colors hover:bg-slate-50 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 sm:mt-8 sm:px-5"
           >
             <div className="flex items-center gap-2.5">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+              <h3 className="text-sm font-bold tracking-tight text-slate-700">
                 Colección de tarjetas del mazo
               </h3>
               
-              <span className="bg-slate-100 text-slate-700 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border border-slate-200/50 inline-flex items-center gap-1.5 h-5">
+              <span className="inline-flex h-6 items-center gap-1.5 rounded-full border border-slate-200/60 bg-slate-100/80 px-2.5 py-0.5 text-[10px] font-extrabold text-slate-700">
                 {loading && <Loader2 className="w-2.5 h-2.5 animate-spin text-slate-400 shrink-0" />}
                 <span>
                   {cards.length > 0 
