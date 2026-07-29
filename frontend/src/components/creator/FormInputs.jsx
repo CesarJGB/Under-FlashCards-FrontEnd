@@ -138,15 +138,15 @@ export default function FormInputs({
 
     if (isAttachedHere) {
       return (
-        <div className="absolute inset-x-2 bottom-1.5 flex items-center justify-between gap-2">
+        <div className="absolute bottom-1.5 left-1.5 flex h-10 items-center gap-1 rounded-xl border border-slate-200 bg-white/95 p-1 shadow-[0_2px_5px_-4px_rgba(15,23,42,0.45)]">
           <label
-            className="flex h-9 min-w-0 max-w-[calc(100%-3rem)] cursor-pointer items-center rounded-lg border border-slate-200 bg-slate-50/95 p-0.5 shadow-[0_2px_5px_-4px_rgba(15,23,42,0.45)] transition-colors hover:border-slate-300 hover:bg-white focus-within:ring-2 focus-within:ring-slate-300"
+            className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50 transition-colors [@media(hover:hover)]:hover:border-slate-300 [@media(hover:hover)]:hover:bg-white focus-within:ring-2 focus-within:ring-slate-300"
             title={`Cambiar imagen de ${side === 'question' ? 'pregunta' : 'respuesta'}`}
           >
             <img
               src={contentImage}
               alt={`Imagen de ${side === 'question' ? 'pregunta' : 'respuesta'}`}
-              className="h-8 w-8 shrink-0 rounded-md border border-slate-200 object-cover bg-slate-200"
+              className="h-full w-full object-cover"
             />
             <span className="sr-only">Cambiar imagen de {side === 'question' ? 'pregunta' : 'respuesta'}</span>
             <input
@@ -160,9 +160,9 @@ export default function FormInputs({
             type="button"
             onClick={removeContentImage}
             aria-label="Eliminar imagen adjunta"
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white/95 text-slate-400 shadow-[0_2px_5px_-4px_rgba(15,23,42,0.45)] transition-colors hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-transparent bg-white text-slate-400 transition-colors active:border-rose-200 active:bg-rose-50 active:text-rose-600 [@media(hover:hover)]:hover:border-rose-200 [@media(hover:hover)]:hover:bg-rose-50 [@media(hover:hover)]:hover:text-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300"
           >
-            <X className="h-4 w-4" />
+            <X className="h-3.5 w-3.5" />
           </button>
         </div>
       );
