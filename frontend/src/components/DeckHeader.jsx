@@ -17,7 +17,7 @@ export default function DeckHeader({
   const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <div className="sticky top-0 z-30 w-full flex items-center justify-center bg-white/95 backdrop-blur-xl px-4 py-3 border-b border-slate-200 min-h-[46px]">
+    <div className="sticky top-0 z-30 -mx-4 -mt-4 md:-mx-6 md:-mt-8 w-auto flex items-center justify-center bg-white/95 backdrop-blur-xl px-4 py-3 border-b border-slate-200 min-h-[46px]">
       
       {/* 1. LADO IZQUIERDO: Botón de regreso compacto (Oculto en modo repaso) */}
       {mode !== 'review' && (
