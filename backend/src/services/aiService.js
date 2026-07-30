@@ -1,4 +1,3 @@
-Aquí tienes el archivo services/aiService.js actualizado con el modelo qwen/qwen3.7-flash:
 const { randomUUID } = require('crypto');
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
