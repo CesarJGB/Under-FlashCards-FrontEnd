@@ -2,6 +2,10 @@ const { randomUUID } = require('crypto');
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const OPENROUTER_MODEL = 'deepseek/deepseek-v4-flash';
+// V4 Flash tiene el razonamiento activado por defecto en OpenRouter. El flujo
+// combinado genera JSON corto y no necesita razonamiento extendido: dejarlo
+// activo consume el mismo presupuesto de completion_tokens y causa truncados.
+const OPENROUTER_REASONING = Object.freeze({ enabled: false });
 const OPENROUTER_PROVIDER = Object.freeze({
   sort: 'throughput',
   allow_fallbacks: true,
@@ -12,6 +16,9 @@ function createOpenRouterRequestBody(requestBody = {}) {
   return {
     ...requestBody,
     model: requestBody.model || OPENROUTER_MODEL,
+    // Se fuerza a false para que una petición moderna no herede el default
+    // de razonamiento de V4 Flash ni una configuración accidental del caller.
+    reasoning: OPENROUTER_REASONING,
     provider: {
       ...(requestBody.provider || {}),
       ...OPENROUTER_PROVIDER,
@@ -28,6 +35,11 @@ function createOpenRouterHeaders(apiKey) {
   const appName = process.env.OPENROUTER_APP_NAME?.trim();
   if (siteUrl) headers['HTTP-Referer'] = siteUrl;
   if (appName) headers['X-OpenRouter-Title'] = appName;
+  if (process.env.OPENROUTER_ROUTER_METADATA !== 'false') {
+    // Permite saber en producción qué endpoint fue seleccionado y si hubo
+    // fallback, sin registrar prompts, respuestas ni credenciales.
+    headers['X-OpenRouter-Metadata'] = 'enabled';
+  }
   return headers;
 }
 
@@ -76,6 +88,27 @@ const AI_DECK_AUDIT_MAX_TOKENS = readBoundedInteger(
   512,
   16384
 );
+const AI_DECK_COMBINED_MAX_TOKENS = readBoundedInteger(
+  process.env.AI_DECK_COMBINED_MAX_TOKENS,
+  8192,
+  1024,
+  16384
+);
+// Un truncado no se arregla repitiendo exactamente la misma petición cuatro
+// veces. La recuperación de lote del controlador conserva un segundo intento
+// aislado y evita bloquear toda la generación durante minutos.
+const AI_TRUNCATED_OUTPUT_RETRIES = readBoundedInteger(
+  process.env.AI_TRUNCATED_OUTPUT_RETRIES,
+  0,
+  0,
+  2
+);
+const AI_EMPTY_RESPONSE_RETRIES = readBoundedInteger(
+  process.env.AI_EMPTY_RESPONSE_RETRIES,
+  1,
+  0,
+  3
+);
 const AI_COMBINED_OVERGENERATION_FACTOR = 1.5;
 
 class AiServiceError extends Error {
@@ -119,7 +152,28 @@ function getResponseRequestId(response) {
   return response.headers.get('x-request-id')
     || response.headers.get('request-id')
     || response.headers.get('x-correlation-id')
+    || response.headers.get('x-generation-id')
     || null;
+}
+
+function getRouterMetadataSummary(data, fallbackModel = null) {
+  const metadata = data?.openrouter_metadata;
+  const availableEndpoints = Array.isArray(metadata?.endpoints?.available)
+    ? metadata.endpoints.available
+    : [];
+  const selectedEndpoint = availableEndpoints.find((endpoint) => endpoint.selected)
+    || metadata?.endpoints?.selected
+    || null;
+
+  return {
+    generationId: data?.id ?? null,
+    providerName: selectedEndpoint?.provider ?? null,
+    servedModel: selectedEndpoint?.model ?? data?.model ?? fallbackModel,
+    routerStrategy: metadata?.strategy ?? null,
+    routerAttempt: metadata?.attempt ?? null,
+    routerRegion: metadata?.region ?? null,
+    routerSummary: typeof metadata?.summary === 'string' ? metadata.summary.slice(0, 300) : null,
+  };
 }
 
 function getRetryAfterMs(value) {
@@ -212,12 +266,17 @@ function getTokenUsage(data) {
   const promptTokens = Number(usage.prompt_tokens);
   const completionTokens = Number(usage.completion_tokens);
   const totalTokens = Number(usage.total_tokens);
-  if (![promptTokens, completionTokens, totalTokens].some(Number.isFinite)) return null;
+  const reasoningTokens = Number(
+    usage.reasoning_tokens
+      ?? usage.completion_tokens_details?.reasoning_tokens
+  );
+  if (![promptTokens, completionTokens, totalTokens, reasoningTokens].some(Number.isFinite)) return null;
 
   return {
     ...(Number.isFinite(promptTokens) ? { promptTokens } : {}),
     ...(Number.isFinite(completionTokens) ? { completionTokens } : {}),
     ...(Number.isFinite(totalTokens) ? { totalTokens } : {}),
+    ...(Number.isFinite(reasoningTokens) ? { reasoningTokens } : {}),
   };
 }
 
@@ -237,7 +296,16 @@ function getSafeErrorMessage(error) {
   if (error?.code === 'truncated_output' || error?.code === 'invalid_model_output') {
     return 'La IA devolvió una respuesta incompleta. Inténtalo de nuevo.';
   }
+  if (error?.code === 'empty_provider_response') {
+    return 'OpenRouter devolvió una respuesta vacía. Inténtalo de nuevo.';
+  }
   return 'No se pudo completar la generación de preguntas con IA.';
+}
+
+function getRetryLimitForError(error) {
+  if (error?.code === 'truncated_output') return AI_TRUNCATED_OUTPUT_RETRIES;
+  if (error?.code === 'empty_provider_response') return AI_EMPTY_RESPONSE_RETRIES;
+  return AI_MAX_RETRIES;
 }
 
 async function callOpenRouterJson({ apiKey, requestBody, context = {}, parseResponse, signal }) {
@@ -264,14 +332,21 @@ async function callOpenRouterJson({ apiKey, requestBody, context = {}, parseResp
 
     const startedAt = Date.now();
     try {
-      logAiEvent('request_started', { ...logContext, provider: 'openrouter', model, attempt: attempt + 1 });
+      logAiEvent('request_started', {
+        ...logContext,
+        provider: 'openrouter',
+        model,
+        reasoningEnabled: routedRequestBody.reasoning?.enabled !== false,
+        maxTokens: routedRequestBody.max_tokens ?? routedRequestBody.max_completion_tokens ?? null,
+        attempt: attempt + 1,
+      });
       const response = await fetch(OPENROUTER_URL, {
         method: 'POST',
         headers: createOpenRouterHeaders(apiKey),
         body: JSON.stringify(routedRequestBody),
         signal: controller.signal,
       });
-      const requestId = getResponseRequestId(response);
+      let requestId = getResponseRequestId(response);
 
       if (!response.ok) {
         const errorBody = await response.text().catch(() => '');
@@ -292,8 +367,21 @@ async function callOpenRouterJson({ apiKey, requestBody, context = {}, parseResp
       let body = '';
       try {
         body = await response.text();
+        if (!body.trim()) {
+          throw new AiServiceError('empty_provider_response', 'OpenRouter devolvió una respuesta vacía.', {
+            requestId,
+            retryable: true,
+            details: {
+              responseContentType: response.headers.get('content-type') || null,
+              responseBytes: 0,
+              emptyResponse: true,
+            },
+          });
+        }
         data = JSON.parse(body.replace(/^\uFEFF/, ''));
-      } catch {
+        requestId ??= data?.openrouter_metadata?.request_id || data?.id || null;
+      } catch (error) {
+        if (error instanceof AiServiceError) throw error;
         throw new AiServiceError('invalid_provider_response', 'OpenRouter devolvió una respuesta no JSON.', {
           requestId,
           retryable: true,
@@ -327,6 +415,7 @@ async function callOpenRouterJson({ apiKey, requestBody, context = {}, parseResp
       }
 
       const resolvedModel = data?.model || model;
+      const routerMetadata = getRouterMetadataSummary(data, resolvedModel);
       const usage = getTokenUsage(data);
       onUsage?.({
         ...logContext,
@@ -336,6 +425,7 @@ async function callOpenRouterJson({ apiKey, requestBody, context = {}, parseResp
         attempt: attempt + 1,
         requestId,
         usage,
+        routerMetadata,
       });
 
       logAiEvent('request_succeeded', {
@@ -347,12 +437,14 @@ async function callOpenRouterJson({ apiKey, requestBody, context = {}, parseResp
         durationMs: Date.now() - startedAt,
         requestId,
         ...(usage ? { usage } : {}),
+        routerMetadata,
       });
       return parsed;
     } catch (error) {
       const aiError = normalizeError(error, { abortedByCaller: signal?.aborted });
       aiError.attempts = attempt + 1;
-      const canRetry = aiError.retryable && attempt < AI_MAX_RETRIES && !signal?.aborted;
+      const retryLimit = getRetryLimitForError(aiError);
+      const canRetry = aiError.retryable && attempt < retryLimit && !signal?.aborted;
       const delayMs = aiError.retryAfterMs
         ?? Math.min(30000, AI_RETRY_BASE_MS * (2 ** attempt) + Math.floor(Math.random() * 250));
 
@@ -360,6 +452,8 @@ async function callOpenRouterJson({ apiKey, requestBody, context = {}, parseResp
         ...logContext,
         provider: 'openrouter',
         model,
+        reasoningEnabled: routedRequestBody.reasoning?.enabled !== false,
+        maxTokens: routedRequestBody.max_tokens ?? routedRequestBody.max_completion_tokens ?? null,
         attempt: attempt + 1,
         durationMs: Date.now() - startedAt,
         code: aiError.code,
@@ -584,7 +678,7 @@ async function generateAndAuditBatch(segment, targetCount, apiKey, context = {})
       requestBody: {
         model: OPENROUTER_MODEL,
         response_format: { type: 'json_object' },
-        max_tokens: Math.max(AI_DECK_GENERATION_MAX_TOKENS, AI_DECK_AUDIT_MAX_TOKENS),
+        max_tokens: AI_DECK_COMBINED_MAX_TOKENS,
         temperature: 0.3,
         messages: [
           {
@@ -688,7 +782,9 @@ module.exports = {
   // Alias temporal para que el controlador de exámenes legacy no falle al cargar.
   callDeepSeekJson: callOpenRouterJson,
   OPENROUTER_MODEL,
+  OPENROUTER_REASONING,
   OPENROUTER_PROVIDER,
+  AI_DECK_COMBINED_MAX_TOKENS,
   createRunId,
   criticizeAndRefineCards,
   generateAndAuditBatch,
