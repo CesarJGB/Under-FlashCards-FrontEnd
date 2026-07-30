@@ -12,8 +12,6 @@ import PdfExportOverlay from './PdfExportOverlay';
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
 // Modos que corresponden a una sesión de estudio activa (SessionPlayer).
-// Centralizado acá para no tener que acordarse de actualizar cada `mode !== '...'`
-// suelto si en el futuro se agrega un tercer modo de sesión: solo se agrega aquí.
 const SESSION_MODES = ['continuous-review', 'normal-review'];
 
 export default function DeckInterior({ deck, userId, authToken, onBack, initialMode = 'edit', onRefreshData, onExitToStudy, onInviteRequired }) {
@@ -28,12 +26,16 @@ export default function DeckInterior({ deck, userId, authToken, onBack, initialM
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState('');
   const [bgImage, setBgImage] = useState('');
-  const [textAlign, setTextAlign] = useState('center');
+  
+  // 🎯 Alineación por defecto 'left'
+  const [textAlign, setTextAlign] = useState('left');
   const [fontSize, setFontSize] = useState('text-base');
   const [showStyles, setShowStyles] = useState(false);
   const [isBulk, setIsBulk] = useState(false);
   const [bulkText, setBulkText] = useState('');
-  const [defaultStyles, setDefaultStyles] = useState({ bgImage: '', textAlign: 'center', fontSize: 'text-base' });
+  
+  // 🎯 Estilos por defecto con 'left'
+  const [defaultStyles, setDefaultStyles] = useState({ bgImage: '', textAlign: 'left', fontSize: 'text-base' });
   
   const [contentImage, setContentImage] = useState('');
   const [imageSide, setImageSide] = useState('');
@@ -115,6 +117,12 @@ export default function DeckInterior({ deck, userId, authToken, onBack, initialM
         throw new Error('El archivo JSON seleccionado no contiene un lote de tarjetas estructurado.');
       }
 
+      // 🔍 HALLAZGO A: Confirmación antes de inyectar en BD
+      const confirmImport = window.confirm(
+        `¿Estás seguro de que deseas importar ${importedCards.length} ${importedCards.length === 1 ? 'tarjeta' : 'tarjetas'} a este mazo?`
+      );
+      if (!confirmImport) return;
+
       setSaving(true);
       const res = await fetch(`${BACKEND_URL}/api/flashcards/bulk`, {
         method: 'POST',
@@ -127,7 +135,7 @@ export default function DeckInterior({ deck, userId, authToken, onBack, initialM
             question: c.question || 'Pregunta vacía',
             answer: c.answer || 'Respuesta vacía',
             bgImage: c.bgImage || '',
-            textAlign: c.textAlign || 'center',
+            textAlign: c.textAlign || 'left',
             fontSize: c.fontSize || 'text-base',
             contentImage: c.contentImage || '',
             imageSide: c.imageSide || ''
@@ -140,7 +148,6 @@ export default function DeckInterior({ deck, userId, authToken, onBack, initialM
       const batchData = await res.json();
       setCards((prev) => [...batchData, ...prev]); 
       
-      // 🚀 Sincronizar recuento global tras importación externa exitosa
       if (typeof onRefreshData === 'function') onRefreshData();
 
     } catch (err) {
@@ -189,7 +196,6 @@ export default function DeckInterior({ deck, userId, authToken, onBack, initialM
         setCards((prev) => [...batchData, ...prev]);
         resetForm(); setIsBulk(false);
         
-        // 🚀 Sincronizar recuento tras guardar un lote manual por texto
         if (typeof onRefreshData === 'function') onRefreshData();
 
         return true;
@@ -212,7 +218,6 @@ export default function DeckInterior({ deck, userId, authToken, onBack, initialM
         setCards((prev) => prev.map((c) => (c.id === editingId ? updated : c)));
         resetForm(); 
         
-        // 🚀 Sincronizar cambios por si mutaron métricas de estilo o contenido
         if (typeof onRefreshData === 'function') onRefreshData();
 
         return true;
@@ -226,12 +231,9 @@ export default function DeckInterior({ deck, userId, authToken, onBack, initialM
         const newCard = await res.json();
         setCards((prev) => [newCard, ...prev]);
         
-        setQuestion(''); 
-        setAnswer('');
-        setContentImage(''); 
-        setImageSide(''); 
+        // 🔍 HALLAZGO B: Limpieza completa con resetForm() en lugar de reseteo parcial
+        resetForm(); 
         
-        // 🚀 Sincronizar incremento en el contador de tarjetas del mazo
         if (typeof onRefreshData === 'function') onRefreshData();
 
         return true;
@@ -247,7 +249,9 @@ export default function DeckInterior({ deck, userId, authToken, onBack, initialM
   const handleEdit = (card) => {
     if (!canEdit) return;
     setIsBulk(false); setEditingId(card.id); setQuestion(card.question); setAnswer(card.answer);
-    setBgImage(card.bgImage || ''); setTextAlign(card.textAlign || 'center'); setFontSize(card.fontSize || 'text-base');
+    
+    setTextAlign(card.textAlign || 'left'); setBgImage(card.bgImage || ''); setFontSize(card.fontSize || 'text-base');
+    
     setContentImage(card.contentImage || '');
     setImageSide(card.imageSide || '');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -262,14 +266,11 @@ export default function DeckInterior({ deck, userId, authToken, onBack, initialM
       setCards((prev) => prev.filter((c) => c.id !== card.id));
       if (editingId === card.id) resetForm();
       
-      // 🚀 Sincronizar decremento de tarjeta en los contadores globales
       if (typeof onRefreshData === 'function') onRefreshData();
 
     } catch { /* error */ }
   };
 
-  // Handler para limpiar la sesión de estudio (cualquiera de los modos) y
-  // forzar el refresco de métricas en paralelo
   const handleExitSession = () => {
     if (typeof onRefreshData === 'function') {
       onRefreshData();
@@ -282,11 +283,6 @@ export default function DeckInterior({ deck, userId, authToken, onBack, initialM
   };
 
   const isSessionMode = SESSION_MODES.includes(mode);
-
-  // El footer de acciones de FlashcardCreator es `fixed`, así que flota por
-  // encima de lo que venga después de él en el documento (la sección de
-  // colección de tarjetas). Sin este colchón, ese botón y el grid quedan
-  // tapados por el footer sin importar el modo de creación activo.
   const reserveFooterSpace = mode === 'edit' && canEdit;
 
   return (
@@ -318,12 +314,12 @@ export default function DeckInterior({ deck, userId, authToken, onBack, initialM
         />
       )}
 
-      {/* 📚 MODO REPASO SIMPLE */}
+      {/* MODO REPASO SIMPLE */}
       {mode === 'review' && (
         <ReviewMode cards={cards} loading={loading} />
       )}
 
-      {/* 🕹️ MODO REPASO CONTINUO (Bucle Inteligente) */}
+      {/* MODO REPASO CONTINUO */}
       {mode === 'continuous-review' && (
         <SessionPlayer 
           deckId={deck.id} 
@@ -333,7 +329,7 @@ export default function DeckInterior({ deck, userId, authToken, onBack, initialM
         />
       )}
 
-      {/* 📖 MODO REPASO NORMAL (Mazo completo, sin ponderación) */}
+      {/* MODO REPASO NORMAL */}
       {mode === 'normal-review' && (
         <SessionPlayer 
           deckId={deck.id} 
