@@ -1,6 +1,7 @@
 // backend/src/services/semantic/orchestrator.js
 
 const crypto = require('crypto');
+const { performance } = require('node:perf_hooks');
 const { logAiEvent } = require("../aiService");
 
 const { InMemoryVectorIndex } = require('./core/InMemoryVectorIndex');
@@ -44,7 +45,10 @@ async function processSemanticBatch({ cards, embedder, targetCount, signal, conf
         outputCount: 0,
         conceptsDetected: 0,
         conceptsCovered: 0,
-        coverageRate: 0
+        coverageRate: 0,
+        dedupDurationMs: 0,
+        mmrDurationMs: 0,
+        similarityComparisons: 0
       } 
     };
   }
@@ -119,24 +123,28 @@ async function processSemanticBatch({ cards, embedder, targetCount, signal, conf
   };
 
   // 6. Ejecutar DuplicateResolver
+  const dedupStart = performance.now();
   const survivorIds = resolveDuplicates({ 
     index, 
     cards: cardsWithIds.map(c => ({ id: c.id, qualityScore: c.qualityScore })), 
     threshold: deduplicationThreshold,
     onDuplicateDetected
   });
+  const dedupDurationMs = performance.now() - dedupStart;
   
   const survivorSet = new Set(survivorIds);
   const survivorCards = cardsWithIds.filter(c => survivorSet.has(c.id));
   const duplicatesRemoved = inputCount - survivorIds.length;
 
   // 7. Ejecutar DiversitySelector (MMR)
+  const mmrStart = performance.now();
   const selectedIds = selectDiverse({ 
     index, 
     cards: survivorCards.map(c => ({ id: c.id, qualityScore: c.qualityScore })), 
     targetCount, 
     lambda: mmrLambda 
   });
+  const mmrDurationMs = performance.now() - mmrStart;
 
   const selectedSet = new Set(selectedIds);
   const finalCards = survivorCards.filter(c => selectedSet.has(c.id));
@@ -155,9 +163,13 @@ async function processSemanticBatch({ cards, embedder, targetCount, signal, conf
       conceptsCovered: outputCount,
       coverageRate: survivorIds.length > 0
         ? Number((outputCount / survivorIds.length).toFixed(4))
-        : 0
+        : 0,
+      dedupDurationMs: Number(dedupDurationMs.toFixed(2)),
+      mmrDurationMs: Number(mmrDurationMs.toFixed(2)),
+      similarityComparisons: index.comparisonCount || 0
     }
   };
 }
 
 module.exports = { processSemanticBatch };
+
