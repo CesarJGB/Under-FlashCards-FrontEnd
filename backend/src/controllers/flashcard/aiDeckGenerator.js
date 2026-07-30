@@ -1,12 +1,16 @@
 const Flashcard = require('../../models/Flashcard');
 const Deck = require('../../models/Deck');
 const aiService = require('../../services/aiService');
+const { performance } = require('node:perf_hooks');
 const { acceptsEventStream, sendEvent, startEventStream } = require('../../utils/sse');
 const { buildGenerationBatches, calculateTargetPadding } = require('../../utils/aiSourceChunks');
 const { createConcurrencyLimiter, mapWithConcurrency } = require('../../utils/concurrency');
 const { processSemanticBatch } = require('../../services/semantic/orchestrator');
 const { createSemanticEmbedder } = require('../../services/semantic/embedderFactory');
-const { calculateQualityScore } = require('../../services/semantic/qualityScorer');
+const {
+  calculateQualityScore,
+  createLexicalContext,
+} = require('../../services/semantic/qualityScorer');
 const {
   MAX_AI_CARDS,
   MAX_RAW_AI_CARDS,
@@ -444,8 +448,12 @@ async function generateAiCardsPipeline(req, res, { combinedBatch = false } = {})
     const mmrLambda = Number.isFinite(parsedLambda) ? parsedLambda : 0.7;
 
     const validCards = [];
+    let lexicalContextDurationMs = 0;
     for (const state of batchStates) {
       const segmentText = state.batch?.sourceChunk || '';
+      const lexicalContextStart = performance.now();
+      const lexicalContext = createLexicalContext(segmentText);
+      lexicalContextDurationMs += performance.now() - lexicalContextStart;
       for (const card of state.auditedCards || []) {
         const status = card?.status;
         if (['eliminada', 'fusionada'].includes(status)) continue;
@@ -457,7 +465,8 @@ async function generateAiCardsPipeline(req, res, { combinedBatch = false } = {})
           answer: card.answer,
           sourceEvidence: card.sourceEvidence,
           status: card.status,
-          segmentText
+          segmentText,
+          lexicalContext
         });
         
         aiService.logAiEvent('semantic_v3_quality_score', {
@@ -553,10 +562,11 @@ async function generateAiCardsPipeline(req, res, { combinedBatch = false } = {})
         }));
         
         semanticStats = v3Result.stats;
-        aiService.logAiEvent('semantic_v3_success', { 
-          runId, 
-          flow: pipelineFlow, 
-          ...semanticStats 
+        aiService.logAiEvent('semantic_v3_success', {
+          runId,
+          flow: pipelineFlow,
+          ...semanticStats,
+          lexicalContextDurationMs: Number(lexicalContextDurationMs.toFixed(2))
         });
       }
     }
@@ -748,3 +758,4 @@ async function generateAiCardsPipeline(req, res, { combinedBatch = false } = {})
 }
 
 module.exports = { generateAiCardsPipeline };
+
