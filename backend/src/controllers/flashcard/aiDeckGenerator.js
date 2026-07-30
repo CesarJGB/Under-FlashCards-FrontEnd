@@ -44,6 +44,18 @@ function resolveUserAiApiKey(user) {
   return typeof user['aiApiKey'] === 'string' ? user['aiApiKey'].trim() : '';
 }
 
+function resolveUserAiApiProvider(user) {
+  if (!resolveUserAiApiKey(user)) return null;
+
+  if (typeof user?.getAiApiProvider === 'function') {
+    const provider = String(user.getAiApiProvider() || '').trim().toLowerCase();
+    if (provider) return provider;
+  }
+
+  const storedProvider = String(user?.aiApiProvider || '').trim().toLowerCase();
+  return storedProvider || 'deepseek';
+}
+
 async function generateAiCardsPipeline(req, res, { combinedBatch = false } = {}) {
   const pipelineFlow = combinedBatch ? 'deck-v2' : 'deck';
   const pipelineVersion = combinedBatch ? 'v2' : 'v1';
@@ -85,8 +97,15 @@ async function generateAiCardsPipeline(req, res, { combinedBatch = false } = {})
 
     const user = req.user;
     const aiApiKey = resolveUserAiApiKey(user);
+    const aiApiProvider = resolveUserAiApiProvider(user);
     if (!user || !aiApiKey) {
       throw createRequestError(400, 'No has configurado tu API Key en la sección de Ajustes.');
+    }
+    if (aiApiProvider !== 'openrouter') {
+      throw createRequestError(
+        400,
+        'La clave guardada es de DeepSeek. Elimina esa clave y registra una clave de OpenRouter en Ajustes.'
+      );
     }
 
     const currentDeck = await Deck.findOne({ _id: deckId, userId: user._id });
@@ -211,6 +230,8 @@ async function generateAiCardsPipeline(req, res, { combinedBatch = false } = {})
       pipelineVersion,
       provider: 'openrouter',
       model: aiService.OPENROUTER_MODEL,
+      reasoningEnabled: false,
+      combinedMaxTokens: aiService.AI_DECK_COMBINED_MAX_TOKENS ?? null,
       deckId: String(currentDeck._id),
       targetCount,
       phase1Target,
