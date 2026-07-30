@@ -1,4 +1,4 @@
-// backend/src/services/semantic/qualityScorer.js
+// backend/src/services/semantic/qualityScorer-v1.js
 
 /**
  * Módulo de cálculo de QualityScore para v3.2 (Fase A: Shadow Mode).
@@ -6,13 +6,6 @@
  * Devuelve score y breakdown con metadata para telemetría.
  */
 
-/**
- * Normaliza texto eliminando diacríticos y caracteres no alfanuméricos.
- * 
- * Nota: v3.2 usa normalización alfanumérica simple. Fórmulas con subíndices 
- * o símbolos químicos (ej. CO₂, Na+, Ca2+) pueden perder precisión.
- * Podría requerir un parser químico en futuras versiones si el dominio lo exige.
- */
 function normalizeText(text) {
   return String(text || '')
     .normalize('NFD')
@@ -22,17 +15,27 @@ function normalizeText(text) {
     .trim();
 }
 
-/**
- * Calcula la cobertura léxica de un texto objetivo respecto a una fuente.
- * Abstracción preparada para convivir con calculateSemanticCoverage (embeddings) en v3.3.
- */
-function calculateLexicalCoverage(targetText, sourceText) {
-  const targetTokens = normalizeText(targetText).split(/\s+/).filter(Boolean);
-  if (targetTokens.length === 0) return { score: 0.0, sourceTokenCount: 0, targetTokenCount: 0 };
+function tokenize(text) {
+  return normalizeText(text).split(/\s+/).filter(Boolean);
+}
 
-  const sourceTokens = new Set(normalizeText(sourceText).split(/\s+/).filter(Boolean));
+/**
+ * Crea el contexto léxico reutilizable de un segmento.
+ * El Set se mantiene inmutable durante el cálculo de cada tarjeta.
+ */
+function createLexicalContext(segmentText) {
+  return new Set(tokenize(segmentText));
+}
+
+function calculateLexicalCoverage(targetText, sourceText) {
+  const targetTokens = tokenize(targetText);
+  if (targetTokens.length === 0) {
+    return { score: 0.0, sourceTokenCount: 0, targetTokenCount: 0 };
+  }
+
+  const sourceTokens = new Set(tokenize(sourceText));
   const backedTokens = targetTokens.filter(token => sourceTokens.has(token)).length;
-  
+
   return {
     score: backedTokens / targetTokens.length,
     sourceTokenCount: sourceTokens.size,
@@ -40,12 +43,32 @@ function calculateLexicalCoverage(targetText, sourceText) {
   };
 }
 
-function calculateSourceCoverageData({ answer, sourceEvidence, segmentText }) {
-  const answerTokens = normalizeText(answer).split(/\s+/).filter(Boolean);
-  const answerTokenCount = answerTokens.length;
+function calculateCoverageFromTokenSets(answerTokens, sourceTokens) {
+  if (answerTokens.length === 0) {
+    return { score: 0.0, sourceTokenCount: 0, targetTokenCount: 0 };
+  }
 
-  // Caso no verificable: no existe evidencia ni texto fuente
-  if (!sourceEvidence && !segmentText) {
+  const backedTokens = answerTokens.filter(token => sourceTokens.has(token)).length;
+  return {
+    score: backedTokens / answerTokens.length,
+    sourceTokenCount: sourceTokens.size,
+    targetTokenCount: answerTokens.length
+  };
+}
+
+function calculateSourceCoverageData({
+  answer,
+  sourceEvidence,
+  segmentText,
+  lexicalContext
+}) {
+  const answerTokens = tokenize(answer);
+  const answerTokenCount = answerTokens.length;
+  const hasLexicalContext = lexicalContext instanceof Set;
+  const hasContextTokens = hasLexicalContext && lexicalContext.size > 0;
+
+  // Un Set vacío no representa una fuente verificable.
+  if (!sourceEvidence && !segmentText && !hasContextTokens) {
     return {
       score: 0.8,
       isVerified: false,
@@ -54,9 +77,27 @@ function calculateSourceCoverageData({ answer, sourceEvidence, segmentText }) {
     };
   }
 
-  const source = `${segmentText || ''} ${sourceEvidence || ''}`;
-  const coverage = calculateLexicalCoverage(answer, source);
+  // Sin contexto reutilizable, conserva la ruta original.
+  // Si el contexto está vacío pero existe segmentText, se reconstruye para
+  // evitar que un contexto inconsistente cambie la puntuación.
+  if (!hasLexicalContext || (lexicalContext.size === 0 && segmentText)) {
+    const source = String(segmentText || '') + ' ' + String(sourceEvidence || '');
+    const coverage = calculateLexicalCoverage(answer, source);
+    return {
+      score: coverage.score,
+      isVerified: true,
+      sourceTokenCount: coverage.sourceTokenCount,
+      answerTokenCount: coverage.targetTokenCount
+    };
+  }
 
+  // Copia defensiva: sourceEvidence no contamina el Set compartido.
+  const sourceTokens = new Set(lexicalContext);
+  for (const token of tokenize(sourceEvidence)) {
+    sourceTokens.add(token);
+  }
+
+  const coverage = calculateCoverageFromTokenSets(answerTokens, sourceTokens);
   return {
     score: coverage.score,
     isVerified: true,
@@ -67,42 +108,54 @@ function calculateSourceCoverageData({ answer, sourceEvidence, segmentText }) {
 
 function calculateAtomicityScore(question) {
   const normalized = String(question || '').toLowerCase();
-  
+
   if (/(?:tratamiento|profilaxis|indicación).*(?:,|\s(?:y|e)\s)/.test(normalized)) {
-    return 0.5; // Lista clínica disfrazada
+    return 0.5;
   }
-  if (/\bdiferencia entre\b/.test(normalized) || 
+  if (/\bdiferencia entre\b/.test(normalized) ||
       /\b(?:y|e)\s+(?:cómo|qué|cuál|cuáles|por qué|para qué|tiene|indica|se evita|se calcula)\b/.test(normalized)) {
-    return 0.75; // Pregunta compuesta
+    return 0.75;
   }
-  
+
   return 1.0;
 }
 
 function calculateAnswerQualityScore(answer) {
   const words = String(answer || '').trim().split(/\s+/).filter(Boolean);
   const len = words.length;
-  
+
   if (len === 0) return 0.0;
-  if (len <= 2) return 0.9; // Permite fórmulas y respuestas directas
-  if (len <= 40) return 1.0; // Zona óptima
-  
+  if (len <= 2) return 0.9;
+  if (len <= 40) return 1.0;
+
   return Math.max(0.6, 1.0 - ((len - 40) * 0.01));
 }
 
 function calculateAuditMultiplier(status) {
   if (status === 'fusionada') return 0.8;
-  return 1.0; // sin_cambios, corregida, fallback
+  return 1.0;
 }
 
-function calculateQualityScore({ question, answer, sourceEvidence, status, segmentText }) {
-  const coverageData = calculateSourceCoverageData({ answer, sourceEvidence, segmentText });
+function calculateQualityScore({
+  question,
+  answer,
+  sourceEvidence,
+  status,
+  segmentText,
+  lexicalContext
+}) {
+  const coverageData = calculateSourceCoverageData({
+    answer,
+    sourceEvidence,
+    segmentText,
+    lexicalContext
+  });
   const atomicityScore = calculateAtomicityScore(question);
   const answerQualityScore = calculateAnswerQualityScore(answer);
   const auditScore = calculateAuditMultiplier(status);
-  
+
   const qualityScore = coverageData.score * atomicityScore * answerQualityScore * auditScore;
-  
+
   return {
     qualityScore: Number(qualityScore.toFixed(4)),
     breakdown: {
@@ -117,4 +170,7 @@ function calculateQualityScore({ question, answer, sourceEvidence, status, segme
   };
 }
 
-module.exports = { calculateQualityScore };
+module.exports = {
+  calculateQualityScore,
+  createLexicalContext
+};
