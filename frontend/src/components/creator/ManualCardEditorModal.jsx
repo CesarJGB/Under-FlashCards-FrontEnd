@@ -67,38 +67,15 @@ export default function ManualCardEditorModal({
   const [activeSide, setActiveSide] = useState(() => normalizeSide(initialSide));
   const [viewportFrame, setViewportFrame] = useState(null);
   const [openMenu, setOpenMenu] = useState(null); // 'color' | 'align' | null
+  const [needsFocusResume, setNeedsFocusResume] = useState(false);
 
   const textareaRef = useRef(null);
   const imageInputRef = useRef(null);
-  const imagePickerActiveRef = useRef(false);
-  const imagePickerReturnReadyRef = useRef(false);
-  const imageRestoreTimersRef = useRef([]);
-
-  // 🛠️ CAMBIO 1: Guardar la posición exacta del cursor
   const selectionRef = useRef({ start: 0, end: 0 });
-  const prevContentImageRef = useRef(contentImage);
 
   const alignOptions = Array.isArray(ALIGNS) && ALIGNS.length ? ALIGNS : DEFAULT_ALIGNS;
   const swatches = Array.isArray(SWATCHES) && SWATCHES.length ? SWATCHES : DEFAULT_SWATCHES;
 
-  const clearImageRestoreTimers = useCallback(() => {
-    if (typeof window === 'undefined') return;
-    imageRestoreTimersRef.current.forEach((timer) => window.clearTimeout(timer));
-    imageRestoreTimersRef.current = [];
-  }, []);
-
-  // Guardar la posición actual del cursor antes de perder el foco
-  const saveSelection = useCallback(() => {
-    const textarea = textareaRef.current;
-    if (textarea) {
-      selectionRef.current = {
-        start: textarea.selectionStart,
-        end: textarea.selectionEnd,
-      };
-    }
-  }, []);
-
-  // 🛠️ CAMBIO 2: focusTextarea mejorado restaurando posición del cursor
   const focusTextarea = useCallback(() => {
     const textarea = textareaRef.current;
     if (!textarea) return;
@@ -114,32 +91,32 @@ export default function ManualCardEditorModal({
     }
   }, []);
 
-  // 🛠️ CAMBIO 4 + RECOMENDACIÓN: rAF con fallback para iOS Safari / Android
-  const restoreAfterImagePicker = useCallback(() => {
-    if (!imagePickerActiveRef.current || !imagePickerReturnReadyRef.current || typeof window === 'undefined') return;
+  const openImagePicker = () => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      selectionRef.current = {
+        start: textarea.selectionStart,
+        end: textarea.selectionEnd,
+      };
+    }
+    const input = imageInputRef.current;
+    if (!input) return;
+    input.value = '';
+    input.click();
+  };
 
-    clearImageRestoreTimers();
+  const handleImageInputChange = (event) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      handleContentImageFile?.(event, activeSide);
+      setNeedsFocusResume(true);
+    }
+  };
 
-    const attemptFocus = () => {
-      focusTextarea();
-
-      // Fallback: Si el sistema operativo bloqueó el foco en el primer frame por animación/teclado
-      if (document.activeElement !== textareaRef.current) {
-        const fallbackTimer = window.setTimeout(() => focusTextarea(), 150);
-        imageRestoreTimersRef.current.push(fallbackTimer);
-      }
-
-      imagePickerActiveRef.current = false;
-      imagePickerReturnReadyRef.current = false;
-    };
-
-    window.requestAnimationFrame(attemptFocus);
-  }, [clearImageRestoreTimers, focusTextarea]);
-
-  const markImagePickerReturned = useCallback(() => {
-    imagePickerReturnReadyRef.current = true;
-    restoreAfterImagePicker();
-  }, [restoreAfterImagePicker]);
+  const handleResumeFocus = () => {
+    setNeedsFocusResume(false);
+    focusTextarea();
+  };
 
   useLayoutEffect(() => {
     if (!open) return;
@@ -147,6 +124,7 @@ export default function ManualCardEditorModal({
     const nextSide = normalizeSide(initialSide);
     setActiveSide((previousSide) => (previousSide === nextSide ? previousSide : nextSide));
     setOpenMenu(null);
+    setNeedsFocusResume(false);
   }, [open, initialSide]);
 
   useEffect(() => {
@@ -169,42 +147,6 @@ export default function ManualCardEditorModal({
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [onClose, open]);
-
-  useEffect(() => {
-    if (!open || typeof window === 'undefined') return undefined;
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && imagePickerReturnReadyRef.current) {
-        restoreAfterImagePicker();
-      }
-    };
-
-    const handleWindowFocus = () => {
-      if (imagePickerReturnReadyRef.current) restoreAfterImagePicker();
-    };
-
-    window.addEventListener('focus', handleWindowFocus);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      imagePickerActiveRef.current = false;
-      imagePickerReturnReadyRef.current = false;
-      clearImageRestoreTimers();
-      window.removeEventListener('focus', handleWindowFocus);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [clearImageRestoreTimers, open, restoreAfterImagePicker]);
-
-  // 🛠️ CAMBIO 6: Recuperación de foco síncrona tras la actualización de la imagen en pantalla
-  useEffect(() => {
-    if (contentImage !== prevContentImageRef.current) {
-      prevContentImageRef.current = contentImage;
-
-      if (imagePickerReturnReadyRef.current) {
-        restoreAfterImagePicker();
-      }
-    }
-  }, [contentImage, restoreAfterImagePicker]);
 
   useLayoutEffect(() => {
     if (!open || typeof window === 'undefined') return undefined;
@@ -263,6 +205,7 @@ export default function ManualCardEditorModal({
 
   useEffect(() => {
     setOpenMenu(null);
+    setNeedsFocusResume(false);
   }, [activeSide]);
 
   if (!open || typeof document === 'undefined') return null;
@@ -320,6 +263,7 @@ export default function ManualCardEditorModal({
 
   const switchSide = () => {
     setOpenMenu(null);
+    setNeedsFocusResume(false);
     setActiveSide((previousSide) => (previousSide === 'question' ? 'answer' : 'question'));
   };
 
@@ -332,6 +276,7 @@ export default function ManualCardEditorModal({
     if (keepEditing) {
       setActiveSide('question');
       setOpenMenu(null);
+      setNeedsFocusResume(false);
       return true;
     }
 
@@ -348,41 +293,6 @@ export default function ManualCardEditorModal({
     }
 
     await saveCard(false);
-  };
-
-  // 🛠️ CAMBIO 3: Guardar posición del cursor antes de abrir galería/cámara
-  const handleImagePickerPress = (event) => {
-    event.preventDefault();
-    saveSelection();
-    imagePickerActiveRef.current = true;
-    imagePickerReturnReadyRef.current = false;
-    clearImageRestoreTimers();
-  };
-
-  const openImagePicker = () => {
-    saveSelection();
-    imagePickerActiveRef.current = true;
-    imagePickerReturnReadyRef.current = false;
-    clearImageRestoreTimers();
-
-    const input = imageInputRef.current;
-    if (!input) return;
-
-    input.value = '';
-    input.click();
-  };
-
-  // 🛠️ CAMBIO 5: Diferenciar entre seleccionar foto o cancelar
-  const handleImageInputChange = (event) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      imagePickerReturnReadyRef.current = true;
-      handleContentImageFile?.(event, activeSide);
-    } else {
-      // Si el usuario canceló la selección en el SO, forzar foco inmediato
-      imagePickerReturnReadyRef.current = true;
-      restoreAfterImagePicker();
-    }
   };
 
   const controlButtonClass = (isActive = false) =>
@@ -412,7 +322,6 @@ export default function ManualCardEditorModal({
         className="fixed inset-x-0 z-[71] flex min-h-0 flex-col overflow-hidden bg-white pt-[env(safe-area-inset-top)]"
         style={modalViewportStyle}
       >
-        {/* 🛠️ CAMBIO 7: Clic en áreas vacías enfoca el editor */}
         <main
           className="relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain bg-[#f7f8fc] px-4 py-3 sm:px-6 sm:py-5"
           onClick={(event) => {
@@ -422,20 +331,18 @@ export default function ManualCardEditorModal({
           }}
         >
           <div className="mx-auto flex w-full max-w-2xl flex-col gap-3">
-            <div className="h-[clamp(8rem,20dvh,10rem)] shrink-0 overflow-hidden rounded-[1.5rem] border-2 border-slate-500/80 bg-white shadow-[0_18px_45px_-36px_rgba(15,23,42,0.55)] focus-within:border-slate-700 focus-within:ring-4 focus-within:ring-slate-900/[0.06]">
+            <div className="relative h-[clamp(8rem,20dvh,10rem)] shrink-0 overflow-hidden rounded-[1.5rem] border-2 border-slate-500/80 bg-white shadow-[0_18px_45px_-36px_rgba(15,23,42,0.55)] focus-within:border-slate-700 focus-within:ring-4 focus-within:ring-slate-900/[0.06]">
               <textarea
                 ref={textareaRef}
                 value={activeValue}
                 onChange={(event) => {
                   updateActiveValue(event.target.value);
-                  // Actualizar selección en tiempo real mientras escribe
                   selectionRef.current = {
                     start: event.target.selectionStart,
                     end: event.target.selectionEnd,
                   };
                 }}
                 onSelect={(event) => {
-                  // Guardar posición si el usuario mueve el cursor con toques/teclas
                   selectionRef.current = {
                     start: event.target.selectionStart,
                     end: event.target.selectionEnd,
@@ -448,6 +355,20 @@ export default function ManualCardEditorModal({
                 className="h-full min-h-0 w-full resize-none bg-transparent px-4 py-3 text-base leading-7 outline-none placeholder:font-medium placeholder:text-slate-300 sm:px-5 sm:py-4 sm:text-lg sm:leading-8"
                 data-testid={`manual-card-editor-${activeSide}`}
               />
+
+              {/* OVERLAY PARA RECUPERAR EL TECLADO MÓVIL */}
+              {needsFocusResume && (
+                <button
+                  type="button"
+                  onClick={handleResumeFocus}
+                  className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-white/85 backdrop-blur-sm text-slate-700 animate-[fadeIn_0.15s_ease]"
+                  aria-label="Toca para seguir escribiendo"
+                >
+                  <ImagePlus className="h-6 w-6 mb-2 text-slate-500" />
+                  <span className="text-sm font-bold">Imagen cargada</span>
+                  <span className="text-xs font-medium text-slate-500 mt-1">Toca aquí para seguir escribiendo</span>
+                </button>
+              )}
             </div>
 
             {error && (
@@ -493,7 +414,7 @@ export default function ManualCardEditorModal({
                 <>
                   <button
                     type="button"
-                    onPointerDown={handleImagePickerPress}
+                    onPointerDown={preserveToolbarFocus}
                     onClick={openImagePicker}
                     className="flex h-10 w-10 cursor-pointer overflow-hidden rounded-xl border border-slate-200 bg-slate-50 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
                     title={`Cambiar imagen de ${activeCopy.label.toLowerCase()}`}
@@ -520,7 +441,7 @@ export default function ManualCardEditorModal({
               ) : (
                 <button
                   type="button"
-                  onPointerDown={handleImagePickerPress}
+                  onPointerDown={preserveToolbarFocus}
                   onClick={openImagePicker}
                   className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition-colors active:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
                   title={`Añadir imagen a ${activeCopy.label.toLowerCase()}`}
@@ -685,7 +606,6 @@ export default function ManualCardEditorModal({
               type="file"
               accept="image/*"
               onChange={handleImageInputChange}
-              onCancel={() => markImagePickerReturned()}
               className="sr-only"
               tabIndex={-1}
             />
