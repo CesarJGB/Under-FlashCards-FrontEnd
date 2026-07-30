@@ -1,7 +1,8 @@
+Aquí tienes el archivo services/aiService.js actualizado con el modelo qwen/qwen3.7-flash:
 const { randomUUID } = require('crypto');
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
-const OPENROUTER_MODEL = 'deepseek/deepseek-v4-flash';
+const OPENROUTER_MODEL = 'qwen/qwen3.7-flash';
 // V4 Flash tiene el razonamiento activado por defecto en OpenRouter. El flujo
 // combinado genera JSON corto y no necesita razonamiento extendido: dejarlo
 // activo consume el mismo presupuesto de completion_tokens y causa truncados.
@@ -798,3 +799,4 @@ module.exports = {
   validatePedagogicalCards,
   validateCards,
 };
+
