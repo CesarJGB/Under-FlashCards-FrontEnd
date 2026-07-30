@@ -47,12 +47,25 @@ export default function FormInputs({
   SWATCHES,
   textAlign,
   setTextAlign,
+  onModalStateChange, // <-- Prop añadida
 }) {
   const [customCardCount, setCustomCardCount] = useState('');
   const [manualEditorSide, setManualEditorSide] = useState(null);
 
-  const closeManualEditor = useCallback(() => setManualEditorSide(null), []);
-  const openManualEditor = useCallback((side) => setManualEditorSide(side), []);
+  // Cierra el modal y notifica al componente padre
+  const closeManualEditor = useCallback(() => {
+    setManualEditorSide(null);
+    onModalStateChange?.(false);
+  }, [onModalStateChange]);
+
+  // Abre el modal y notifica al componente padre
+  const openManualEditor = useCallback(
+    (side) => {
+      setManualEditorSide(side);
+      onModalStateChange?.(true);
+    },
+    [onModalStateChange],
+  );
 
   // Analizador inteligente de pares P: / R: recuperado de v3
   const bulkStats = useMemo(() => {
@@ -235,10 +248,7 @@ export default function FormInputs({
     return (
       <button
         type="button"
-        onPointerDown={(event) => {
-          event.preventDefault();
-          openManualEditor(side);
-        }}
+        onPointerDown={(event) => event.preventDefault()} // Previene robo de foco/scroll sin disparar doble apertura
         onClick={() => openManualEditor(side)}
         className="relative flex min-h-[96px] w-full flex-col rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left transition-colors active:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2"
         aria-label={`Editar ${label.toLowerCase()}`}
