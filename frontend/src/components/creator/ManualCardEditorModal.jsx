@@ -330,7 +330,8 @@ export default function ManualCardEditorModal({
             }
           }}
         >
-          <div className="mx-auto flex w-full max-w-2xl flex-col gap-3">
+          {/* 🚀 CAMBIO: flex-1 y justify-end para empujar el texto hacia abajo cuando needsFocusResume es true */}
+          <div className={`mx-auto flex w-full max-w-2xl flex-col gap-3 ${needsFocusResume ? 'flex-1 justify-end pb-4' : ''}`}>
             <div className="relative h-[clamp(8rem,20dvh,10rem)] shrink-0 overflow-hidden rounded-[1.5rem] border-2 border-slate-500/80 bg-white shadow-[0_18px_45px_-36px_rgba(15,23,42,0.55)] focus-within:border-slate-700 focus-within:ring-4 focus-within:ring-slate-900/[0.06]">
               <textarea
                 ref={textareaRef}
