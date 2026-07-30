@@ -1,6 +1,58 @@
 const { randomUUID } = require('crypto');
 
-const DEEPSEEK_URL = 'https://api.deepseek.com/chat/completions';
+const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
+const OPENROUTER_MODEL = 'deepseek/deepseek-v4-flash';
+const OPENROUTER_PROVIDER = Object.freeze({
+  sort: 'throughput',
+  allow_fallbacks: true,
+  require_parameters: true,
+});
+
+function createOpenRouterRequestBody(requestBody = {}) {
+  return {
+    ...requestBody,
+    model: requestBody.model || OPENROUTER_MODEL,
+    provider: {
+      ...(requestBody.provider || {}),
+      ...OPENROUTER_PROVIDER,
+    },
+  };
+}
+
+function createOpenRouterHeaders(apiKey) {
+  const headers = {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${apiKey.trim()}`,
+  };
+  const siteUrl = process.env.OPENROUTER_SITE_URL?.trim();
+  const appName = process.env.OPENROUTER_APP_NAME?.trim();
+  if (siteUrl) headers['HTTP-Referer'] = siteUrl;
+  if (appName) headers['X-OpenRouter-Title'] = appName;
+  return headers;
+}
+
+function getOpenRouterErrorDetails(body) {
+  const normalizedBody = String(body || '').trim();
+  if (!normalizedBody) {
+    return { providerCode: null, providerMessage: null };
+  }
+
+  try {
+    const parsed = JSON.parse(normalizedBody);
+    const providerError = parsed?.error;
+    return {
+      providerCode: providerError?.code ?? null,
+      providerMessage: typeof providerError?.message === 'string'
+        ? providerError.message.slice(0, 500)
+        : null,
+    };
+  } catch {
+    return {
+      providerCode: null,
+      providerMessage: normalizedBody.slice(0, 500),
+    };
+  }
+}
 
 function readBoundedInteger(value, fallback, minimum, maximum) {
   const parsed = parseInt(value, 10);
@@ -8,7 +60,6 @@ function readBoundedInteger(value, fallback, minimum, maximum) {
   return Math.min(maximum, Math.max(minimum, parsed));
 }
 
-const REASONER_THRESHOLD = readBoundedInteger(process.env.AI_REASONER_THRESHOLD, 20, 1, 20);
 const AI_DEBUG_LOGS = process.env.AI_DEBUG_LOGS !== 'false';
 const AI_REQUEST_TIMEOUT_MS = readBoundedInteger(process.env.AI_REQUEST_TIMEOUT_MS, 90000, 10000, 180000);
 const AI_MAX_RETRIES = readBoundedInteger(process.env.AI_MAX_RETRIES, 3, 0, 4);
@@ -136,7 +187,15 @@ function getMessageContent(data) {
       },
     });
   }
-  const content = choice?.message?.content?.trim();
+  const rawContent = choice?.message?.content;
+  const content = Array.isArray(rawContent)
+    ? rawContent
+      .map((part) => typeof part === 'string' ? part : part?.text || '')
+      .join('')
+      .trim()
+    : typeof rawContent === 'string'
+      ? rawContent.trim()
+      : '';
   if (!content) {
     throw new AiServiceError('invalid_model_output', 'La IA devolvió una respuesta vacía.', {
       retryable: true,
@@ -181,9 +240,18 @@ function getSafeErrorMessage(error) {
   return 'No se pudo completar la generación de preguntas con IA.';
 }
 
-async function callDeepSeekJson({ apiKey, requestBody, context = {}, parseResponse, signal }) {
+async function callOpenRouterJson({ apiKey, requestBody, context = {}, parseResponse, signal }) {
   const { onRetry, onUsage, ...logContext } = context;
-  const model = requestBody.model || 'unknown';
+  if (typeof apiKey !== 'string' || !apiKey.trim()) {
+    throw new AiServiceError(
+      'missing_api_key',
+      'No se configuró una clave de IA.',
+      { retryable: false }
+    );
+  }
+
+  const routedRequestBody = createOpenRouterRequestBody(requestBody);
+  const model = routedRequestBody.model || 'unknown';
 
   for (let attempt = 0; attempt <= AI_MAX_RETRIES; attempt += 1) {
     const controller = new AbortController();
@@ -196,25 +264,27 @@ async function callDeepSeekJson({ apiKey, requestBody, context = {}, parseRespon
 
     const startedAt = Date.now();
     try {
-      logAiEvent('request_started', { ...logContext, model, attempt: attempt + 1 });
-      const response = await fetch(DEEPSEEK_URL, {
+      logAiEvent('request_started', { ...logContext, provider: 'openrouter', model, attempt: attempt + 1 });
+      const response = await fetch(OPENROUTER_URL, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify(requestBody),
+        headers: createOpenRouterHeaders(apiKey),
+        body: JSON.stringify(routedRequestBody),
         signal: controller.signal,
       });
       const requestId = getResponseRequestId(response);
 
       if (!response.ok) {
-        await response.text().catch(() => '');
-        throw new AiServiceError('provider_http', `DeepSeek respondió con HTTP ${response.status}.`, {
+        const errorBody = await response.text().catch(() => '');
+        const providerDetails = getOpenRouterErrorDetails(errorBody);
+        throw new AiServiceError('provider_http', `OpenRouter respondió con HTTP ${response.status}.`, {
           status: response.status,
           requestId,
           retryAfterMs: getRetryAfterMs(response.headers.get('retry-after')),
           retryable: isRetryableStatus(response.status),
+          details: {
+            provider: 'openrouter',
+            ...providerDetails,
+          },
         });
       }
 
@@ -224,7 +294,7 @@ async function callDeepSeekJson({ apiKey, requestBody, context = {}, parseRespon
         body = await response.text();
         data = JSON.parse(body.replace(/^\uFEFF/, ''));
       } catch {
-        throw new AiServiceError('invalid_provider_response', 'DeepSeek devolvió una respuesta no JSON.', {
+        throw new AiServiceError('invalid_provider_response', 'OpenRouter devolvió una respuesta no JSON.', {
           requestId,
           retryable: true,
           details: {
@@ -256,10 +326,13 @@ async function callDeepSeekJson({ apiKey, requestBody, context = {}, parseRespon
         }
       }
 
+      const resolvedModel = data?.model || model;
       const usage = getTokenUsage(data);
       onUsage?.({
         ...logContext,
-        model,
+        provider: 'openrouter',
+        model: resolvedModel,
+        requestedModel: model,
         attempt: attempt + 1,
         requestId,
         usage,
@@ -267,7 +340,9 @@ async function callDeepSeekJson({ apiKey, requestBody, context = {}, parseRespon
 
       logAiEvent('request_succeeded', {
         ...logContext,
-        model,
+        provider: 'openrouter',
+        model: resolvedModel,
+        requestedModel: model,
         attempt: attempt + 1,
         durationMs: Date.now() - startedAt,
         requestId,
@@ -283,6 +358,7 @@ async function callDeepSeekJson({ apiKey, requestBody, context = {}, parseRespon
 
       logAiEvent(canRetry ? 'request_retrying' : 'error', {
         ...logContext,
+        provider: 'openrouter',
         model,
         attempt: attempt + 1,
         durationMs: Date.now() - startedAt,
@@ -433,12 +509,12 @@ function validatePedagogicalCards(cards, { strict = false } = {}) {
 
 async function generateRawCards(text, targetCount, apiKey, context = {}) {
   const { signal, ...aiContext } = context;
-  return callDeepSeekJson({
+  return callOpenRouterJson({
     apiKey,
     context: { ...aiContext, stage: 'deck_generate' },
     signal,
     requestBody: {
-      model: 'deepseek-chat',
+      model: OPENROUTER_MODEL,
       response_format: { type: 'json_object' },
       max_tokens: AI_DECK_GENERATION_MAX_TOKENS,
       temperature: 0.3,
@@ -496,7 +572,7 @@ async function generateAndAuditBatch(segment, targetCount, apiKey, context = {})
   const { signal, ...aiContext } = context;
 
   try {
-    return await callDeepSeekJson({
+    return await callOpenRouterJson({
       apiKey,
       context: {
         ...aiContext,
@@ -506,7 +582,7 @@ async function generateAndAuditBatch(segment, targetCount, apiKey, context = {})
       },
       signal,
       requestBody: {
-        model: 'deepseek-chat',
+        model: OPENROUTER_MODEL,
         response_format: { type: 'json_object' },
         max_tokens: Math.max(AI_DECK_GENERATION_MAX_TOKENS, AI_DECK_AUDIT_MAX_TOKENS),
         temperature: 0.3,
@@ -556,7 +632,7 @@ async function generateAndAuditBatch(segment, targetCount, apiKey, context = {})
       },
     });
   } catch (error) {
-    // callDeepSeekJson already classifies provider, timeout and parse errors.
+    // callOpenRouterJson already classifies provider, timeout and parse errors.
     // Preserve that metadata; normalize unexpected failures for the controller.
     if (error instanceof AiServiceError) throw error;
     throw new AiServiceError(
@@ -571,12 +647,11 @@ async function generateAndAuditBatch(segment, targetCount, apiKey, context = {})
 }
 
 async function criticizeAndRefineCards(originalText, rawCards, apiKey, context = {}) {
-  const useReasoner = rawCards.length >= REASONER_THRESHOLD;
-  const model = useReasoner ? 'deepseek-reasoner' : 'deepseek-chat';
   const requestBody = {
-    model,
+    model: OPENROUTER_MODEL,
     response_format: { type: 'json_object' },
     max_tokens: AI_DECK_AUDIT_MAX_TOKENS,
+    temperature: 0.1,
     messages: [
       {
         role: 'system',
@@ -590,17 +665,13 @@ Cada salida debe incluir question, answer y status. status debe ser uno de: sin_
       },
     ],
   };
-  if (!useReasoner) requestBody.temperature = 0.1;
-
   const { signal, ...aiContext } = context;
-  return callDeepSeekJson({
+  return callOpenRouterJson({
     apiKey,
     context: {
       ...aiContext,
       stage: 'deck_audit',
       rawCardCount: rawCards.length,
-      reasonerThreshold: REASONER_THRESHOLD,
-      useReasoner,
     },
     signal,
     requestBody,
@@ -613,7 +684,11 @@ Cada salida debe incluir question, answer y status. status debe ser uno de: sin_
 
 module.exports = {
   AiServiceError,
-  callDeepSeekJson,
+  callOpenRouterJson,
+  // Alias temporal para que el controlador de exámenes legacy no falle al cargar.
+  callDeepSeekJson: callOpenRouterJson,
+  OPENROUTER_MODEL,
+  OPENROUTER_PROVIDER,
   createRunId,
   criticizeAndRefineCards,
   generateAndAuditBatch,
