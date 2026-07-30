@@ -1,14 +1,18 @@
 // backend/src/services/semantic/semantic.v1.test.js
 
 const assert = require('assert');
-const { InMemoryVectorIndex } = require('./core/InMemoryVectorIndex.v1');
-const { cosineSimilarity } = require('./core/cosineSimilarity.v1');
-const { resolveDuplicates } = require('./algorithms/DuplicateResolver.v1');
-const { selectDiverse } = require('./algorithms/DiversitySelector.v1');
+const { InMemoryVectorIndex } =
+  require('./core/InMemoryVectorIndex');
+const { cosineSimilarity } =
+  require('./core/cosineSimilarity');
+const { resolveDuplicates } =
+  require('./algorithms/DuplicateResolver');
+const { selectDiverse } =
+  require('./algorithms/DiversitySelector');
 const {
   calculateQualityScore,
   createLexicalContext
-} = require('./qualityScorer.v1');
+} = require('./qualityScorer');
 
 function legacySelectDiverse({ index, cards, targetCount, lambda = 0.7 }) {
   if (!Number.isInteger(targetCount) || targetCount < 0) {
