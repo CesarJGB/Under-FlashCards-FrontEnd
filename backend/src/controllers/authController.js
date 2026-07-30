@@ -1,3 +1,4 @@
+// FILE: backend/src/controllers/authController.cambio.de.provedor.js
 const { randomInt } = require('node:crypto');
 const { OAuth2Client } = require('google-auth-library');
 const InviteCode = require('../models/InviteCode');
@@ -6,6 +7,16 @@ const User = require('../models/User');
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'cesarjaviervebe@gmail.com';
 const oauthClient = new OAuth2Client(GOOGLE_CLIENT_ID);
+
+const OPENROUTER_KEY_URL = 'https://openrouter.ai/api/v1/key';
+const OPENROUTER_MODEL = 'deepseek/deepseek-v4-flash';
+const OPENROUTER_PROVIDER = 'openrouter';
+const LEGACY_DEEPSEEK_PROVIDER = 'deepseek';
+const SUPPORTED_AI_PROVIDERS = new Set([
+  LEGACY_DEEPSEEK_PROVIDER,
+  OPENROUTER_PROVIDER,
+]);
+const OPENROUTER_BALANCE_TIMEOUT_MS = 15000;
 
 function isAdminUser(user) {
   return user?.email === ADMIN_EMAIL;
@@ -54,13 +65,50 @@ async function verifyGoogleIdTokenAndGetUser(token) {
   );
 }
 
+function normalizeAiApiProvider(provider) {
+  const normalized = String(provider || '').trim().toLowerCase();
+  return normalized || null;
+}
+
+function getAiApiKey(user) {
+  if (!user) return '';
+
+  if (typeof user.getAiApiKey === 'function') {
+    return user.getAiApiKey();
+  }
+
+  return typeof user.aiApiKey === 'string' ? user.aiApiKey.trim() : '';
+}
+
+function getAiApiProvider(user) {
+  if (!getAiApiKey(user)) return null;
+
+  if (typeof user.getAiApiProvider === 'function') {
+    const methodProvider = normalizeAiApiProvider(user.getAiApiProvider());
+    if (SUPPORTED_AI_PROVIDERS.has(methodProvider)) return methodProvider;
+  }
+
+  const storedProvider = normalizeAiApiProvider(user.aiApiProvider);
+  return SUPPORTED_AI_PROVIDERS.has(storedProvider)
+    ? storedProvider
+    : LEGACY_DEEPSEEK_PROVIDER;
+}
+
+function maskApiKey(key) {
+  const normalized = typeof key === 'string' ? key.trim() : '';
+  if (!normalized) return '';
+  if (normalized.length <= 4) return '•'.repeat(normalized.length);
+  return '•'.repeat(normalized.length - 4) + normalized.slice(-4);
+}
+
 function serializeUser(user, access) {
   return {
     id: user._id,
     email: user.email,
     name: user.name,
     picture: user.picture,
-    hasApiKey: Boolean(user.aiApiKey),
+    hasApiKey: Boolean(getAiApiKey(user)),
+    aiApiProvider: getAiApiProvider(user),
     isAdmin: isAdminUser(user),
     hasAccess: access.hasAccess,
     needsInvite: access.needsInvite,
@@ -98,7 +146,7 @@ exports.getUser = async (req, res) => {
 
     return res.json({
       ...serializeUser(user, access),
-      apiKeyMasked: User.maskKey(user.aiApiKey),
+      apiKeyMasked: maskApiKey(getAiApiKey(user)),
     });
   } catch (err) {
     console.error('[user] error:', err.message);
@@ -108,28 +156,154 @@ exports.getUser = async (req, res) => {
 
 exports.updateSettings = async (req, res) => {
   try {
-    const { userId, aiApiKey } = req.body || {};
+    const { userId, aiApiKey, aiApiProvider } = req.body || {};
+    if (typeof userId !== 'string' || !userId.trim()) {
+      return res.status(400).json({ error: 'userId is required.' });
+    }
     if (typeof aiApiKey !== 'string') {
       return res.status(400).json({ error: 'aiApiKey must be a string.' });
     }
 
-    const user = await User.findByIdAndUpdate(
-      userId,
-      { $set: { aiApiKey: aiApiKey.trim() } },
-      { returnDocument: 'after' }
-    );
+    const normalizedKey = aiApiKey.trim();
+    const user = await User.findById(userId);
     if (!user) return res.status(404).json({ error: 'User not found.' });
 
+    if (!normalizedKey) {
+      if (typeof user.clearAiApiKey === 'function') {
+        user.clearAiApiKey();
+      } else {
+        user.aiApiKey = '';
+        user.aiApiProvider = null;
+        user.aiApiKeyUpdatedAt = new Date();
+      }
+    } else {
+      // Las nuevas claves se consideran OpenRouter si el cliente no envía el
+      // proveedor. El frontend migrado lo envía explícitamente.
+      const requestedProvider = normalizeAiApiProvider(aiApiProvider);
+      const provider = requestedProvider || OPENROUTER_PROVIDER;
+
+      if (!SUPPORTED_AI_PROVIDERS.has(provider)) {
+        return res.status(400).json({
+          error: 'aiApiProvider must be deepseek or openrouter.',
+        });
+      }
+
+      if (typeof user.setAiApiKey === 'function') {
+        user.setAiApiKey(normalizedKey, provider);
+      } else {
+        user.aiApiKey = normalizedKey;
+        user.aiApiProvider = provider;
+        user.aiApiKeyUpdatedAt = new Date();
+      }
+    }
+
+    await user.save();
+
+    const savedKey = getAiApiKey(user);
     return res.json({
       success: true,
-      hasApiKey: Boolean(user.aiApiKey),
-      apiKeyMasked: User.maskKey(user.aiApiKey),
+      hasApiKey: Boolean(savedKey),
+      aiApiProvider: getAiApiProvider(user),
+      apiKeyMasked: maskApiKey(savedKey),
     });
   } catch (err) {
     console.error('[user/settings] error:', err.message);
     return res.status(500).json({ error: 'Server error.' });
   }
 };
+
+function toNullableNumber(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function normalizeOpenRouterKeyInfo(data) {
+  return {
+    label: typeof data.label === 'string' ? data.label : null,
+    limit: toNullableNumber(data.limit),
+    limit_remaining: toNullableNumber(data.limit_remaining),
+    limit_reset: typeof data.limit_reset === 'string' ? data.limit_reset : null,
+    // Alias útil para clientes que esperan una fecha o campo con este nombre.
+    limit_reset_at: typeof data.limit_reset_at === 'string'
+      ? data.limit_reset_at
+      : null,
+    usage: toNullableNumber(data.usage),
+    usage_daily: toNullableNumber(data.usage_daily),
+    usage_weekly: toNullableNumber(data.usage_weekly),
+    usage_monthly: toNullableNumber(data.usage_monthly),
+    byok_usage: toNullableNumber(data.byok_usage),
+    byok_usage_daily: toNullableNumber(data.byok_usage_daily),
+    byok_usage_weekly: toNullableNumber(data.byok_usage_weekly),
+    byok_usage_monthly: toNullableNumber(data.byok_usage_monthly),
+    include_byok_in_limit: data.include_byok_in_limit === true,
+    is_free_tier: data.is_free_tier === true,
+    currency: 'USD',
+  };
+}
+
+function getOpenRouterErrorMessage(payload) {
+  const providerMessage = payload?.error?.message;
+  return typeof providerMessage === 'string' && providerMessage.trim()
+    ? providerMessage.trim().slice(0, 300)
+    : null;
+}
+
+async function fetchOpenRouterKeyInfo(apiKey) {
+  const headers = {
+    Accept: 'application/json',
+    Authorization: 'Bearer ' + apiKey,
+  };
+  const siteUrl = process.env.OPENROUTER_SITE_URL?.trim();
+  const appName = process.env.OPENROUTER_APP_NAME?.trim();
+  if (siteUrl) headers['HTTP-Referer'] = siteUrl;
+  if (appName) headers['X-OpenRouter-Title'] = appName;
+
+  const controller = typeof AbortController === 'function'
+    ? new AbortController()
+    : null;
+  const timeoutId = controller
+    ? setTimeout(() => controller.abort(), OPENROUTER_BALANCE_TIMEOUT_MS)
+    : null;
+
+  try {
+    const response = await fetch(OPENROUTER_KEY_URL, {
+      method: 'GET',
+      headers,
+      signal: controller?.signal,
+    });
+    const responseText = await response.text();
+    let payload = null;
+
+    if (responseText.trim()) {
+      try {
+        payload = JSON.parse(responseText);
+      } catch {
+        payload = null;
+      }
+    }
+
+    if (!response.ok) {
+      const error = new Error(
+        getOpenRouterErrorMessage(payload) || 'OpenRouter rechazó la consulta del saldo.'
+      );
+      error.isOpenRouterError = true;
+      error.status = response.status;
+      throw error;
+    }
+
+    if (!payload?.data || typeof payload.data !== 'object' || Array.isArray(payload.data)) {
+      const error = new Error('OpenRouter devolvió una respuesta de saldo inválida.');
+      error.isOpenRouterError = true;
+      error.status = 502;
+      throw error;
+    }
+
+    return payload.data;
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
 
 exports.getAiBalance = async (req, res) => {
   try {
@@ -138,30 +312,67 @@ exports.getAiBalance = async (req, res) => {
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ error: 'Usuario no encontrado.' });
 
-    if (!user.aiApiKey) {
-      return res.json({ hasBalance: false });
+    const apiKey = getAiApiKey(user);
+    const provider = getAiApiProvider(user);
+    if (!apiKey) {
+      return res.json({
+        hasBalance: false,
+        isAvailable: false,
+        aiApiProvider: null,
+        info: null,
+      });
     }
 
-    const response = await fetch('https://api.deepseek.com/user/balance', {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${user.aiApiKey}`,
-      },
-    });
-
-    if (!response.ok) {
-      return res.status(502).json({ error: 'No se pudo sincronizar el saldo con DeepSeek.' });
+    // Una clave antigua de DeepSeek no es válida en OpenRouter. Se devuelve
+    // una respuesta controlada para que la UI pueda pedir su eliminación sin
+    // presentar el fallo como un error de saldo de OpenRouter.
+    if (provider !== OPENROUTER_PROVIDER) {
+      return res.json({
+        hasBalance: false,
+        isAvailable: false,
+        aiApiProvider: provider,
+        reason: provider === LEGACY_DEEPSEEK_PROVIDER
+          ? 'legacy_provider'
+          : 'unsupported_provider',
+        info: null,
+      });
     }
 
-    const balanceData = await response.json();
+    const balanceData = await fetchOpenRouterKeyInfo(apiKey);
 
     return res.json({
       hasBalance: true,
-      isAvailable: balanceData.is_available,
-      info: balanceData.balance_infos?.[0] || null,
+      isAvailable: true,
+      aiApiProvider: OPENROUTER_PROVIDER,
+      provider: OPENROUTER_PROVIDER,
+      model: OPENROUTER_MODEL,
+      info: normalizeOpenRouterKeyInfo(balanceData),
     });
   } catch (err) {
     console.error('[user/balance] error:', err.message);
+
+    if (err?.name === 'AbortError') {
+      return res.status(504).json({
+        error: 'OpenRouter tardó demasiado en responder al consultar el saldo.',
+      });
+    }
+
+    if (err?.isOpenRouterError) {
+      if (err.status === 401) {
+        return res.status(502).json({
+          error: 'La clave de OpenRouter no es válida o fue revocada.',
+        });
+      }
+      if (err.status === 429) {
+        return res.status(502).json({
+          error: 'OpenRouter limitó temporalmente la consulta del saldo.',
+        });
+      }
+      return res.status(502).json({
+        error: 'No se pudo sincronizar el saldo con OpenRouter.',
+      });
+    }
+
     return res.status(500).json({ error: 'Server error al consultar fondos.' });
   }
 };
