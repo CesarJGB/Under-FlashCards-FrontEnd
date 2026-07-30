@@ -1,9 +1,12 @@
-// backend/src/services/semantic/algorithms/DiversitySelector.js
+// backend/src/services/semantic/algorithms/DiversitySelector.v1.js
 
 /**
  * Selecciona N tarjetas usando Maximal Marginal Relevance (MMR).
- * O(N²) simple.
- * 
+ *
+ * La máxima similitud de cada candidata contra las tarjetas ya seleccionadas
+ * se conserva de forma incremental. La primera ronda se inicializa calculando
+ * explícitamente la similitud contra la primera tarjeta elegida.
+ *
  * @param {Object} params
  * @param {import('../core/InMemoryVectorIndex').InMemoryVectorIndex} params.index
  * @param {Array<{id: string, qualityScore?: number}>} params.cards
@@ -26,11 +29,12 @@ function selectDiverse({ index, cards, targetCount, lambda = 0.7 }) {
 
   const selected = [];
   const available = new Map(cards.map(c => [c.id, c]));
+  const maxSims = new Map();
 
-  // 1. Elegir la primera tarjeta: la de mayor qualityScore
+  // 1. Elegir la primera tarjeta: la de mayor qualityScore.
   let bestFirstCard = null;
   let maxScore = -Infinity;
-  
+
   for (const card of cards) {
     const score = card.qualityScore ?? 1.0;
     if (score > maxScore) {
@@ -44,24 +48,28 @@ function selectDiverse({ index, cards, targetCount, lambda = 0.7 }) {
   selected.push(bestFirstCard.id);
   available.delete(bestFirstCard.id);
 
-  // 2. Iterar hasta llegar a targetCount
+  // Conserva el comportamiento histórico de targetCount = 0:
+  // se devuelve la primera tarjeta, aunque el objetivo sea cero.
+  if (selected.length < targetCount) {
+    for (const [candidateId] of available.entries()) {
+      maxSims.set(
+        candidateId,
+        index.similarity(candidateId, bestFirstCard.id)
+      );
+    }
+  }
+
+  // 2. Iterar hasta llegar a targetCount.
   while (selected.length < targetCount && available.size > 0) {
     let bestCandidateId = null;
     let bestMmrScore = -Infinity;
 
     for (const [candidateId, candidate] of available.entries()) {
-      let maxSimToSelected = 0;
-      
-      for (const selectedId of selected) {
-        const sim = index.similarity(candidateId, selectedId);
-        if (sim > maxSimToSelected) {
-          maxSimToSelected = sim;
-        }
-      }
-
+      const maxSimToSelected = maxSims.get(candidateId) ?? 0;
       const relevance = candidate.qualityScore ?? 1.0;
       const mmrScore = (relevance * (1 - lambda)) - (maxSimToSelected * lambda);
 
+      // Comparación estricta: conserva el desempate por primera aparición.
       if (mmrScore > bestMmrScore) {
         bestMmrScore = mmrScore;
         bestCandidateId = candidateId;
@@ -71,6 +79,18 @@ function selectDiverse({ index, cards, targetCount, lambda = 0.7 }) {
     if (bestCandidateId) {
       selected.push(bestCandidateId);
       available.delete(bestCandidateId);
+      maxSims.delete(bestCandidateId);
+
+      // No hace falta actualizar después de seleccionar la última tarjeta.
+      if (selected.length < targetCount) {
+        for (const [candidateId] of available.entries()) {
+          const similarity = index.similarity(candidateId, bestCandidateId);
+          const currentMax = maxSims.get(candidateId) ?? 0;
+          if (similarity > currentMax) {
+            maxSims.set(candidateId, similarity);
+          }
+        }
+      }
     } else {
       break;
     }
@@ -80,3 +100,4 @@ function selectDiverse({ index, cards, targetCount, lambda = 0.7 }) {
 }
 
 module.exports = { selectDiverse };
+
