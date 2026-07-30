@@ -1,11 +1,10 @@
 // backend/src/services/semantic/core/InMemoryVectorIndex.js
 
-const { cosineSimilarity } = require('./cosineSimilarity');
-
 class InMemoryVectorIndex {
   constructor() {
     this.store = new Map();
     this.dimension = null;
+    this.comparisonCount = 0;
   }
 
   /**
@@ -21,10 +20,12 @@ class InMemoryVectorIndex {
         throw new Error(`Vector inválido para ID ${item.id}: debe ser un arreglo no vacío.`);
       }
 
+      let magnitudeSquared = 0;
       for (const val of item.vector) {
         if (!Number.isFinite(val)) {
           throw new Error(`Vector inválido para ID ${item.id}: contiene NaN o Infinity.`);
         }
+        magnitudeSquared += val * val;
       }
 
       if (this.dimension === null) {
@@ -35,8 +36,28 @@ class InMemoryVectorIndex {
         );
       }
 
-      this.store.set(item.id, { vector: item.vector, metadata: item.metadata });
+      this.store.set(item.id, {
+        vector: item.vector,
+        metadata: item.metadata,
+        magnitude: Math.sqrt(magnitudeSquared)
+      });
     }
+  }
+
+  _similarityOptimized(vecA, magA, vecB, magB) {
+    this.comparisonCount += 1;
+
+    if (magA === 0 || magB === 0) {
+      return 0;
+    }
+
+    let dotProduct = 0;
+    for (let i = 0; i < vecA.length; i += 1) {
+      dotProduct += vecA[i] * vecB[i];
+    }
+
+    const rawSimilarity = dotProduct / (magA * magB);
+    return Math.max(0, Math.min(1, rawSimilarity));
   }
 
   remove(id) {
@@ -50,13 +71,19 @@ class InMemoryVectorIndex {
   clear() {
     this.store.clear();
     this.dimension = null;
+    this.comparisonCount = 0;
   }
 
   similarity(idA, idB) {
     const itemA = this.store.get(idA);
     const itemB = this.store.get(idB);
     if (!itemA || !itemB) return 0;
-    return cosineSimilarity(itemA.vector, itemB.vector);
+    return this._similarityOptimized(
+      itemA.vector,
+      itemA.magnitude,
+      itemB.vector,
+      itemB.magnitude
+    );
   }
 
   getNeighbors(id, threshold) {
@@ -66,7 +93,12 @@ class InMemoryVectorIndex {
     const neighbors = [];
     for (const [currentId, currentData] of this.store.entries()) {
       if (currentId === id) continue;
-      const sim = cosineSimilarity(target.vector, currentData.vector);
+      const sim = this._similarityOptimized(
+        target.vector,
+        target.magnitude,
+        currentData.vector,
+        currentData.magnitude
+      );
       if (sim >= threshold) {
         neighbors.push({ id: currentId, similarity: sim });
       }
@@ -81,7 +113,12 @@ class InMemoryVectorIndex {
     const allNeighbors = [];
     for (const [currentId, currentData] of this.store.entries()) {
       if (currentId === id) continue;
-      const sim = cosineSimilarity(target.vector, currentData.vector);
+      const sim = this._similarityOptimized(
+        target.vector,
+        target.magnitude,
+        currentData.vector,
+        currentData.magnitude
+      );
       allNeighbors.push({ id: currentId, similarity: sim });
     }
     return allNeighbors.sort((a, b) => b.similarity - a.similarity).slice(0, k);
@@ -89,3 +126,4 @@ class InMemoryVectorIndex {
 }
 
 module.exports = { InMemoryVectorIndex };
+
