@@ -38,6 +38,12 @@ const {
 
 const globalAiBatchLimiter = createConcurrencyLimiter(AI_GLOBAL_DECK_CONCURRENCY);
 
+function resolveUserAiApiKey(user) {
+  if (!user) return '';
+  if (typeof user.getAiApiKey === 'function') return user.getAiApiKey();
+  return typeof user['aiApiKey'] === 'string' ? user['aiApiKey'].trim() : '';
+}
+
 async function generateAiCardsPipeline(req, res, { combinedBatch = false } = {}) {
   const pipelineFlow = combinedBatch ? 'deck-v2' : 'deck';
   const pipelineVersion = combinedBatch ? 'v2' : 'v1';
@@ -78,7 +84,8 @@ async function generateAiCardsPipeline(req, res, { combinedBatch = false } = {})
     }
 
     const user = req.user;
-    if (!user || !user.aiApiKey) {
+    const aiApiKey = resolveUserAiApiKey(user);
+    if (!user || !aiApiKey) {
       throw createRequestError(400, 'No has configurado tu API Key en la sección de Ajustes.');
     }
 
@@ -202,6 +209,8 @@ async function generateAiCardsPipeline(req, res, { combinedBatch = false } = {})
       runId,
       flow: pipelineFlow,
       pipelineVersion,
+      provider: 'openrouter',
+      model: aiService.OPENROUTER_MODEL,
       deckId: String(currentDeck._id),
       targetCount,
       phase1Target,
@@ -278,7 +287,7 @@ async function generateAiCardsPipeline(req, res, { combinedBatch = false } = {})
           state.rawCards = await aiService.generateAndAuditBatch(
             batch.sourceChunk,
             batch.targetCount,
-            user.aiApiKey,
+            aiApiKey,
             context
           );
           state.auditedCards = state.rawCards.map((card) => ({
@@ -291,7 +300,7 @@ async function generateAiCardsPipeline(req, res, { combinedBatch = false } = {})
           state.rawCards = await aiService.generateRawCards(
             batch.sourceChunk,
             batch.targetCount,
-            user.aiApiKey,
+            aiApiKey,
             context
           );
           state.generateDurationMs = Date.now() - generateStartedAt;
@@ -303,7 +312,7 @@ async function generateAiCardsPipeline(req, res, { combinedBatch = false } = {})
           state.auditedCards = await aiService.criticizeAndRefineCards(
             batch.sourceChunk,
             state.rawCards,
-            user.aiApiKey,
+            aiApiKey,
             context
           );
           state.auditDurationMs = Date.now() - auditStartedAt;
@@ -758,4 +767,3 @@ async function generateAiCardsPipeline(req, res, { combinedBatch = false } = {})
 }
 
 module.exports = { generateAiCardsPipeline };
-
