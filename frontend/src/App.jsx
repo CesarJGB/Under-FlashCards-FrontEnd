@@ -27,14 +27,40 @@ const INITIAL_APP_LOADING_DURATION = 2500;
 function AppLoadingScreen() {
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-white"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950 animate-[fadeIn_0.2s_ease-out]"
       role="status"
       aria-live="polite"
       data-testid="app-loading-screen"
     >
-      <div className="flex flex-col items-center gap-4 text-slate-700">
-        <Sparkles className="h-8 w-8 animate-pulse text-slate-900" aria-hidden="true" />
-        <p className="text-sm font-medium">Preparando tu espacio...</p>
+      <style>{`
+        @keyframes wordSpin {
+          10% { transform: translateY(-102%); }
+          25% { transform: translateY(-100%); }
+          35% { transform: translateY(-202%); }
+          50% { transform: translateY(-200%); }
+          60% { transform: translateY(-302%); }
+          75% { transform: translateY(-300%); }
+          85% { transform: translateY(-402%); }
+          100% { transform: translateY(-400%); }
+        }
+        .animate-word-spin {
+          animation: wordSpin 4s infinite;
+        }
+      `}</style>
+
+      <div className="rounded-2xl border border-white/10 bg-slate-900 px-7 py-4 shadow-2xl">
+        <div className="flex h-10 items-center text-xl md:text-2xl font-medium text-slate-400">
+          <p className="select-none">Preparando</p>
+          <div className="relative h-full overflow-hidden pl-2.5">
+            <div className="pointer-events-none absolute inset-0 z-20 bg-gradient-to-b from-slate-900 via-transparent to-slate-900" />
+            
+            <span className="animate-word-spin block h-full text-indigo-400 font-semibold">tu espacio...</span>
+            <span className="animate-word-spin block h-full text-indigo-400 font-semibold">tus mazos...</span>
+            <span className="animate-word-spin block h-full text-indigo-400 font-semibold">tu sesión...</span>
+            <span className="animate-word-spin block h-full text-indigo-400 font-semibold">tus repasos...</span>
+            <span className="animate-word-spin block h-full text-indigo-400 font-semibold">tu espacio...</span>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -153,14 +179,13 @@ function DashboardScreen({ user, onLogout, onInviteRequired }) {
   };
 
   // Ensure viewport resets to top when switching main tabs (SPA behavior)
-    useEffect(() => {
+  useEffect(() => {
     if (typeof window === 'undefined') return;
     requestAnimationFrame(() => {
       contentScrollRef.current?.scrollTo({ top: 0, left: 0, behavior: 'auto' });
       window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
     });
   }, [tab, currentDeck]);
-
 
   const handleOpenReviewFromHome = (deck) => {
     setInitialMode('review');
@@ -337,7 +362,7 @@ function DashboardScreen({ user, onLogout, onInviteRequired }) {
 
       </main>
 
-      {/* 👇 MENÚ DE NAVEGACIÓN MÓVIL OPTIMIZADO (Se oculta en modo edición de mazo) 👇 */}
+      {/* MENÚ DE NAVEGACIÓN MÓVIL OPTIMIZADO */}
       {!isEditingDeck && (
         <div ref={mobileNavRef} className="md:hidden absolute inset-x-0 mx-auto w-fit bg-white/90 backdrop-blur-xl border border-slate-200/80 h-14 rounded-full px-2 flex items-center gap-1.5 z-40 shadow-[0_8px_32px_rgba(0,0,0,0.12)] animate-[slideUp_0.2s_ease-out]" style={{ bottom: 'calc(env(safe-area-inset-bottom) + 0.75rem)' }}>
           {[
