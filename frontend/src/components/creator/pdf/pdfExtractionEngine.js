@@ -6,7 +6,7 @@
  * the existing AI generation flow.
  */
 
-export const PDF_EXTRACTION_VERSION = 'pdf-extraction-v1';
+export const PDF_EXTRACTION_VERSION = 'pdf-extraction';
 
 export const PDF_EXTRACTION_DEFAULTS = Object.freeze({
   maxCharacters: 600000,
