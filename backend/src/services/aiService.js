@@ -109,7 +109,7 @@ const AI_EMPTY_RESPONSE_RETRIES = readBoundedInteger(
   0,
   3
 );
-const AI_COMBINED_OVERGENERATION_FACTOR = 1.5;
+const AI_COMBINED_OVERGENERATION_FACTOR = 1.25;
 
 class AiServiceError extends Error {
   constructor(code, message, options = {}) {
@@ -318,7 +318,10 @@ async function callOpenRouterJson({ apiKey, requestBody, context = {}, parseResp
     );
   }
 
-  const routedRequestBody = createOpenRouterRequestBody(requestBody);
+  const routedRequestBody = createOpenRouterRequestBody({
+    ...requestBody,
+    ...(context.runId ? { session_id: context.runId } : {}),
+  });
   const model = routedRequestBody.model || 'unknown';
 
   for (let attempt = 0; attempt <= AI_MAX_RETRIES; attempt += 1) {
@@ -798,4 +801,3 @@ module.exports = {
   validatePedagogicalCards,
   validateCards,
 };
-
