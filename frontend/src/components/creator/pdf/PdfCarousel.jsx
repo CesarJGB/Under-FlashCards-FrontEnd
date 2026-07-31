@@ -1,148 +1,152 @@
 import { useEffect, useRef, useState } from 'react';
-import { CheckSquare, ChevronLeft, ChevronRight, Loader2, Square, X } from 'lucide-react';
+import { AlertTriangle, CheckSquare, ChevronLeft, ChevronRight, Loader2, Square, X } from 'lucide-react';
 
 export default function PdfCarousel({ pdf, initialPage, totalPages, selectedPages, onToggle, onClose }) {
-  const [currentPage, setCurrentPage] = useState(initialPage);
+  const [currentPage, setCurrentPage] = useState(() => Math.min(totalPages, Math.max(1, initialPage)));
   const [loading, setLoading] = useState(true);
+  const [renderError, setRenderError] = useState(false);
   const canvasRef = useRef(null);
-  const touchStart = useRef(0);
+  const touchStart = useRef(null);
+
+  useEffect(() => {
+    setCurrentPage(Math.min(totalPages, Math.max(1, initialPage)));
+  }, [initialPage, totalPages]);
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') onClose();
+      if (event.key === 'ArrowLeft') setCurrentPage((page) => Math.max(1, page - 1));
+      if (event.key === 'ArrowRight') setCurrentPage((page) => Math.min(totalPages, page + 1));
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onClose, totalPages]);
 
   useEffect(() => {
     let cancelled = false;
     let renderTask = null;
-
+    let page = null;
     const canvas = canvasRef.current;
     if (!canvas) return undefined;
 
     setLoading(true);
-
-    const clearCanvas = () => {
-      canvas.width = 0;
-      canvas.height = 0;
-    };
+    setRenderError(false);
+    canvas.width = 0;
+    canvas.height = 0;
 
     (async () => {
       try {
-        const page = await pdf.getPage(currentPage);
+        page = await pdf.getPage(currentPage);
+        const viewport = page.getViewport({ scale: 1.4 });
+        if (cancelled || !canvasRef.current) return;
 
-        try {
-          const viewport = page.getViewport({ scale: 1.4 });
-          if (cancelled || !canvasRef.current) return;
+        canvas.height = Math.ceil(viewport.height);
+        canvas.width = Math.ceil(viewport.width);
+        const context = canvas.getContext('2d', { alpha: false });
+        if (!context) throw new Error('Canvas 2D no disponible.');
 
-          canvas.height = viewport.height;
-          canvas.width = viewport.width;
-
-          const context = canvas.getContext('2d');
-          if (!context) return;
-
-          renderTask = page.render({
-            canvasContext: context,
-            viewport,
-          });
-
-          await renderTask.promise;
-        } finally {
-          page.cleanup();
-        }
-
-        if (!cancelled) {
-          setLoading(false);
-        }
+        renderTask = page.render({ canvasContext: context, viewport });
+        await renderTask.promise;
+        if (!cancelled) setLoading(false);
       } catch (error) {
         if (cancelled || error?.name === 'RenderingCancelledException') return;
-        console.error('[PdfCarousel] Error rendering page:', error);
-        setLoading(false);
+        console.warn('[PdfCarousel.v1] Error rendering page:', error);
+        if (!cancelled) {
+          setRenderError(true);
+          setLoading(false);
+        }
+      } finally {
+        try {
+          page?.cleanup();
+        } catch {
+          // The document can be destroyed while changing pages.
+        }
       }
     })();
 
     return () => {
       cancelled = true;
       renderTask?.cancel();
-      clearCanvas();
+      canvas.width = 0;
+      canvas.height = 0;
     };
   }, [currentPage, pdf]);
 
-  const goPrev = () => {
-    setCurrentPage((prev) => Math.max(1, prev - 1));
-  };
-
-  const goNext = () => {
-    setCurrentPage((prev) => Math.min(totalPages, prev + 1));
-  };
+  const goPrev = () => setCurrentPage((page) => Math.max(1, page - 1));
+  const goNext = () => setCurrentPage((page) => Math.min(totalPages, page + 1));
+  const isSelected = selectedPages.includes(currentPage);
 
   const handleTouchStart = (event) => {
-    touchStart.current = event.touches[0].clientX;
+    touchStart.current = event.touches[0]?.clientX ?? null;
   };
 
   const handleTouchEnd = (event) => {
-    const touchEnd = event.changedTouches[0].clientX;
-    const diff = touchStart.current - touchEnd;
-
-    if (diff > 50) goNext();
-    if (diff < -50) goPrev();
+    if (touchStart.current === null) return;
+    const touchEnd = event.changedTouches[0]?.clientX ?? touchStart.current;
+    const difference = touchStart.current - touchEnd;
+    touchStart.current = null;
+    if (difference > 50) goNext();
+    if (difference < -50) goPrev();
   };
 
-  const isSelected = selectedPages.includes(currentPage);
-
   return (
-    <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md flex items-center justify-center z-50 p-0 sm:p-4 animate-[fadeIn_0.15s_ease]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 p-0 backdrop-blur-md animate-[fadeIn_0.15s_ease]">
       <div
-        className="bg-white w-full h-full sm:h-auto sm:max-w-xl sm:max-h-[90vh] sm:rounded-2xl flex flex-col overflow-hidden shadow-2xl relative"
+        className="relative flex h-full w-full flex-col overflow-hidden bg-white shadow-2xl sm:h-auto sm:max-h-[90vh] sm:max-w-xl sm:rounded-2xl"
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Vista previa de la página ${currentPage}`}
       >
-        <div className="absolute top-0 inset-x-0 z-20 flex items-center justify-between px-4 py-4 bg-gradient-to-b from-black/50 to-transparent">
-          <button onClick={onClose} className="p-2 bg-white/20 hover:bg-white/30 text-white rounded-full backdrop-blur-md cursor-pointer">
-            <X className="w-5 h-5" />
+        <div className="absolute inset-x-0 top-0 z-20 flex items-center justify-between bg-gradient-to-b from-black/60 to-transparent px-4 py-4">
+          <button type="button" onClick={onClose} className="cursor-pointer rounded-full bg-white/20 p-2 text-white backdrop-blur-md transition-colors hover:bg-white/30" aria-label="Cerrar vista previa">
+            <X className="h-5 w-5" />
           </button>
 
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => onToggle(currentPage)}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-all border ${
-                isSelected
-                  ? 'bg-indigo-600 border-indigo-400 text-white'
-                  : 'bg-white/20 border-white/30 text-white'
-              }`}
-            >
-              {isSelected ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
-              {isSelected ? 'Seleccionada' : 'Seleccionar'}
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => onToggle(currentPage)}
+            className={`flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-bold transition-all ${isSelected ? 'border-indigo-400 bg-indigo-600 text-white' : 'border-white/30 bg-white/20 text-white'}`}
+          >
+            {isSelected ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
+            {isSelected ? 'Seleccionada' : 'Seleccionar'}
+          </button>
         </div>
 
-        <div className="flex-1 overflow-auto bg-slate-100 flex items-start justify-center p-2 pt-20 pb-20 relative">
+        <div className="relative flex flex-1 items-start justify-center overflow-auto bg-slate-100 p-2 pb-20 pt-20">
           {loading && (
-            <div className="absolute inset-0 flex items-center justify-center z-10 bg-slate-100/50">
-              <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />
+            <div className="absolute inset-0 z-10 flex items-center justify-center bg-slate-100/60">
+              <Loader2 className="h-6 w-6 animate-spin text-indigo-600" />
             </div>
           )}
-          <canvas ref={canvasRef} className="max-w-full h-auto shadow-xl rounded-lg bg-white" />
+          {renderError && (
+            <div className="flex min-h-[350px] flex-col items-center justify-center gap-2 text-xs font-semibold text-slate-500">
+              <AlertTriangle className="h-6 w-6 text-amber-500" />
+              No se pudo renderizar esta página.
+            </div>
+          )}
+          <canvas ref={canvasRef} className={`h-auto max-w-full rounded-lg bg-white shadow-xl ${renderError ? 'hidden' : ''}`} />
         </div>
 
-        <div className="absolute bottom-0 inset-x-0 z-20 bg-gradient-to-t from-black/50 to-transparent px-6 py-6 flex items-center justify-between">
-          <button
-            disabled={currentPage === 1}
-            onClick={goPrev}
-            className="p-3 bg-white/20 disabled:opacity-20 text-white rounded-full backdrop-blur-md cursor-pointer transition-all active:scale-90"
-          >
-            <ChevronLeft className="w-6 h-6" />
+        <div className="absolute inset-x-0 bottom-0 z-20 flex items-center justify-between bg-gradient-to-t from-black/60 to-transparent px-6 py-6">
+          <button type="button" disabled={currentPage === 1} onClick={goPrev} className="cursor-pointer rounded-full bg-white/20 p-3 text-white transition-all active:scale-90 disabled:cursor-not-allowed disabled:opacity-20" aria-label="Página anterior">
+            <ChevronLeft className="h-6 w-6" />
           </button>
-
-          <div className="bg-white/90 px-4 py-1.5 rounded-full text-xs font-black text-slate-900 shadow-sm">
-            {currentPage} / {totalPages}
-          </div>
-
-          <button
-            disabled={currentPage === totalPages}
-            onClick={goNext}
-            className="p-3 bg-white/20 disabled:opacity-20 text-white rounded-full backdrop-blur-md cursor-pointer transition-all active:scale-90"
-          >
-            <ChevronRight className="w-6 h-6" />
+          <div className="rounded-full bg-white/90 px-4 py-1.5 text-xs font-black text-slate-900 shadow-sm">{currentPage} / {totalPages}</div>
+          <button type="button" disabled={currentPage === totalPages} onClick={goNext} className="cursor-pointer rounded-full bg-white/20 p-3 text-white transition-all active:scale-90 disabled:cursor-not-allowed disabled:opacity-20" aria-label="Página siguiente">
+            <ChevronRight className="h-6 w-6" />
           </button>
         </div>
       </div>
     </div>
   );
 }
+
