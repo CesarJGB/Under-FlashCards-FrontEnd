@@ -7,7 +7,7 @@ const OPENROUTER_MODEL = 'deepseek/deepseek-v4-flash';
 // activo consume el mismo presupuesto de completion_tokens y causa truncados.
 const OPENROUTER_REASONING = Object.freeze({ enabled: false });
 const OPENROUTER_PROVIDER = Object.freeze({
-  sort: 'throughput',
+  sort: 'latency',
   allow_fallbacks: true,
   require_parameters: true,
 });
