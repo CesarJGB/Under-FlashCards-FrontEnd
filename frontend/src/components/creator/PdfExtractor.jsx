@@ -1,17 +1,15 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+// FILE: frontend/src/components/creator/PdfExtractor.jsx
+// Entrega v2. Guardar este archivo con extensión .jsx.
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AlertTriangle,
-  CheckCircle2,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  ChevronUp,
   FileText,
   FileUp,
-  Loader2,
+  Layers,
+  Plus,
   X,
 } from 'lucide-react';
-
+import ActionSheet from '../common/ActionSheet';
 import ProcessingActionSheet from '../common/ProcessingActionSheet';
 import {
   PDF_EXTRACTION_DEFAULTS,
@@ -20,10 +18,9 @@ import {
   extractPdfDocument,
   isAbortError,
 } from './pdf/pdfExtractionEngine';
-import PdfPageThumbnail from './pdf/PdfPageThumbnail';
 import PdfCarousel from './pdf/PdfCarousel';
+import PdfPageSelectionSheet from './PdfPageSelectionSheet';
 
-const PAGE_BLOCK_SIZE = 24;
 const DEFAULT_MAX_PDF_FILE_MB = 100;
 const DEFAULT_MAX_PDF_PAGES = 500;
 const MAX_PDF_IMAGE_PIXELS = 16_000_000;
@@ -44,9 +41,58 @@ const MAX_CHARACTERS = Number.isInteger(configuredMaxCharacters) && configuredMa
 
 let pdfJsPromise = null;
 
-const buildPageList = (totalPages) => Array.from({ length: totalPages }, (_, index) => index + 1);
+function buildPageList(totalPages) {
+  return Array.from({ length: totalPages }, (_, index) => index + 1);
+}
 
-const loadPdfJs = async () => {
+function normalizePages(pages, totalPages) {
+  return [...new Set(pages)]
+    .map(Number)
+    .filter((page) => Number.isInteger(page) && page >= 1 && page <= totalPages)
+    .sort((left, right) => left - right);
+}
+
+function formatPartialPages(pages) {
+  if (!pages.length) return 'Sin páginas seleccionadas';
+
+  const ranges = [];
+  let start = pages[0];
+  let previous = pages[0];
+
+  for (let index = 1; index < pages.length; index += 1) {
+    const page = pages[index];
+    if (page === previous + 1) {
+      previous = page;
+      continue;
+    }
+    ranges.push(start === previous ? String(start) : start + '–' + previous);
+    start = page;
+    previous = page;
+  }
+
+  ranges.push(start === previous ? String(start) : start + '–' + previous);
+  return 'Páginas ' + ranges.join(', ');
+}
+
+function createSourceMetadata(fileName, pages, totalPages, result) {
+  const selectedPages = normalizePages(pages, totalPages);
+  const isFullDocument = selectedPages.length === totalPages;
+  const pageCount = selectedPages.length;
+  const pageLabel = isFullDocument
+    ? 'Documento completo · ' + totalPages + (totalPages === 1 ? ' página' : ' páginas')
+    : formatPartialPages(selectedPages) + ' · ' + pageCount + (pageCount === 1 ? ' página' : ' páginas');
+
+  return {
+    fileName,
+    scope: isFullDocument ? 'all' : 'custom',
+    selectedPages,
+    totalPages,
+    pageLabel,
+    textCharacterCount: result?.plainText?.length || result?.stats?.sourceCharacters || 0,
+  };
+}
+
+async function loadPdfJs() {
   if (!pdfJsPromise) {
     pdfJsPromise = Promise.all([
       import('pdfjs-dist'),
@@ -65,7 +111,7 @@ const loadPdfJs = async () => {
   }
 
   return pdfJsPromise;
-};
+}
 
 async function hasPdfSignature(file) {
   try {
@@ -77,11 +123,19 @@ async function hasPdfSignature(file) {
 
 function getReadablePdfError(error, passwordRequired = false) {
   if (passwordRequired) return 'Este PDF está protegido con contraseña. Desbloquéalo antes de importarlo.';
-  if (error?.code === 'PDF_TOO_LARGE') return `El PDF supera el límite de ${(MAX_FILE_BYTES / 1024 / 1024).toFixed(0)} MB.`;
-  if (error?.code === 'PDF_TOO_MANY_PAGES') return `El PDF supera el límite de ${MAX_PAGES.toLocaleString('es-MX')} páginas.`;
-  if (error?.code === 'NO_USABLE_TEXT') return 'No se encontró texto legible. Este documento parece escaneado y requiere OCR.';
+  if (error?.code === 'PDF_TOO_LARGE') {
+    return 'El PDF supera el límite de ' + (MAX_FILE_BYTES / 1024 / 1024).toFixed(0) + ' MB.';
+  }
+  if (error?.code === 'PDF_TOO_MANY_PAGES') {
+    return 'El PDF supera el límite de ' + MAX_PAGES.toLocaleString('es-MX') + ' páginas.';
+  }
+  if (error?.code === 'NO_USABLE_TEXT') {
+    return 'No se encontró texto legible. Este documento parece escaneado y requiere OCR.';
+  }
   if (error?.code === 'PDF_EXTRACTION_ABORTED') return 'Extracción cancelada.';
-  if (error?.code === 'PAGE_TEXT_READ_FAILED') return 'Una o más páginas no pudieron leerse y quedaron marcadas en el diagnóstico.';
+  if (error?.code === 'PAGE_TEXT_READ_FAILED') {
+    return 'Una o más páginas no pudieron leerse y quedaron marcadas en el diagnóstico.';
+  }
   return error?.message || 'No se pudo procesar el PDF. Revisa que no esté dañado o protegido.';
 }
 
@@ -90,24 +144,23 @@ function createOperation(id, kind) {
 }
 
 export default function PdfExtractor({ onTextExtracted, onExtractionComplete, ocrProvider }) {
-  const [isOpen, setIsOpen] = useState(false);
   const [pdfDoc, setPdfDoc] = useState(null);
   const [fileName, setFileName] = useState('');
   const [completedFileName, setCompletedFileName] = useState('');
   const [totalPages, setTotalPages] = useState(0);
   const [selectedPages, setSelectedPages] = useState([]);
-  const [scope, setScope] = useState('all');
   const [loading, setLoading] = useState(false);
   const [stage, setStage] = useState(null);
   const [localError, setLocalError] = useState('');
   const [previewPageNum, setPreviewPageNum] = useState(null);
-  const [currentBlockIndex, setCurrentBlockIndex] = useState(0);
   const [processingProgress, setProcessingProgress] = useState(null);
-  const [loadProgress, setLoadProgress] = useState(null);
   const [lastResult, setLastResult] = useState(null);
   const [showCompletionSheet, setShowCompletionSheet] = useState(false);
+  const [isImportSheetOpen, setIsImportSheetOpen] = useState(false);
+  const [isAnalysisSheetOpen, setIsAnalysisSheetOpen] = useState(false);
+  const [isPageSelectionOpen, setIsPageSelectionOpen] = useState(false);
 
-  const scrollRootRef = useRef(null);
+  const fileInputRef = useRef(null);
   const pdfDocRef = useRef(null);
   const loadingTaskRef = useRef(null);
   const objectUrlRef = useRef(null);
@@ -121,11 +174,8 @@ export default function PdfExtractor({ onTextExtracted, onExtractionComplete, oc
     setFileName('');
     setTotalPages(0);
     setSelectedPages([]);
-    setScope('all');
     setPreviewPageNum(null);
-    setCurrentBlockIndex(0);
     setProcessingProgress(null);
-    setLoadProgress(null);
     setStage(null);
   }, []);
 
@@ -167,18 +217,6 @@ export default function PdfExtractor({ onTextExtracted, onExtractionComplete, oc
       && activeOperationRef.current?.id === operation.id
   ), []);
 
-  const resetDocument = useCallback(async ({ preserveResult = false } = {}) => {
-    operationIdRef.current += 1;
-    abortActiveOperation();
-    await releasePdfResources();
-    clearDocumentState();
-    setLoading(false);
-    setLocalError('');
-    setShowCompletionSheet(false);
-    setCompletedFileName('');
-    if (!preserveResult) setLastResult(null);
-  }, [abortActiveOperation, clearDocumentState, releasePdfResources]);
-
   useEffect(() => () => {
     isMountedRef.current = false;
     operationIdRef.current += 1;
@@ -186,72 +224,19 @@ export default function PdfExtractor({ onTextExtracted, onExtractionComplete, oc
     void releasePdfResources();
   }, [abortActiveOperation, releasePdfResources]);
 
-  const totalBlocks = useMemo(() => (totalPages ? Math.ceil(totalPages / PAGE_BLOCK_SIZE) : 0), [totalPages]);
-
-  useEffect(() => {
-    if (!totalBlocks) {
-      setCurrentBlockIndex(0);
-    } else if (currentBlockIndex > totalBlocks - 1) {
-      setCurrentBlockIndex(totalBlocks - 1);
-    }
-  }, [currentBlockIndex, totalBlocks]);
-
-  const blockPages = useMemo(() => {
-    if (!totalPages || scope !== 'custom') return [];
-    const startPage = currentBlockIndex * PAGE_BLOCK_SIZE + 1;
-    const endPage = Math.min(totalPages, startPage + PAGE_BLOCK_SIZE - 1);
-    return Array.from({ length: endPage - startPage + 1 }, (_, index) => startPage + index);
-  }, [currentBlockIndex, scope, totalPages]);
-
-  const selectedPageSet = useMemo(() => new Set(selectedPages), [selectedPages]);
-  const blockPageSet = useMemo(() => new Set(blockPages), [blockPages]);
-  const currentBlockSelectionCount = useMemo(
-    () => blockPages.reduce((count, pageNum) => count + (selectedPageSet.has(pageNum) ? 1 : 0), 0),
-    [blockPages, selectedPageSet],
-  );
-
   const isProcessing = loading && stage === 'extracting';
-  const isLoadingPdf = loading && stage === 'loading';
-
-  const togglePage = useCallback((pageNum) => {
-    if (loading) return;
-    setSelectedPages((previous) => (
-      previous.includes(pageNum)
-        ? previous.filter((page) => page !== pageNum)
-        : [...previous, pageNum].sort((a, b) => a - b)
-    ));
-  }, [loading]);
-
-  const handlePreview = useCallback((pageNum) => {
-    if (!loading) setPreviewPageNum(pageNum);
-  }, [loading]);
-
-  const handleSelectAllPages = useCallback(() => setSelectedPages(buildPageList(totalPages)), [totalPages]);
-  const handleClearAllPages = useCallback(() => setSelectedPages([]), []);
-
-  const handleSelectCurrentBlock = useCallback(() => {
-    setSelectedPages((previous) => {
-      const next = new Set(previous);
-      blockPages.forEach((pageNum) => next.add(pageNum));
-      return Array.from(next).sort((a, b) => a - b);
-    });
-  }, [blockPages]);
-
-  const handleClearCurrentBlock = useCallback(() => {
-    setSelectedPages((previous) => previous.filter((pageNum) => !blockPageSet.has(pageNum)));
-  }, [blockPageSet]);
 
   const handleCancel = useCallback(() => {
     operationIdRef.current += 1;
     abortActiveOperation();
+    void releasePdfResources();
+    clearDocumentState();
     setLoading(false);
     setStage(null);
     setProcessingProgress(null);
-    setLoadProgress(null);
-    setShowCompletionSheet(false);
-    setCompletedFileName('');
-    setLocalError('Operación cancelada.');
-  }, [abortActiveOperation]);
+    setIsAnalysisSheetOpen(false);
+    setIsPageSelectionOpen(false);
+  }, [abortActiveOperation, clearDocumentState, releasePdfResources]);
 
   const handleFileChange = useCallback(async (event) => {
     const file = event.target.files?.[0];
@@ -265,7 +250,7 @@ export default function PdfExtractor({ onTextExtracted, onExtractionComplete, oc
       return;
     }
     if (file.size > MAX_FILE_BYTES) {
-      setLocalError(`El PDF supera el límite de ${(MAX_FILE_BYTES / 1024 / 1024).toFixed(0)} MB.`);
+      setLocalError('El PDF supera el límite de ' + (MAX_FILE_BYTES / 1024 / 1024).toFixed(0) + ' MB.');
       return;
     }
     if (!(await hasPdfSignature(file))) {
@@ -275,13 +260,15 @@ export default function PdfExtractor({ onTextExtracted, onExtractionComplete, oc
 
     const operation = beginOperation('loading');
     passwordRequiredRef.current = false;
-    clearDocumentState();
     setShowCompletionSheet(false);
     setCompletedFileName('');
     setLoading(true);
     setStage('loading');
     setLocalError('');
     setLastResult(null);
+    setIsAnalysisSheetOpen(false);
+    setIsPageSelectionOpen(false);
+    clearDocumentState();
     await releasePdfResources();
     if (!isCurrentOperation(operation)) return;
 
@@ -298,22 +285,20 @@ export default function PdfExtractor({ onTextExtracted, onExtractionComplete, oc
         stopAtErrors: false,
       });
       loadingTaskRef.current = loadingTask;
-      loadingTask.onProgress = ({ loaded, total }) => {
-        if (isCurrentOperation(operation) && total) setLoadProgress({ current: loaded, total, phase: 'loading' });
-      };
       loadingTask.onPassword = () => {
         passwordRequiredRef.current = true;
         void loadingTask.destroy();
       };
 
       const loadedPdf = await loadingTask.promise;
+      if (loadingTaskRef.current === loadingTask) loadingTaskRef.current = null;
       if (!isCurrentOperation(operation)) {
         await loadedPdf.destroy();
         return;
       }
       if (loadedPdf.numPages > MAX_PAGES) {
         throw new PdfExtractionError(
-          `El PDF supera el límite de ${MAX_PAGES.toLocaleString('es-MX')} páginas.`,
+          'El PDF supera el límite de ' + MAX_PAGES.toLocaleString('es-MX') + ' páginas.',
           'PDF_TOO_MANY_PAGES',
           { totalPages: loadedPdf.numPages, maxPages: MAX_PAGES },
         );
@@ -324,9 +309,7 @@ export default function PdfExtractor({ onTextExtracted, onExtractionComplete, oc
       setFileName(file.name);
       setTotalPages(loadedPdf.numPages);
       setSelectedPages(buildPageList(loadedPdf.numPages));
-      setScope('all');
-      setCurrentBlockIndex(0);
-      setStage(null);
+      setIsAnalysisSheetOpen(true);
     } catch (error) {
       if (!isCurrentOperation(operation)) return;
       console.error('[PdfExtractor] Error loading PDF:', error);
@@ -338,18 +321,18 @@ export default function PdfExtractor({ onTextExtracted, onExtractionComplete, oc
         activeOperationRef.current = null;
         setLoading(false);
         setStage(null);
-        setLoadProgress(null);
       }
     }
   }, [beginOperation, clearDocumentState, isCurrentOperation, releasePdfResources]);
 
-  const handleProcessText = useCallback(async () => {
+  const handleProcessText = useCallback(async (requestedPages) => {
     const activePdf = pdfDocRef.current;
     if (!activePdf || loading) return;
 
-    const pagesToRead = scope === 'all'
-      ? buildPageList(totalPages)
-      : [...selectedPages].sort((a, b) => a - b);
+    const pagesToRead = normalizePages(
+      requestedPages || buildPageList(activePdf.numPages),
+      activePdf.numPages,
+    );
     if (!pagesToRead.length) return;
 
     const operation = beginOperation('extracting');
@@ -358,23 +341,28 @@ export default function PdfExtractor({ onTextExtracted, onExtractionComplete, oc
     setLoading(true);
     setStage('extracting');
     setLocalError('');
+    setSelectedPages(pagesToRead);
+    setIsAnalysisSheetOpen(false);
+    setIsPageSelectionOpen(false);
     setProcessingProgress({ current: 0, total: pagesToRead.length, phase: 'extracting' });
 
     try {
+      const pdfjsLib = await loadPdfJs();
+      if (!isCurrentOperation(operation)) return;
+
       const result = await extractPdfDocument(activePdf, pagesToRead, {
         maxCharacters: MAX_CHARACTERS,
         signal: operation.controller.signal,
-        pdfjsLib: await loadPdfJs(),
+        pdfjsLib,
         ocrProvider,
         onProgress: (progress) => {
-          if (isCurrentOperation(operation)) {
-            setProcessingProgress({
-              current: progress.current,
-              total: progress.total,
-              pageNumber: progress.pageNumber,
-              phase: 'extracting',
-            });
-          }
+          if (!isCurrentOperation(operation)) return;
+          setProcessingProgress({
+            current: progress.current,
+            total: progress.total,
+            pageNumber: progress.pageNumber,
+            phase: 'extracting',
+          });
         },
       });
 
@@ -388,22 +376,22 @@ export default function PdfExtractor({ onTextExtracted, onExtractionComplete, oc
         );
       }
 
+      const sourceMetadata = createSourceMetadata(fileName, pagesToRead, activePdf.numPages, result);
       setLastResult(result);
       setCompletedFileName(fileName);
       setShowCompletionSheet(true);
-      onTextExtracted?.(result.plainText, result);
-      onExtractionComplete?.(result);
+      onTextExtracted?.(result.plainText, result, sourceMetadata);
+      onExtractionComplete?.(result, sourceMetadata);
+
       operationIdRef.current += 1;
       abortActiveOperation();
       await releasePdfResources();
       clearDocumentState();
       setLoading(false);
       setStage(null);
-      setIsOpen(false);
     } catch (error) {
       if (!isMountedRef.current || isAbortError(error)) return;
       console.error('[PdfExtractor] Extraction error:', error);
-      setShowCompletionSheet(false);
       setLocalError(getReadablePdfError(error));
     } finally {
       if (isMountedRef.current && isCurrentOperation(operation)) {
@@ -413,10 +401,19 @@ export default function PdfExtractor({ onTextExtracted, onExtractionComplete, oc
         setStage(null);
       }
     }
-  }, [abortActiveOperation, beginOperation, clearDocumentState, fileName, isCurrentOperation, loading, onExtractionComplete, onTextExtracted, ocrProvider, releasePdfResources, scope, selectedPages, totalPages]);
+  }, [
+    abortActiveOperation,
+    beginOperation,
+    clearDocumentState,
+    fileName,
+    isCurrentOperation,
+    loading,
+    onExtractionComplete,
+    onTextExtracted,
+    ocrProvider,
+    releasePdfResources,
+  ]);
 
-  const blockStartPage = blockPages[0] ?? 0;
-  const blockEndPage = blockPages[blockPages.length - 1] ?? 0;
   const extractionSummary = lastResult ? createExtractionSummary(lastResult) : '';
   const extractionHasWarnings = Boolean(lastResult && (
     lastResult.stats.pagesRequiringOcr > 0
@@ -426,108 +423,161 @@ export default function PdfExtractor({ onTextExtracted, onExtractionComplete, oc
     || lastResult.stats.highComplexityPages > 0
   ));
   const extractionDetails = lastResult ? [
-    `${lastResult.stats.sourceCharacters.toLocaleString('es-MX')} caracteres extraídos.`,
+    (lastResult.stats.sourceCharacters || 0).toLocaleString('es-MX') + ' caracteres extraídos.',
     lastResult.stats.regionCount
-      ? `${lastResult.stats.regionCount.toLocaleString('es-MX')} regiones estructuradas detectadas.`
+      ? lastResult.stats.regionCount.toLocaleString('es-MX') + ' regiones estructuradas detectadas.'
       : 'No se detectaron regiones estructuradas adicionales.',
     extractionHasWarnings
       ? 'El diagnóstico conserva las advertencias del documento para que puedas revisarlas.'
       : 'El texto está listo para usarse en la generación de tarjetas.',
   ] : [];
-  // La hoja se reserva exclusivamente para la extracción del texto; la carga
-  // inicial del archivo continúa mostrando únicamente su progreso inline.
-  const processingSheetProgress = isProcessing ? processingProgress : null;
+
+  const requestFile = () => {
+    setLocalError('');
+    window.setTimeout(() => fileInputRef.current?.click(), 0);
+  };
+
+  const handleFabClick = () => {
+    if (loading) return;
+    setLocalError('');
+    if (pdfDocRef.current) {
+      setIsAnalysisSheetOpen(true);
+    } else {
+      setIsImportSheetOpen(true);
+    }
+  };
+
+  const handleOpenPartialSelection = () => {
+    setSelectedPages([]);
+    setIsPageSelectionOpen(true);
+  };
+
+  const handleSelectionConfirm = (pages) => {
+    setIsPageSelectionOpen(false);
+    void handleProcessText(pages, 'custom');
+  };
+
+  const handlePreview = (page) => {
+    setIsPageSelectionOpen(false);
+    setPreviewPageNum(page);
+  };
+
+  const handlePreviewClose = () => {
+    setPreviewPageNum(null);
+    if (pdfDocRef.current && !loading) setIsPageSelectionOpen(true);
+  };
 
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-3xs">
+    <>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="application/pdf,.pdf"
+        onChange={handleFileChange}
+        className="hidden"
+        tabIndex={-1}
+      />
+
       <button
         type="button"
-        onClick={() => setIsOpen((previous) => !previous)}
-        className="flex w-full cursor-pointer items-center justify-between bg-slate-50 px-4 py-3 text-left transition-colors hover:bg-slate-100/70"
-        aria-expanded={isOpen}
+        onClick={handleFabClick}
+        disabled={loading}
+        aria-label="Agregar PDF"
+        title="Agregar PDF"
+        className="fixed right-6 z-50 flex h-14 w-14 cursor-pointer items-center justify-center rounded-[1.3rem] border border-white/50 bg-white/10 shadow-[0_10px_30px_-6px_rgba(0,0,0,0.35),0_4px_10px_-2px_rgba(0,0,0,0.15),inset_0_1.5px_0.5px_0_rgba(255,255,255,0.9),inset_0_-1.5px_1px_-0.5px_rgba(0,0,0,0.18),inset_1px_0_1px_-0.5px_rgba(255,255,255,0.4),inset_-1px_0_1px_-0.5px_rgba(0,0,0,0.12)] ring-1 ring-inset ring-white/30 backdrop-blur-[3px] backdrop-saturate-100 transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] hover:scale-105 hover:bg-white/15 active:scale-95 before:pointer-events-none before:absolute before:inset-0 before:rounded-[1.3rem] before:bg-[radial-gradient(80%_60%_at_50%_-5%,rgba(255,255,255,0.45)_0%,rgba(255,255,255,0.08)_35%,transparent_70%)] before:opacity-90 after:pointer-events-none after:absolute after:inset-[1px] after:rounded-[1.2rem] after:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.18)] after:mix-blend-overlay disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/25 dark:bg-white/5 dark:ring-white/10 dark:hover:bg-white/10"
+        style={{ bottom: 'calc(env(safe-area-inset-bottom) + 6rem)' }}
       >
-        <div className="flex items-center gap-2">
-          <FileUp className="h-4 w-4 shrink-0 text-indigo-500" />
-          <span className="text-xs font-bold text-slate-700">Importar apuntes desde un PDF</span>
-        </div>
-        {isOpen ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
+        <Plus className="relative h-7 w-7 stroke-[3] text-slate-800 drop-shadow-[0_1px_1px_rgba(255,255,255,0.8)] dark:text-white dark:drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
       </button>
 
-      {lastResult && !isOpen && (
-        <div className={`flex items-center gap-2 border-t px-4 py-2 text-[10px] font-semibold ${extractionHasWarnings ? 'border-amber-100 bg-amber-50 text-amber-800' : 'border-emerald-100 bg-emerald-50 text-emerald-700'}`}>
-          {extractionHasWarnings ? <AlertTriangle className="h-3.5 w-3.5 shrink-0" /> : <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />}
-          <span className="truncate">PDF importado · {extractionSummary}</span>
-        </div>
+      <ActionSheet
+        open={isImportSheetOpen}
+        title="Agregar PDF"
+        onClose={() => setIsImportSheetOpen(false)}
+        options={[
+          {
+            id: 'add-pdf',
+            icon: FileUp,
+            label: 'Agregar PDF',
+            description: 'Selecciona un documento desde tu dispositivo.',
+            onSelect: requestFile,
+          },
+          {
+            id: 'cancel-add-pdf',
+            icon: X,
+            label: 'Cancelar',
+            description: 'Cerrar este menú.',
+          },
+        ]}
+      />
+
+      <ActionSheet
+        open={isAnalysisSheetOpen && Boolean(pdfDoc)}
+        title="PDF listo"
+        onClose={() => setIsAnalysisSheetOpen(false)}
+        options={[
+          {
+            id: 'analyze-complete-pdf',
+            icon: FileText,
+            label: 'Analizar PDF completo',
+            description: totalPages + (totalPages === 1 ? ' página del documento.' : ' páginas del documento.'),
+            onSelect: () => {
+              void handleProcessText(buildPageList(totalPages), 'all');
+            },
+          },
+          {
+            id: 'select-pdf-parts',
+            icon: Layers,
+            label: 'Seleccionar parte',
+            description: 'Elige únicamente las páginas que necesitas.',
+            onSelect: handleOpenPartialSelection,
+          },
+        ]}
+      />
+
+      <PdfPageSelectionSheet
+        open={isPageSelectionOpen}
+        pdf={pdfDoc}
+        totalPages={totalPages}
+        selectedPages={selectedPages}
+        onChange={setSelectedPages}
+        onConfirm={handleSelectionConfirm}
+        onClose={() => setIsPageSelectionOpen(false)}
+        onPreview={handlePreview}
+        disabled={loading}
+      />
+
+      {previewPageNum !== null && pdfDoc && (
+        <PdfCarousel
+          pdf={pdfDoc}
+          initialPage={previewPageNum}
+          totalPages={totalPages}
+          selectedPages={selectedPages}
+          onToggle={(page) => {
+            setSelectedPages((previousPages) => (
+              previousPages.includes(page)
+                ? previousPages.filter((selectedPage) => selectedPage !== page)
+                : normalizePages([...previousPages, page], totalPages)
+            ));
+          }}
+          onClose={handlePreviewClose}
+        />
       )}
 
-      {isOpen && (
-        <div className="flex flex-col gap-3 border-t border-slate-200/60 bg-white p-4 animate-[slideUp_0.15s_ease]">
-          {!pdfDoc ? (
-            <div className="flex flex-col gap-2">
-              <label className={`group flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/50 px-4 py-7 text-center transition-all hover:bg-slate-50 ${loading ? 'pointer-events-none opacity-70' : ''}`}>
-                {isLoadingPdf ? <Loader2 className="mb-2 h-7 w-7 animate-spin text-indigo-500" /> : <FileText className="mb-2 h-7 w-7 text-slate-300 transition-colors group-hover:text-indigo-400" />}
-                <span className="text-xs font-bold text-slate-600">{isLoadingPdf ? 'Analizando documento...' : 'Haz clic para cargar tu documento'}</span>
-                <span className="mt-0.5 text-[10px] text-slate-400">PDF local · hasta {(MAX_FILE_BYTES / 1024 / 1024).toFixed(0)} MB · {MAX_PAGES.toLocaleString('es-MX')} páginas</span>
-                <input type="file" accept="application/pdf,.pdf" onChange={handleFileChange} className="hidden" disabled={loading} />
-              </label>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-3">
-              <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-2.5">
-                <div className="flex max-w-[75%] items-center gap-2 truncate"><FileText className="h-4 w-4 shrink-0 text-indigo-500" /><span className="truncate text-xs font-semibold text-slate-700">{fileName}</span></div>
-                <button type="button" onClick={() => void resetDocument()} disabled={loading} className="cursor-pointer p-1 text-xs font-bold text-slate-400 transition-colors hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-40">Cambiar</button>
-              </div>
-
-              <div className="grid w-full grid-cols-2 items-center rounded-xl border border-slate-200/60 bg-slate-100 p-1">
-                <button type="button" onClick={() => setScope('all')} disabled={loading} className={`cursor-pointer rounded-lg py-1.5 text-center text-xs font-bold transition-all disabled:cursor-not-allowed ${scope === 'all' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-500'}`}>Todo ({totalPages})</button>
-                <button type="button" onClick={() => setScope('custom')} disabled={loading} className={`cursor-pointer rounded-lg py-1.5 text-center text-xs font-bold transition-all disabled:cursor-not-allowed ${scope === 'custom' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-500'}`}>Elegir páginas</button>
-              </div>
-
-              {scope === 'custom' && (
-                <div className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50/50 p-3">
-                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-2 text-[11px] font-bold text-slate-500">
-                    <span>Seleccionadas: {selectedPages.length} de {totalPages}</span>
-                    <div className="flex flex-wrap gap-3"><button type="button" onClick={handleSelectAllPages} disabled={loading} className="cursor-pointer hover:text-slate-800 disabled:opacity-40">Todas</button><button type="button" onClick={handleClearAllPages} disabled={loading} className="cursor-pointer hover:text-slate-800 disabled:opacity-40">Ninguna</button></div>
-                  </div>
-
-                  <div className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-2.5 shadow-2xs">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div><p className="text-[11px] font-bold text-slate-700">Bloque {currentBlockIndex + 1} de {totalBlocks}</p><p className="text-[10px] text-slate-400">Páginas {blockStartPage}–{blockEndPage} · {currentBlockSelectionCount} seleccionadas</p></div>
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <button type="button" onClick={handleSelectCurrentBlock} disabled={loading} className="cursor-pointer rounded-lg border border-slate-200 px-2.5 py-1.5 text-[10px] font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-40">Bloque +</button>
-                        <button type="button" onClick={handleClearCurrentBlock} disabled={loading} className="cursor-pointer rounded-lg border border-slate-200 px-2.5 py-1.5 text-[10px] font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-40">Bloque −</button>
-                        <button type="button" onClick={() => setCurrentBlockIndex((previous) => Math.max(0, previous - 1))} disabled={loading || currentBlockIndex === 0} className="cursor-pointer rounded-lg border border-slate-200 p-1.5 text-slate-500 hover:bg-slate-50 disabled:opacity-40" title="Bloque anterior" aria-label="Bloque anterior"><ChevronLeft className="h-4 w-4" /></button>
-                        <button type="button" onClick={() => setCurrentBlockIndex((previous) => Math.min(totalBlocks - 1, previous + 1))} disabled={loading || currentBlockIndex >= totalBlocks - 1} className="cursor-pointer rounded-lg border border-slate-200 p-1.5 text-slate-500 hover:bg-slate-50 disabled:opacity-40" title="Bloque siguiente" aria-label="Bloque siguiente"><ChevronRight className="h-4 w-4" /></button>
-                      </div>
-                    </div>
-                    <div ref={scrollRootRef} className="grid max-h-56 grid-cols-2 gap-2.5 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-1.5 sm:grid-cols-3">
-                      {blockPages.map((pageNum) => <PdfPageThumbnail key={pageNum} pdf={pdfDoc} pageNum={pageNum} isSelected={selectedPageSet.has(pageNum)} onToggle={togglePage} onPreview={handlePreview} scrollRootRef={scrollRootRef} />)}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div className="flex items-center gap-2">
-                <button type="button" disabled={loading || (scope === 'custom' && selectedPages.length === 0)} onClick={handleProcessText} className="flex h-9 flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-xl bg-indigo-600 py-2 text-xs font-bold text-white shadow-xs transition-all hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-45">
-                  {isProcessing ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />Extrayendo {processingProgress?.current ?? 0}/{processingProgress?.total ?? pagesToReadLabel(scope, selectedPages, totalPages)}</> : <>Extraer estructura del PDF</>}
-                </button>
-                {loading && <button type="button" onClick={handleCancel} className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border border-slate-200 text-slate-500 hover:border-red-200 hover:bg-red-50 hover:text-red-600" title="Cancelar" aria-label="Cancelar"><X className="h-4 w-4" /></button>}
-              </div>
-            </div>
-          )}
-
-          {lastResult && (
-            <div className={`flex flex-col gap-1.5 rounded-xl border px-3 py-2 text-[10px] ${extractionHasWarnings ? 'border-amber-100 bg-amber-50 text-amber-900' : 'border-emerald-100 bg-emerald-50 text-emerald-800'}`}>
-              <div className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" /><span className="font-semibold">{extractionSummary}</span></div>
-              {extractionHasWarnings && <div className="flex items-start gap-2 border-t border-amber-200/70 pt-1.5"><AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" /><span>{lastResult.stats.highComplexityPages > 0 && `${lastResult.stats.highComplexityPages} página(s) compleja(s) se conservaron como regiones. `}{lastResult.stats.pagesRequiringOcr > 0 && `${lastResult.stats.pagesRequiringOcr} página(s) pueden requerir OCR. `}{lastResult.stats.failedPages > 0 && `${lastResult.stats.failedPages} página(s) no se pudieron leer. `}{lastResult.stats.notProcessedPages > 0 && `${lastResult.stats.notProcessedPages} página(s) quedaron fuera por el límite. `}{lastResult.stats.truncated && 'El texto alcanzó el límite permitido.'}</span></div>}
-            </div>
-          )}
-
-          {localError && <div className="flex items-start gap-2 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-[11px] font-semibold text-red-600 animate-[fadeIn_0.12s_ease]"><AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span>{localError}</span></div>}
-        </div>
-      )}
-
-      {previewPageNum !== null && pdfDoc && <PdfCarousel pdf={pdfDoc} initialPage={previewPageNum} totalPages={totalPages} selectedPages={selectedPages} onToggle={togglePage} onClose={() => setPreviewPageNum(null)} />}
+      <ActionSheet
+        open={Boolean(localError)}
+        title="No se pudo cargar el PDF"
+        onClose={() => setLocalError('')}
+        options={[
+          {
+            id: 'dismiss-pdf-error',
+            icon: AlertTriangle,
+            label: 'Entendido',
+            description: localError,
+            danger: true,
+          },
+        ]}
+      />
 
       <ProcessingActionSheet
         open={isProcessing || showCompletionSheet}
@@ -538,17 +588,13 @@ export default function PdfExtractor({ onTextExtracted, onExtractionComplete, oc
         message={showCompletionSheet
           ? 'La estructura del documento quedó lista para generar tus tarjetas.'
           : 'Estamos leyendo y organizando el contenido página por página.'}
-        progress={processingSheetProgress}
+        progress={isProcessing ? processingProgress : null}
         summary={showCompletionSheet ? extractionSummary : undefined}
         details={showCompletionSheet ? extractionDetails : undefined}
         onCancel={isProcessing ? handleCancel : undefined}
         onClose={() => setShowCompletionSheet(false)}
         autoCloseMs={2500}
       />
-    </div>
+    </>
   );
-}
-
-function pagesToReadLabel(scope, selectedPages, totalPages) {
-  return scope === 'all' ? totalPages : selectedPages.length;
 }
