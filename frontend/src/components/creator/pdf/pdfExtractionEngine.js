@@ -1,5 +1,5 @@
 /**
- * PDF extraction engine v2.
+ * PDF extraction engine v3.
  *
  * The public API deliberately remains compatible with the v1 extractor:
  * `extractPdfDocument(pdf, pageNumbers, options)` still returns `plainText`,
@@ -21,7 +21,13 @@ export const PDF_EXTRACTION_DEFAULTS = Object.freeze({
   repeatedInPageMaxLength: 80,
   maxItemsPerPage: 50000,
   maxColumnsPerBand: 8,
-  inspectGraphics: true,
+  // `true` preserves the v2 behaviour (inspect every page), `false` disables
+  // the diagnostic and `adaptive` only inspects pages that are not clearly
+  // simple native-text pages.
+  inspectGraphics: 'adaptive',
+  fastPathMaxLines: 120,
+  fastPathMaxItems: 900,
+  adaptiveGraphicsMinCharacters: 160,
   ocrMixedPages: false,
 });
 
@@ -184,7 +190,7 @@ function toTextRun(item, pageHeight, index) {
     width,
     height,
     fontSize,
-    dir: item.dir === 'rtl' ? 'rtl' : 'ltr',
+    dir: item.dir === 'rtl' ? 'rtl' : item.dir === 'ttb' ? 'ttb' : 'ltr',
     hasEOL: Boolean(item.hasEOL),
     fontName: item.fontName || null,
   };
@@ -204,14 +210,14 @@ function unionBounds(runs) {
   );
 }
 
-function composeLineText(runs) {
+function composeLineText(runs, alreadySorted = false) {
   if (!runs.length) return '';
 
   const rtlCount = runs.filter((run) => run.dir === 'rtl').length;
-  const orderedRuns = [...runs].sort((a, b) => {
-    if (rtlCount > runs.length / 2) return b.x - a.x;
-    return a.x - b.x;
-  });
+  const isRtl = rtlCount > runs.length / 2;
+  const orderedRuns = alreadySorted && !isRtl
+    ? runs
+    : [...runs].sort((a, b) => (isRtl ? b.x - a.x : a.x - b.x));
 
   let result = '';
   let previous = null;
@@ -304,7 +310,6 @@ function groupRunsIntoLines(runs) {
       lastLine.width = lastLine.right - lastLine.x;
       lastLine.height = lastLine.bottom - lastLine.y;
       lastLine.fontSize = (lastLine.fontSize + run.fontSize) / 2;
-      lastLine.text = composeLineText(lastLine.runs);
       return;
     }
 
@@ -312,11 +317,14 @@ function groupRunsIntoLines(runs) {
   });
 
   return lines
-    .map((line) => ({
-      ...line,
-      runs: [...line.runs].sort((a, b) => a.x - b.x),
-      text: composeLineText(line.runs),
-    }))
+    .map((line) => {
+      const orderedLineRuns = [...line.runs].sort((a, b) => a.x - b.x);
+      return {
+        ...line,
+        runs: orderedLineRuns,
+        text: composeLineText(orderedLineRuns, true),
+      };
+    })
     .filter((line) => line.text);
 }
 
@@ -340,23 +348,171 @@ function getImageOperatorValues(pdfjsLib) {
   );
 }
 
+function resolveItemLimit(value) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0
+    ? parsed
+    : PDF_EXTRACTION_DEFAULTS.maxItemsPerPage;
+}
+
+async function cancelTextReader(reader) {
+  try {
+    await reader?.cancel?.();
+  } catch {
+    // A cancelled PDF.js stream may reject while it is being torn down.
+  }
+}
+
+async function readTextContentFromStream(page, options) {
+  const { signal } = options;
+  const stream = page.streamTextContent({ includeMarkedContent: false });
+  if (!stream || typeof stream.getReader !== 'function') {
+    throw new Error('PDF.js no devolvió un stream de texto legible.');
+  }
+
+  const reader = stream.getReader();
+  const items = [];
+  const itemLimit = resolveItemLimit(options.maxItemsPerPage);
+  let rawItemCount = 0;
+  let itemLimitReached = false;
+  const abortReader = () => {
+    void cancelTextReader(reader);
+  };
+
+  signal?.addEventListener?.('abort', abortReader, { once: true });
+
+  try {
+    while (true) {
+      throwIfAborted(signal);
+      const { done, value } = await reader.read();
+      throwIfAborted(signal);
+      if (done) break;
+
+      const chunkItems = Array.isArray(value?.items) ? value.items : [];
+      rawItemCount += chunkItems.length;
+      const remaining = itemLimit - items.length;
+      if (remaining <= 0) {
+        itemLimitReached = true;
+        break;
+      }
+
+      if (chunkItems.length > remaining) {
+        items.push(...chunkItems.slice(0, remaining));
+        itemLimitReached = true;
+        break;
+      }
+
+      items.push(...chunkItems);
+      if (items.length >= itemLimit) {
+        itemLimitReached = true;
+        break;
+      }
+    }
+  } finally {
+    signal?.removeEventListener?.('abort', abortReader);
+    if (itemLimitReached || signal?.aborted) await cancelTextReader(reader);
+    try {
+      reader.releaseLock?.();
+    } catch {
+      // Releasing an already-cancelled reader is only best effort.
+    }
+  }
+
+  return {
+    items,
+    rawItemCount,
+    itemLimitReached,
+    extractionMethod: 'stream',
+    warnings: [],
+  };
+}
+
+async function readTextContentFallback(page, options, fallbackWarning = null) {
+  const { signal } = options;
+  throwIfAborted(signal);
+  const textContent = await page.getTextContent({ includeMarkedContent: false });
+  throwIfAborted(signal);
+  const allItems = Array.isArray(textContent?.items) ? textContent.items : [];
+  const itemLimit = resolveItemLimit(options.maxItemsPerPage);
+  const itemLimitReached = allItems.length > itemLimit;
+
+  return {
+    items: itemLimitReached ? allItems.slice(0, itemLimit) : allItems,
+    rawItemCount: allItems.length,
+    itemLimitReached,
+    extractionMethod: 'materialized-fallback',
+    warnings: fallbackWarning ? [fallbackWarning] : [],
+  };
+}
+
+async function readPageTextContent(page, options) {
+  if (typeof page.streamTextContent !== 'function') {
+    return readTextContentFallback(page, options);
+  }
+
+  try {
+    return await readTextContentFromStream(page, options);
+  } catch (error) {
+    if (isAbortError(error)) throw error;
+    return readTextContentFallback(page, options, {
+      code: 'TEXT_STREAM_FALLBACK',
+      message: 'La lectura incremental de texto falló; se usó la ruta compatible de PDF.js.',
+    });
+  }
+}
+
+function makeGraphicsState(inspection, extras = {}) {
+  return {
+    hasImages: null,
+    imageCount: 0,
+    operatorCount: 0,
+    inspection,
+    failed: false,
+    ...extras,
+  };
+}
+
 async function inspectPageGraphics(page, pdfjsLib, signal) {
   throwIfAborted(signal);
-  if (typeof page.getOperatorList !== 'function') return { hasImages: null, imageCount: 0, operatorCount: 0 };
+  if (typeof page.getOperatorList !== 'function') return makeGraphicsState('unavailable');
 
   try {
     const operatorList = await page.getOperatorList();
     throwIfAborted(signal);
     const imageOps = getImageOperatorValues(pdfjsLib);
-    if (!imageOps.size) return { hasImages: null, imageCount: 0, operatorCount: operatorList.fnArray?.length ?? 0 };
+    if (!imageOps.size) {
+      return makeGraphicsState('inspected', {
+        operatorCount: operatorList.fnArray?.length ?? 0,
+      });
+    }
 
     const fnArray = Array.isArray(operatorList.fnArray) ? operatorList.fnArray : [];
     const imageCount = fnArray.reduce((count, fn) => count + (imageOps.has(fn) ? 1 : 0), 0);
-    return { hasImages: imageCount > 0, imageCount, operatorCount: fnArray.length };
+    return makeGraphicsState('inspected', {
+      hasImages: imageCount > 0,
+      imageCount,
+      operatorCount: fnArray.length,
+    });
   } catch (error) {
     if (isAbortError(error)) throw error;
-    return { hasImages: null, imageCount: 0, operatorCount: 0 };
+    return makeGraphicsState('failed', { failed: true });
   }
+}
+
+function resolveGraphicsInspection(inspectGraphics, profile) {
+  if (inspectGraphics === false) return { shouldInspect: false, reason: 'disabled' };
+  if (inspectGraphics === true || inspectGraphics === 'always') {
+    return { shouldInspect: true, reason: 'forced' };
+  }
+  if (inspectGraphics === 'adaptive' || inspectGraphics == null) {
+    return profile.shouldInspectGraphics
+      ? { shouldInspect: true, reason: 'adaptive-suspicion' }
+      : { shouldInspect: false, reason: 'skipped-simple' };
+  }
+
+  // Preserve the old opt-in behaviour for unknown truthy values instead of
+  // silently weakening diagnostics because of a typo in a consumer.
+  return { shouldInspect: Boolean(inspectGraphics), reason: 'forced' };
 }
 
 function lineIsWide(line, pageWidth) {
@@ -394,10 +550,7 @@ function clusterColumnAnchors(lines, pageWidth, medianFontSize, maxColumns) {
   return [];
 }
 
-function assignBandColumns(lines, pageWidth, medianFontSize, maxColumns) {
-  const clusters = clusterColumnAnchors(lines, pageWidth, medianFontSize, maxColumns);
-  const centers = clusters.map((cluster) => cluster.center);
-
+function assignPageColumns(lines, pageWidth, centers) {
   return lines.map((line) => {
     const wide = lineIsWide(line, pageWidth);
     if (wide && line.role !== 'card-heading') {
@@ -422,8 +575,74 @@ function assignBandColumns(lines, pageWidth, medianFontSize, maxColumns) {
   });
 }
 
+function groupLinesIntoVisualRows(lines, medianFontSize) {
+  const ordered = [...lines]
+    .filter((line) => !line.isFullWidth)
+    .sort((a, b) => {
+      if (Math.abs(a.y - b.y) > 0.5) return a.y - b.y;
+      return a.x - b.x;
+    });
+  const tolerance = Math.max(2.5, medianFontSize * 0.65);
+  const rows = [];
+
+  ordered.forEach((line) => {
+    const current = rows[rows.length - 1];
+    if (!current || Math.abs(line.y - current.y) > tolerance) {
+      rows.push({ y: line.y, lines: [line] });
+      return;
+    }
+    current.lines.push(line);
+  });
+
+  return rows;
+}
+
+function buildColumnTopology(lines, pageWidth, medianFontSize, maxColumns) {
+  const clusters = clusterColumnAnchors(lines, pageWidth, medianFontSize, maxColumns);
+  const centers = clusters.map((cluster) => cluster.center);
+  const assignedLines = assignPageColumns(lines, pageWidth, centers);
+  const nonFullWidthLines = assignedLines.filter((line) => Number.isInteger(line.columnIndex));
+  const columnCounts = centers.map((_, index) => (
+    nonFullWidthLines.filter((line) => line.columnIndex === index).length
+  ));
+  const visualRows = groupLinesIntoVisualRows(assignedLines, medianFontSize);
+  const multiColumnRows = visualRows.filter((row) => (
+    new Set(row.lines.map((line) => line.columnIndex)).size > 1
+  )).length;
+  const shortLineShare = nonFullWidthLines.length
+    ? nonFullWidthLines.filter((line) => normalizeInlineText(line.text).length <= 36).length / nonFullWidthLines.length
+    : 0;
+  const tableLike = centers.length >= 3
+    ? multiColumnRows >= 2
+    : multiColumnRows >= 5
+      && visualRows.length > 0
+      && multiColumnRows / visualRows.length >= 0.6
+      && shortLineShare >= 0.72;
+  const minimumColumnLines = Math.max(2, Math.ceil(nonFullWidthLines.length * 0.08));
+  const hasBalancedColumns = centers.length >= 2
+    && columnCounts.every((count) => count >= minimumColumnLines);
+  const minimumSeparation = Math.max(40, pageWidth * 0.14, medianFontSize * 4);
+  const hasSeparatedColumns = centers.length === 2
+    && centers[1] - centers[0] >= minimumSeparation;
+  const useColumnFlow = centers.length === 2
+    && nonFullWidthLines.length >= 6
+    && hasBalancedColumns
+    && hasSeparatedColumns
+    && !tableLike;
+
+  return {
+    centers,
+    columnCount: Math.max(1, centers.length),
+    candidate: centers.length >= 2,
+    tableLike,
+    useColumnFlow,
+    assignedLines,
+  };
+}
+
 function buildVisualBands(lines, pageWidth, medianFontSize, maxColumns) {
-  const ordered = [...lines].sort((a, b) => {
+  const topology = buildColumnTopology(lines, pageWidth, medianFontSize, maxColumns);
+  const ordered = [...topology.assignedLines].sort((a, b) => {
     if (Math.abs(a.y - b.y) > 0.5) return a.y - b.y;
     return a.x - b.x;
   });
@@ -431,40 +650,75 @@ function buildVisualBands(lines, pageWidth, medianFontSize, maxColumns) {
   const verticalBreak = Math.max(12, medianFontSize * 1.85);
   let current = [];
   let currentBottom = -Infinity;
+  let currentTop = Infinity;
 
   ordered.forEach((line) => {
     const gap = line.y - currentBottom;
     const headingBreak = line.role === 'heading'
       && current.length > 0
-      && line.y > Math.min(...current.map((item) => item.y)) + medianFontSize * 0.75;
+      && line.y > currentTop + medianFontSize * 0.75;
 
     if (current.length && (gap > verticalBreak || headingBreak)) {
       bands.push(current);
       current = [];
       currentBottom = -Infinity;
+      currentTop = Infinity;
     }
 
     current.push(line);
     currentBottom = Math.max(currentBottom, line.bottom);
+    currentTop = Math.min(currentTop, line.y);
   });
 
   if (current.length) bands.push(current);
 
-  return bands.map((bandLines, bandIndex) => {
-    const assigned = assignBandColumns(bandLines, pageWidth, medianFontSize, maxColumns)
-      .map((line) => ({ ...line, bandIndex }));
-    const columnIndexes = assigned
-      .map((line) => line.columnIndex)
-      .filter((columnIndex) => Number.isInteger(columnIndex));
-
-    return {
+  return {
+    topology,
+    bands: bands.map((bandLines, bandIndex) => {
+      const assigned = bandLines.map((line) => ({ ...line, bandIndex }));
+      return {
       bandIndex,
       lines: assigned,
-      columnCount: columnIndexes.length ? Math.max(...columnIndexes) + 1 : 1,
+      columnCount: topology.columnCount,
       top: Math.min(...assigned.map((line) => line.y)),
       bottom: Math.max(...assigned.map((line) => line.bottom)),
-    };
-  });
+      };
+    }),
+  };
+}
+
+function getPageProcessingProfile(runs, lines, dimensions, textRead, options) {
+  const nativeCharacters = lines.reduce((sum, line) => sum + line.text.length, 0);
+  const medianFontSize = calculateMedian(lines.map((line) => line.fontSize));
+  const candidateColumns = clusterColumnAnchors(
+    lines,
+    dimensions.width,
+    medianFontSize,
+    options.maxColumnsPerBand,
+  ).length;
+  const containsNonHorizontalText = runs.some((run) => run.dir === 'rtl' || run.dir === 'ttb');
+  const containsTabularGaps = lines.some((line) => line.text.includes('\t'));
+  const minCharactersForFastPath = Math.max(
+    options.minNativeCharacters * 4,
+    options.adaptiveGraphicsMinCharacters,
+  );
+  const useCompactLayout = Boolean(lines.length)
+    && nativeCharacters >= minCharactersForFastPath
+    && lines.length <= options.fastPathMaxLines
+    && runs.length <= options.fastPathMaxItems
+    && candidateColumns < 2
+    && !containsNonHorizontalText
+    && !containsTabularGaps
+    && !textRead.itemLimitReached;
+
+  return {
+    nativeCharacters,
+    candidateColumns,
+    useCompactLayout,
+    shouldInspectGraphics: !useCompactLayout
+      || nativeCharacters < minCharactersForFastPath
+      || textRead.itemLimitReached,
+  };
 }
 
 function makeBounds(lines) {
@@ -486,12 +740,21 @@ function buildProjectionForBlock(block) {
   return block.text;
 }
 
+function compareBlocksGeometrically(left, right) {
+  if (left.order !== right.order) return left.order - right.order;
+  if ((left.columnIndex ?? -1) !== (right.columnIndex ?? -1)) {
+    return (left.columnIndex ?? -1) - (right.columnIndex ?? -1);
+  }
+  return left.id.localeCompare(right.id);
+}
+
 function projectBlocks(blocks) {
   return [...blocks]
     .sort((a, b) => {
-      if (a.order !== b.order) return a.order - b.order;
-      if ((a.columnIndex ?? -1) !== (b.columnIndex ?? -1)) return (a.columnIndex ?? -1) - (b.columnIndex ?? -1);
-      return a.id.localeCompare(b.id);
+      if (Number.isInteger(a.readingOrder) && Number.isInteger(b.readingOrder)) {
+        return a.readingOrder - b.readingOrder;
+      }
+      return compareBlocksGeometrically(a, b);
     })
     .map(buildProjectionForBlock)
     .filter(Boolean)
@@ -499,7 +762,24 @@ function projectBlocks(blocks) {
     .trim();
 }
 
-function createBlockFactory(pageNumber, medianFontSize) {
+function createRegions(blocks) {
+  return blocks.map((block) => ({
+    id: block.regionId,
+    type: block.type === 'section' ? 'section' : block.type === 'card' ? 'card' : 'content',
+    title: block.title,
+    text: block.text,
+    bodyText: block.bodyText,
+    bbox: block.bbox,
+    confidence: block.confidence,
+    sectionId: block.sectionId,
+    columnIndex: block.columnIndex,
+    bandIndex: block.bandIndex,
+    blockIds: [block.id],
+    lineIds: block.lineIds,
+  }));
+}
+
+function createBlockFactory(pageNumber, medianFontSize, detailLevel = 'structured') {
   let blockIndex = 0;
   let regionIndex = 0;
 
@@ -545,26 +825,25 @@ function createBlockFactory(pageNumber, medianFontSize) {
       order: cleanLines[0].y * 1000 + cleanLines[0].x,
       lineCount: cleanLines.length,
       lineIds: cleanLines.map((line) => line.id),
-      sourceRunIds: cleanLines.flatMap((line) => line.runs.map((run) => run.id)),
-      sourceEvidence: {
+    };
+
+    if (detailLevel === 'structured') {
+      block.sourceRunIds = cleanLines.flatMap((line) => line.runs.map((run) => run.id));
+      block.sourceEvidence = {
         pageNumber,
         regionId,
         bbox,
         lineIds: cleanLines.map((line) => line.id),
         source: 'pdf-text',
         confidence,
-      },
-    };
+      };
+    }
 
     return block;
   };
 }
 
-function groupLinesByVerticalGap(lines, medianFontSize) {
-  const ordered = [...lines].sort((a, b) => {
-    if (Math.abs(a.y - b.y) > 0.5) return a.y - b.y;
-    return a.x - b.x;
-  });
+function groupOrderedLinesByVerticalGap(ordered, medianFontSize) {
   const groups = [];
   const gapLimit = Math.max(12, medianFontSize * 1.8);
   let current = [];
@@ -584,114 +863,225 @@ function groupLinesByVerticalGap(lines, medianFontSize) {
   return groups;
 }
 
+function groupLinesByVerticalGap(lines, medianFontSize) {
+  const ordered = [...lines].sort((a, b) => {
+    if (Math.abs(a.y - b.y) > 0.5) return a.y - b.y;
+    return a.x - b.x;
+  });
+  return groupOrderedLinesByVerticalGap(ordered, medianFontSize);
+}
+
+function getBlockTop(block) {
+  return finiteNumber(block?.bbox?.[1], finiteNumber(block?.order, 0) / 1000);
+}
+
+function orderBlocksByReadingFlow(blocks, topology) {
+  const geometric = [...blocks].sort(compareBlocksGeometrically);
+  if (!topology?.useColumnFlow) {
+    return {
+      blocks: geometric.map((block, index) => ({ ...block, readingOrder: index })),
+      readingOrder: 'geometric',
+    };
+  }
+
+  const fullWidth = geometric
+    .filter((block) => block.columnIndex === null)
+    .sort((left, right) => getBlockTop(left) - getBlockTop(right) || compareBlocksGeometrically(left, right));
+  const columnBlocks = geometric.filter((block) => block.columnIndex !== null);
+  const ordered = [];
+  let segmentTop = -Infinity;
+
+  const appendColumnSegment = (segmentBottom) => {
+    const segment = columnBlocks.filter((block) => {
+      const top = getBlockTop(block);
+      return top >= segmentTop - 0.5 && top < segmentBottom - 0.5;
+    });
+    segment.sort((left, right) => {
+      if (left.columnIndex !== right.columnIndex) return left.columnIndex - right.columnIndex;
+      return compareBlocksGeometrically(left, right);
+    });
+    ordered.push(...segment);
+  };
+
+  fullWidth.forEach((block) => {
+    const top = getBlockTop(block);
+    appendColumnSegment(top);
+    ordered.push(block);
+    segmentTop = top;
+  });
+  appendColumnSegment(Infinity);
+
+  return {
+    blocks: ordered.map((block, index) => ({ ...block, readingOrder: index })),
+    readingOrder: 'column-flow',
+  };
+}
+
+function appendContentBlocks(blocks, createBlock, orderedLines, medianFontSize) {
+  if (!orderedLines.length) return;
+
+  const cardAnchors = orderedLines
+    .map((line, index) => (line.role === 'card-heading' ? index : -1))
+    .filter((index) => index >= 0);
+
+  if (cardAnchors.length) {
+    if (cardAnchors[0] > 0) {
+      const prefix = createBlock(
+        orderedLines.slice(0, cardAnchors[0]),
+        null,
+        orderedLines[0].sectionId,
+        orderedLines[0].columnIndex,
+      );
+      if (prefix) blocks.push(prefix);
+    }
+
+    cardAnchors.forEach((anchorIndex, index) => {
+      const end = cardAnchors[index + 1] ?? orderedLines.length;
+      const card = createBlock(
+        orderedLines.slice(anchorIndex, end),
+        'card',
+        orderedLines[anchorIndex].sectionId,
+        orderedLines[anchorIndex].columnIndex,
+      );
+      if (card) blocks.push(card);
+    });
+    return;
+  }
+
+  groupOrderedLinesByVerticalGap(orderedLines, medianFontSize).forEach((lineGroup) => {
+    const block = createBlock(
+      lineGroup,
+      null,
+      lineGroup[0].sectionId,
+      lineGroup[0].columnIndex,
+    );
+    if (block) blocks.push(block);
+  });
+}
+
+function buildCompactLayout(lines, pageNumber) {
+  const medianFontSize = calculateMedian(lines.map((line) => line.fontSize));
+  const orderedLines = [...lines]
+    .map((line) => ({
+      ...line,
+      role: classifyLine(line, medianFontSize),
+      columnIndex: 0,
+      bandIndex: 0,
+    }))
+    .sort((a, b) => a.y - b.y || a.x - b.x);
+  const createBlock = createBlockFactory(pageNumber, medianFontSize, 'compact');
+  const blocks = [];
+  let currentSectionId = null;
+  let sectionIndex = 0;
+  let pendingContent = [];
+
+  const flushContent = () => {
+    appendContentBlocks(blocks, createBlock, pendingContent, medianFontSize);
+    pendingContent = [];
+  };
+
+  orderedLines.forEach((line) => {
+    if (line.role !== 'heading') {
+      pendingContent.push({ ...line, sectionId: currentSectionId });
+      return;
+    }
+
+    flushContent();
+    currentSectionId = `p${pageNumber}-s${++sectionIndex}`;
+    const heading = { ...line, sectionId: currentSectionId };
+    const block = createBlock([heading], 'section', currentSectionId, heading.columnIndex);
+    if (block) blocks.push(block);
+  });
+  flushContent();
+
+  const ordered = orderBlocksByReadingFlow(blocks, { useColumnFlow: false });
+  const regions = createRegions(ordered.blocks);
+  const cardRegionCount = ordered.blocks.filter((block) => block.type === 'card').length;
+
+  return {
+    blocks: ordered.blocks,
+    regions,
+    plainText: projectBlocks(ordered.blocks),
+    layout: 'single-column',
+    columnCount: 1,
+    bandCount: groupOrderedLinesByVerticalGap(orderedLines, medianFontSize).length,
+    sectionCount: sectionIndex,
+    cardRegionCount,
+    complexity: 'low',
+    complexityScore: 0,
+    detailLevel: 'compact',
+    readingOrder: ordered.readingOrder,
+    warnings: [],
+  };
+}
+
 function buildSemanticLayout(lines, pageNumber, dimensions, graphics, settings) {
   const medianFontSize = calculateMedian(lines.map((line) => line.fontSize));
   const roleLines = lines.map((line) => ({
     ...line,
     role: classifyLine(line, medianFontSize),
   }));
-  const bands = buildVisualBands(
+  const visualLayout = buildVisualBands(
     roleLines,
     dimensions.width,
     medianFontSize,
     settings.maxColumnsPerBand,
   );
-  const annotatedLines = bands.flatMap((band) => band.lines);
-  const sectionAnchors = annotatedLines
-    .filter((line) => line.role === 'heading')
-    .sort((a, b) => a.y - b.y || a.x - b.x)
-    .map((line, index) => ({
-      ...line,
-      sectionId: `p${pageNumber}-s${index + 1}`,
-    }));
+  const { bands, topology } = visualLayout;
+  const geometricLines = bands
+    .flatMap((band) => band.lines)
+    .sort((a, b) => a.y - b.y || a.x - b.x);
+  const latestSectionByColumn = new Map();
+  let latestFullWidthSection = null;
+  let sectionIndex = 0;
 
-  const headingByLineId = new Map(sectionAnchors.map((line) => [line.id, line]));
-  const findSectionForLine = (line) => {
-    const matching = sectionAnchors
-      .filter((anchor) => anchor.y <= line.y + 1)
-      .sort((a, b) => b.y - a.y || b.x - a.x);
-
-    if (!matching.length) return null;
-
-    const sameColumn = matching.find((anchor) => (
-      anchor.columnIndex === null
-      || line.columnIndex === null
-      || anchor.columnIndex === line.columnIndex
-    ));
-    return sameColumn?.sectionId || matching[0].sectionId;
-  };
-
-  const enrichedLines = annotatedLines.map((line) => ({
-    ...line,
-    sectionId: headingByLineId.get(line.id)?.sectionId || findSectionForLine(line),
-  }));
-  const createBlock = createBlockFactory(pageNumber, medianFontSize);
-  const blocks = [];
-
-  sectionAnchors.forEach((anchor) => {
-    const block = createBlock([enrichedLines.find((line) => line.id === anchor.id)], 'section', anchor.sectionId, anchor.columnIndex);
-    if (block) blocks.push(block);
-  });
-
-  const contentLines = enrichedLines.filter((line) => line.role !== 'heading');
-  const groups = new Map();
-  contentLines.forEach((line) => {
-    const key = `${line.sectionId || 'unsectioned'}|${line.columnIndex ?? 'full'}`;
-    const current = groups.get(key) || [];
-    current.push(line);
-    groups.set(key, current);
-  });
-
-  groups.forEach((groupLines) => {
-    const ordered = [...groupLines].sort((a, b) => a.y - b.y || a.x - b.x);
-    const cardAnchors = ordered
-      .map((line, index) => (line.role === 'card-heading' ? index : -1))
-      .filter((index) => index >= 0);
-
-    if (cardAnchors.length) {
-      if (cardAnchors[0] > 0) {
-        const prefix = createBlock(ordered.slice(0, cardAnchors[0]), null, ordered[0].sectionId, ordered[0].columnIndex);
-        if (prefix) blocks.push(prefix);
+  const enrichedLines = geometricLines.map((line) => {
+    if (line.role === 'heading') {
+      const sectionId = `p${pageNumber}-s${++sectionIndex}`;
+      if (line.columnIndex === null) {
+        latestFullWidthSection = sectionId;
+        latestSectionByColumn.clear();
+      } else {
+        latestSectionByColumn.set(line.columnIndex, sectionId);
       }
-
-      cardAnchors.forEach((anchorIndex, index) => {
-        const end = cardAnchors[index + 1] ?? ordered.length;
-        const card = createBlock(ordered.slice(anchorIndex, end), 'card', ordered[anchorIndex].sectionId, ordered[anchorIndex].columnIndex);
-        if (card) blocks.push(card);
-      });
-      return;
+      return { ...line, sectionId };
     }
 
-    groupLinesByVerticalGap(ordered, medianFontSize).forEach((lineGroup) => {
-      const block = createBlock(lineGroup, null, lineGroup[0].sectionId, lineGroup[0].columnIndex);
+    const sectionId = line.columnIndex === null
+      ? latestFullWidthSection
+      : latestSectionByColumn.get(line.columnIndex) || latestFullWidthSection;
+    return { ...line, sectionId };
+  });
+  const createBlock = createBlockFactory(pageNumber, medianFontSize, 'structured');
+  const blocks = [];
+
+  enrichedLines
+    .filter((line) => line.role === 'heading')
+    .forEach((line) => {
+      const block = createBlock([line], 'section', line.sectionId, line.columnIndex);
       if (block) blocks.push(block);
     });
+
+  const groups = new Map();
+  enrichedLines
+    .filter((line) => line.role !== 'heading')
+    .forEach((line) => {
+      const key = `${line.sectionId || 'unsectioned'}|${line.columnIndex ?? 'full'}`;
+      const group = groups.get(key) || [];
+      group.push(line);
+      groups.set(key, group);
+    });
+
+  groups.forEach((groupLines) => {
+    const orderedLines = [...groupLines].sort((a, b) => a.y - b.y || a.x - b.x);
+    appendContentBlocks(blocks, createBlock, orderedLines, medianFontSize);
   });
 
-  blocks.sort((a, b) => {
-    if (a.order !== b.order) return a.order - b.order;
-    if ((a.columnIndex ?? -1) !== (b.columnIndex ?? -1)) return (a.columnIndex ?? -1) - (b.columnIndex ?? -1);
-    return a.id.localeCompare(b.id);
-  });
-
-  const regions = blocks.map((block) => ({
-    id: block.regionId,
-    type: block.type === 'section' ? 'section' : block.type === 'card' ? 'card' : 'content',
-    title: block.title,
-    text: block.text,
-    bodyText: block.bodyText,
-    bbox: block.bbox,
-    confidence: block.confidence,
-    sectionId: block.sectionId,
-    columnIndex: block.columnIndex,
-    bandIndex: block.bandIndex,
-    blockIds: [block.id],
-    lineIds: block.lineIds,
-  }));
-
-  const columnCount = Math.max(1, ...bands.map((band) => band.columnCount));
-  const sectionCount = blocks.filter((block) => block.type === 'section').length;
-  const cardRegionCount = blocks.filter((block) => block.type === 'card').length;
+  const ordered = orderBlocksByReadingFlow(blocks, topology);
+  const regions = createRegions(ordered.blocks);
+  const columnCount = topology.columnCount;
+  const sectionCount = ordered.blocks.filter((block) => block.type === 'section').length;
+  const cardRegionCount = ordered.blocks.filter((block) => block.type === 'card').length;
   const complexityScore = (
     (columnCount >= 5 ? 4 : columnCount >= 3 ? 3 : columnCount === 2 ? 1 : 0)
     + (bands.length >= 7 ? 3 : bands.length >= 4 ? 2 : bands.length >= 2 ? 1 : 0)
@@ -713,6 +1103,14 @@ function buildSemanticLayout(lines, pageNumber, dimensions, graphics, settings) 
       message: `La página ${pageNumber} se reconstruyó como ${layout} con ${regions.length} regiones de contenido.`,
     });
   }
+  if (topology.candidate && !topology.useColumnFlow) {
+    warnings.push({
+      code: 'COLUMN_FLOW_FALLBACK',
+      message: topology.tableLike
+        ? `La página ${pageNumber} parece tabular; se conservó el orden geométrico para no mezclar filas.`
+        : `La distribución de columnas de la página ${pageNumber} fue ambigua; se conservó el orden geométrico seguro.`,
+    });
+  }
   if (complexity === 'high') {
     warnings.push({
       code: 'COMPLEX_LAYOUT_REVIEW',
@@ -721,9 +1119,9 @@ function buildSemanticLayout(lines, pageNumber, dimensions, graphics, settings) 
   }
 
   return {
-    blocks,
+    blocks: ordered.blocks,
     regions,
-    plainText: projectBlocks(blocks),
+    plainText: projectBlocks(ordered.blocks),
     layout,
     columnCount,
     bandCount: bands.length,
@@ -731,11 +1129,13 @@ function buildSemanticLayout(lines, pageNumber, dimensions, graphics, settings) 
     cardRegionCount,
     complexity,
     complexityScore,
+    detailLevel: 'structured',
+    readingOrder: ordered.readingOrder,
     warnings,
   };
 }
 
-function getImageDetectionWarning(pageNumber, hasImages, nativeCharacters, complexity) {
+function getImageDetectionWarning(pageNumber, hasImages, nativeCharacters, complexity, minNativeCharacters) {
   if (hasImages === true && nativeCharacters === 0) {
     return {
       code: 'OCR_REQUIRED',
@@ -750,7 +1150,7 @@ function getImageDetectionWarning(pageNumber, hasImages, nativeCharacters, compl
     };
   }
 
-  if (nativeCharacters > 0 && nativeCharacters < PDF_EXTRACTION_DEFAULTS.minNativeCharacters) {
+  if (nativeCharacters > 0 && nativeCharacters < minNativeCharacters) {
     return {
       code: 'LOW_TEXT_DENSITY',
       message: `La página ${pageNumber} tiene una capa de texto muy pequeña; conviene revisarla con OCR.`,
@@ -805,19 +1205,12 @@ function normalizeOcrResult(ocrResult, pageNumber) {
 }
 
 function projectPageBlocks(page, blocks, warning = null) {
-  const nextBlocks = blocks.map((block) => ({ ...block }));
-  const nextText = projectBlocks(nextBlocks);
-  const nextRegions = page.regions
-    .filter((region) => nextBlocks.some((block) => block.id === region.blockIds[0]))
-    .map((region) => ({
-      ...region,
-      text: nextBlocks.find((block) => block.id === region.blockIds[0])?.text || region.text,
-    }));
+  const nextText = projectBlocks(blocks);
 
   return {
     ...page,
-    blocks: nextBlocks,
-    regions: nextRegions,
+    blocks,
+    regions: createRegions(blocks),
     text: nextText,
     characterCount: nextText.length,
     warnings: warning ? [...page.warnings, warning] : page.warnings,
@@ -961,7 +1354,14 @@ function makeNotProcessedPage(pageNumber) {
     characterCount: 0,
     nativeCharacterCount: 0,
     rawItemCount: 0,
+    textItemLimitReached: false,
+    textExtractionMethod: 'not-processed',
     hasImages: null,
+    imageCount: 0,
+    operatorCount: 0,
+    graphicsInspection: 'not-processed',
+    detailLevel: 'none',
+    readingOrder: 'not-processed',
     needsOcr: false,
     warnings: [{
       code: 'TEXT_LIMIT_REACHED',
@@ -983,6 +1383,13 @@ function countStatuses(pages) {
       if (page.needsOcr) stats.pagesRequiringOcr += 1;
       if (page.warnings.length) stats.pagesWithWarnings += 1;
       if (page.complexity === 'high') stats.highComplexityPages += 1;
+      if (page.detailLevel === 'compact') stats.compactPages += 1;
+      if (page.detailLevel === 'structured') stats.structuredPages += 1;
+      if (page.textExtractionMethod === 'stream') stats.streamedTextPages += 1;
+      if (page.textExtractionMethod === 'materialized-fallback') stats.fallbackTextPages += 1;
+      if (page.graphicsInspection === 'inspected') stats.graphicsInspectedPages += 1;
+      if (page.graphicsInspection === 'skipped-simple') stats.graphicsSkippedPages += 1;
+      if (page.readingOrder === 'column-flow') stats.columnFlowPages += 1;
       stats.regionCount += page.regions?.length || 0;
       stats.cardRegionCount += page.cardRegionCount || 0;
       return stats;
@@ -997,6 +1404,13 @@ function countStatuses(pages) {
       pagesRequiringOcr: 0,
       pagesWithWarnings: 0,
       highComplexityPages: 0,
+      compactPages: 0,
+      structuredPages: 0,
+      streamedTextPages: 0,
+      fallbackTextPages: 0,
+      graphicsInspectedPages: 0,
+      graphicsSkippedPages: 0,
+      columnFlowPages: 0,
       regionCount: 0,
       cardRegionCount: 0,
     },
@@ -1009,9 +1423,15 @@ async function extractPage(page, pageNumber, options) {
 
   const dimensions = getPageDimensions(page);
   const warnings = [];
-  let textContent = null;
+  let textRead = {
+    items: [],
+    rawItemCount: 0,
+    itemLimitReached: false,
+    extractionMethod: 'unknown',
+    warnings: [],
+  };
   let nativeCharacters = 0;
-  let graphics = { hasImages: null, imageCount: 0, operatorCount: 0 };
+  let graphics = makeGraphicsState('not-requested');
   let layout = {
     blocks: [],
     regions: [],
@@ -1023,33 +1443,46 @@ async function extractPage(page, pageNumber, options) {
     cardRegionCount: 0,
     complexity: 'low',
     complexityScore: 0,
+    detailLevel: 'structured',
+    readingOrder: 'geometric',
     warnings: [],
   };
 
   try {
-    textContent = await page.getTextContent({ includeMarkedContent: true });
-    throwIfAborted(signal);
-    const items = Array.isArray(textContent?.items) ? textContent.items : [];
-    const limitedItems = items.slice(0, options.maxItemsPerPage);
-    if (items.length > limitedItems.length) {
+    textRead = await readPageTextContent(page, options);
+    warnings.push(...textRead.warnings);
+    if (textRead.itemLimitReached) {
       warnings.push({
         code: 'PAGE_ITEM_LIMIT',
         message: `La página ${pageNumber} superó el límite de elementos de texto; se procesó una parte controlada.`,
       });
     }
 
-    const runs = limitedItems
+    const runs = textRead.items
       .map((item, index) => toTextRun(item, dimensions.height, index))
       .filter(Boolean);
     const lines = groupRunsIntoLines(runs);
-    nativeCharacters = lines.reduce((sum, line) => sum + line.text.length, 0);
+    const profile = getPageProcessingProfile(runs, lines, dimensions, textRead, options);
+    nativeCharacters = profile.nativeCharacters;
+    const graphicsDecision = resolveGraphicsInspection(options.inspectGraphics, profile);
 
-    if (options.inspectGraphics !== false) {
+    if (graphicsDecision.shouldInspect) {
       graphics = await inspectPageGraphics(page, pdfjsLib, signal);
+    } else {
+      graphics = makeGraphicsState(graphicsDecision.reason);
+    }
+    if (graphics.failed) {
+      warnings.push({
+        code: 'GRAPHICS_INSPECTION_FAILED',
+        message: `No se pudo completar el diagnóstico gráfico de la página ${pageNumber}; no se asume que esté libre de imágenes.`,
+      });
     }
 
     if (lines.length) {
-      layout = buildSemanticLayout(lines, pageNumber, dimensions, graphics, options);
+      const useCompactLayout = profile.useCompactLayout && graphics.hasImages !== true;
+      layout = useCompactLayout
+        ? buildCompactLayout(lines, pageNumber)
+        : buildSemanticLayout(lines, pageNumber, dimensions, graphics, options);
     }
   } catch (error) {
     if (isAbortError(error)) throw error;
@@ -1066,6 +1499,7 @@ async function extractPage(page, pageNumber, options) {
     graphics.hasImages,
     nativeCharacters,
     layout.complexity,
+    minNativeCharacters,
   );
   if (qualityWarning) warnings.push(qualityWarning);
 
@@ -1127,20 +1561,7 @@ async function extractPage(page, pageNumber, options) {
     });
   }
 
-  const regions = blocks.map((block) => ({
-    id: block.regionId,
-    type: block.type === 'section' ? 'section' : block.type === 'card' ? 'card' : 'content',
-    title: block.title,
-    text: block.text,
-    bodyText: block.bodyText,
-    bbox: block.bbox,
-    confidence: block.confidence,
-    sectionId: block.sectionId,
-    columnIndex: block.columnIndex,
-    bandIndex: block.bandIndex,
-    blockIds: [block.id],
-    lineIds: block.lineIds,
-  }));
+  const regions = blocks === layout.blocks ? layout.regions : createRegions(blocks);
 
   return {
     pageNumber,
@@ -1162,10 +1583,15 @@ async function extractPage(page, pageNumber, options) {
     text: pageTextResult.value,
     characterCount: pageTextResult.value.length,
     nativeCharacterCount: nativeCharacters,
-    rawItemCount: textContent?.items?.length ?? 0,
+    rawItemCount: textRead.rawItemCount,
+    textItemLimitReached: textRead.itemLimitReached,
+    textExtractionMethod: textRead.extractionMethod,
     hasImages: graphics.hasImages,
     imageCount: graphics.imageCount,
     operatorCount: graphics.operatorCount,
+    graphicsInspection: graphics.inspection,
+    detailLevel: layout.detailLevel,
+    readingOrder: layout.readingOrder,
     needsOcr,
     warnings,
     truncated: pageTextResult.truncated,
@@ -1193,18 +1619,34 @@ export async function extractPdfDocument(pdf, pageNumbers, options = {}) {
     throw new PdfExtractionError('No hay páginas seleccionadas para extraer.', 'NO_PAGES_SELECTED');
   }
 
-  const settings = { ...PDF_EXTRACTION_DEFAULTS, ...options };
+  const settings = {
+    ...PDF_EXTRACTION_DEFAULTS,
+    ...options,
+    maxItemsPerPage: resolveItemLimit(options.maxItemsPerPage ?? PDF_EXTRACTION_DEFAULTS.maxItemsPerPage),
+  };
   const { signal, onProgress } = settings;
   const pages = [];
   let accumulatedCharacters = 0;
   let budgetReached = false;
+  const reportProgress = (current, pageNumber, status) => {
+    onProgress?.({
+      phase: 'extracting',
+      current,
+      total: normalizedPageNumbers.length,
+      pageNumber,
+      status,
+    });
+  };
 
   for (let index = 0; index < normalizedPageNumbers.length; index += 1) {
     throwIfAborted(signal);
     const pageNumber = normalizedPageNumbers[index];
 
     if (budgetReached) {
-      pages.push(makeNotProcessedPage(pageNumber));
+      const skippedPage = makeNotProcessedPage(pageNumber);
+      pages.push(skippedPage);
+      reportProgress(index + 1, pageNumber, skippedPage.status);
+      if ((index + 1) % settings.yieldEveryPages === 0) await nextFrame();
       continue;
     }
 
@@ -1251,9 +1693,14 @@ export async function extractPdfDocument(pdf, pageNumbers, options = {}) {
         characterCount: 0,
         nativeCharacterCount: 0,
         rawItemCount: 0,
+        textItemLimitReached: false,
+        textExtractionMethod: 'failed',
         hasImages: null,
         imageCount: 0,
         operatorCount: 0,
+        graphicsInspection: 'failed',
+        detailLevel: 'none',
+        readingOrder: 'failed',
         needsOcr: false,
         warnings: [{
           code: error?.code || 'PAGE_FAILED',
@@ -1269,12 +1716,7 @@ export async function extractPdfDocument(pdf, pageNumbers, options = {}) {
       }
     }
 
-    onProgress?.({
-      phase: 'extracting',
-      current: index + 1,
-      total: normalizedPageNumbers.length,
-      pageNumber,
-    });
+    reportProgress(index + 1, pageNumber, pages[pages.length - 1]?.status || 'unknown');
 
     if ((index + 1) % settings.yieldEveryPages === 0) await nextFrame();
   }
