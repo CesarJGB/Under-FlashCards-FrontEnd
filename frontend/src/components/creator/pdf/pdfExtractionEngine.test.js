@@ -3,7 +3,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { ReadableStream } from 'node:stream/web';
-import { extractPdfDocument } from './pdfExtractionEngine.js';
+import {
+  createExtractionSummary,
+  extractPdfDocument,
+  isAbortError,
+  PDF_EXTRACTION_DEFAULTS,
+  PDF_EXTRACTION_VERSION,
+  PdfExtractionError,
+} from './pdfExtractionEngine.js';
 
 const PDFJS = {
   OPS: {
@@ -80,6 +87,14 @@ function createDocument(pages) {
     getPage: async (pageNumber) => pages[pageNumber - 1],
   };
 }
+
+test('mantiene la fachada pública del motor después de dividirlo en módulos', () => {
+  assert.equal(PDF_EXTRACTION_VERSION, 'pdf-extraction');
+  assert.equal(PDF_EXTRACTION_DEFAULTS.maxCharacters, 600000);
+  assert.ok(PdfExtractionError.prototype instanceof Error);
+  assert.equal(isAbortError(new PdfExtractionError('cancelado', 'PDF_EXTRACTION_ABORTED')), true);
+  assert.equal(createExtractionSummary(null), '');
+});
 
 test('usa streaming sin marked content y aplica la ruta compacta a una página simple', async () => {
   const page = createPage({
