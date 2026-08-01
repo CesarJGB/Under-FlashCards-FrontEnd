@@ -17,11 +17,13 @@ const MAX_AI_CARDS = Number.isInteger(configuredMaxAiCards) && configuredMaxAiCa
   : 500;
 
 function appendPdfTextSafely(previousText, extractedText) {
-  const separator = previousText ? '\n\n' : '';
-  const remaining = Math.max(0, MAX_AI_DOCUMENT_TEXT_LENGTH - previousText.length - separator.length);
+  const safePreviousText = previousText || '';
+  const safeExtractedText = extractedText || '';
+  const separator = safePreviousText ? '\n\n' : '';
+  const remaining = Math.max(0, MAX_AI_DOCUMENT_TEXT_LENGTH - safePreviousText.length - separator.length);
   return {
-    value: `${previousText}${separator}${extractedText.slice(0, remaining)}`,
-    clipped: extractedText.length > remaining,
+    value: `${safePreviousText}${separator}${safeExtractedText.slice(0, remaining)}`,
+    clipped: safeExtractedText.length > remaining,
   };
 }
 
@@ -83,7 +85,7 @@ export default function FormInputs({
 
     onPdfExtractionComplete?.(report);
     startTransition(() => {
-      setAiText((previousText) => appendPdfTextSafely(previousText || '', extractedText || '').value);
+      setAiText((previousText) => appendPdfTextSafely(previousText, extractedText).value);
     });
   }, [aiText, onPdfExtractionComplete, setAiText]);
 
@@ -117,12 +119,12 @@ export default function FormInputs({
     return (
       <div className="flex animate-[fadeIn_0.2s_ease] flex-col gap-3">
         <Suspense
-          fallback={
+          fallback={(
             <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-semibold text-slate-500">
               <FileText className="h-4 w-4 shrink-0 text-indigo-500" />
               <span>Preparando módulo PDF...</span>
             </div>
-          }
+          )}
         >
           <PdfExtractor onTextExtracted={handlePdfTextExtracted} />
         </Suspense>
@@ -134,7 +136,7 @@ export default function FormInputs({
               <span>Apuntes e indicaciones:</span>
             </label>
             <span className="shrink-0 text-[10px] font-semibold tabular-nums text-slate-400">
-              {aiText.length.toLocaleString('es-MX')} / {MAX_AI_DOCUMENT_TEXT_LENGTH.toLocaleString('es-MX')}
+              {(aiText || '').length.toLocaleString('es-MX')} / {MAX_AI_DOCUMENT_TEXT_LENGTH.toLocaleString('es-MX')}
             </span>
           </div>
           <textarea
