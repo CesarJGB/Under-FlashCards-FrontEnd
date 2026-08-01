@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/creator/FormInputs.jsx
-// Entrega v2. Guardar este archivo con extensión .jsx.
+// Entrega v3. Guardar este archivo con extensión .jsx.
 import {
   lazy,
   Suspense,
@@ -10,7 +10,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import { FileText, Layers, Pencil } from 'lucide-react';
+import { FileText, Layers } from 'lucide-react';
 import ManualCardEditorModal from './ManualCardEditorModal';
 
 const PdfExtractor = lazy(() => import('./PdfExtractor'));
@@ -172,31 +172,25 @@ export default function FormInputs({
         </Suspense>
 
         {pdfSource && !showPdfTextEditor ? (
-          <div className="rounded-2xl border border-indigo-100 bg-indigo-50/70 p-3.5">
-            <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-indigo-600 shadow-sm">
-                <FileText className="h-5 w-5" />
+          <div className="flex items-center gap-2.5 rounded-xl border border-indigo-100 bg-indigo-50/70 px-3 py-2.5">
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-xs font-black text-slate-800">{pdfSource.fileName}</p>
+              <div className="mt-1 flex min-w-0 items-center gap-1.5 text-[10px] font-semibold">
+                <span className="min-w-0 truncate text-slate-500">{pdfSource.pageLabel}</span>
+                <span className="h-1 w-1 shrink-0 rounded-full bg-indigo-200" aria-hidden="true" />
+                <span className="shrink-0 text-indigo-600">
+                  {sourceCharacterCount.toLocaleString('es-MX')} caracteres
+                </span>
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-[10px] font-black uppercase tracking-[0.14em] text-indigo-500">Archivo cargado</p>
-                <p className="mt-0.5 truncate text-sm font-black text-slate-800">{pdfSource.fileName}</p>
-                <div className="mt-2 flex flex-wrap gap-1.5 text-[10px] font-bold">
-                  <span className="rounded-full bg-white px-2 py-1 text-slate-600">{pdfSource.pageLabel}</span>
-                  <span className="rounded-full bg-white px-2 py-1 text-indigo-600">
-                    {sourceCharacterCount.toLocaleString('es-MX')} caracteres
-                  </span>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowPdfTextEditor(true)}
-                className="flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border border-indigo-100 bg-white px-2.5 text-[10px] font-bold text-slate-600 transition-colors hover:bg-slate-50"
-                title="Editar el texto extraído"
-              >
-                <Pencil className="h-3.5 w-3.5" />
-                Editar
-              </button>
             </div>
+            <button
+              type="button"
+              onClick={() => setShowPdfTextEditor(true)}
+              className="flex h-8 shrink-0 cursor-pointer items-center rounded-lg border border-indigo-100 bg-white px-2.5 text-[10px] font-bold text-slate-600 transition-colors hover:bg-slate-50"
+              title="Editar el texto extraído"
+            >
+              Editar
+            </button>
           </div>
         ) : (
           <div>
@@ -220,13 +214,9 @@ export default function FormInputs({
           </div>
         )}
 
-        <div className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <span className="block text-xs font-bold text-slate-700">Densidad del mazo</span>
-            <span className="block text-[10px] font-medium text-slate-400">¿Cuántas tarjetas aproximadas deseas generar?</span>
-          </div>
-
-          <div className="grid w-full grid-cols-4 gap-1 rounded-xl bg-white p-1 sm:w-auto sm:min-w-[220px]">
+        <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-2">
+          <span className="shrink-0 text-xs font-bold text-slate-700">Tarjetas</span>
+          <div className="ml-auto grid min-w-0 flex-1 max-w-[220px] grid-cols-4 gap-1 rounded-lg bg-white p-1">
             {[5, 10, 15].map((number) => {
               const isSelected = customCardCount === '' && aiNumCards === number;
               return (
@@ -238,7 +228,7 @@ export default function FormInputs({
                     setAiNumCards(number);
                   }}
                   className={[
-                    'min-h-9 cursor-pointer rounded-lg px-2 text-xs font-extrabold transition-colors',
+                    'min-h-9 cursor-pointer rounded-md px-2 text-xs font-extrabold transition-colors',
                     isSelected
                       ? 'bg-slate-900 text-white shadow-sm'
                       : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900',
@@ -251,6 +241,7 @@ export default function FormInputs({
 
             <input
               type="number"
+              inputMode="numeric"
               min="1"
               max={MAX_AI_CARDS}
               placeholder="Libre"
@@ -270,7 +261,7 @@ export default function FormInputs({
               }}
               aria-label="Cantidad libre de tarjetas"
               className={[
-                'min-h-9 w-full rounded-lg border px-1 text-center text-xs font-extrabold outline-none transition-colors',
+                'min-h-9 w-full rounded-md border px-1 text-center text-xs font-extrabold outline-none transition-colors',
                 customCardCount !== ''
                   ? 'border-slate-900 bg-slate-900 text-white placeholder:text-slate-400'
                   : 'border-transparent bg-slate-50 text-slate-600 placeholder:text-slate-400 focus:border-slate-300 focus:bg-white',
