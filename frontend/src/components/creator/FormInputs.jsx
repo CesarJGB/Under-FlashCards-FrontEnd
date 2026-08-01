@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/creator/FormInputs.jsx
-// Entrega v4. Guardar este archivo con extensión .jsx.
+// Entrega v5. Guardar este archivo con extensión .jsx.
 import {
   lazy,
   Suspense,
@@ -10,7 +10,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import { FileText, Layers } from 'lucide-react';
+import { FileText, Layers, Pencil } from 'lucide-react';
 import ManualCardEditorModal from './ManualCardEditorModal';
 
 const PdfExtractor = lazy(() => import('./PdfExtractor'));
@@ -172,27 +172,26 @@ export default function FormInputs({
         </Suspense>
 
         {pdfSource && !showPdfTextEditor ? (
-          <div className="flex items-center gap-3 rounded-xl border border-indigo-100 bg-indigo-50/70 px-3 py-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-indigo-500 shadow-sm">
-              <FileText className="h-4 w-4" />
+          <div className="relative rounded-xl border border-indigo-100 bg-indigo-50/70 px-3 py-3 pr-11">
+            <div className="flex items-center gap-1.5">
+              <FileText className="h-3.5 w-3.5 shrink-0 text-indigo-400" />
+              <p className="min-w-0 flex-1 truncate text-xs font-black text-slate-800">{pdfSource.fileName}</p>
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-xs font-black text-slate-800">{pdfSource.fileName}</p>
-              <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] font-semibold">
-                <span className="text-slate-500">{pdfSource.pageLabel}</span>
-                <span className="h-1 w-1 shrink-0 rounded-full bg-indigo-200" aria-hidden="true" />
-                <span className="text-indigo-600">
-                  {sourceCharacterCount.toLocaleString('es-MX')} caracteres
-                </span>
-              </div>
+            <div className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] font-semibold">
+              <span className="text-slate-500">{pdfSource.pageLabel}</span>
+              <span className="h-1 w-1 shrink-0 rounded-full bg-indigo-200" aria-hidden="true" />
+              <span className="text-indigo-600">
+                {sourceCharacterCount.toLocaleString('es-MX')} caracteres
+              </span>
             </div>
             <button
               type="button"
               onClick={() => setShowPdfTextEditor(true)}
-              className="flex h-8 shrink-0 cursor-pointer items-center rounded-lg border border-indigo-100 bg-white px-2.5 text-[10px] font-bold text-slate-600 transition-colors hover:bg-slate-50"
+              className="absolute right-2.5 top-2.5 flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-indigo-100 bg-white text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-700"
               title="Editar el texto extraído"
+              aria-label="Editar el texto extraído"
             >
-              Editar
+              <Pencil className="h-3.5 w-3.5" />
             </button>
           </div>
         ) : (
@@ -217,9 +216,9 @@ export default function FormInputs({
           </div>
         )}
 
-        <div className="flex flex-wrap items-center gap-2.5 rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-2.5">
-          <span className="shrink-0 text-xs font-bold text-slate-700">Tarjetas</span>
-          <div className="grid min-w-0 flex-1 grid-cols-4 gap-1.5 rounded-lg bg-white p-1">
+        <div className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-2.5">
+          <span className="text-xs font-bold text-slate-700">Tarjetas</span>
+          <div className="grid grid-cols-4 gap-1.5 rounded-lg bg-white p-1">
             {[5, 10, 15].map((number) => {
               const isSelected = customCardCount === '' && aiNumCards === number;
               return (
