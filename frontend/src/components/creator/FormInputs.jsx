@@ -1,5 +1,4 @@
 // FILE: frontend/src/components/creator/FormInputs.jsx
-// Entrega v5. Guardar este archivo con extensión .jsx.
 import {
   lazy,
   Suspense,
@@ -216,59 +215,60 @@ export default function FormInputs({
           </div>
         )}
 
-        <div className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-2.5">
-          <span className="text-xs font-bold text-slate-700">Tarjetas</span>
-          <div className="grid grid-cols-4 gap-1.5 rounded-lg bg-white p-1">
+        <div className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <span className="block text-xs font-bold text-slate-700">Densidad del mazo</span>
+            <span className="block text-[10px] font-medium text-slate-400">¿Cuántas tarjetas aproximadas deseas generar?</span>
+          </div>
+
+          <div className="grid w-full grid-cols-4 gap-1 rounded-xl bg-white p-1 sm:w-auto sm:min-w-[220px]">
             {[5, 10, 15].map((number) => {
               const isSelected = customCardCount === '' && aiNumCards === number;
               return (
                 <button
                   key={number}
                   type="button"
+                  aria-pressed={isSelected}
                   onClick={() => {
                     setCustomCardCount('');
                     setAiNumCards(number);
                   }}
-                  className={[
-                    'min-h-9 min-w-0 cursor-pointer rounded-md px-1 text-xs font-extrabold transition-colors',
-                    isSelected
-                      ? 'bg-slate-900 text-white shadow-sm'
-                      : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900',
-                  ].join(' ')}
+                  className={`magic-ai-button magic-ai-button--quantity ${isSelected ? 'magic-ai-button--selected' : ''}`}
                 >
-                  {number}
+                  <span className="magic-ai-button__dots" aria-hidden="true" />
+                  <span className="magic-ai-button__text">{number}</span>
                 </button>
               );
             })}
 
-            <input
-              type="number"
-              inputMode="numeric"
-              min="1"
-              max={MAX_AI_CARDS}
-              placeholder="Libre"
-              value={customCardCount}
-              onChange={(event) => {
-                const rawValue = event.target.value;
-                if (rawValue === '') {
-                  setCustomCardCount('');
-                  setAiNumCards('');
-                  return;
-                }
+            <div
+              className={`magic-ai-button magic-ai-button--quantity magic-ai-button--quantity-custom ${customCardCount !== '' ? 'magic-ai-button--selected' : ''}`}
+            >
+              <span className="magic-ai-button__dots" aria-hidden="true" />
+              <input
+                type="number"
+                inputMode="numeric"
+                min="1"
+                max={MAX_AI_CARDS}
+                placeholder="Libre"
+                value={customCardCount}
+                onChange={(event) => {
+                  const rawValue = event.target.value;
+                  if (rawValue === '') {
+                    setCustomCardCount('');
+                    setAiNumCards('');
+                    return;
+                  }
 
-                const parsed = Number.parseInt(rawValue, 10);
-                const nextValue = Number.isNaN(parsed) ? '' : Math.min(MAX_AI_CARDS, Math.max(1, parsed));
-                setCustomCardCount(nextValue === '' ? '' : String(nextValue));
-                setAiNumCards(nextValue);
-              }}
-              aria-label="Cantidad libre de tarjetas"
-              className={[
-                'min-h-9 min-w-0 w-full rounded-md border px-1 text-center text-xs font-extrabold outline-none transition-colors',
-                customCardCount !== ''
-                  ? 'border-slate-900 bg-slate-900 text-white placeholder:text-slate-400'
-                  : 'border-transparent bg-slate-50 text-slate-600 placeholder:text-slate-400 focus:border-slate-300 focus:bg-white',
-              ].join(' ')}
-            />
+                  const parsed = Number.parseInt(rawValue, 10);
+                  const nextValue = Number.isNaN(parsed) ? '' : Math.min(MAX_AI_CARDS, Math.max(1, parsed));
+                  setCustomCardCount(nextValue === '' ? '' : String(nextValue));
+                  setAiNumCards(nextValue);
+                }}
+                aria-label="Cantidad libre de tarjetas"
+                className="magic-ai-button__quantity-input"
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -313,8 +313,8 @@ export default function FormInputs({
         onPointerDown={(event) => event.preventDefault()}
         onClick={() => openManualEditor(side)}
         className="relative flex min-h-[96px] w-full cursor-pointer flex-col rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left transition-colors active:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2"
-        aria-label={'Editar ' + label.toLowerCase()}
-        data-testid={'manual-' + side + '-editor-trigger'}
+        aria-label={`Editar ${label.toLowerCase()}`}
+        data-testid={`manual-${side}-editor-trigger`}
       >
         <span className="text-xs font-medium text-slate-500">{label}</span>
         <span className={[
@@ -326,7 +326,7 @@ export default function FormInputs({
         </span>
         {hasImage && (
           <span className="absolute bottom-2 right-2 flex h-7 w-7 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50 shadow-sm">
-            <img src={contentImage} alt={'Imagen de ' + label.toLowerCase()} className="h-full w-full object-cover" />
+            <img src={contentImage} alt={`Imagen de ${label.toLowerCase()}`} className="h-full w-full object-cover" />
           </span>
         )}
       </button>
