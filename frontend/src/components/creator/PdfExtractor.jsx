@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/creator/PdfExtractor.jsx
-// Entrega v2. Guardar este archivo con extensión .jsx.
+// Entrega v3. Guardar este archivo con extensión .jsx.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AlertTriangle,
@@ -24,6 +24,7 @@ import PdfPageSelectionSheet from './PdfPageSelectionSheet';
 const DEFAULT_MAX_PDF_FILE_MB = 100;
 const DEFAULT_MAX_PDF_PAGES = 500;
 const MAX_PDF_IMAGE_PIXELS = 16_000_000;
+const PROGRESS_UPDATE_INTERVAL_MS = 125;
 
 const configuredMaxFileMb = Number.parseInt(import.meta.env.VITE_MAX_PDF_FILE_MB, 10);
 const configuredMaxPages = Number.parseInt(import.meta.env.VITE_MAX_PDF_PAGES, 10);
@@ -143,6 +144,31 @@ function createOperation(id, kind) {
   return { id, kind, controller: new AbortController() };
 }
 
+function createCompletionSnapshot(result) {
+  const stats = result?.stats || {};
+  const hasWarnings = Boolean(
+    stats.pagesRequiringOcr > 0
+    || stats.failedPages > 0
+    || stats.notProcessedPages > 0
+    || stats.truncated
+    || stats.highComplexityPages > 0,
+  );
+
+  return {
+    summary: createExtractionSummary(result),
+    hasWarnings,
+    details: [
+      (stats.sourceCharacters || 0).toLocaleString('es-MX') + ' caracteres extraídos.',
+      stats.regionCount
+        ? stats.regionCount.toLocaleString('es-MX') + ' regiones estructuradas detectadas.'
+        : 'No se detectaron regiones estructuradas adicionales.',
+      hasWarnings
+        ? 'El diagnóstico conserva las advertencias del documento para que puedas revisarlas.'
+        : 'El texto está listo para usarse en la generación de tarjetas.',
+    ],
+  };
+}
+
 export default function PdfExtractor({ onTextExtracted, onExtractionComplete, ocrProvider }) {
   const [pdfDoc, setPdfDoc] = useState(null);
   const [fileName, setFileName] = useState('');
@@ -154,7 +180,7 @@ export default function PdfExtractor({ onTextExtracted, onExtractionComplete, oc
   const [localError, setLocalError] = useState('');
   const [previewPageNum, setPreviewPageNum] = useState(null);
   const [processingProgress, setProcessingProgress] = useState(null);
-  const [lastResult, setLastResult] = useState(null);
+  const [completionSnapshot, setCompletionSnapshot] = useState(null);
   const [showCompletionSheet, setShowCompletionSheet] = useState(false);
   const [isImportSheetOpen, setIsImportSheetOpen] = useState(false);
   const [isAnalysisSheetOpen, setIsAnalysisSheetOpen] = useState(false);
@@ -168,6 +194,7 @@ export default function PdfExtractor({ onTextExtracted, onExtractionComplete, oc
   const activeOperationRef = useRef(null);
   const isMountedRef = useRef(true);
   const passwordRequiredRef = useRef(false);
+  const progressUpdateRef = useRef(0);
 
   const clearDocumentState = useCallback(() => {
     setPdfDoc(null);
@@ -236,6 +263,7 @@ export default function PdfExtractor({ onTextExtracted, onExtractionComplete, oc
     setProcessingProgress(null);
     setIsAnalysisSheetOpen(false);
     setIsPageSelectionOpen(false);
+    progressUpdateRef.current = 0;
   }, [abortActiveOperation, clearDocumentState, releasePdfResources]);
 
   const handleFileChange = useCallback(async (event) => {
@@ -265,7 +293,7 @@ export default function PdfExtractor({ onTextExtracted, onExtractionComplete, oc
     setLoading(true);
     setStage('loading');
     setLocalError('');
-    setLastResult(null);
+    setCompletionSnapshot(null);
     setIsAnalysisSheetOpen(false);
     setIsPageSelectionOpen(false);
     clearDocumentState();
@@ -338,12 +366,14 @@ export default function PdfExtractor({ onTextExtracted, onExtractionComplete, oc
     const operation = beginOperation('extracting');
     setShowCompletionSheet(false);
     setCompletedFileName('');
+    setCompletionSnapshot(null);
     setLoading(true);
     setStage('extracting');
     setLocalError('');
     setSelectedPages(pagesToRead);
     setIsAnalysisSheetOpen(false);
     setIsPageSelectionOpen(false);
+    progressUpdateRef.current = Date.now();
     setProcessingProgress({ current: 0, total: pagesToRead.length, phase: 'extracting' });
 
     try {
@@ -352,16 +382,22 @@ export default function PdfExtractor({ onTextExtracted, onExtractionComplete, oc
 
       const result = await extractPdfDocument(activePdf, pagesToRead, {
         maxCharacters: MAX_CHARACTERS,
+        inspectGraphics: 'adaptive',
         signal: operation.controller.signal,
         pdfjsLib,
         ocrProvider,
         onProgress: (progress) => {
           if (!isCurrentOperation(operation)) return;
+          const now = Date.now();
+          const isFinalProgress = progress.current === progress.total;
+          if (!isFinalProgress && now - progressUpdateRef.current < PROGRESS_UPDATE_INTERVAL_MS) return;
+          progressUpdateRef.current = now;
           setProcessingProgress({
             current: progress.current,
             total: progress.total,
             pageNumber: progress.pageNumber,
             phase: 'extracting',
+            status: progress.status,
           });
         },
       });
@@ -377,7 +413,7 @@ export default function PdfExtractor({ onTextExtracted, onExtractionComplete, oc
       }
 
       const sourceMetadata = createSourceMetadata(fileName, pagesToRead, activePdf.numPages, result);
-      setLastResult(result);
+      setCompletionSnapshot(createCompletionSnapshot(result));
       setCompletedFileName(fileName);
       setShowCompletionSheet(true);
       onTextExtracted?.(result.plainText, result, sourceMetadata);
@@ -414,23 +450,8 @@ export default function PdfExtractor({ onTextExtracted, onExtractionComplete, oc
     releasePdfResources,
   ]);
 
-  const extractionSummary = lastResult ? createExtractionSummary(lastResult) : '';
-  const extractionHasWarnings = Boolean(lastResult && (
-    lastResult.stats.pagesRequiringOcr > 0
-    || lastResult.stats.failedPages > 0
-    || lastResult.stats.notProcessedPages > 0
-    || lastResult.stats.truncated
-    || lastResult.stats.highComplexityPages > 0
-  ));
-  const extractionDetails = lastResult ? [
-    (lastResult.stats.sourceCharacters || 0).toLocaleString('es-MX') + ' caracteres extraídos.',
-    lastResult.stats.regionCount
-      ? lastResult.stats.regionCount.toLocaleString('es-MX') + ' regiones estructuradas detectadas.'
-      : 'No se detectaron regiones estructuradas adicionales.',
-    extractionHasWarnings
-      ? 'El diagnóstico conserva las advertencias del documento para que puedas revisarlas.'
-      : 'El texto está listo para usarse en la generación de tarjetas.',
-  ] : [];
+  const extractionSummary = completionSnapshot?.summary || '';
+  const extractionDetails = completionSnapshot?.details || [];
 
   const requestFile = () => {
     setLocalError('');
