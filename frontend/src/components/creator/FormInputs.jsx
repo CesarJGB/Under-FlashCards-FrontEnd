@@ -266,7 +266,7 @@ export default function FormInputs({
                   setAiNumCards(nextValue);
                 }}
                 aria-label="Cantidad libre de tarjetas"
-                className="magic-ai-button__quantity-input"
+                className="magic-ai-button__quantity-input text-[10px] placeholder:text-[10px]"
               />
             </div>
           </div>
