@@ -218,7 +218,7 @@
   .processing-sheet__ai-loader,
   .processing-sheet__ai-letter,
   .processing-sheet__pdf-loader li {
-    animation-duration: 0.01ms !important;
+    animation-duration: 0.01ms !importanz me t;
     animation-iteration-count: 1 !important;
   }
 }
