@@ -4,6 +4,7 @@ import {
   AlignLeft, AlignCenter, AlignRight, Sparkles, Layers, X,
 } from 'lucide-react';
 
+import ActionSheet from './common/ActionSheet';
 import FormInputs from './creator/FormInputs';
 import StylePanel from './creator/StylePanel';
 import FloatingPreviewPanel, { getStoredPreviewPanelMode } from './creator/FloatingPreviewPanel';
@@ -51,6 +52,7 @@ export default function FlashcardCreator({
   const [aiNumCards, setAiNumCards] = useState(5);
   const [aiSaving, setAiSaving] = useState(false);
   const [aiProgress, setAiProgress] = useState(null);
+  const [isAiGenerationSheetOpen, setIsAiGenerationSheetOpen] = useState(false);
 
   const footerRef = useRef(null);
 
@@ -91,6 +93,7 @@ export default function FlashcardCreator({
     setError('');
     setShowPreview(false);
     setShowStyles(false);
+    setIsAiGenerationSheetOpen(false);
 
     if (tabId === 'single') {
       setIsBulk(false);
@@ -162,65 +165,74 @@ export default function FlashcardCreator({
     return (onSaveManualCard || onSubmit)?.(submitEvent);
   }, [onSaveManualCard, onSubmit]);
 
-  const handleFormSubmit = async (event) => {
+  const executeAiGeneration = async () => {
+    if (!aiText.trim() || aiSaving) return;
+    setAiSaving(true);
+    setError('');
+    setAiProgress({
+      generated: 0,
+      audited: 0,
+      accepted: 0,
+      target: Number(aiNumCards) || 0,
+      total: Number(aiNumCards) || 0,
+      message: 'Preparando la generación con IA...',
+    });
+
+    try {
+      const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+      const response = await fetch(`${BACKEND_URL}${AI_GENERATION_ENDPOINT}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'text/event-stream',
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+        },
+        body: JSON.stringify({
+          userId,
+          deckId,
+          text: aiText,
+          count: aiNumCards,
+          batchStyles: { bgImage, textAlign, fontSize },
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        if (response.status === 403 && errorData.code === 'INVITE_REQUIRED') {
+          onInviteRequired?.();
+          return;
+        }
+        if (response.status === 401) {
+          throw new Error('Tu sesión expiró. Cierra sesión e inicia sesión de nuevo para generar con IA.');
+        }
+        throw new Error(errorData.message || errorData.error || 'El motor de IA experimentó una saturación o no configuraste tu API Key.');
+      }
+
+      const result = await readAiGenerationProgress(response, setAiProgress);
+      await onAiSuccess?.(result);
+      setAiText('');
+      setIsAi(false);
+    } catch (submitError) {
+      setError(submitError.message || 'Error de conexión con el nodo de Inteligencia Artificial.');
+    } finally {
+      setAiProgress(null);
+      setAiSaving(false);
+    }
+  };
+
+  const handleFormSubmit = (event) => {
     event?.preventDefault?.();
     if (activeTab === 'ai') {
       if (!aiText.trim() || aiSaving) return;
-      setAiSaving(true);
-      setError('');
-      setAiProgress({
-        generated: 0,
-        audited: 0,
-        accepted: 0,
-        target: Number(aiNumCards) || 0,
-        total: Number(aiNumCards) || 0,
-        message: 'Preparando la generación con IA...',
-      });
-
-      try {
-        const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
-        const response = await fetch(`${BACKEND_URL}${AI_GENERATION_ENDPOINT}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Accept: 'text/event-stream',
-            ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
-          },
-          body: JSON.stringify({
-            userId,
-            deckId,
-            text: aiText,
-            count: aiNumCards,
-            batchStyles: { bgImage, textAlign, fontSize },
-          }),
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          if (response.status === 403 && errorData.code === 'INVITE_REQUIRED') {
-            onInviteRequired?.();
-            return;
-          }
-          if (response.status === 401) {
-            throw new Error('Tu sesión expiró. Cierra sesión e inicia sesión de nuevo para generar con IA.');
-          }
-          throw new Error(errorData.message || errorData.error || 'El motor de IA experimentó una saturación o no configuraste tu API Key.');
-        }
-
-        const result = await readAiGenerationProgress(response, setAiProgress);
-        await onAiSuccess?.(result);
-        setAiText('');
-        setIsAi(false);
-      } catch (submitError) {
-        setError(submitError.message || 'Error de conexión con el nodo de Inteligencia Artificial.');
-      } finally {
-        setAiProgress(null);
-        setAiSaving(false);
-      }
-    } else {
-      return onSubmit?.(event);
+      setIsAiGenerationSheetOpen(true);
+      return;
     }
+
+    return onSubmit?.(event);
   };
+
+  const aiCardCount = Number(aiNumCards) || 0;
+  const aiGenerationDescription = `Generar ${aiCardCount.toLocaleString('es-MX')} ${aiCardCount === 1 ? 'tarjeta' : 'tarjetas'} con tus apuntes actuales.`;
 
   return (
     <form onSubmit={handleFormSubmit} className="flex flex-col bg-slate-50 relative w-full">
@@ -437,6 +449,24 @@ export default function FlashcardCreator({
           </button>
         </div>
       </footer>
+
+      <ActionSheet
+        open={isAiGenerationSheetOpen}
+        title="Confirmar generación"
+        onClose={() => setIsAiGenerationSheetOpen(false)}
+        options={[
+          {
+            id: 'confirm-ai-generation',
+            icon: Sparkles,
+            label: 'Confirmar y generar',
+            description: aiGenerationDescription,
+            disabled: aiSaving || !aiText.trim(),
+            onSelect: () => {
+              void executeAiGeneration();
+            },
+          },
+        ]}
+      />
     </form>
   );
 }
