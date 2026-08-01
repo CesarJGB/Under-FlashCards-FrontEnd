@@ -505,6 +505,7 @@ export default function FlashcardCreator({
               type="submit"
               disabled={submitDisabled}
               loading={saving || aiSaving}
+              selected
               className="flex-1 sm:flex-initial sm:min-w-[200px]"
             >
               Generar
@@ -552,3 +553,4 @@ export default function FlashcardCreator({
     </form>
   );
 }
+
