@@ -275,13 +275,13 @@ export default function PdfExtractor({ onTextExtracted, onExtractionComplete, oc
 
     const operation = beginOperation('loading');
     passwordRequiredRef.current = false;
+    clearDocumentState();
     setShowCompletionSheet(false);
     setCompletedFileName('');
     setLoading(true);
     setStage('loading');
     setLocalError('');
     setLastResult(null);
-    clearDocumentState();
     await releasePdfResources();
     if (!isCurrentOperation(operation)) return;
 
@@ -434,11 +434,9 @@ export default function PdfExtractor({ onTextExtracted, onExtractionComplete, oc
       ? 'El diagnóstico conserva las advertencias del documento para que puedas revisarlas.'
       : 'El texto está listo para usarse en la generación de tarjetas.',
   ] : [];
-  const processingSheetProgress = isLoadingPdf
-    ? { ...(loadProgress || { current: 0, total: 1 }), phase: 'loading', label: 'Cargando documento...' }
-    : isProcessing
-      ? processingProgress
-      : null;
+  // La hoja se reserva exclusivamente para la extracción del texto; la carga
+  // inicial del archivo continúa mostrando únicamente su progreso inline.
+  const processingSheetProgress = isProcessing ? processingProgress : null;
 
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-3xs">
@@ -532,20 +530,18 @@ export default function PdfExtractor({ onTextExtracted, onExtractionComplete, oc
       {previewPageNum !== null && pdfDoc && <PdfCarousel pdf={pdfDoc} initialPage={previewPageNum} totalPages={totalPages} selectedPages={selectedPages} onToggle={togglePage} onClose={() => setPreviewPageNum(null)} />}
 
       <ProcessingActionSheet
-        open={loading || showCompletionSheet}
+        open={isProcessing || showCompletionSheet}
         variant="pdf"
         status={showCompletionSheet ? 'success' : 'processing'}
-        title={showCompletionSheet ? 'PDF analizado' : isLoadingPdf ? 'Preparando PDF' : 'Analizando PDF'}
+        title={showCompletionSheet ? 'PDF analizado' : 'Analizando PDF'}
         fileName={showCompletionSheet ? completedFileName : fileName}
         message={showCompletionSheet
           ? 'La estructura del documento quedó lista para generar tus tarjetas.'
-          : isLoadingPdf
-            ? 'Estamos preparando las páginas del documento.'
-            : 'Estamos leyendo y organizando el contenido página por página.'}
+          : 'Estamos leyendo y organizando el contenido página por página.'}
         progress={processingSheetProgress}
         summary={showCompletionSheet ? extractionSummary : undefined}
         details={showCompletionSheet ? extractionDetails : undefined}
-        onCancel={loading ? handleCancel : undefined}
+        onCancel={isProcessing ? handleCancel : undefined}
         onClose={() => setShowCompletionSheet(false)}
         autoCloseMs={2500}
       />
