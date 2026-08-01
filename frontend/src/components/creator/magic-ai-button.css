@@ -2,8 +2,8 @@
 
 /*
  * Botón mágico para las acciones de IA.
- * Está basado en la animación de referencia, pero usa nombres propios para
- * evitar colisiones con otros botones o animaciones globales de la app.
+ * Basado en la animación de referencia, con soporte para estados activo,
+ * variante compacta, selector de cantidad y estado deshabilitado "limpio".
  */
 .magic-ai-button {
   --magic-base-start: #8b74e8;
@@ -32,7 +32,7 @@
   font-size: 0.875rem;
   font-weight: 700;
   line-height: 1;
-  transition: transform var(--magic-transition), filter var(--magic-transition);
+  transition: transform var(--magic-transition), filter var(--magic-transition), background-color var(--magic-transition), color var(--magic-transition);
 }
 
 .magic-ai-button::before,
@@ -52,7 +52,8 @@
     inset 0 -1px 2px 0 hsl(260 45% 25% / 0.55),
     0 4px 10px -4px hsl(260 45% 20% / 0.45),
     0 0 0 calc(var(--magic-active) * 0.375rem) hsl(260 85% 68% / 0.38);
-  transition: box-shadow var(--magic-transition), background var(--magic-transition);
+  /* Se añade opacity a la transición para un cambio suave al deshabilitar */
+  transition: box-shadow var(--magic-transition), background var(--magic-transition), opacity var(--magic-transition);
 }
 
 .magic-ai-button::after {
@@ -64,6 +65,25 @@
     radial-gradient(at 22% 91%, hsl(263 84% 78%) 0, transparent 50%);
   opacity: calc(0.68 + (var(--magic-active) * 0.32));
   transition: opacity var(--magic-transition);
+}
+
+/* ==========================================================================
+   EFECTO DESPERTAR (Animación al activarse/habilitarse)
+   ========================================================================== */
+.magic-ai-button:not(:disabled) {
+  animation: magic-pop 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes magic-pop {
+  0% {
+    transform: scale(0.95);
+  }
+  50% {
+    transform: scale(1.04);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 
 .magic-ai-button:is(:hover, :focus-visible),
@@ -81,10 +101,29 @@
   transform: scale(0.98);
 }
 
+/* ==========================================================================
+   ESTADO DESHABILITADO (Lila Suave / Limpio)
+   ========================================================================== */
 .magic-ai-button:disabled {
   cursor: not-allowed;
-  opacity: 0.52;
-  filter: saturate(0.65);
+  background-color: #f3e8ff; /* Lila pastel sólido y limpio */
+  color: #a855f7;            /* Púrpura vibrante para el texto e ícono */
+  box-shadow: none;
+  filter: none;
+  transform: none;
+  opacity: 1;                /* Se elimina la opacidad transparente */
+}
+
+/* Ocultamos las luces, gradientes y el borde giratorio mientras está deshabilitado */
+.magic-ai-button:disabled::before,
+.magic-ai-button:disabled::after,
+.magic-ai-button:disabled .magic-ai-button__dots {
+  opacity: 0;
+}
+
+.magic-ai-button:disabled .magic-ai-button__sparkle,
+.magic-ai-button:disabled .magic-ai-button__loading-icon {
+  color: #a855f7;
 }
 
 .magic-ai-button:disabled .magic-ai-button__dots::before {
@@ -100,6 +139,7 @@
   pointer-events: none;
   border-radius: var(--magic-border-radius);
   padding: 1px;
+  transition: opacity var(--magic-transition);
   -webkit-mask:
     linear-gradient(#000 0 0) content-box,
     linear-gradient(#000 0 0);
@@ -142,7 +182,7 @@
   width: 1.35rem;
   height: 1.35rem;
   flex: 0 0 auto;
-  color: #ffffff;
+  color: inherit;
 }
 
 .magic-ai-button__sparkle .magic-ai-button__path {
@@ -187,11 +227,11 @@
   width: 1.15rem;
   height: 1.15rem;
   flex: 0 0 auto;
-  color: #ffffff;
+  color: inherit;
 }
 
 .magic-ai-button__text {
-  color: #ffffff;
+  color: inherit;
   white-space: nowrap;
 }
 
@@ -203,9 +243,6 @@
   gap: 0.35rem;
   border-radius: 0.5rem;
   font-size: 0.75rem;
-}
-
-.magic-ai-button--mode {
   --magic-base-start: #8b74e8;
   --magic-base-end: #7254d4;
   --magic-border-radius: 0.5rem;
@@ -216,11 +253,7 @@
   height: 1rem;
 }
 
-/*
- * Variante para las opciones de cantidad.
- * Mantiene el mismo lenguaje visual del botón IA, pero oculta el efecto
- * hasta que la opción realmente está seleccionada.
- */
+/* Variante para las opciones de cantidad. */
 .magic-ai-button--quantity {
   --magic-border-radius: 0.65rem;
 
@@ -271,7 +304,6 @@
 
 .magic-ai-button--quantity.magic-ai-button--selected {
   --magic-active: 1;
-
   background: transparent;
   color: #ffffff;
   filter: saturate(1.08);
@@ -324,6 +356,7 @@
   outline-offset: 2px;
 }
 
+/* Accesibilidad y Reducción de Movimiento */
 @media (prefers-reduced-motion: reduce) {
   .magic-ai-button,
   .magic-ai-button::before,
@@ -331,9 +364,12 @@
     transition: none;
   }
 
+  .magic-ai-button:not(:disabled) {
+    animation: none;
+  }
+
   .magic-ai-button__dots::before,
   .magic-ai-button__path {
     animation: none;
   }
 }
-
