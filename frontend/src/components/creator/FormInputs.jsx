@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/creator/FormInputs.jsx
-// Entrega v3. Guardar este archivo con extensión .jsx.
+// Entrega v4. Guardar este archivo con extensión .jsx.
 import {
   lazy,
   Suspense,
@@ -172,13 +172,16 @@ export default function FormInputs({
         </Suspense>
 
         {pdfSource && !showPdfTextEditor ? (
-          <div className="flex items-center gap-2.5 rounded-xl border border-indigo-100 bg-indigo-50/70 px-3 py-2.5">
+          <div className="flex items-center gap-3 rounded-xl border border-indigo-100 bg-indigo-50/70 px-3 py-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-indigo-500 shadow-sm">
+              <FileText className="h-4 w-4" />
+            </div>
             <div className="min-w-0 flex-1">
               <p className="truncate text-xs font-black text-slate-800">{pdfSource.fileName}</p>
-              <div className="mt-1 flex min-w-0 items-center gap-1.5 text-[10px] font-semibold">
-                <span className="min-w-0 truncate text-slate-500">{pdfSource.pageLabel}</span>
+              <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] font-semibold">
+                <span className="text-slate-500">{pdfSource.pageLabel}</span>
                 <span className="h-1 w-1 shrink-0 rounded-full bg-indigo-200" aria-hidden="true" />
-                <span className="shrink-0 text-indigo-600">
+                <span className="text-indigo-600">
                   {sourceCharacterCount.toLocaleString('es-MX')} caracteres
                 </span>
               </div>
@@ -214,9 +217,9 @@ export default function FormInputs({
           </div>
         )}
 
-        <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-2">
+        <div className="flex flex-wrap items-center gap-2.5 rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-2.5">
           <span className="shrink-0 text-xs font-bold text-slate-700">Tarjetas</span>
-          <div className="ml-auto grid min-w-0 flex-1 max-w-[220px] grid-cols-4 gap-1 rounded-lg bg-white p-1">
+          <div className="grid min-w-0 flex-1 grid-cols-4 gap-1.5 rounded-lg bg-white p-1">
             {[5, 10, 15].map((number) => {
               const isSelected = customCardCount === '' && aiNumCards === number;
               return (
@@ -228,7 +231,7 @@ export default function FormInputs({
                     setAiNumCards(number);
                   }}
                   className={[
-                    'min-h-9 cursor-pointer rounded-md px-2 text-xs font-extrabold transition-colors',
+                    'min-h-9 min-w-0 cursor-pointer rounded-md px-1 text-xs font-extrabold transition-colors',
                     isSelected
                       ? 'bg-slate-900 text-white shadow-sm'
                       : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900',
@@ -261,7 +264,7 @@ export default function FormInputs({
               }}
               aria-label="Cantidad libre de tarjetas"
               className={[
-                'min-h-9 w-full rounded-md border px-1 text-center text-xs font-extrabold outline-none transition-colors',
+                'min-h-9 min-w-0 w-full rounded-md border px-1 text-center text-xs font-extrabold outline-none transition-colors',
                 customCardCount !== ''
                   ? 'border-slate-900 bg-slate-900 text-white placeholder:text-slate-400'
                   : 'border-transparent bg-slate-50 text-slate-600 placeholder:text-slate-400 focus:border-slate-300 focus:bg-white',
