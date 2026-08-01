@@ -1,15 +1,8 @@
 // FILE: frontend/src/components/creator/PdfPageSelectionSheet.jsx
-// Entrega v2. Guardar este archivo con extensión .jsx.
+// Entrega v3. Guardar este archivo con extensión .jsx.
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import {
-  Check,
-  ChevronLeft,
-  ChevronRight,
-  FileText,
-  Layers,
-  X,
-} from 'lucide-react';
+import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { useBodyScrollLock } from '../../lib/scrollLock';
 import PdfPageThumbnail from './pdf/PdfPageThumbnail';
 
@@ -26,8 +19,8 @@ function normalizePages(pages, totalPages) {
     .sort((left, right) => left - right);
 }
 
-function formatPageList(pages) {
-  if (!pages.length) return 'Sin páginas seleccionadas';
+function formatPageRanges(pages) {
+  if (!pages.length) return '';
 
   const ranges = [];
   let rangeStart = pages[0];
@@ -46,7 +39,7 @@ function formatPageList(pages) {
   }
 
   ranges.push(rangeStart === previous ? String(rangeStart) : rangeStart + '–' + previous);
-  return 'Páginas ' + ranges.join(', ');
+  return ranges.join(', ');
 }
 
 export default function PdfPageSelectionSheet({
@@ -87,6 +80,11 @@ export default function PdfPageSelectionSheet({
     () => blockPages.reduce((count, page) => count + (selectedPageSet.has(page) ? 1 : 0), 0),
     [blockPages, selectedPageSet],
   );
+  const selectionDescription = useMemo(() => {
+    if (!safeSelectedPages.length) return 'Sin selección';
+    if (safeSelectedPages.length === totalPages) return 'Documento completo';
+    return 'Páginas ' + formatPageRanges(safeSelectedPages);
+  }, [safeSelectedPages, totalPages]);
 
   useBodyScrollLock(Boolean(open), 'pdf-page-selection-' + id);
 
@@ -169,55 +167,37 @@ export default function PdfPageSelectionSheet({
         className="fixed inset-x-0 bottom-0 z-[100] max-h-[92dvh] overflow-hidden rounded-t-3xl bg-white shadow-2xl outline-none"
         style={{ animation: 'slideUp 0.4s cubic-bezier(0.32, 0.72, 0, 1) forwards' }}
       >
-        <div className="flex justify-center pb-2 pt-3" aria-hidden="true">
+        <h2 id={titleId} className="sr-only">Seleccionar páginas del PDF</h2>
+
+        <div className="relative flex justify-center pb-1 pt-3" aria-hidden="true">
           <div className="h-1 w-10 rounded-full bg-slate-300" />
         </div>
+        <button
+          type="button"
+          onClick={() => onClose?.()}
+          className="absolute right-4 top-3 flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition-colors hover:border-slate-300 hover:bg-slate-50"
+          aria-label="Cerrar"
+        >
+          <X className="h-4 w-4" />
+        </button>
 
-        <div className="flex items-start justify-between gap-3 px-5 pb-3">
-          <div className="min-w-0">
-            <p className="mb-1 text-[10px] font-black uppercase tracking-[0.18em] text-indigo-500">PDF</p>
-            <h2 id={titleId} className="text-lg font-black text-slate-900">Seleccionar partes</h2>
-            <p className="mt-0.5 text-xs font-medium text-slate-500">Elige las páginas que quieres analizar.</p>
-          </div>
-          <button
-            type="button"
-            onClick={() => onClose?.()}
-            className="mt-0.5 flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition-colors hover:border-slate-300 hover:bg-slate-50"
-            aria-label="Cerrar"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        <div className="max-h-[calc(92dvh-168px)] overflow-y-auto px-5 pb-3">
-          <div className="rounded-2xl border border-indigo-100 bg-indigo-50/70 p-3">
-            <div className="flex items-start gap-2.5">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-indigo-600 shadow-sm">
-                <Layers className="h-4 w-4" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs font-black text-slate-800">
-                    {safeSelectedPages.length} de {totalPages} {totalPages === 1 ? 'página' : 'páginas'}
-                  </p>
-                  <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-indigo-600">
-                    {safeSelectedPages.length === totalPages ? 'Todo el PDF' : 'Selección parcial'}
-                  </span>
-                </div>
-                <p className="mt-1 truncate text-[11px] font-medium text-slate-500">
-                  {safeSelectedPages.length === totalPages
-                    ? 'Documento completo'
-                    : formatPageList(safeSelectedPages)}
-                </p>
-              </div>
+        <div className="max-h-[calc(92dvh-112px)] overflow-y-auto px-4 pb-3 pt-2">
+          <div className="flex items-center gap-2 rounded-xl border border-indigo-100 bg-indigo-50/70 p-2">
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-black tabular-nums text-slate-800">
+                {safeSelectedPages.length} de {totalPages}
+              </p>
+              <p className="mt-0.5 truncate text-[10px] font-medium text-slate-500">
+                {selectionDescription}
+              </p>
             </div>
-
-            <div className="mt-3 grid grid-cols-2 gap-2">
+            <div className="flex shrink-0 gap-1">
               <button
                 type="button"
                 disabled={disabled}
                 onClick={() => updateSelection(buildPageList(totalPages))}
-                className="min-h-9 cursor-pointer rounded-xl bg-white px-3 text-xs font-bold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-45"
+                className="min-h-9 cursor-pointer rounded-lg bg-white px-2.5 text-[10px] font-bold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-45"
+                aria-label="Seleccionar todas las páginas"
               >
                 Todas
               </button>
@@ -225,69 +205,62 @@ export default function PdfPageSelectionSheet({
                 type="button"
                 disabled={disabled || !safeSelectedPages.length}
                 onClick={() => updateSelection([])}
-                className="min-h-9 cursor-pointer rounded-xl bg-white px-3 text-xs font-bold text-slate-500 shadow-sm transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-45"
+                className="min-h-9 cursor-pointer rounded-lg bg-white px-2.5 text-[10px] font-bold text-slate-500 shadow-sm transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-45"
+                aria-label="Quitar todas las páginas"
               >
                 Ninguna
               </button>
             </div>
           </div>
 
-          <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-3">
-            <div className="flex items-center gap-2">
-              <FileText className="h-4 w-4 text-slate-400" />
-              <p className="text-xs font-bold text-slate-700">Agregar un rango</p>
-            </div>
-            <div className="mt-2 grid grid-cols-[1fr_auto_1fr_auto] items-center gap-2">
-              <input
-                type="number"
-                min="1"
-                max={totalPages}
-                value={rangeStart}
-                onChange={(event) => setRangeStart(event.target.value)}
-                disabled={disabled}
-                placeholder="Desde"
-                aria-label="Página inicial"
-                className="min-h-10 min-w-0 rounded-xl border border-slate-200 bg-white px-3 text-center text-xs font-bold text-slate-700 outline-none transition-colors placeholder:text-slate-300 focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/[0.08] disabled:opacity-45"
-              />
-              <span className="text-xs font-bold text-slate-400">a</span>
-              <input
-                type="number"
-                min="1"
-                max={totalPages}
-                value={rangeEnd}
-                onChange={(event) => setRangeEnd(event.target.value)}
-                disabled={disabled}
-                placeholder="Hasta"
-                aria-label="Página final"
-                className="min-h-10 min-w-0 rounded-xl border border-slate-200 bg-white px-3 text-center text-xs font-bold text-slate-700 outline-none transition-colors placeholder:text-slate-300 focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/[0.08] disabled:opacity-45"
-              />
-              <button
-                type="button"
-                disabled={disabled || !rangeStart || !rangeEnd}
-                onClick={applyRange}
-                className="min-h-10 cursor-pointer rounded-xl bg-slate-900 px-3 text-xs font-bold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-45"
-              >
-                Añadir
-              </button>
-            </div>
+          <div className="mt-2 grid grid-cols-[1fr_auto_1fr_auto] items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50/70 p-2">
+            <input
+              type="number"
+              inputMode="numeric"
+              min="1"
+              max={totalPages}
+              value={rangeStart}
+              onChange={(event) => setRangeStart(event.target.value)}
+              disabled={disabled}
+              placeholder="Desde"
+              aria-label="Página inicial"
+              className="min-h-9 min-w-0 rounded-lg border border-slate-200 bg-white px-2 text-center text-xs font-bold text-slate-700 outline-none transition-colors placeholder:text-slate-300 focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/[0.08] disabled:opacity-45"
+            />
+            <span className="text-xs font-bold text-slate-400" aria-hidden="true">–</span>
+            <input
+              type="number"
+              inputMode="numeric"
+              min="1"
+              max={totalPages}
+              value={rangeEnd}
+              onChange={(event) => setRangeEnd(event.target.value)}
+              disabled={disabled}
+              placeholder="Hasta"
+              aria-label="Página final"
+              className="min-h-9 min-w-0 rounded-lg border border-slate-200 bg-white px-2 text-center text-xs font-bold text-slate-700 outline-none transition-colors placeholder:text-slate-300 focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/[0.08] disabled:opacity-45"
+            />
+            <button
+              type="button"
+              disabled={disabled || !rangeStart || !rangeEnd}
+              onClick={applyRange}
+              className="min-h-9 cursor-pointer rounded-lg bg-slate-900 px-3 text-[10px] font-bold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              Añadir
+            </button>
           </div>
 
-          <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-3xs">
+          <div className="mt-2 rounded-2xl border border-slate-200 bg-white p-2.5 shadow-3xs">
             <div className="flex items-center justify-between gap-2">
-              <div>
-                <p className="text-xs font-black text-slate-800">
-                  Páginas {blockStartPage}–{blockEndPage}
-                </p>
-                <p className="mt-0.5 text-[10px] font-medium text-slate-400">
-                  Bloque {currentBlockIndex + 1} de {totalBlocks} · {selectedInBlock} seleccionadas
-                </p>
-              </div>
-              <div className="flex items-center gap-1.5">
+              <p className="text-xs font-black tabular-nums text-slate-800">
+                {blockStartPage}–{blockEndPage}
+                <span className="ml-1 font-medium text-slate-400">de {totalPages}</span>
+              </p>
+              <div className="flex items-center gap-1">
                 <button
                   type="button"
                   disabled={disabled || currentBlockIndex === 0}
                   onClick={() => setCurrentBlockIndex((current) => Math.max(0, current - 1))}
-                  className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-35"
+                  className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-35"
                   aria-label="Bloque anterior"
                 >
                   <ChevronLeft className="h-4 w-4" />
@@ -296,7 +269,7 @@ export default function PdfPageSelectionSheet({
                   type="button"
                   disabled={disabled || currentBlockIndex >= totalBlocks - 1}
                   onClick={() => setCurrentBlockIndex((current) => Math.min(totalBlocks - 1, current + 1))}
-                  className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-35"
+                  className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-35"
                   aria-label="Bloque siguiente"
                 >
                   <ChevronRight className="h-4 w-4" />
@@ -304,20 +277,20 @@ export default function PdfPageSelectionSheet({
               </div>
             </div>
 
-            <div className="mt-3 grid grid-cols-2 gap-2">
+            <div className="mt-2 grid grid-cols-2 gap-2">
               <button
                 type="button"
                 disabled={disabled}
                 onClick={selectBlock}
-                className="min-h-9 cursor-pointer rounded-xl border border-indigo-100 bg-indigo-50 px-3 text-xs font-bold text-indigo-700 transition-colors hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-45"
+                className="min-h-9 cursor-pointer rounded-lg border border-indigo-100 bg-indigo-50 px-3 text-[10px] font-bold text-indigo-700 transition-colors hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-45"
               >
-                Seleccionar bloque
+                Todo el bloque
               </button>
               <button
                 type="button"
                 disabled={disabled || selectedInBlock === 0}
                 onClick={clearBlock}
-                className="min-h-9 cursor-pointer rounded-xl border border-slate-200 px-3 text-xs font-bold text-slate-500 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-45"
+                className="min-h-9 cursor-pointer rounded-lg border border-slate-200 px-3 text-[10px] font-bold text-slate-500 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-45"
               >
                 Quitar bloque
               </button>
@@ -325,7 +298,7 @@ export default function PdfPageSelectionSheet({
 
             <div
               ref={scrollRootRef}
-              className="mt-3 grid max-h-[34dvh] grid-cols-2 gap-2.5 overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-2 sm:grid-cols-3"
+              className="mt-2 grid max-h-[37dvh] grid-cols-2 gap-2.5 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-2 sm:grid-cols-3"
             >
               {blockPages.map((page) => (
                 <PdfPageThumbnail
@@ -342,7 +315,7 @@ export default function PdfPageSelectionSheet({
           </div>
         </div>
 
-        <div className="flex gap-2 border-t border-slate-100 bg-white px-5 pb-[calc(env(safe-area-inset-bottom)+0.9rem)] pt-3">
+        <div className="flex gap-2 border-t border-slate-100 bg-white px-4 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-2.5">
           <button
             type="button"
             disabled={disabled}
@@ -355,9 +328,8 @@ export default function PdfPageSelectionSheet({
             type="button"
             disabled={disabled || !safeSelectedPages.length}
             onClick={() => onConfirm?.(safeSelectedPages)}
-            className="flex min-h-11 flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 text-xs font-black text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-45"
+            className="flex min-h-11 flex-1 cursor-pointer items-center justify-center rounded-xl bg-indigo-600 px-4 text-xs font-black text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-45"
           >
-            <Check className="h-4 w-4" />
             Analizar {safeSelectedPages.length || ''} {safeSelectedPages.length === 1 ? 'página' : 'páginas'}
           </button>
         </div>
