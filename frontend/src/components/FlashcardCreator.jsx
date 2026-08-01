@@ -1,3 +1,4 @@
+/* FILE: frontend/src/components/FlashcardCreator.jsx */
 import { useCallback, useState, useEffect, useLayoutEffect, useRef } from 'react';
 import {
   SlidersHorizontal, Loader2, Plus, Check, Eye, EyeOff, Trash2,
@@ -5,10 +6,10 @@ import {
 } from 'lucide-react';
 
 import ActionSheet from './common/ActionSheet';
-import ProcessingActionSheet from './common/ProcessingActionSheet';
 import FormInputs from './creator/FormInputs';
 import StylePanel from './creator/StylePanel';
 import FloatingPreviewPanel, { getStoredPreviewPanelMode } from './creator/FloatingPreviewPanel';
+import './creator/magic-ai-button.css';
 
 import { parseCardStyles } from '../lib/utils';
 import { readAiGenerationProgress } from '../lib/aiProgressStream';
@@ -35,65 +36,57 @@ const AI_GENERATION_ENDPOINT = import.meta.env.VITE_AI_GENERATION_MODE === 'v1'
   ? '/api/flashcards/generate-ai'
   : '/api/flashcards/generate-ai-v2';
 
-function isObject(value) {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
+function MagicSparkleIcon() {
+  return (
+    <svg
+      className="magic-ai-button__sparkle"
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <path
+        className="magic-ai-button__path"
+        d="M12 2L14.4 9.6L22 12L14.4 14.4L12 22L9.6 14.4L2 12L9.6 9.6L12 2Z"
+      />
+      <path
+        className="magic-ai-button__path"
+        d="M19 2L19.6 4.4L22 5L19.6 5.6L19 8L18.4 5.6L16 5L18.4 4.4L19 2Z"
+      />
+      <path
+        className="magic-ai-button__path"
+        d="M5 16L5.6 18.4L8 19L5.6 19.6L5 22L4.4 19.6L2 19L4.4 18.4L5 16Z"
+      />
+    </svg>
+  );
 }
 
-function readNumericValue(sources, keys, fallback = 0) {
-  for (const source of sources) {
-    if (!isObject(source)) continue;
-    for (const key of keys) {
-      const value = Number(source[key]);
-      if (Number.isFinite(value)) return Math.max(0, value);
-    }
-  }
-  return fallback;
-}
+function MagicAiButton({
+  children,
+  className = '',
+  compact = false,
+  selected = false,
+  loading = false,
+  ...props
+}) {
+  const buttonClassName = [
+    'magic-ai-button',
+    compact ? 'magic-ai-button--mode' : '',
+    selected ? 'magic-ai-button--selected' : '',
+    className,
+  ].filter(Boolean).join(' ');
 
-function buildAiCompletionProgress(result, previousProgress, requestedTarget) {
-  const resultSources = [
-    result?.stats,
-    result?.metrics,
-    result?.progress,
-    result?.data,
-    result?.result,
-    result,
-  ];
-  const cardsCount = Array.isArray(result)
-    ? result.length
-    : Array.isArray(result?.cards)
-      ? result.cards.length
-      : Array.isArray(result?.data?.cards)
-        ? result.data.cards.length
-        : undefined;
-  const target = readNumericValue(resultSources, ['target', 'requested', 'requestedCount'], requestedTarget);
-  const generated = readNumericValue(
-    resultSources,
-    ['generated', 'generatedCount', 'totalGenerated'],
-    previousProgress?.generated || 0,
+  return (
+    <button {...props} className={buttonClassName} aria-busy={loading || undefined}>
+      <span className="magic-ai-button__dots" aria-hidden="true" />
+      {loading ? (
+        <Loader2 className="magic-ai-button__loading-icon animate-spin" aria-hidden="true" />
+      ) : (
+        <MagicSparkleIcon />
+      )}
+      <span className="magic-ai-button__text">{children}</span>
+    </button>
   );
-  const audited = readNumericValue(
-    resultSources,
-    ['audited', 'auditedCount', 'totalAudited'],
-    previousProgress?.audited || 0,
-  );
-  const accepted = readNumericValue(
-    resultSources,
-    ['accepted', 'acceptedCount', 'saved', 'created', 'cardsCreated'],
-    cardsCount ?? previousProgress?.accepted ?? 0,
-  );
-
-  return {
-    ...(previousProgress || {}),
-    status: 'success',
-    message: 'Tus tarjetas están listas.',
-    generated,
-    audited,
-    accepted,
-    target,
-    total: target,
-    summary: `${accepted.toLocaleString('es-MX')} ${accepted === 1 ? 'tarjeta lista' : 'tarjetas listas'}${target ? ` de ${target.toLocaleString('es-MX')} solicitadas` : ''}.`,
-  };
 }
 
 export default function FlashcardCreator({
@@ -116,20 +109,9 @@ export default function FlashcardCreator({
   const [aiProgress, setAiProgress] = useState(null);
   const [isAiGenerationSheetOpen, setIsAiGenerationSheetOpen] = useState(false);
 
-  const aiProgressRef = useRef(null);
   const footerRef = useRef(null);
 
   const activeTab = editingId ? 'single' : (isAi ? 'ai' : (isBulk ? 'bulk' : 'single'));
-
-  const updateAiProgress = useCallback((nextProgress) => {
-    setAiProgress((previousProgress) => {
-      const nextValue = typeof nextProgress === 'function'
-        ? nextProgress(previousProgress)
-        : nextProgress;
-      aiProgressRef.current = nextValue;
-      return nextValue;
-    });
-  }, []);
 
   // Medidor de altura del footer: Se PAUSA si el modal manual está abierto
   useLayoutEffect(() => {
@@ -242,18 +224,14 @@ export default function FlashcardCreator({
     if (!aiText.trim() || aiSaving) return;
     setAiSaving(true);
     setError('');
-    aiProgressRef.current = null;
-    updateAiProgress({
+    setAiProgress({
       generated: 0,
       audited: 0,
       accepted: 0,
       target: Number(aiNumCards) || 0,
       total: Number(aiNumCards) || 0,
       message: 'Preparando la generación con IA...',
-      status: 'processing',
     });
-
-    let completed = false;
 
     try {
       const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
@@ -285,17 +263,15 @@ export default function FlashcardCreator({
         throw new Error(errorData.message || errorData.error || 'El motor de IA experimentó una saturación o no configuraste tu API Key.');
       }
 
-      const result = await readAiGenerationProgress(response, updateAiProgress);
-      updateAiProgress(buildAiCompletionProgress(result, aiProgressRef.current, Number(aiNumCards) || 0));
+      const result = await readAiGenerationProgress(response, setAiProgress);
       await onAiSuccess?.(result);
       setAiText('');
       setIsAi(false);
-      completed = true;
     } catch (submitError) {
       setError(submitError.message || 'Error de conexión con el nodo de Inteligencia Artificial.');
     } finally {
+      setAiProgress(null);
       setAiSaving(false);
-      if (!completed) updateAiProgress(null);
     }
   };
 
@@ -312,6 +288,11 @@ export default function FlashcardCreator({
 
   const aiCardCount = Number(aiNumCards) || 0;
   const aiGenerationDescription = `Generar ${aiCardCount.toLocaleString('es-MX')} ${aiCardCount === 1 ? 'tarjeta' : 'tarjetas'} con tus apuntes actuales.`;
+  const submitDisabled = saving || aiSaving || (
+    activeTab === 'ai'
+      ? !aiText.trim()
+      : (activeTab === 'bulk' ? !bulkText.trim() : (!question.trim() || !answer.trim()))
+  );
 
   return (
     <form onSubmit={handleFormSubmit} className="flex flex-col bg-slate-50 relative w-full">
@@ -330,6 +311,23 @@ export default function FlashcardCreator({
               ].map((tab) => {
                 const TabIcon = tab.Icon;
                 const isSelected = activeTab === tab.id;
+
+                if (isSelected && tab.id === 'ai') {
+                  return (
+                    <MagicAiButton
+                      key={tab.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={isSelected}
+                      onClick={() => handleTabChange(tab.id)}
+                      compact
+                      selected
+                    >
+                      {tab.label}
+                    </MagicAiButton>
+                  );
+                }
+
                 return (
                   <button
                     key={tab.id}
@@ -339,13 +337,11 @@ export default function FlashcardCreator({
                     onClick={() => handleTabChange(tab.id)}
                     className={`inline-flex min-h-10 items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
                       isSelected
-                        ? tab.id === 'ai'
-                          ? 'bg-indigo-600 text-white shadow-md'
-                          : 'bg-slate-900 text-white shadow-md'
+                        ? 'bg-slate-900 text-white shadow-md'
                         : 'text-slate-500 hover:text-slate-900 hover:bg-white/60'
                     }`}
                   >
-                    <TabIcon className={`w-3.5 h-3.5 shrink-0 ${isSelected && tab.id === 'ai' ? 'text-indigo-300 animate-pulse' : ''}`} />
+                    <TabIcon className="w-3.5 h-3.5 shrink-0" />
                     <span className="truncate">{tab.label}</span>
                   </button>
                 );
@@ -419,6 +415,35 @@ export default function FlashcardCreator({
           />
         )}
 
+        {aiSaving && aiProgress && (
+          <section role="status" aria-live="polite" className="rounded-2xl border border-indigo-100 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-2">
+                <Loader2 className="h-4 w-4 shrink-0 animate-spin text-indigo-600" aria-hidden="true" />
+                <p className="truncate text-xs font-bold text-slate-800">{aiProgress.message}</p>
+              </div>
+              <span className="shrink-0 text-xs font-black tabular-nums text-indigo-700">
+                {aiProgress.accepted || 0}/{aiProgress.target || 0}
+              </span>
+            </div>
+            <div
+              className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100"
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={aiProgress.total || 1}
+              aria-valuenow={Math.min(aiProgress.generated || 0, aiProgress.total || 0)}
+            >
+              <div
+                className="h-full rounded-full bg-indigo-600 transition-[width] duration-300"
+                style={{ width: `${aiProgress.total ? Math.min(100, ((aiProgress.generated || 0) / aiProgress.total) * 100) : 0}%` }}
+              />
+            </div>
+            <p className="mt-2 text-[11px] font-medium text-slate-500">
+              {aiProgress.generated || 0} generadas · {aiProgress.audited || 0} auditadas · {aiProgress.accepted || 0} listas
+            </p>
+          </section>
+        )}
+
         {error && <p className="text-xs text-red-600 font-semibold bg-red-50 border border-red-100 px-4 py-2.5 rounded-2xl">{error}</p>}
       </div>
 
@@ -475,28 +500,35 @@ export default function FlashcardCreator({
             )}
           </div>
 
-          <button
-            type="submit"
-            disabled={saving || aiSaving || (activeTab === 'ai' ? !aiText.trim() : (activeTab === 'bulk' ? !bulkText.trim() : (!question.trim() || !answer.trim())))}
-            className={`flex items-center justify-center gap-2 h-12 px-6 sm:px-8 rounded-2xl text-sm font-bold transition-all active:scale-[0.98] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex-1 sm:flex-initial sm:min-w-[200px] shadow-md ${
-              activeTab === 'ai'
-                ? 'bg-gradient-to-r from-indigo-600 via-violet-600 to-indigo-600 hover:from-indigo-500 hover:to-indigo-500 text-white'
-                : 'bg-slate-900 hover:bg-slate-800 text-white'
-            }`}
-          >
-            {saving || aiSaving ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : editingId ? (
-              <Check className="w-4 h-4 shrink-0" />
-            ) : activeTab === 'ai' ? (
-              <Sparkles className="w-4 h-4 text-indigo-300 shrink-0 animate-pulse" />
-            ) : (
-              <Plus className="w-4 h-4 shrink-0" />
-            )}
-            <span className="truncate">
-              {editingId ? 'Guardar' : activeTab === 'ai' ? 'Generar IA' : activeTab === 'bulk' ? 'Crear Lote' : 'Agregar Tarjeta'}
-            </span>
-          </button>
+          {activeTab === 'ai' ? (
+            <MagicAiButton
+              type="submit"
+              disabled={submitDisabled}
+              loading={saving || aiSaving}
+              className="flex-1 sm:flex-initial sm:min-w-[200px]"
+            >
+              Generar
+            </MagicAiButton>
+          ) : (
+            <button
+              type="submit"
+              disabled={submitDisabled}
+              className="flex items-center justify-center gap-2 h-12 px-6 sm:px-8 rounded-2xl text-sm font-bold transition-all active:scale-[0.98] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex-1 sm:flex-initial sm:min-w-[200px] shadow-md bg-slate-900 hover:bg-slate-800 text-white"
+            >
+              {saving || aiSaving ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : editingId ? (
+                <Check className="w-4 h-4 shrink-0" />
+              ) : activeTab === 'bulk' ? (
+                <Layers className="w-4 h-4 shrink-0" />
+              ) : (
+                <Plus className="w-4 h-4 shrink-0" />
+              )}
+              <span className="truncate">
+                {editingId ? 'Guardar' : activeTab === 'bulk' ? 'Crear Lote' : 'Agregar Tarjeta'}
+              </span>
+            </button>
+          )}
         </div>
       </footer>
 
@@ -516,20 +548,6 @@ export default function FlashcardCreator({
             },
           },
         ]}
-      />
-
-      <ProcessingActionSheet
-        open={aiSaving || Boolean(aiProgress)}
-        variant="ai"
-        status={aiProgress?.status || 'processing'}
-        title={aiProgress?.status === 'success' ? 'Tarjetas generadas' : 'Generando tarjetas con IA'}
-        message={aiProgress?.message}
-        progress={aiProgress}
-        summary={aiProgress?.summary}
-        autoCloseMs={1800}
-        onClose={() => {
-          if (!aiSaving) updateAiProgress(null);
-        }}
       />
     </form>
   );
