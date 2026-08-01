@@ -221,7 +221,7 @@ export default function FormInputs({
             <span className="block text-[10px] font-medium text-slate-400">¿Cuántas tarjetas aproximadas deseas generar?</span>
           </div>
 
-          <div className="grid w-full grid-cols-4 gap-1 rounded-xl bg-white p-1 sm:w-auto sm:min-w-[220px]">
+          <div className="grid w-full grid-cols-4 gap-2 rounded-xl bg-white p-1.5 sm:w-auto sm:min-w-[220px]">
             {[5, 10, 15].map((number) => {
               const isSelected = customCardCount === '' && aiNumCards === number;
               return (
