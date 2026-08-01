@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 
 import ActionSheet from './common/ActionSheet';
+import ProcessingActionSheet from './common/ProcessingActionSheet';
 import FormInputs from './creator/FormInputs';
 import StylePanel from './creator/StylePanel';
 import FloatingPreviewPanel, { getStoredPreviewPanelMode } from './creator/FloatingPreviewPanel';
@@ -34,6 +35,67 @@ const AI_GENERATION_ENDPOINT = import.meta.env.VITE_AI_GENERATION_MODE === 'v1'
   ? '/api/flashcards/generate-ai'
   : '/api/flashcards/generate-ai-v2';
 
+function isObject(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function readNumericValue(sources, keys, fallback = 0) {
+  for (const source of sources) {
+    if (!isObject(source)) continue;
+    for (const key of keys) {
+      const value = Number(source[key]);
+      if (Number.isFinite(value)) return Math.max(0, value);
+    }
+  }
+  return fallback;
+}
+
+function buildAiCompletionProgress(result, previousProgress, requestedTarget) {
+  const resultSources = [
+    result?.stats,
+    result?.metrics,
+    result?.progress,
+    result?.data,
+    result?.result,
+    result,
+  ];
+  const cardsCount = Array.isArray(result)
+    ? result.length
+    : Array.isArray(result?.cards)
+      ? result.cards.length
+      : Array.isArray(result?.data?.cards)
+        ? result.data.cards.length
+        : undefined;
+  const target = readNumericValue(resultSources, ['target', 'requested', 'requestedCount'], requestedTarget);
+  const generated = readNumericValue(
+    resultSources,
+    ['generated', 'generatedCount', 'totalGenerated'],
+    previousProgress?.generated || 0,
+  );
+  const audited = readNumericValue(
+    resultSources,
+    ['audited', 'auditedCount', 'totalAudited'],
+    previousProgress?.audited || 0,
+  );
+  const accepted = readNumericValue(
+    resultSources,
+    ['accepted', 'acceptedCount', 'saved', 'created', 'cardsCreated'],
+    cardsCount ?? previousProgress?.accepted ?? 0,
+  );
+
+  return {
+    ...(previousProgress || {}),
+    status: 'success',
+    message: 'Tus tarjetas están listas.',
+    generated,
+    audited,
+    accepted,
+    target,
+    total: target,
+    summary: `${accepted.toLocaleString('es-MX')} ${accepted === 1 ? 'tarjeta lista' : 'tarjetas listas'}${target ? ` de ${target.toLocaleString('es-MX')} solicitadas` : ''}.`,
+  };
+}
+
 export default function FlashcardCreator({
   question, setQuestion, answer, setAnswer, bgImage, setBgImage, textAlign, setTextAlign,
   fontSize, setFontSize, showStyles, setShowStyles, isBulk, setIsBulk, bulkText, setBulkText,
@@ -43,7 +105,7 @@ export default function FlashcardCreator({
 }) {
   const [showPreview, setShowPreview] = useState(() => Boolean(getJSON(PREVIEW_VISIBLE_KEY)));
   const [previewMode, setPreviewMode] = useState(() => getStoredPreviewPanelMode());
-  
+
   // Estado para saber si el modal a pantalla completa está activo
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
 
@@ -54,9 +116,20 @@ export default function FlashcardCreator({
   const [aiProgress, setAiProgress] = useState(null);
   const [isAiGenerationSheetOpen, setIsAiGenerationSheetOpen] = useState(false);
 
+  const aiProgressRef = useRef(null);
   const footerRef = useRef(null);
 
   const activeTab = editingId ? 'single' : (isAi ? 'ai' : (isBulk ? 'bulk' : 'single'));
+
+  const updateAiProgress = useCallback((nextProgress) => {
+    setAiProgress((previousProgress) => {
+      const nextValue = typeof nextProgress === 'function'
+        ? nextProgress(previousProgress)
+        : nextProgress;
+      aiProgressRef.current = nextValue;
+      return nextValue;
+    });
+  }, []);
 
   // Medidor de altura del footer: Se PAUSA si el modal manual está abierto
   useLayoutEffect(() => {
@@ -169,14 +242,18 @@ export default function FlashcardCreator({
     if (!aiText.trim() || aiSaving) return;
     setAiSaving(true);
     setError('');
-    setAiProgress({
+    aiProgressRef.current = null;
+    updateAiProgress({
       generated: 0,
       audited: 0,
       accepted: 0,
       target: Number(aiNumCards) || 0,
       total: Number(aiNumCards) || 0,
       message: 'Preparando la generación con IA...',
+      status: 'processing',
     });
+
+    let completed = false;
 
     try {
       const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
@@ -208,15 +285,17 @@ export default function FlashcardCreator({
         throw new Error(errorData.message || errorData.error || 'El motor de IA experimentó una saturación o no configuraste tu API Key.');
       }
 
-      const result = await readAiGenerationProgress(response, setAiProgress);
+      const result = await readAiGenerationProgress(response, updateAiProgress);
+      updateAiProgress(buildAiCompletionProgress(result, aiProgressRef.current, Number(aiNumCards) || 0));
       await onAiSuccess?.(result);
       setAiText('');
       setIsAi(false);
+      completed = true;
     } catch (submitError) {
       setError(submitError.message || 'Error de conexión con el nodo de Inteligencia Artificial.');
     } finally {
-      setAiProgress(null);
       setAiSaving(false);
+      if (!completed) updateAiProgress(null);
     }
   };
 
@@ -239,7 +318,7 @@ export default function FlashcardCreator({
       <div className="flex-1 px-4 py-4 space-y-4 max-w-2xl mx-auto w-full">
         {!editingId && (
           <div className="flex justify-center">
-            <div 
+            <div
               role="tablist"
               aria-label="Modo de creación"
               className="grid grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1 w-full shadow-sm border border-slate-200"
@@ -340,39 +419,10 @@ export default function FlashcardCreator({
           />
         )}
 
-        {aiSaving && aiProgress && (
-          <section role="status" aria-live="polite" className="rounded-2xl border border-indigo-100 bg-white p-4 shadow-sm">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex min-w-0 items-center gap-2">
-                <Loader2 className="h-4 w-4 shrink-0 animate-spin text-indigo-600" aria-hidden="true" />
-                <p className="truncate text-xs font-bold text-slate-800">{aiProgress.message}</p>
-              </div>
-              <span className="shrink-0 text-xs font-black tabular-nums text-indigo-700">
-                {aiProgress.accepted || 0}/{aiProgress.target || 0}
-              </span>
-            </div>
-            <div
-              className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100"
-              role="progressbar"
-              aria-valuemin={0}
-              aria-valuemax={aiProgress.total || 1}
-              aria-valuenow={Math.min(aiProgress.generated || 0, aiProgress.total || 0)}
-            >
-              <div
-                className="h-full rounded-full bg-indigo-600 transition-[width] duration-300"
-                style={{ width: `${aiProgress.total ? Math.min(100, ((aiProgress.generated || 0) / aiProgress.total) * 100) : 0}%` }}
-              />
-            </div>
-            <p className="mt-2 text-[11px] font-medium text-slate-500">
-              {aiProgress.generated || 0} generadas · {aiProgress.audited || 0} auditadas · {aiProgress.accepted || 0} listas
-            </p>
-          </section>
-        )}
-
         {error && <p className="text-xs text-red-600 font-semibold bg-red-50 border border-red-100 px-4 py-2.5 rounded-2xl">{error}</p>}
       </div>
 
-      <footer 
+      <footer
         ref={footerRef}
         className="fixed bottom-0 inset-x-0 z-30 bg-white border-t border-slate-200 p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] shadow-lg"
       >
@@ -466,6 +516,20 @@ export default function FlashcardCreator({
             },
           },
         ]}
+      />
+
+      <ProcessingActionSheet
+        open={aiSaving || Boolean(aiProgress)}
+        variant="ai"
+        status={aiProgress?.status || 'processing'}
+        title={aiProgress?.status === 'success' ? 'Tarjetas generadas' : 'Generando tarjetas con IA'}
+        message={aiProgress?.message}
+        progress={aiProgress}
+        summary={aiProgress?.summary}
+        autoCloseMs={1800}
+        onClose={() => {
+          if (!aiSaving) updateAiProgress(null);
+        }}
       />
     </form>
   );
