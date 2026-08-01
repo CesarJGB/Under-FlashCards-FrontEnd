@@ -1,12 +1,16 @@
+// FILE: frontend/src/components/creator/FormInputs.jsx
+// Entrega v2. Guardar este archivo con extensión .jsx.
 import {
   lazy,
   Suspense,
   startTransition,
   useCallback,
+  useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
-import { FileText, Layers } from 'lucide-react';
+import { FileText, Layers, Pencil } from 'lucide-react';
 import ManualCardEditorModal from './ManualCardEditorModal';
 
 const PdfExtractor = lazy(() => import('./PdfExtractor'));
@@ -22,9 +26,25 @@ function appendPdfTextSafely(previousText, extractedText) {
   const separator = safePreviousText ? '\n\n' : '';
   const remaining = Math.max(0, MAX_AI_DOCUMENT_TEXT_LENGTH - safePreviousText.length - separator.length);
   return {
-    value: `${safePreviousText}${separator}${safeExtractedText.slice(0, remaining)}`,
+    value: safePreviousText + separator + safeExtractedText.slice(0, remaining),
     clipped: safeExtractedText.length > remaining,
   };
+}
+
+function getPdfCharacterCount(source, result, extractedText) {
+  const candidates = [
+    source?.textCharacterCount,
+    result?.plainText?.length,
+    result?.stats?.sourceCharacters,
+    extractedText?.length,
+  ];
+
+  for (const candidate of candidates) {
+    const count = Number(candidate);
+    if (Number.isFinite(count) && count >= 0) return count;
+  }
+
+  return 0;
 }
 
 export default function FormInputs({
@@ -59,6 +79,17 @@ export default function FormInputs({
 }) {
   const [customCardCount, setCustomCardCount] = useState('');
   const [manualEditorSide, setManualEditorSide] = useState(null);
+  const [pdfSource, setPdfSource] = useState(null);
+  const [showPdfTextEditor, setShowPdfTextEditor] = useState(false);
+  const aiTextRef = useRef(aiText || '');
+
+  useEffect(() => {
+    aiTextRef.current = aiText || '';
+    if (!aiText) {
+      setPdfSource((previousSource) => (previousSource ? null : previousSource));
+      setShowPdfTextEditor(false);
+    }
+  }, [aiText]);
 
   const closeManualEditor = useCallback(() => {
     setManualEditorSide(null);
@@ -70,8 +101,14 @@ export default function FormInputs({
     onModalStateChange?.(true);
   }, [onModalStateChange]);
 
-  const handlePdfTextExtracted = useCallback((extractedText, result) => {
-    const preview = appendPdfTextSafely(aiText || '', extractedText || '');
+  const handlePdfTextExtracted = useCallback((extractedText, result, source) => {
+    const preview = appendPdfTextSafely(aiTextRef.current, extractedText || '');
+    const nextSource = {
+      ...(source || {}),
+      fileName: source?.fileName || 'Documento PDF',
+      pageLabel: source?.pageLabel || 'PDF analizado',
+      textCharacterCount: getPdfCharacterCount(source, result, extractedText),
+    };
     const report = result
       ? {
         ...result,
@@ -83,11 +120,21 @@ export default function FormInputs({
       }
       : null;
 
-    onPdfExtractionComplete?.(report);
+    aiTextRef.current = preview.value;
+    setPdfSource(nextSource);
+    setShowPdfTextEditor(false);
+    onPdfExtractionComplete?.(report, nextSource);
     startTransition(() => {
-      setAiText((previousText) => appendPdfTextSafely(previousText, extractedText).value);
+      setAiText(preview.value);
     });
-  }, [aiText, onPdfExtractionComplete, setAiText]);
+  }, [onPdfExtractionComplete, setAiText]);
+
+  const handleAiTextChange = useCallback((event) => {
+    const nextText = event.target.value;
+    aiTextRef.current = nextText;
+    setPdfSource(null);
+    setAiText(nextText);
+  }, [setAiText]);
 
   const bulkStats = useMemo(() => {
     const lines = bulkText.split(/\r?\n/);
@@ -116,38 +163,62 @@ export default function FormInputs({
   }, [bulkText]);
 
   if (isAi) {
+    const sourceCharacterCount = pdfSource?.textCharacterCount || 0;
+
     return (
       <div className="flex animate-[fadeIn_0.2s_ease] flex-col gap-3">
-        <Suspense
-          fallback={(
-            <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-semibold text-slate-500">
-              <FileText className="h-4 w-4 shrink-0 text-indigo-500" />
-              <span>Preparando módulo PDF...</span>
-            </div>
-          )}
-        >
+        <Suspense fallback={null}>
           <PdfExtractor onTextExtracted={handlePdfTextExtracted} />
         </Suspense>
 
-        <div>
-          <div className="mb-1.5 flex items-center justify-between gap-3">
-            <label htmlFor="ai-source-text" className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
-              <FileText className="h-3.5 w-3.5 text-slate-400" />
-              <span>Apuntes e indicaciones:</span>
-            </label>
-            <span className="shrink-0 text-[10px] font-semibold tabular-nums text-slate-400">
-              {(aiText || '').length.toLocaleString('es-MX')} / {MAX_AI_DOCUMENT_TEXT_LENGTH.toLocaleString('es-MX')}
-            </span>
+        {pdfSource && !showPdfTextEditor ? (
+          <div className="rounded-2xl border border-indigo-100 bg-indigo-50/70 p-3.5">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-indigo-600 shadow-sm">
+                <FileText className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] font-black uppercase tracking-[0.14em] text-indigo-500">Archivo cargado</p>
+                <p className="mt-0.5 truncate text-sm font-black text-slate-800">{pdfSource.fileName}</p>
+                <div className="mt-2 flex flex-wrap gap-1.5 text-[10px] font-bold">
+                  <span className="rounded-full bg-white px-2 py-1 text-slate-600">{pdfSource.pageLabel}</span>
+                  <span className="rounded-full bg-white px-2 py-1 text-indigo-600">
+                    {sourceCharacterCount.toLocaleString('es-MX')} caracteres
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPdfTextEditor(true)}
+                className="flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border border-indigo-100 bg-white px-2.5 text-[10px] font-bold text-slate-600 transition-colors hover:bg-slate-50"
+                title="Editar el texto extraído"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                Editar
+              </button>
+            </div>
           </div>
-          <textarea
-            id="ai-source-text"
-            value={aiText}
-            onChange={(event) => setAiText(event.target.value)}
-            maxLength={MAX_AI_DOCUMENT_TEXT_LENGTH}
-            placeholder="Pega tu información aquí o usa el extractor de PDF para rellenar este campo automáticamente."
-            className="min-h-[160px] w-full resize-y rounded-xl border border-slate-200 bg-slate-50/40 px-3 py-2.5 text-xs font-medium leading-relaxed text-slate-800 outline-none transition-colors placeholder:text-slate-300 focus:border-indigo-300 focus:bg-white focus:ring-4 focus:ring-indigo-500/[0.08]"
-          />
-        </div>
+        ) : (
+          <div>
+            <div className="mb-1.5 flex items-center justify-between gap-3">
+              <label htmlFor="ai-source-text" className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
+                <FileText className="h-3.5 w-3.5 text-slate-400" />
+                <span>Apuntes e indicaciones:</span>
+              </label>
+              <span className="shrink-0 text-[10px] font-semibold tabular-nums text-slate-400">
+                {(aiText || '').length.toLocaleString('es-MX')} / {MAX_AI_DOCUMENT_TEXT_LENGTH.toLocaleString('es-MX')}
+              </span>
+            </div>
+            <textarea
+              id="ai-source-text"
+              value={aiText}
+              onChange={handleAiTextChange}
+              maxLength={MAX_AI_DOCUMENT_TEXT_LENGTH}
+              placeholder="Pega tu información aquí o agrega un PDF con el botón +."
+              className="min-h-[160px] w-full resize-y rounded-xl border border-slate-200 bg-slate-50/40 px-3 py-2.5 text-xs font-medium leading-relaxed text-slate-800 outline-none transition-colors placeholder:text-slate-300 focus:border-indigo-300 focus:bg-white focus:ring-4 focus:ring-indigo-500/[0.08]"
+            />
+          </div>
+        )}
 
         <div className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -166,7 +237,12 @@ export default function FormInputs({
                     setCustomCardCount('');
                     setAiNumCards(number);
                   }}
-                  className={`min-h-9 cursor-pointer rounded-lg px-2 text-xs font-extrabold transition-colors ${isSelected ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}
+                  className={[
+                    'min-h-9 cursor-pointer rounded-lg px-2 text-xs font-extrabold transition-colors',
+                    isSelected
+                      ? 'bg-slate-900 text-white shadow-sm'
+                      : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900',
+                  ].join(' ')}
                 >
                   {number}
                 </button>
@@ -193,7 +269,12 @@ export default function FormInputs({
                 setAiNumCards(nextValue);
               }}
               aria-label="Cantidad libre de tarjetas"
-              className={`min-h-9 w-full rounded-lg border px-1 text-center text-xs font-extrabold outline-none transition-colors ${customCardCount !== '' ? 'border-slate-900 bg-slate-900 text-white placeholder:text-slate-400' : 'border-transparent bg-slate-50 text-slate-600 placeholder:text-slate-400 focus:border-slate-300 focus:bg-white'}`}
+              className={[
+                'min-h-9 w-full rounded-lg border px-1 text-center text-xs font-extrabold outline-none transition-colors',
+                customCardCount !== ''
+                  ? 'border-slate-900 bg-slate-900 text-white placeholder:text-slate-400'
+                  : 'border-transparent bg-slate-50 text-slate-600 placeholder:text-slate-400 focus:border-slate-300 focus:bg-white',
+              ].join(' ')}
             />
           </div>
         </div>
@@ -239,16 +320,20 @@ export default function FormInputs({
         onPointerDown={(event) => event.preventDefault()}
         onClick={() => openManualEditor(side)}
         className="relative flex min-h-[96px] w-full cursor-pointer flex-col rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left transition-colors active:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2"
-        aria-label={`Editar ${label.toLowerCase()}`}
-        data-testid={`manual-${side}-editor-trigger`}
+        aria-label={'Editar ' + label.toLowerCase()}
+        data-testid={'manual-' + side + '-editor-trigger'}
       >
         <span className="text-xs font-medium text-slate-500">{label}</span>
-        <span className={`mt-1.5 max-h-[58px] overflow-hidden whitespace-pre-wrap break-words pr-9 text-sm font-medium leading-relaxed ${value ? 'text-slate-800' : 'text-slate-300'}`}>
+        <span className={[
+          'mt-1.5 max-h-[58px] overflow-hidden whitespace-pre-wrap break-words pr-9 text-sm font-medium leading-relaxed',
+          value ? 'text-slate-800' : 'text-slate-300',
+        ].join(' ')}
+        >
           {value || placeholder}
         </span>
         {hasImage && (
           <span className="absolute bottom-2 right-2 flex h-7 w-7 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50 shadow-sm">
-            <img src={contentImage} alt={`Imagen de ${label.toLowerCase()}`} className="h-full w-full object-cover" />
+            <img src={contentImage} alt={'Imagen de ' + label.toLowerCase()} className="h-full w-full object-cover" />
           </span>
         )}
       </button>
