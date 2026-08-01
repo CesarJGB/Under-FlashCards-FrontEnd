@@ -12,6 +12,7 @@ import {
   X,
 } from 'lucide-react';
 
+import ProcessingActionSheet from '../common/ProcessingActionSheet';
 import {
   PDF_EXTRACTION_DEFAULTS,
   PdfExtractionError,
@@ -92,6 +93,7 @@ export default function PdfExtractor({ onTextExtracted, onExtractionComplete, oc
   const [isOpen, setIsOpen] = useState(false);
   const [pdfDoc, setPdfDoc] = useState(null);
   const [fileName, setFileName] = useState('');
+  const [completedFileName, setCompletedFileName] = useState('');
   const [totalPages, setTotalPages] = useState(0);
   const [selectedPages, setSelectedPages] = useState([]);
   const [scope, setScope] = useState('all');
@@ -103,6 +105,7 @@ export default function PdfExtractor({ onTextExtracted, onExtractionComplete, oc
   const [processingProgress, setProcessingProgress] = useState(null);
   const [loadProgress, setLoadProgress] = useState(null);
   const [lastResult, setLastResult] = useState(null);
+  const [showCompletionSheet, setShowCompletionSheet] = useState(false);
 
   const scrollRootRef = useRef(null);
   const pdfDocRef = useRef(null);
@@ -171,6 +174,8 @@ export default function PdfExtractor({ onTextExtracted, onExtractionComplete, oc
     clearDocumentState();
     setLoading(false);
     setLocalError('');
+    setShowCompletionSheet(false);
+    setCompletedFileName('');
     if (!preserveResult) setLastResult(null);
   }, [abortActiveOperation, clearDocumentState, releasePdfResources]);
 
@@ -243,6 +248,8 @@ export default function PdfExtractor({ onTextExtracted, onExtractionComplete, oc
     setStage(null);
     setProcessingProgress(null);
     setLoadProgress(null);
+    setShowCompletionSheet(false);
+    setCompletedFileName('');
     setLocalError('Operación cancelada.');
   }, [abortActiveOperation]);
 
@@ -268,6 +275,8 @@ export default function PdfExtractor({ onTextExtracted, onExtractionComplete, oc
 
     const operation = beginOperation('loading');
     passwordRequiredRef.current = false;
+    setShowCompletionSheet(false);
+    setCompletedFileName('');
     setLoading(true);
     setStage('loading');
     setLocalError('');
@@ -290,7 +299,7 @@ export default function PdfExtractor({ onTextExtracted, onExtractionComplete, oc
       });
       loadingTaskRef.current = loadingTask;
       loadingTask.onProgress = ({ loaded, total }) => {
-        if (isCurrentOperation(operation) && total) setLoadProgress({ current: loaded, total });
+        if (isCurrentOperation(operation) && total) setLoadProgress({ current: loaded, total, phase: 'loading' });
       };
       loadingTask.onPassword = () => {
         passwordRequiredRef.current = true;
@@ -344,10 +353,12 @@ export default function PdfExtractor({ onTextExtracted, onExtractionComplete, oc
     if (!pagesToRead.length) return;
 
     const operation = beginOperation('extracting');
+    setShowCompletionSheet(false);
+    setCompletedFileName('');
     setLoading(true);
     setStage('extracting');
     setLocalError('');
-    setProcessingProgress({ current: 0, total: pagesToRead.length });
+    setProcessingProgress({ current: 0, total: pagesToRead.length, phase: 'extracting' });
 
     try {
       const result = await extractPdfDocument(activePdf, pagesToRead, {
@@ -356,7 +367,14 @@ export default function PdfExtractor({ onTextExtracted, onExtractionComplete, oc
         pdfjsLib: await loadPdfJs(),
         ocrProvider,
         onProgress: (progress) => {
-          if (isCurrentOperation(operation)) setProcessingProgress({ current: progress.current, total: progress.total });
+          if (isCurrentOperation(operation)) {
+            setProcessingProgress({
+              current: progress.current,
+              total: progress.total,
+              pageNumber: progress.pageNumber,
+              phase: 'extracting',
+            });
+          }
         },
       });
 
@@ -371,6 +389,8 @@ export default function PdfExtractor({ onTextExtracted, onExtractionComplete, oc
       }
 
       setLastResult(result);
+      setCompletedFileName(fileName);
+      setShowCompletionSheet(true);
       onTextExtracted?.(result.plainText, result);
       onExtractionComplete?.(result);
       operationIdRef.current += 1;
@@ -383,6 +403,7 @@ export default function PdfExtractor({ onTextExtracted, onExtractionComplete, oc
     } catch (error) {
       if (!isMountedRef.current || isAbortError(error)) return;
       console.error('[PdfExtractor] Extraction error:', error);
+      setShowCompletionSheet(false);
       setLocalError(getReadablePdfError(error));
     } finally {
       if (isMountedRef.current && isCurrentOperation(operation)) {
@@ -392,7 +413,7 @@ export default function PdfExtractor({ onTextExtracted, onExtractionComplete, oc
         setStage(null);
       }
     }
-  }, [abortActiveOperation, beginOperation, clearDocumentState, isCurrentOperation, loading, onExtractionComplete, onTextExtracted, ocrProvider, releasePdfResources, scope, selectedPages, totalPages]);
+  }, [abortActiveOperation, beginOperation, clearDocumentState, fileName, isCurrentOperation, loading, onExtractionComplete, onTextExtracted, ocrProvider, releasePdfResources, scope, selectedPages, totalPages]);
 
   const blockStartPage = blockPages[0] ?? 0;
   const blockEndPage = blockPages[blockPages.length - 1] ?? 0;
@@ -404,6 +425,20 @@ export default function PdfExtractor({ onTextExtracted, onExtractionComplete, oc
     || lastResult.stats.truncated
     || lastResult.stats.highComplexityPages > 0
   ));
+  const extractionDetails = lastResult ? [
+    `${lastResult.stats.sourceCharacters.toLocaleString('es-MX')} caracteres extraídos.`,
+    lastResult.stats.regionCount
+      ? `${lastResult.stats.regionCount.toLocaleString('es-MX')} regiones estructuradas detectadas.`
+      : 'No se detectaron regiones estructuradas adicionales.',
+    extractionHasWarnings
+      ? 'El diagnóstico conserva las advertencias del documento para que puedas revisarlas.'
+      : 'El texto está listo para usarse en la generación de tarjetas.',
+  ] : [];
+  const processingSheetProgress = isLoadingPdf
+    ? { ...(loadProgress || { current: 0, total: 1 }), phase: 'loading', label: 'Cargando documento...' }
+    : isProcessing
+      ? processingProgress
+      : null;
 
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-3xs">
@@ -437,13 +472,6 @@ export default function PdfExtractor({ onTextExtracted, onExtractionComplete, oc
                 <span className="mt-0.5 text-[10px] text-slate-400">PDF local · hasta {(MAX_FILE_BYTES / 1024 / 1024).toFixed(0)} MB · {MAX_PAGES.toLocaleString('es-MX')} páginas</span>
                 <input type="file" accept="application/pdf,.pdf" onChange={handleFileChange} className="hidden" disabled={loading} />
               </label>
-
-              {loadProgress && (
-                <div className="flex flex-col gap-1">
-                  <div className="h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-indigo-500 transition-all" style={{ width: `${Math.min(100, (loadProgress.current / loadProgress.total) * 100)}%` }} /></div>
-                  <span className="text-center text-[10px] font-medium text-slate-400">Cargando documento...</span>
-                </div>
-              )}
             </div>
           ) : (
             <div className="flex flex-col gap-3">
@@ -487,8 +515,6 @@ export default function PdfExtractor({ onTextExtracted, onExtractionComplete, oc
                 </button>
                 {loading && <button type="button" onClick={handleCancel} className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border border-slate-200 text-slate-500 hover:border-red-200 hover:bg-red-50 hover:text-red-600" title="Cancelar" aria-label="Cancelar"><X className="h-4 w-4" /></button>}
               </div>
-
-              {processingProgress && <div className="flex flex-col gap-1"><div className="h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-indigo-500 transition-all" style={{ width: `${Math.min(100, (processingProgress.current / processingProgress.total) * 100)}%` }} /></div><p className="text-center text-[10px] font-medium text-slate-500">Extracción estructurada en curso · {processingProgress.current} de {processingProgress.total} páginas</p></div>}
             </div>
           )}
 
@@ -504,6 +530,25 @@ export default function PdfExtractor({ onTextExtracted, onExtractionComplete, oc
       )}
 
       {previewPageNum !== null && pdfDoc && <PdfCarousel pdf={pdfDoc} initialPage={previewPageNum} totalPages={totalPages} selectedPages={selectedPages} onToggle={togglePage} onClose={() => setPreviewPageNum(null)} />}
+
+      <ProcessingActionSheet
+        open={loading || showCompletionSheet}
+        variant="pdf"
+        status={showCompletionSheet ? 'success' : 'processing'}
+        title={showCompletionSheet ? 'PDF analizado' : isLoadingPdf ? 'Preparando PDF' : 'Analizando PDF'}
+        fileName={showCompletionSheet ? completedFileName : fileName}
+        message={showCompletionSheet
+          ? 'La estructura del documento quedó lista para generar tus tarjetas.'
+          : isLoadingPdf
+            ? 'Estamos preparando las páginas del documento.'
+            : 'Estamos leyendo y organizando el contenido página por página.'}
+        progress={processingSheetProgress}
+        summary={showCompletionSheet ? extractionSummary : undefined}
+        details={showCompletionSheet ? extractionDetails : undefined}
+        onCancel={loading ? handleCancel : undefined}
+        onClose={() => setShowCompletionSheet(false)}
+        autoCloseMs={2500}
+      />
     </div>
   );
 }
