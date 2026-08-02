@@ -27,6 +27,12 @@ const userSchema = new mongoose.Schema(
       default: null,
     },
     aiApiKeyUpdatedAt: { type: Date, default: null },
+    // Snapshot seguro del saldo/uso de OpenRouter. Nunca contiene la API key;
+    // permite que Home renderice datos útiles mientras se sincroniza en segundo plano.
+    openRouterBalanceCache: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null
+    },
     quickViewMaterias: [{ 
       type: mongoose.Schema.Types.ObjectId, 
       ref: 'Materia' 
