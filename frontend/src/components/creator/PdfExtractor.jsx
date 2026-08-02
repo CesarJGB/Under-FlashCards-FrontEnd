@@ -10,7 +10,7 @@ import {
   X,
 } from 'lucide-react';
 import ActionSheet from '../common/ActionSheet';
-import ProcessingActionSheet from '../common/ProcessingActionSheet';
+import PdfProcessingActionSheet from './PdfProcessingActionSheet';
 import {
   PDF_EXTRACTION_DEFAULTS,
   PdfExtractionError,
@@ -389,15 +389,15 @@ export default function PdfExtractor({ onTextExtracted, onExtractionComplete, oc
         onProgress: (progress) => {
           if (!isCurrentOperation(operation)) return;
           const now = Date.now();
-          const isFinalProgress = progress.current === progress.total;
-          if (!isFinalProgress && now - progressUpdateRef.current < PROGRESS_UPDATE_INTERVAL_MS) return;
+          const isFinalProgress = progress.phase === 'finalizing'
+            && progress.current === progress.total;
+          const isPhaseTransition = progress.phase !== 'extracting';
+          if (!isFinalProgress && !isPhaseTransition
+            && now - progressUpdateRef.current < PROGRESS_UPDATE_INTERVAL_MS) return;
           progressUpdateRef.current = now;
           setProcessingProgress({
-            current: progress.current,
-            total: progress.total,
-            pageNumber: progress.pageNumber,
-            phase: 'extracting',
-            status: progress.status,
+            ...progress,
+            phase: progress.phase || 'extracting',
           });
         },
       });
@@ -600,15 +600,14 @@ export default function PdfExtractor({ onTextExtracted, onExtractionComplete, oc
         ]}
       />
 
-      <ProcessingActionSheet
+      <PdfProcessingActionSheet
         open={isProcessing || showCompletionSheet}
-        variant="pdf"
         status={showCompletionSheet ? 'success' : 'processing'}
         title={showCompletionSheet ? 'PDF analizado' : 'Analizando PDF'}
         fileName={showCompletionSheet ? completedFileName : fileName}
         message={showCompletionSheet
           ? 'La estructura del documento quedó lista para generar tus tarjetas.'
-          : 'Estamos leyendo y organizando el contenido página por página.'}
+          : undefined}
         progress={isProcessing ? processingProgress : null}
         summary={showCompletionSheet ? extractionSummary : undefined}
         details={showCompletionSheet ? extractionDetails : undefined}
