@@ -38,6 +38,22 @@ const {
 
 const globalAiBatchLimiter = createConcurrencyLimiter(AI_GLOBAL_DECK_CONCURRENCY);
 
+function resolveRoutingMode(value) {
+  if (value === undefined || value === null || value === '') {
+    return aiService.OPENROUTER_DEFAULT_ROUTING_MODE;
+  }
+  if (typeof value !== 'string') {
+    throw createRequestError(400, 'El modo de enrutamiento de IA no es válido.');
+  }
+
+  const routingMode = value.trim().toLowerCase();
+  if (!routingMode) return aiService.OPENROUTER_DEFAULT_ROUTING_MODE;
+  if (!aiService.OPENROUTER_ROUTING_MODES.includes(routingMode)) {
+    throw createRequestError(400, 'El modo de enrutamiento de IA no es válido.');
+  }
+  return routingMode;
+}
+
 function resolveUserAiApiKey(user) {
   if (!user) return '';
   if (typeof user.getAiApiKey === 'function') return user.getAiApiKey();
@@ -63,6 +79,7 @@ async function generateAiCardsPipeline(req, res, { combinedBatch = false } = {})
   let streamStarted = false;
   let stopEventStream = null;
   let runId = null;
+  let routingMode = aiService.OPENROUTER_DEFAULT_ROUTING_MODE;
   let failedBatch = null;
   let primaryFailure = null;
   let generatedCount = 0;
@@ -86,7 +103,8 @@ async function generateAiCardsPipeline(req, res, { combinedBatch = false } = {})
   res.once?.('close', abortRun);
 
   try {
-    const { deckId, text, count, batchStyles } = req.body || {};
+    const { deckId, text, count, batchStyles, routingMode: requestedRoutingMode } = req.body || {};
+    routingMode = resolveRoutingMode(requestedRoutingMode);
     if (!text?.trim()) {
       throw createRequestError(400, 'Proporciona anotaciones o apuntes para procesar.');
     }
@@ -230,6 +248,8 @@ async function generateAiCardsPipeline(req, res, { combinedBatch = false } = {})
       pipelineVersion,
       provider: 'openrouter',
       model: aiService.OPENROUTER_MODEL,
+      routingMode,
+      providerSort: aiService.getOpenRouterProviderSort(routingMode),
       reasoningEnabled: false,
       combinedMaxTokens: aiService.AI_DECK_COMBINED_MAX_TOKENS ?? null,
       deckId: String(currentDeck._id),
@@ -287,6 +307,8 @@ async function generateAiCardsPipeline(req, res, { combinedBatch = false } = {})
 
         const context = {
           runId,
+          sessionId: `${runId}:batch-${batch.number}`,
+          routingMode,
           flow: pipelineFlow,
           deckId: String(currentDeck._id),
           batch: batch.number,
@@ -656,6 +678,8 @@ async function generateAiCardsPipeline(req, res, { combinedBatch = false } = {})
       flow: pipelineFlow,
       pipelineVersion,
       deckId: String(currentDeck._id),
+      routingMode,
+      providerSort: aiService.getOpenRouterProviderSort(routingMode),
       createdCount: insertedFlashcards.length,
       durationMs: Date.now() - startedAt,
       metrics: {
@@ -665,6 +689,8 @@ async function generateAiCardsPipeline(req, res, { combinedBatch = false } = {})
         concurrency: AI_DECK_CONCURRENCY,
         globalConcurrency: AI_GLOBAL_DECK_CONCURRENCY,
         batchRecoveryAttempts: AI_BATCH_RECOVERY_ATTEMPTS,
+        routingMode,
+        providerSort: aiService.getOpenRouterProviderSort(routingMode),
         tokenUsage,
         semanticFallbackUsed,
         semanticSkipped,
@@ -689,6 +715,8 @@ async function generateAiCardsPipeline(req, res, { combinedBatch = false } = {})
           concurrency: AI_DECK_CONCURRENCY,
           globalConcurrency: AI_GLOBAL_DECK_CONCURRENCY,
           batchRecoveryAttempts: AI_BATCH_RECOVERY_ATTEMPTS,
+          routingMode,
+          providerSort: aiService.getOpenRouterProviderSort(routingMode),
           tokenUsage,
           semanticFallbackUsed,
           semanticSkipped,
@@ -738,6 +766,8 @@ async function generateAiCardsPipeline(req, res, { combinedBatch = false } = {})
         runId,
         flow: pipelineFlow,
         pipelineVersion,
+        routingMode,
+        providerSort: aiService.getOpenRouterProviderSort(routingMode),
         batch: primaryFailure?.batch ?? failedBatch ?? failedState?.batch.number ?? null,
         stage: primaryFailure?.stage ?? failedState?.failure?.stage ?? null,
         generated: generatedCount,
@@ -788,3 +818,4 @@ async function generateAiCardsPipeline(req, res, { combinedBatch = false } = {})
 }
 
 module.exports = { generateAiCardsPipeline };
+
