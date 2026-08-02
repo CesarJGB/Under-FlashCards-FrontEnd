@@ -48,10 +48,11 @@ function resolveRoutingMode(value) {
 
   const routingMode = value.trim().toLowerCase();
   if (!routingMode) return aiService.OPENROUTER_DEFAULT_ROUTING_MODE;
-  if (!aiService.OPENROUTER_ROUTING_MODES.includes(routingMode)) {
+  const normalizedRoutingMode = aiService.normalizeOpenRouterRoutingMode(routingMode, null);
+  if (!normalizedRoutingMode || !aiService.OPENROUTER_ROUTING_MODES.includes(normalizedRoutingMode)) {
     throw createRequestError(400, 'El modo de enrutamiento de IA no es válido.');
   }
-  return routingMode;
+  return normalizedRoutingMode;
 }
 
 function resolveUserAiApiKey(user) {
@@ -250,6 +251,7 @@ async function generateAiCardsPipeline(req, res, { combinedBatch = false } = {})
       model: aiService.OPENROUTER_MODEL,
       routingMode,
       providerSort: aiService.getOpenRouterProviderSort(routingMode),
+      performanceGuardrails: aiService.OPENROUTER_PROVIDER_PERFORMANCE,
       reasoningEnabled: false,
       combinedMaxTokens: aiService.AI_DECK_COMBINED_MAX_TOKENS ?? null,
       deckId: String(currentDeck._id),
@@ -818,4 +820,5 @@ async function generateAiCardsPipeline(req, res, { combinedBatch = false } = {})
 }
 
 module.exports = { generateAiCardsPipeline };
+
 
