@@ -14,6 +14,7 @@ import {
   AlertTriangle,
   Trash2,
 } from 'lucide-react';
+import { clearOpenRouterBalanceCache } from './home/useOpenRouterBalance';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 const OPENROUTER_PROVIDER = 'openrouter';
@@ -94,7 +95,7 @@ export default function SettingsSection({ userId, section, onBack }) {
     setLoadingBalance(true);
     setBalanceError('');
     try {
-      const res = await fetch(`${BACKEND_URL}/api/user/${userId}/balance`);
+      const res = await fetch(`${BACKEND_URL}/api/user/${userId}/balance?refresh=1`);
       if (!res.ok) {
         throw new Error(await getResponseError(
           res,
@@ -200,6 +201,13 @@ export default function SettingsSection({ userId, section, onBack }) {
       setApiKey('');
       setSaved(true);
 
+      clearOpenRouterBalanceCache(userId);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('openRouterBalance:invalidate', {
+          detail: { userId },
+        }));
+      }
+
       if (nextHasKey) loadBalance();
     } catch (saveError) {
       setError(saveError.message || 'No se pudo guardar la clave de OpenRouter.');
@@ -251,6 +259,13 @@ export default function SettingsSection({ userId, section, onBack }) {
       setBalance(null);
       setBalanceError('');
       setDeleted(true);
+
+      clearOpenRouterBalanceCache(userId);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('openRouterBalance:invalidate', {
+          detail: { userId },
+        }));
+      }
     } catch (deleteRequestError) {
       setDeleteError(deleteRequestError.message || 'No se pudo eliminar la clave de IA.');
     } finally {
