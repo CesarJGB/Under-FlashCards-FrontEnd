@@ -1,27 +1,60 @@
 const { randomUUID } = require('crypto');
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
-const OPENROUTER_MODEL = 'deepseek/deepseek-v4-flash';
+// Se fija la revisión concreta para que las pruebas no cambien al actualizarse
+// un alias. La revisión 0731 es la más reciente disponible al integrar este cambio.
+const OPENROUTER_MODEL = 'deepseek/deepseek-v4-flash-0731';
+const OPENROUTER_ROUTING_MODE = Object.freeze({
+  AUTO: 'auto',
+  LATENCY: 'latency',
+  THROUGHPUT: 'throughput',
+});
+const OPENROUTER_ROUTING_MODES = Object.freeze(Object.values(OPENROUTER_ROUTING_MODE));
+const OPENROUTER_DEFAULT_ROUTING_MODE = OPENROUTER_ROUTING_MODE.LATENCY;
 // V4 Flash tiene el razonamiento activado por defecto en OpenRouter. El flujo
 // combinado genera JSON corto y no necesita razonamiento extendido: dejarlo
 // activo consume el mismo presupuesto de completion_tokens y causa truncados.
 const OPENROUTER_REASONING = Object.freeze({ enabled: false });
-const OPENROUTER_PROVIDER = Object.freeze({
-  sort: 'latency',
+const OPENROUTER_PROVIDER_BASE = Object.freeze({
   allow_fallbacks: true,
   require_parameters: true,
 });
+// Se conserva este export con el baseline actual para compatibilidad; las
+// peticiones de prueba calculan sort por solicitud mediante routingMode.
+const OPENROUTER_PROVIDER = Object.freeze({
+  ...OPENROUTER_PROVIDER_BASE,
+  sort: OPENROUTER_DEFAULT_ROUTING_MODE,
+});
 
-function createOpenRouterRequestBody(requestBody = {}) {
+function normalizeOpenRouterRoutingMode(value, fallback = OPENROUTER_DEFAULT_ROUTING_MODE) {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  return OPENROUTER_ROUTING_MODES.includes(normalized) ? normalized : fallback;
+}
+
+function getOpenRouterProviderSort(routingMode = OPENROUTER_DEFAULT_ROUTING_MODE) {
+  const normalizedRoutingMode = normalizeOpenRouterRoutingMode(routingMode);
+  return normalizedRoutingMode === OPENROUTER_ROUTING_MODE.AUTO
+    ? null
+    : normalizedRoutingMode;
+}
+
+function createOpenRouterRequestBody(requestBody = {}, { routingMode } = {}) {
+  const { provider: requestedProvider, ...restRequestBody } = requestBody;
+  // El modo solo puede controlarse en el servidor. Conservamos otros ajustes de
+  // proveedor que pueda requerir un caller interno, pero nunca su sort.
+  const { sort: _ignoredRequestedSort, ...restRequestedProvider } = requestedProvider || {};
+  const providerSort = getOpenRouterProviderSort(routingMode);
+
   return {
-    ...requestBody,
-    model: requestBody.model || OPENROUTER_MODEL,
+    ...restRequestBody,
+    model: restRequestBody.model || OPENROUTER_MODEL,
     // Se fuerza a false para que una petición moderna no herede el default
     // de razonamiento de V4 Flash ni una configuración accidental del caller.
     reasoning: OPENROUTER_REASONING,
     provider: {
-      ...(requestBody.provider || {}),
-      ...OPENROUTER_PROVIDER,
+      ...restRequestedProvider,
+      ...OPENROUTER_PROVIDER_BASE,
+      ...(providerSort ? { sort: providerSort } : {}),
     },
   };
 }
@@ -309,7 +342,13 @@ function getRetryLimitForError(error) {
 }
 
 async function callOpenRouterJson({ apiKey, requestBody, context = {}, parseResponse, signal }) {
-  const { onRetry, onUsage, ...logContext } = context;
+  const {
+    onRetry,
+    onUsage,
+    sessionId,
+    routingMode,
+    ...logContext
+  } = context;
   if (typeof apiKey !== 'string' || !apiKey.trim()) {
     throw new AiServiceError(
       'missing_api_key',
@@ -318,10 +357,26 @@ async function callOpenRouterJson({ apiKey, requestBody, context = {}, parseResp
     );
   }
 
+  // sessionId es estable por lote: los reintentos y la auditoría legacy del
+  // mismo lote conservan afinidad, mientras que lotes diferentes no se fijan
+  // todos al mismo proveedor. El fallback runId conserva compatibilidad con
+  // callers internos que todavía no proporcionen sessionId.
+  const resolvedSessionId = typeof sessionId === 'string' && sessionId.trim()
+    ? sessionId.trim()
+    : (typeof logContext.runId === 'string' && logContext.runId.trim()
+      ? logContext.runId.trim()
+      : null);
+  const normalizedRoutingMode = normalizeOpenRouterRoutingMode(routingMode);
   const routedRequestBody = createOpenRouterRequestBody({
     ...requestBody,
-    ...(context.runId ? { session_id: context.runId } : {}),
-  });
+    ...(resolvedSessionId ? { session_id: resolvedSessionId } : {}),
+  }, { routingMode: normalizedRoutingMode });
+  const routerLogContext = {
+    ...logContext,
+    routingMode: normalizedRoutingMode,
+    providerSort: getOpenRouterProviderSort(normalizedRoutingMode),
+    ...(resolvedSessionId ? { sessionId: resolvedSessionId } : {}),
+  };
   const model = routedRequestBody.model || 'unknown';
 
   for (let attempt = 0; attempt <= AI_MAX_RETRIES; attempt += 1) {
@@ -336,7 +391,7 @@ async function callOpenRouterJson({ apiKey, requestBody, context = {}, parseResp
     const startedAt = Date.now();
     try {
       logAiEvent('request_started', {
-        ...logContext,
+        ...routerLogContext,
         provider: 'openrouter',
         model,
         reasoningEnabled: routedRequestBody.reasoning?.enabled !== false,
@@ -421,7 +476,7 @@ async function callOpenRouterJson({ apiKey, requestBody, context = {}, parseResp
       const routerMetadata = getRouterMetadataSummary(data, resolvedModel);
       const usage = getTokenUsage(data);
       onUsage?.({
-        ...logContext,
+        ...routerLogContext,
         provider: 'openrouter',
         model: resolvedModel,
         requestedModel: model,
@@ -432,7 +487,7 @@ async function callOpenRouterJson({ apiKey, requestBody, context = {}, parseResp
       });
 
       logAiEvent('request_succeeded', {
-        ...logContext,
+        ...routerLogContext,
         provider: 'openrouter',
         model: resolvedModel,
         requestedModel: model,
@@ -452,7 +507,7 @@ async function callOpenRouterJson({ apiKey, requestBody, context = {}, parseResp
         ?? Math.min(30000, AI_RETRY_BASE_MS * (2 ** attempt) + Math.floor(Math.random() * 250));
 
       logAiEvent(canRetry ? 'request_retrying' : 'error', {
-        ...logContext,
+        ...routerLogContext,
         provider: 'openrouter',
         model,
         reasoningEnabled: routedRequestBody.reasoning?.enabled !== false,
@@ -787,6 +842,11 @@ module.exports = {
   OPENROUTER_MODEL,
   OPENROUTER_REASONING,
   OPENROUTER_PROVIDER,
+  OPENROUTER_DEFAULT_ROUTING_MODE,
+  OPENROUTER_ROUTING_MODE,
+  OPENROUTER_ROUTING_MODES,
+  getOpenRouterProviderSort,
+  normalizeOpenRouterRoutingMode,
   AI_DECK_COMBINED_MAX_TOKENS,
   createRunId,
   criticizeAndRefineCards,
@@ -801,3 +861,4 @@ module.exports = {
   validatePedagogicalCards,
   validateCards,
 };
+
