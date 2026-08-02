@@ -18,6 +18,11 @@ const configuredMaxAiCards = Number.parseInt(import.meta.env.VITE_MAX_AI_CARDS, 
 const MAX_AI_CARDS = Number.isInteger(configuredMaxAiCards) && configuredMaxAiCards > 0
   ? configuredMaxAiCards
   : 500;
+const AI_ROUTING_OPTIONS = [
+  { value: 'auto', label: 'Auto', title: 'Routing normal de OpenRouter, sin sort forzado' },
+  { value: 'latency', label: 'Latencia', title: 'Prioriza menor latencia por solicitud' },
+  { value: 'throughput', label: 'TPS', title: 'Prioriza mayor velocidad de generación' },
+];
 
 function appendPdfTextSafely(previousText, extractedText) {
   const safePreviousText = previousText || '';
@@ -63,6 +68,9 @@ export default function FormInputs({
   setAiText,
   aiNumCards,
   setAiNumCards,
+  aiRoutingMode,
+  setAiRoutingMode,
+  aiSaving,
   editingId,
   saving,
   error,
@@ -221,8 +229,9 @@ export default function FormInputs({
             <span className="block text-[10px] font-medium text-slate-400">¿Cuántas tarjetas aproximadas deseas generar?</span>
           </div>
 
-          <div className="grid w-full grid-cols-4 gap-2 rounded-xl bg-white p-1.5 sm:w-auto sm:min-w-[220px]">
-            {[5, 10, 15].map((number) => {
+          <div className="flex w-full flex-col gap-1.5 sm:w-auto">
+            <div className="grid w-full grid-cols-4 gap-2 rounded-xl bg-white p-1.5 sm:min-w-[220px]">
+              {[5, 10, 15].map((number) => {
               const isSelected = customCardCount === '' && aiNumCards === number;
               return (
                 <button
@@ -269,6 +278,31 @@ export default function FormInputs({
                 className="magic-ai-button__quantity-input text-[10px] placeholder:text-[10px]"
               />
             </div>
+
+          </div>
+
+          <div className="flex items-center justify-end gap-1.5" role="group" aria-label="Modo de enrutamiento de OpenRouter">
+              <span className="mr-0.5 text-[10px] font-bold text-slate-400">Ruta:</span>
+              {AI_ROUTING_OPTIONS.map((option) => {
+                const isSelected = (aiRoutingMode || 'latency') === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    title={option.title}
+                    aria-pressed={isSelected}
+                    disabled={aiSaving}
+                    onClick={() => setAiRoutingMode(option.value)}
+                    className={`rounded-md px-2 py-1 text-[10px] font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                      isSelected
+                        ? 'bg-violet-600 text-white shadow-sm'
+                        : 'bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
           </div>
         </div>
       </div>
