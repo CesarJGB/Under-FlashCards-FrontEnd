@@ -19,9 +19,16 @@ const MAX_AI_CARDS = Number.isInteger(configuredMaxAiCards) && configuredMaxAiCa
   ? configuredMaxAiCards
   : 500;
 const AI_ROUTING_OPTIONS = [
-  { value: 'auto', label: 'Auto', title: 'Routing normal de OpenRouter, sin sort forzado' },
-  { value: 'latency', label: 'Latencia', title: 'Prioriza menor latencia por solicitud' },
-  { value: 'throughput', label: 'TPS', title: 'Prioriza mayor velocidad de generación' },
+  {
+    value: 'throughput',
+    label: 'Velocidad',
+    title: 'Prioriza el mayor TPS típico (P50) y respeta el guardarraíl de latencia P90',
+  },
+  {
+    value: 'price',
+    label: 'Económico',
+    title: 'Prioriza el proveedor más barato manteniendo las preferencias P50/P90',
+  },
 ];
 
 function appendPdfTextSafely(previousText, extractedText) {
@@ -283,11 +290,11 @@ export default function FormInputs({
             <div
               className="flex items-center justify-end gap-1.5"
               role="group"
-              aria-label="Modo de enrutamiento de OpenRouter"
+              aria-label="Modo de generación con IA"
             >
-              <span className="mr-0.5 text-[10px] font-bold text-slate-400">Ruta:</span>
+              <span className="mr-0.5 text-[10px] font-bold text-slate-400">Modo:</span>
               {AI_ROUTING_OPTIONS.map((option) => {
-                const isSelected = (aiRoutingMode || 'latency') === option.value;
+                const isSelected = (aiRoutingMode || 'throughput') === option.value;
                 return (
                   <button
                     key={option.value}
@@ -406,3 +413,4 @@ export default function FormInputs({
     </>
   );
 }
+
