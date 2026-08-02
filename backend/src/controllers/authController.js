@@ -176,6 +176,7 @@ exports.updateSettings = async (req, res) => {
         user.aiApiProvider = null;
         user.aiApiKeyUpdatedAt = new Date();
       }
+      user.openRouterBalanceCache = null;
     } else {
       // Las nuevas claves se consideran OpenRouter si el cliente no envía el
       // proveedor. El frontend migrado lo envía explícitamente.
@@ -195,6 +196,7 @@ exports.updateSettings = async (req, res) => {
         user.aiApiProvider = provider;
         user.aiApiKeyUpdatedAt = new Date();
       }
+      user.openRouterBalanceCache = null;
     }
 
     await user.save();
@@ -240,6 +242,65 @@ function normalizeOpenRouterKeyInfo(data) {
     is_free_tier: data.is_free_tier === true,
     currency: 'USD',
   };
+}
+
+function normalizeCachedOpenRouterBalance(cache) {
+  if (!cache || typeof cache !== 'object' || Array.isArray(cache)) return null;
+  if (!cache.info || typeof cache.info !== 'object' || Array.isArray(cache.info)) return null;
+
+  const cachedAt = cache.cachedAt || cache.syncedAt;
+  const parsedCachedAt = cachedAt ? new Date(cachedAt) : null;
+
+  return {
+    info: normalizeOpenRouterKeyInfo(cache.info),
+    cachedAt: parsedCachedAt && !Number.isNaN(parsedCachedAt.getTime())
+      ? parsedCachedAt.toISOString()
+      : null,
+    model: typeof cache.model === 'string' && cache.model.trim()
+      ? cache.model.trim()
+      : OPENROUTER_MODEL,
+  };
+}
+
+function buildAiBalanceResponse({
+  info,
+  cachedAt = null,
+  cached = false,
+  stale = false,
+  syncError = null,
+}) {
+  return {
+    hasBalance: true,
+    isAvailable: !stale,
+    aiApiProvider: OPENROUTER_PROVIDER,
+    provider: OPENROUTER_PROVIDER,
+    model: OPENROUTER_MODEL,
+    cached,
+    stale,
+    syncedAt: cachedAt,
+    syncError,
+    info,
+  };
+}
+
+async function persistOpenRouterBalance(user, info) {
+  const cachedAt = new Date();
+  user.openRouterBalanceCache = {
+    version: 1,
+    model: OPENROUTER_MODEL,
+    cachedAt,
+    info,
+  };
+
+  try {
+    await user.save();
+  } catch (error) {
+    // El saldo vivo sigue siendo válido aunque Mongo no pueda persistir el
+    // snapshot en esta petición. La siguiente entrada podrá reintentarlo.
+    console.error('[user/balance] no se pudo persistir el snapshot:', error.message);
+  }
+
+  return cachedAt.toISOString();
 }
 
 function getOpenRouterErrorMessage(payload) {
@@ -338,16 +399,46 @@ exports.getAiBalance = async (req, res) => {
       });
     }
 
-    const balanceData = await fetchOpenRouterKeyInfo(apiKey);
+    const forceRefresh = ['1', 'true', 'yes'].includes(
+      String(req.query?.refresh || '').trim().toLowerCase()
+    );
+    const cachedBalance = normalizeCachedOpenRouterBalance(user.openRouterBalanceCache);
 
-    return res.json({
-      hasBalance: true,
-      isAvailable: true,
-      aiApiProvider: OPENROUTER_PROVIDER,
-      provider: OPENROUTER_PROVIDER,
-      model: OPENROUTER_MODEL,
-      info: normalizeOpenRouterKeyInfo(balanceData),
-    });
+    // Home puede pedir el snapshot sin golpear OpenRouter. La actualización
+    // explícita usa ?refresh=1 y queda persistida para futuras entradas.
+    if (!forceRefresh && cachedBalance) {
+      return res.json(buildAiBalanceResponse({
+        info: cachedBalance.info,
+        cachedAt: cachedBalance.cachedAt,
+        cached: true,
+      }));
+    }
+
+    try {
+      const balanceData = await fetchOpenRouterKeyInfo(apiKey);
+      const info = normalizeOpenRouterKeyInfo(balanceData);
+      const cachedAt = await persistOpenRouterBalance(user, info);
+
+      return res.json(buildAiBalanceResponse({
+        info,
+        cachedAt,
+        cached: false,
+      }));
+    } catch (refreshError) {
+      // Un fallo de red no debe convertir Home en una tarjeta negra: si existe
+      // un snapshot, se entrega marcado como stale para conservar la UI útil.
+      if (cachedBalance) {
+        return res.json(buildAiBalanceResponse({
+          info: cachedBalance.info,
+          cachedAt: cachedBalance.cachedAt,
+          cached: true,
+          stale: true,
+          syncError: 'No se pudo actualizar OpenRouter; se muestra el último dato guardado.',
+        }));
+      }
+
+      throw refreshError;
+    }
   } catch (err) {
     console.error('[user/balance] error:', err.message);
 
