@@ -12,6 +12,7 @@ import { getJSON, setJSON, remove } from '../lib/safeLocalStorage';
 import useImmersiveScrollGuard from '../hooks/useImmersiveScrollGuard';
 import useBottomGap from '../hooks/useBottomGap';
 import useQuickViewMaterias from './home/useQuickViewMaterias';
+import useOpenRouterBalance from './home/useOpenRouterBalance';
 import { DEFAULT_WIDGET_ORDER, normalizeWidgetOrder, serializeWidgetOrder } from './home/homeWidgetRegistry';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
@@ -842,6 +843,10 @@ export default function HomeSection({
     enrichedMaterias
   });
 
+  const openRouterBalance = useOpenRouterBalance({
+    userId: user?.id
+  });
+
   const { gap: bottomGap, isReady: isBottomGapReady } = useBottomGap({
     contentEndRef,
     navRef: bottomNavRef,
@@ -910,6 +915,7 @@ export default function HomeSection({
     enrichedMaterias,
     unclassifiedDecks,
     quickView,
+    openRouterBalance,
     getKnowledgeAccent,
     getParcialesBadge,
     onNavigateToLibrary,
@@ -920,6 +926,7 @@ export default function HomeSection({
     enrichedMaterias,
     unclassifiedDecks,
     quickView,
+    openRouterBalance,
     getKnowledgeAccent,
     getParcialesBadge,
     onNavigateToLibrary,
