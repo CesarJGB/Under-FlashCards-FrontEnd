@@ -55,6 +55,21 @@ export function nextFrame() {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
+/**
+ * Use a monotonic clock when the runtime exposes it. PDF extraction runs in
+ * browsers and in the node:test suite, so Date.now remains the safe fallback.
+ */
+export function now() {
+  if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
+    return performance.now();
+  }
+  return Date.now();
+}
+
+export function elapsedMs(startedAt) {
+  return round(Math.max(0, now() - startedAt));
+}
+
 export function finiteNumber(value, fallback = 0) {
   return Number.isFinite(value) ? value : fallback;
 }

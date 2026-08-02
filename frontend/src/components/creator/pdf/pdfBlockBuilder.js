@@ -6,7 +6,7 @@ import {
   round,
   stripCardPrefix,
 } from './pdfExtractionPrimitives.js';
-import { buildVisualBands } from './pdfLayoutTopology.js';
+import { buildVisualBands, createPageLayoutAnalysis } from './pdfLayoutTopology.js';
 import { unionBounds } from './pdfTextReader.js';
 
 function makeBounds(lines) {
@@ -198,13 +198,14 @@ function orderBlocksByReadingFlow(blocks, topology) {
 }
 
 function appendContentBlocks(blocks, createBlock, orderedLines, medianFontSize) {
-  if (!orderedLines.length) return;
+  if (!orderedLines.length) return 0;
 
   const cardAnchors = orderedLines
     .map((line, index) => (line.role === 'card-heading' ? index : -1))
     .filter((index) => index >= 0);
 
   if (cardAnchors.length) {
+    let bandCount = 0;
     if (cardAnchors[0] > 0) {
       const prefix = createBlock(
         orderedLines.slice(0, cardAnchors[0]),
@@ -212,7 +213,10 @@ function appendContentBlocks(blocks, createBlock, orderedLines, medianFontSize) 
         orderedLines[0].sectionId,
         orderedLines[0].columnIndex,
       );
-      if (prefix) blocks.push(prefix);
+      if (prefix) {
+        blocks.push(prefix);
+        bandCount += 1;
+      }
     }
 
     cardAnchors.forEach((anchorIndex, index) => {
@@ -223,12 +227,16 @@ function appendContentBlocks(blocks, createBlock, orderedLines, medianFontSize) 
         orderedLines[anchorIndex].sectionId,
         orderedLines[anchorIndex].columnIndex,
       );
-      if (card) blocks.push(card);
+      if (card) {
+        blocks.push(card);
+        bandCount += 1;
+      }
     });
-    return;
+    return bandCount;
   }
 
-  groupOrderedLinesByVerticalGap(orderedLines, medianFontSize).forEach((lineGroup) => {
+  const lineGroups = groupOrderedLinesByVerticalGap(orderedLines, medianFontSize);
+  lineGroups.forEach((lineGroup) => {
     const block = createBlock(
       lineGroup,
       null,
@@ -237,14 +245,20 @@ function appendContentBlocks(blocks, createBlock, orderedLines, medianFontSize) 
     );
     if (block) blocks.push(block);
   });
+  return lineGroups.length;
 }
 
-export function buildCompactLayout(lines, pageNumber) {
-  const medianFontSize = calculateMedian(lines.map((line) => line.fontSize));
-  const orderedLines = [...lines]
-    .map((line) => ({
+export function buildCompactLayout(lines, pageNumber, layoutAnalysis = null) {
+  const medianFontSize = layoutAnalysis?.medianFontSize
+    ?? calculateMedian(lines.map((line) => line.fontSize));
+  const classifiedLines = layoutAnalysis?.roleLines
+    ?? lines.map((line) => ({
       ...line,
       role: classifyLine(line, medianFontSize),
+    }));
+  const orderedLines = [...classifiedLines]
+    .map((line) => ({
+      ...line,
       columnIndex: 0,
       bandIndex: 0,
     }))
@@ -253,10 +267,11 @@ export function buildCompactLayout(lines, pageNumber) {
   const blocks = [];
   let currentSectionId = null;
   let sectionIndex = 0;
+  let contentBandCount = 0;
   let pendingContent = [];
 
   const flushContent = () => {
-    appendContentBlocks(blocks, createBlock, pendingContent, medianFontSize);
+    contentBandCount += appendContentBlocks(blocks, createBlock, pendingContent, medianFontSize);
     pendingContent = [];
   };
 
@@ -281,10 +296,9 @@ export function buildCompactLayout(lines, pageNumber) {
   return {
     blocks: ordered.blocks,
     regions,
-    plainText: projectBlocks(ordered.blocks),
     layout: 'single-column',
     columnCount: 1,
-    bandCount: groupOrderedLinesByVerticalGap(orderedLines, medianFontSize).length,
+    bandCount: contentBandCount + sectionIndex,
     sectionCount: sectionIndex,
     cardRegionCount,
     complexity: 'low',
@@ -295,17 +309,22 @@ export function buildCompactLayout(lines, pageNumber) {
   };
 }
 
-export function buildSemanticLayout(lines, pageNumber, dimensions, graphics, settings) {
-  const medianFontSize = calculateMedian(lines.map((line) => line.fontSize));
-  const roleLines = lines.map((line) => ({
-    ...line,
-    role: classifyLine(line, medianFontSize),
-  }));
+export function buildSemanticLayout(
+  lines,
+  pageNumber,
+  dimensions,
+  graphics,
+  settings,
+  layoutAnalysis = null,
+) {
+  const resolvedAnalysis = layoutAnalysis || createPageLayoutAnalysis(lines, dimensions, settings);
+  const { medianFontSize, roleLines } = resolvedAnalysis;
   const visualLayout = buildVisualBands(
     roleLines,
     dimensions.width,
     medianFontSize,
     settings.maxColumnsPerBand,
+    resolvedAnalysis,
   );
   const { bands, topology } = visualLayout;
   const geometricLines = bands
@@ -401,7 +420,6 @@ export function buildSemanticLayout(lines, pageNumber, dimensions, graphics, set
   return {
     blocks: ordered.blocks,
     regions,
-    plainText: projectBlocks(ordered.blocks),
     layout,
     columnCount,
     bandCount: bands.length,

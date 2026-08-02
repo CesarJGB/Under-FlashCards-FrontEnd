@@ -1,5 +1,6 @@
 import {
   calculateMedian,
+  classifyLine,
   normalizeInlineText,
 } from './pdfExtractionPrimitives.js';
 
@@ -128,8 +129,34 @@ function buildColumnTopology(lines, pageWidth, medianFontSize, maxColumns) {
   };
 }
 
-export function buildVisualBands(lines, pageWidth, medianFontSize, maxColumns) {
-  const topology = buildColumnTopology(lines, pageWidth, medianFontSize, maxColumns);
+/**
+ * The structured route needs classified lines and a column topology. Keeping
+ * them together lets the profile and the semantic builder share one analysis
+ * instead of sorting/clustering the same page twice.
+ */
+export function createPageLayoutAnalysis(lines, dimensions, options) {
+  const medianFontSize = calculateMedian(lines.map((line) => line.fontSize));
+  const roleLines = lines.map((line) => ({
+    ...line,
+    role: classifyLine(line, medianFontSize),
+  }));
+  const topology = buildColumnTopology(
+    roleLines,
+    dimensions.width,
+    medianFontSize,
+    options.maxColumnsPerBand,
+  );
+
+  return {
+    medianFontSize,
+    roleLines,
+    topology,
+  };
+}
+
+export function buildVisualBands(lines, pageWidth, medianFontSize, maxColumns, layoutAnalysis = null) {
+  const topology = layoutAnalysis?.topology
+    || buildColumnTopology(lines, pageWidth, medianFontSize, maxColumns);
   const ordered = [...topology.assignedLines].sort((a, b) => {
     if (Math.abs(a.y - b.y) > 0.5) return a.y - b.y;
     return a.x - b.x;
@@ -177,13 +204,8 @@ export function buildVisualBands(lines, pageWidth, medianFontSize, maxColumns) {
 
 export function getPageProcessingProfile(runs, lines, dimensions, textRead, options) {
   const nativeCharacters = lines.reduce((sum, line) => sum + line.text.length, 0);
-  const medianFontSize = calculateMedian(lines.map((line) => line.fontSize));
-  const candidateColumns = clusterColumnAnchors(
-    lines,
-    dimensions.width,
-    medianFontSize,
-    options.maxColumnsPerBand,
-  ).length;
+  const layoutAnalysis = createPageLayoutAnalysis(lines, dimensions, options);
+  const candidateColumns = layoutAnalysis.topology.centers.length;
   const containsNonHorizontalText = runs.some((run) => run.dir === 'rtl' || run.dir === 'ttb');
   const containsTabularGaps = lines.some((line) => line.text.includes('\t'));
   const minCharactersForFastPath = Math.max(
@@ -197,14 +219,17 @@ export function getPageProcessingProfile(runs, lines, dimensions, textRead, opti
     && candidateColumns < 2
     && !containsNonHorizontalText
     && !containsTabularGaps
-    && !textRead.itemLimitReached;
+    && !textRead.itemLimitReached
+    && !textRead.textCharacterLimitReached;
 
   return {
     nativeCharacters,
     candidateColumns,
+    layoutAnalysis,
     useCompactLayout,
     shouldInspectGraphics: !useCompactLayout
       || nativeCharacters < minCharactersForFastPath
-      || textRead.itemLimitReached,
+      || textRead.itemLimitReached
+      || textRead.textCharacterLimitReached,
   };
 }

@@ -1,5 +1,7 @@
 import {
+  elapsedMs,
   isAbortError,
+  now,
   PdfExtractionError,
   round,
   throwIfAborted,
@@ -20,6 +22,7 @@ import { getImageDetectionWarning, normalizeOcrResult } from './pdfPageQuality.j
 import { appendWithLimit } from './pdfPostProcessor.js';
 import {
   getPageDimensions,
+  getPageTextProbe,
   groupRunsIntoLines,
   readPageTextContent,
   toTextRun,
@@ -29,16 +32,31 @@ export async function extractPage(page, pageNumber, options) {
   const { signal, pdfjsLib, minNativeCharacters, ocrProvider } = options;
   throwIfAborted(signal);
 
+  const startedAt = now();
+  const timings = {
+    textReadMs: 0,
+    textProbeMs: 0,
+    geometryMs: 0,
+    layoutAnalysisMs: 0,
+    graphicsInspectionMs: 0,
+    layoutBuildMs: 0,
+    ocrMs: 0,
+    projectionMs: 0,
+    totalMs: 0,
+  };
   const dimensions = getPageDimensions(page);
   const warnings = [];
   let textRead = {
     items: [],
     rawItemCount: 0,
+    capturedTextCharacters: 0,
     itemLimitReached: false,
+    textCharacterLimitReached: false,
     extractionMethod: 'unknown',
     warnings: [],
   };
   let nativeCharacters = 0;
+  let analysisRoute = 'deep-layout';
   let graphics = makeGraphicsState('not-requested');
   let layout = {
     blocks: [],
@@ -57,7 +75,9 @@ export async function extractPage(page, pageNumber, options) {
   };
 
   try {
+    const textReadStartedAt = now();
     textRead = await readPageTextContent(page, options);
+    timings.textReadMs = elapsedMs(textReadStartedAt);
     warnings.push(...textRead.warnings);
     if (textRead.itemLimitReached) {
       warnings.push({
@@ -65,32 +85,68 @@ export async function extractPage(page, pageNumber, options) {
         message: `La página ${pageNumber} superó el límite de elementos de texto; se procesó una parte controlada.`,
       });
     }
+    if (textRead.textCharacterLimitReached) {
+      warnings.push({
+        code: 'PAGE_TEXT_BUDGET_REACHED',
+        message: `La página ${pageNumber} alcanzó el presupuesto de texto disponible para el documento.`,
+      });
+    }
 
+    const probeStartedAt = now();
+    const textProbe = getPageTextProbe(textRead.items, dimensions, textRead, options);
+    timings.textProbeMs = elapsedMs(probeStartedAt);
+
+    const geometryStartedAt = now();
     const runs = textRead.items
       .map((item, index) => toTextRun(item, dimensions.height, index))
       .filter(Boolean);
     const lines = groupRunsIntoLines(runs);
-    const profile = getPageProcessingProfile(runs, lines, dimensions, textRead, options);
-    nativeCharacters = profile.nativeCharacters;
-    const graphicsDecision = resolveGraphicsInspection(options.inspectGraphics, profile);
+    timings.geometryMs = elapsedMs(geometryStartedAt);
 
-    if (graphicsDecision.shouldInspect) {
-      graphics = await inspectPageGraphics(page, pdfjsLib, signal);
+    const forceGraphicsInspection = options.inspectGraphics === true
+      || options.inspectGraphics === 'always'
+      || (Boolean(options.inspectGraphics) && options.inspectGraphics !== 'adaptive');
+
+    if (textProbe.useCompactRoute && !forceGraphicsInspection) {
+      analysisRoute = 'compact-probe';
+      nativeCharacters = lines.reduce((sum, line) => sum + line.text.length, 0);
+      graphics = makeGraphicsState('skipped-simple');
+
+      if (lines.length) {
+        const layoutStartedAt = now();
+        layout = buildCompactLayout(lines, pageNumber);
+        timings.layoutBuildMs = elapsedMs(layoutStartedAt);
+      }
     } else {
-      graphics = makeGraphicsState(graphicsDecision.reason);
-    }
-    if (graphics.failed) {
-      warnings.push({
-        code: 'GRAPHICS_INSPECTION_FAILED',
-        message: `No se pudo completar el diagnóstico gráfico de la página ${pageNumber}; no se asume que esté libre de imágenes.`,
-      });
-    }
+      const profileStartedAt = now();
+      const profile = getPageProcessingProfile(runs, lines, dimensions, textRead, options);
+      timings.layoutAnalysisMs = elapsedMs(profileStartedAt);
+      nativeCharacters = profile.nativeCharacters;
+      const graphicsDecision = resolveGraphicsInspection(options.inspectGraphics, profile);
 
-    if (lines.length) {
-      const useCompactLayout = profile.useCompactLayout && graphics.hasImages !== true;
-      layout = useCompactLayout
-        ? buildCompactLayout(lines, pageNumber)
-        : buildSemanticLayout(lines, pageNumber, dimensions, graphics, options);
+      const graphicsStartedAt = now();
+      if (graphicsDecision.shouldInspect) {
+        graphics = await inspectPageGraphics(page, pdfjsLib, signal);
+      } else {
+        graphics = makeGraphicsState(graphicsDecision.reason);
+      }
+      timings.graphicsInspectionMs = elapsedMs(graphicsStartedAt);
+
+      if (graphics.failed) {
+        warnings.push({
+          code: 'GRAPHICS_INSPECTION_FAILED',
+          message: `No se pudo completar el diagnóstico gráfico de la página ${pageNumber}; no se asume que esté libre de imágenes.`,
+        });
+      }
+
+      if (lines.length) {
+        const layoutStartedAt = now();
+        const useCompactLayout = profile.useCompactLayout && graphics.hasImages !== true;
+        layout = useCompactLayout
+          ? buildCompactLayout(lines, pageNumber, profile.layoutAnalysis)
+          : buildSemanticLayout(lines, pageNumber, dimensions, graphics, options, profile.layoutAnalysis);
+        timings.layoutBuildMs = elapsedMs(layoutStartedAt);
+      }
     }
   } catch (error) {
     if (isAbortError(error)) throw error;
@@ -121,6 +177,7 @@ export async function extractPage(page, pageNumber, options) {
     && (lowText || (graphics.hasImages === true && options.ocrMixedPages === true));
 
   if (shouldTryOcr) {
+    const ocrStartedAt = now();
     try {
       const ocrResult = await ocrProvider({
         page,
@@ -147,6 +204,8 @@ export async function extractPage(page, pageNumber, options) {
         code: 'OCR_FAILED',
         message: `El OCR de la página ${pageNumber} no pudo completarse.`,
       });
+    } finally {
+      timings.ocrMs = elapsedMs(ocrStartedAt);
     }
   }
 
@@ -160,8 +219,10 @@ export async function extractPage(page, pageNumber, options) {
     });
   }
 
+  const projectionStartedAt = now();
   const projectedText = projectBlocks(blocks);
   const pageTextResult = appendWithLimit('', projectedText, options.maxPageCharacters);
+  timings.projectionMs = elapsedMs(projectionStartedAt);
   if (pageTextResult.truncated) {
     warnings.push({
       code: 'PAGE_TEXT_TRUNCATED',
@@ -170,6 +231,7 @@ export async function extractPage(page, pageNumber, options) {
   }
 
   const regions = blocks === layout.blocks ? layout.regions : createRegions(blocks);
+  timings.totalMs = elapsedMs(startedAt);
 
   return {
     pageNumber,
@@ -192,7 +254,9 @@ export async function extractPage(page, pageNumber, options) {
     characterCount: pageTextResult.value.length,
     nativeCharacterCount: nativeCharacters,
     rawItemCount: textRead.rawItemCount,
+    capturedTextCharacters: textRead.capturedTextCharacters,
     textItemLimitReached: textRead.itemLimitReached,
+    textCharacterLimitReached: textRead.textCharacterLimitReached,
     textExtractionMethod: textRead.extractionMethod,
     hasImages: graphics.hasImages,
     imageCount: graphics.imageCount,
@@ -200,8 +264,10 @@ export async function extractPage(page, pageNumber, options) {
     graphicsInspection: graphics.inspection,
     detailLevel: layout.detailLevel,
     readingOrder: layout.readingOrder,
+    analysisRoute,
     needsOcr,
     warnings,
     truncated: pageTextResult.truncated,
+    timings,
   };
 }

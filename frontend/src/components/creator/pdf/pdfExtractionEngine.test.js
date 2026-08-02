@@ -110,6 +110,8 @@ test('usa streaming sin marked content y aplica la ruta compacta a una página s
   assert.equal(extractedPage.textExtractionMethod, 'stream');
   assert.equal(extractedPage.graphicsInspection, 'skipped-simple');
   assert.equal(extractedPage.detailLevel, 'compact');
+  assert.equal(extractedPage.analysisRoute, 'compact-probe');
+  assert.ok(extractedPage.timings.totalMs >= 0);
   assert.equal('sourceRunIds' in extractedPage.blocks[0], false);
   assert.equal('sourceEvidence' in extractedPage.blocks[0], false);
 });
@@ -189,10 +191,11 @@ test('lee dos columnas estables de arriba abajo por columna, no por filas altern
   const text = result.plainText;
 
   assert.equal(result.pages[0].readingOrder, 'column-flow');
+  assert.equal(result.pages[0].analysisRoute, 'deep-layout');
   assert.ok(text.indexOf('Izquierda 3') < text.indexOf('Derecha 1'));
 });
 
-test('reporta progreso también para páginas omitidas después del límite global', async () => {
+test('aplica el presupuesto global durante la lectura y reporta todas las fases', async () => {
   const pages = [1, 2, 3].map((pageNumber) => createPage({
     items: [makeTextItem(`Página ${pageNumber}: ${'contenido '.repeat(20)}`, 40, 50, 500)],
   }));
@@ -204,7 +207,14 @@ test('reporta progreso también para páginas omitidas después del límite glob
     onProgress: (entry) => progress.push(entry),
   });
 
-  assert.deepEqual(progress.map((entry) => entry.current), [1, 2, 3]);
+  const extractionProgress = progress.filter((entry) => entry.phase === 'extracting');
+  assert.deepEqual(extractionProgress.map((entry) => entry.current), [1, 2, 3]);
   assert.equal(result.pages[1].status, 'not-processed');
   assert.equal(result.pages[2].status, 'not-processed');
+  assert.equal(result.pages[0].textCharacterLimitReached, true);
+  assert.equal(pages[0].calls.streamCancelled, 1);
+  assert.ok(progress.some((entry) => entry.phase === 'post-processing'));
+  assert.ok(progress.some((entry) => entry.phase === 'finalizing' && entry.status === 'completed'));
+  assert.ok(result.stats.timings.totalMs >= result.stats.timings.pageExtractionMs);
+  assert.equal(result.stats.textBudgetLimitedPages, 1);
 });

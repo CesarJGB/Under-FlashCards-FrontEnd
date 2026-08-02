@@ -18,6 +18,72 @@ export function getPageDimensions(page) {
   }
 }
 
+function getItemTextLength(item) {
+  return typeof item?.str === 'string' ? item.str.length : 0;
+}
+
+function resolveTextCharacterLimit(value) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : Infinity;
+}
+
+/**
+ * First stage of the adaptive route. It only walks the raw PDF.js items and
+ * deliberately errs on the side of the full layout path whenever a page could
+ * contain columns, a table, rotated text, or a truncated text stream.
+ */
+export function getPageTextProbe(items, dimensions, textRead, options) {
+  const sourceItems = Array.isArray(items) ? items : [];
+  const leftBoundary = dimensions.width * 0.38;
+  const rightBoundary = dimensions.width * 0.52;
+  let nativeCharacters = 0;
+  let leftAnchors = 0;
+  let rightAnchors = 0;
+  let containsNonHorizontalText = false;
+  let containsTabularGaps = false;
+
+  sourceItems.forEach((item) => {
+    const text = typeof item?.str === 'string' ? item.str : '';
+    if (!text.trim()) return;
+
+    nativeCharacters += text.length;
+    containsTabularGaps ||= text.includes('\t');
+
+    const transform = Array.isArray(item.transform) ? item.transform : [];
+    const x = finiteNumber(transform[4], 0);
+    const skew = finiteNumber(transform[1], 0);
+    const width = Math.max(0, finiteNumber(item.width, 0));
+    const wideItem = width >= dimensions.width * 0.72 || text.length > 180;
+
+    containsNonHorizontalText ||= item.dir === 'rtl' || item.dir === 'ttb' || Math.abs(skew) > 0.01;
+    if (wideItem) return;
+    if (x <= leftBoundary) leftAnchors += 1;
+    if (x >= rightBoundary) rightAnchors += 1;
+  });
+
+  const minCharactersForFastPath = Math.max(
+    options.minNativeCharacters * 4,
+    options.adaptiveGraphicsMinCharacters,
+  );
+  const candidateColumns = leftAnchors >= 2 && rightAnchors >= 2;
+  const useCompactRoute = Boolean(sourceItems.length)
+    && nativeCharacters >= minCharactersForFastPath
+    && sourceItems.length <= options.fastPathMaxItems
+    && !candidateColumns
+    && !containsNonHorizontalText
+    && !containsTabularGaps
+    && !textRead.itemLimitReached
+    && !textRead.textCharacterLimitReached;
+
+  return {
+    nativeCharacters,
+    candidateColumns: candidateColumns ? 2 : 1,
+    useCompactRoute,
+    containsNonHorizontalText,
+    containsTabularGaps,
+  };
+}
+
 export function toTextRun(item, pageHeight, index) {
   const text = typeof item?.str === 'string' ? item.str : '';
   if (!text || !text.trim()) return null;
@@ -208,8 +274,11 @@ async function readTextContentFromStream(page, options) {
   const reader = stream.getReader();
   const items = [];
   const itemLimit = resolveItemLimit(options.maxItemsPerPage);
+  const textCharacterLimit = resolveTextCharacterLimit(options.maxTextCharacters);
   let rawItemCount = 0;
+  let capturedTextCharacters = 0;
   let itemLimitReached = false;
+  let textCharacterLimitReached = false;
   const abortReader = () => {
     void cancelTextReader(reader);
   };
@@ -225,27 +294,37 @@ async function readTextContentFromStream(page, options) {
 
       const chunkItems = Array.isArray(value?.items) ? value.items : [];
       rawItemCount += chunkItems.length;
-      const remaining = itemLimit - items.length;
-      if (remaining <= 0) {
-        itemLimitReached = true;
-        break;
+      for (const item of chunkItems) {
+        if (items.length >= itemLimit) {
+          itemLimitReached = true;
+          break;
+        }
+
+        const itemCharacters = getItemTextLength(item);
+        // Keep at least one item so an individual long run does not turn a
+        // non-empty page into an artificial empty page.
+        if (capturedTextCharacters > 0
+          && capturedTextCharacters + itemCharacters > textCharacterLimit) {
+          textCharacterLimitReached = true;
+          break;
+        }
+
+        items.push(item);
+        capturedTextCharacters += itemCharacters;
+
+        if (capturedTextCharacters >= textCharacterLimit) {
+          textCharacterLimitReached = true;
+          break;
+        }
       }
 
-      if (chunkItems.length > remaining) {
-        items.push(...chunkItems.slice(0, remaining));
-        itemLimitReached = true;
-        break;
-      }
-
-      items.push(...chunkItems);
-      if (items.length >= itemLimit) {
-        itemLimitReached = true;
+      if (itemLimitReached || textCharacterLimitReached) {
         break;
       }
     }
   } finally {
     signal?.removeEventListener?.('abort', abortReader);
-    if (itemLimitReached || signal?.aborted) await cancelTextReader(reader);
+    if (itemLimitReached || textCharacterLimitReached || signal?.aborted) await cancelTextReader(reader);
     try {
       reader.releaseLock?.();
     } catch {
@@ -256,7 +335,9 @@ async function readTextContentFromStream(page, options) {
   return {
     items,
     rawItemCount,
+    capturedTextCharacters,
     itemLimitReached,
+    textCharacterLimitReached,
     extractionMethod: 'stream',
     warnings: [],
   };
@@ -269,12 +350,34 @@ async function readTextContentFallback(page, options, fallbackWarning = null) {
   throwIfAborted(signal);
   const allItems = Array.isArray(textContent?.items) ? textContent.items : [];
   const itemLimit = resolveItemLimit(options.maxItemsPerPage);
+  const textCharacterLimit = resolveTextCharacterLimit(options.maxTextCharacters);
+  const items = [];
+  let capturedTextCharacters = 0;
+  let textCharacterLimitReached = false;
+
+  for (const item of allItems) {
+    if (items.length >= itemLimit) break;
+    const itemCharacters = getItemTextLength(item);
+    if (capturedTextCharacters > 0
+      && capturedTextCharacters + itemCharacters > textCharacterLimit) {
+      textCharacterLimitReached = true;
+      break;
+    }
+    items.push(item);
+    capturedTextCharacters += itemCharacters;
+    if (capturedTextCharacters >= textCharacterLimit) {
+      textCharacterLimitReached = true;
+      break;
+    }
+  }
   const itemLimitReached = allItems.length > itemLimit;
 
   return {
-    items: itemLimitReached ? allItems.slice(0, itemLimit) : allItems,
+    items,
     rawItemCount: allItems.length,
+    capturedTextCharacters,
     itemLimitReached,
+    textCharacterLimitReached,
     extractionMethod: 'materialized-fallback',
     warnings: fallbackWarning ? [fallbackWarning] : [],
   };

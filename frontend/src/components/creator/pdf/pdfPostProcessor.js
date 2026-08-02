@@ -108,6 +108,17 @@ export function appendWithLimit(current, addition, limit) {
   return { value: current + addition.slice(0, remaining), truncated: true };
 }
 
+export function getPageStatusLabel(status) {
+  if (status === 'empty') return 'sin texto extraíble';
+  if (status === 'ocr') return 'OCR';
+  if (status === 'mixed') return 'mixto';
+  return 'texto nativo';
+}
+
+export function buildPageHeader(pageNumber, status, hasPreviousContent = false) {
+  return `${hasPreviousContent ? '\n\n' : ''}--- [Página ${pageNumber} | ${getPageStatusLabel(status)}] ---\n`;
+}
+
 export function buildPlainText(pages, maxCharacters) {
   let value = '';
   let truncated = false;
@@ -116,14 +127,7 @@ export function buildPlainText(pages, maxCharacters) {
   pages.forEach((page) => {
     if (truncated || page.status === 'not-processed') return;
 
-    const label = page.status === 'empty'
-      ? 'sin texto extraíble'
-      : page.status === 'ocr'
-        ? 'OCR'
-        : page.status === 'mixed'
-          ? 'mixto'
-          : 'texto nativo';
-    const pageHeader = `${value ? '\n\n' : ''}--- [Página ${page.pageNumber} | ${label}] ---\n`;
+    const pageHeader = buildPageHeader(page.pageNumber, page.status, Boolean(value));
     const pageBody = page.text || (page.needsOcr ? '[Contenido visual pendiente de OCR]' : '[Sin contenido legible]');
     const result = appendWithLimit(value, pageHeader + pageBody, maxCharacters);
     value = result.value;
@@ -156,7 +160,9 @@ export function makeNotProcessedPage(pageNumber) {
     characterCount: 0,
     nativeCharacterCount: 0,
     rawItemCount: 0,
+    capturedTextCharacters: 0,
     textItemLimitReached: false,
+    textCharacterLimitReached: false,
     textExtractionMethod: 'not-processed',
     hasImages: null,
     imageCount: 0,
@@ -164,12 +170,24 @@ export function makeNotProcessedPage(pageNumber) {
     graphicsInspection: 'not-processed',
     detailLevel: 'none',
     readingOrder: 'not-processed',
+    analysisRoute: 'not-processed',
     needsOcr: false,
     warnings: [{
       code: 'TEXT_LIMIT_REACHED',
       message: `La página ${pageNumber} no se procesó porque se alcanzó el límite de caracteres.`,
     }],
     truncated: false,
+    timings: {
+      textReadMs: 0,
+      textProbeMs: 0,
+      geometryMs: 0,
+      layoutAnalysisMs: 0,
+      graphicsInspectionMs: 0,
+      layoutBuildMs: 0,
+      ocrMs: 0,
+      projectionMs: 0,
+      totalMs: 0,
+    },
   };
 }
 
@@ -192,6 +210,9 @@ export function countStatuses(pages) {
       if (page.graphicsInspection === 'inspected') stats.graphicsInspectedPages += 1;
       if (page.graphicsInspection === 'skipped-simple') stats.graphicsSkippedPages += 1;
       if (page.readingOrder === 'column-flow') stats.columnFlowPages += 1;
+      if (page.analysisRoute === 'compact-probe') stats.compactProbePages += 1;
+      if (page.analysisRoute === 'deep-layout') stats.deepLayoutPages += 1;
+      if (page.textCharacterLimitReached) stats.textBudgetLimitedPages += 1;
       stats.regionCount += page.regions?.length || 0;
       stats.cardRegionCount += page.cardRegionCount || 0;
       return stats;
@@ -213,6 +234,9 @@ export function countStatuses(pages) {
       graphicsInspectedPages: 0,
       graphicsSkippedPages: 0,
       columnFlowPages: 0,
+      compactProbePages: 0,
+      deepLayoutPages: 0,
+      textBudgetLimitedPages: 0,
       regionCount: 0,
       cardRegionCount: 0,
     },
