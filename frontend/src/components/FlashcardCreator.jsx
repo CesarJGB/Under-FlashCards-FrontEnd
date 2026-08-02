@@ -36,6 +36,7 @@ const PREVIEW_VISIBLE_KEY = 'ufc_preview_visible_v1';
 const AI_GENERATION_ENDPOINT = import.meta.env.VITE_AI_GENERATION_MODE === 'v1'
   ? '/api/flashcards/generate-ai'
   : '/api/flashcards/generate-ai-v2';
+const DEFAULT_AI_ROUTING_MODE = 'latency';
 
 function isObject(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -167,6 +168,7 @@ export default function FlashcardCreator({
   const [isAi, setIsAi] = useState(false);
   const [aiText, setAiText] = useState('');
   const [aiNumCards, setAiNumCards] = useState(5);
+  const [aiRoutingMode, setAiRoutingMode] = useState(DEFAULT_AI_ROUTING_MODE);
   const [aiSaving, setAiSaving] = useState(false);
   const [aiProgress, setAiProgress] = useState(null);
   const [isAiGenerationSheetOpen, setIsAiGenerationSheetOpen] = useState(false);
@@ -326,6 +328,7 @@ export default function FlashcardCreator({
           deckId,
           text: aiText,
           count: aiNumCards,
+          routingMode: aiRoutingMode,
           batchStyles: { bgImage, textAlign, fontSize },
         }),
       });
@@ -449,6 +452,9 @@ export default function FlashcardCreator({
             setAiText={setAiText}
             aiNumCards={aiNumCards}
             setAiNumCards={setAiNumCards}
+            aiRoutingMode={aiRoutingMode}
+            setAiRoutingMode={setAiRoutingMode}
+            aiSaving={aiSaving}
             editingId={editingId}
             saving={saving}
             error={error}
@@ -620,5 +626,6 @@ export default function FlashcardCreator({
     </form>
   );
 }
+
 
 
