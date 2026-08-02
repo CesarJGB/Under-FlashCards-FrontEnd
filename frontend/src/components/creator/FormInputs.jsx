@@ -232,56 +232,59 @@ export default function FormInputs({
           <div className="flex w-full flex-col gap-1.5 sm:w-auto">
             <div className="grid w-full grid-cols-4 gap-2 rounded-xl bg-white p-1.5 sm:min-w-[220px]">
               {[5, 10, 15].map((number) => {
-              const isSelected = customCardCount === '' && aiNumCards === number;
-              return (
-                <button
-                  key={number}
-                  type="button"
-                  aria-pressed={isSelected}
-                  onClick={() => {
-                    setCustomCardCount('');
-                    setAiNumCards(number);
+                const isSelected = customCardCount === '' && aiNumCards === number;
+                return (
+                  <button
+                    key={number}
+                    type="button"
+                    aria-pressed={isSelected}
+                    onClick={() => {
+                      setCustomCardCount('');
+                      setAiNumCards(number);
+                    }}
+                    className={`magic-ai-button magic-ai-button--quantity ${isSelected ? 'magic-ai-button--selected' : ''}`}
+                  >
+                    <span className="magic-ai-button__dots" aria-hidden="true" />
+                    <span className="magic-ai-button__text">{number}</span>
+                  </button>
+                );
+              })}
+
+              <div
+                className={`magic-ai-button magic-ai-button--quantity magic-ai-button--quantity-custom ${customCardCount !== '' ? 'magic-ai-button--selected' : ''}`}
+              >
+                <span className="magic-ai-button__dots" aria-hidden="true" />
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min="1"
+                  max={MAX_AI_CARDS}
+                  placeholder="Libre"
+                  value={customCardCount}
+                  onChange={(event) => {
+                    const rawValue = event.target.value;
+                    if (rawValue === '') {
+                      setCustomCardCount('');
+                      setAiNumCards('');
+                      return;
+                    }
+
+                    const parsed = Number.parseInt(rawValue, 10);
+                    const nextValue = Number.isNaN(parsed) ? '' : Math.min(MAX_AI_CARDS, Math.max(1, parsed));
+                    setCustomCardCount(nextValue === '' ? '' : String(nextValue));
+                    setAiNumCards(nextValue);
                   }}
-                  className={`magic-ai-button magic-ai-button--quantity ${isSelected ? 'magic-ai-button--selected' : ''}`}
-                >
-                  <span className="magic-ai-button__dots" aria-hidden="true" />
-                  <span className="magic-ai-button__text">{number}</span>
-                </button>
-              );
-            })}
-
-            <div
-              className={`magic-ai-button magic-ai-button--quantity magic-ai-button--quantity-custom ${customCardCount !== '' ? 'magic-ai-button--selected' : ''}`}
-            >
-              <span className="magic-ai-button__dots" aria-hidden="true" />
-              <input
-                type="number"
-                inputMode="numeric"
-                min="1"
-                max={MAX_AI_CARDS}
-                placeholder="Libre"
-                value={customCardCount}
-                onChange={(event) => {
-                  const rawValue = event.target.value;
-                  if (rawValue === '') {
-                    setCustomCardCount('');
-                    setAiNumCards('');
-                    return;
-                  }
-
-                  const parsed = Number.parseInt(rawValue, 10);
-                  const nextValue = Number.isNaN(parsed) ? '' : Math.min(MAX_AI_CARDS, Math.max(1, parsed));
-                  setCustomCardCount(nextValue === '' ? '' : String(nextValue));
-                  setAiNumCards(nextValue);
-                }}
-                aria-label="Cantidad libre de tarjetas"
-                className="magic-ai-button__quantity-input text-[10px] placeholder:text-[10px]"
-              />
+                  aria-label="Cantidad libre de tarjetas"
+                  className="magic-ai-button__quantity-input text-[10px] placeholder:text-[10px]"
+                />
+              </div>
             </div>
 
-          </div>
-
-          <div className="flex items-center justify-end gap-1.5" role="group" aria-label="Modo de enrutamiento de OpenRouter">
+            <div
+              className="flex items-center justify-end gap-1.5"
+              role="group"
+              aria-label="Modo de enrutamiento de OpenRouter"
+            >
               <span className="mr-0.5 text-[10px] font-bold text-slate-400">Ruta:</span>
               {AI_ROUTING_OPTIONS.map((option) => {
                 const isSelected = (aiRoutingMode || 'latency') === option.value;
@@ -303,6 +306,7 @@ export default function FormInputs({
                   </button>
                 );
               })}
+            </div>
           </div>
         </div>
       </div>
@@ -351,10 +355,11 @@ export default function FormInputs({
         data-testid={`manual-${side}-editor-trigger`}
       >
         <span className="text-xs font-medium text-slate-500">{label}</span>
-        <span className={[
-          'mt-1.5 max-h-[58px] overflow-hidden whitespace-pre-wrap break-words pr-9 text-sm font-medium leading-relaxed',
-          value ? 'text-slate-800' : 'text-slate-300',
-        ].join(' ')}
+        <span
+          className={[
+            'mt-1.5 max-h-[58px] overflow-hidden whitespace-pre-wrap break-words pr-9 text-sm font-medium leading-relaxed',
+            value ? 'text-slate-800' : 'text-slate-300',
+          ].join(' ')}
         >
           {value || placeholder}
         </span>
