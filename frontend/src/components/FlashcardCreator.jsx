@@ -36,7 +36,7 @@ const PREVIEW_VISIBLE_KEY = 'ufc_preview_visible_v1';
 const AI_GENERATION_ENDPOINT = import.meta.env.VITE_AI_GENERATION_MODE === 'v1'
   ? '/api/flashcards/generate-ai'
   : '/api/flashcards/generate-ai-v2';
-const DEFAULT_AI_ROUTING_MODE = 'latency';
+const DEFAULT_AI_ROUTING_MODE = 'throughput';
 
 function isObject(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -626,6 +626,7 @@ export default function FlashcardCreator({
     </form>
   );
 }
+
 
 
 
