@@ -1,28 +1,31 @@
-import { BarChart3, BookOpenText, Compass, Layers } from 'lucide-react';
+import { BarChart3, BookOpenText, Layers, WalletCards } from 'lucide-react';
 import GlobalStatsWidget from './widgets/GlobalStatsWidget';
 import MateriasSummaryWidget from './widgets/MateriasSummaryWidget';
+import OpenRouterBalanceWidget from './widgets/OpenRouterBalanceWidget';
 import QuickViewSubjectsWidget from './widgets/QuickViewSubjectsWidget';
-import UnclassifiedDecksWidget from './widgets/UnclassifiedDecksWidget';
 
 export const DEFAULT_WIDGET_ORDER = [
   'quickViewSubjects',
   'globalStats',
   'materiasSummary',
-  'unclassifiedDecks'
+  'openRouterBalance'
 ];
 
 const LEGACY_WIDGET_ID_MAP = {
   0: 'quickViewSubjects',
   1: 'globalStats',
   2: 'materiasSummary',
-  3: 'unclassifiedDecks'
+  // El índice 3 pertenecía a Mazos Sueltos. Se conserva para no romper
+  // preferencias numéricas ya guardadas, pero ahora representa el nuevo widget.
+  3: 'openRouterBalance',
+  unclassifiedDecks: 'openRouterBalance'
 };
 
 const WIDGET_ID_TO_LEGACY_INDEX = {
   quickViewSubjects: 0,
   globalStats: 1,
   materiasSummary: 2,
-  unclassifiedDecks: 3
+  openRouterBalance: 3
 };
 
 export const HOME_WIDGET_REGISTRY = {
@@ -59,15 +62,20 @@ export const HOME_WIDGET_REGISTRY = {
     Component: MateriasSummaryWidget,
     getPreview: ({ enrichedMaterias }) => `${enrichedMaterias?.length || 0} materias detectadas`
   },
-  unclassifiedDecks: {
-    id: 'unclassifiedDecks',
-    title: 'Mazos fuera de jerarquía',
-    description: 'Accesos rápidos para revisar mazos sin materia raíz.',
-    category: 'Repaso',
-    icon: Compass,
-    capabilities: ['Atajos', 'Acción directa'],
-    Component: UnclassifiedDecksWidget,
-    getPreview: ({ unclassifiedDecks }) => `${unclassifiedDecks?.length || 0} mazos huérfanos`
+  openRouterBalance: {
+    id: 'openRouterBalance',
+    title: 'Saldo de OpenRouter',
+    description: 'Saldo y consumo reciente de tu clave de IA.',
+    category: 'Cuenta',
+    icon: WalletCards,
+    capabilities: ['Saldo actual', 'Consumo diario', 'Actualización manual'],
+    Component: OpenRouterBalanceWidget,
+    getPreview: ({ openRouterBalance }) => {
+      const info = openRouterBalance?.snapshot?.info;
+      if (!info) return 'Configura tu clave de OpenRouter';
+      if (info.limit_remaining === null) return 'Clave sin límite asignado';
+      return `$${Number(info.limit_remaining).toFixed(2)} disponibles`;
+    }
   }
 };
 
@@ -84,7 +92,7 @@ export function normalizeWidgetOrder(order) {
   const uniqueIds = [];
 
   order.forEach((rawId) => {
-    const mappedId = typeof rawId === 'number' ? LEGACY_WIDGET_ID_MAP[rawId] : rawId;
+    const mappedId = LEGACY_WIDGET_ID_MAP[rawId] || rawId;
     if (!mappedId || !allowedIds.has(mappedId) || uniqueIds.includes(mappedId)) return;
     uniqueIds.push(mappedId);
   });
