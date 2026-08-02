@@ -7,7 +7,8 @@
     "start": "vite --host 0.0.0.0 --port 3000",
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:pdf-extraction": "node --test src/components/creator/pdf/pdfExtractionEngine.test.js"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.1",
