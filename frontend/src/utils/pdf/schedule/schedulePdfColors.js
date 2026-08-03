@@ -1,4 +1,4 @@
-import { getReadableTextColor, isValidHexColor, mixWithWhite } from '../../../lib/materiaColors.js';
+import { isValidHexColor, mixWithWhite } from '../../../lib/materiaColors.js';
 import { resolveScheduleClassColor } from '../../../components/library/calendar/scheduleUtils.js';
 
 function hexToRgb(hex) {
@@ -17,7 +17,9 @@ export function getSchedulePdfColors(classItem, subjectColors = []) {
   const safeAccent = isValidHexColor(accent) ? accent : '#6366F1';
   return {
     accent: hexToRgb(safeAccent),
-    surface: hexToRgb(mixWithWhite(safeAccent, 0.82)),
-    text: getReadableTextColor(safeAccent),
+    // Pasteles impresos: mantienen la identidad de la materia sin sacrificar
+    // texto nítido ni gastar demasiada tinta al imprimir.
+    surface: hexToRgb(mixWithWhite(safeAccent, 0.88)),
+    border: hexToRgb(mixWithWhite(safeAccent, 0.68)),
   };
 }
