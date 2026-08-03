@@ -280,6 +280,7 @@ export function useScheduleCalendar(userId, scheduleId) {
   }, [schedule, activeDayIndex]);
 
   return {
+    schedule,
     loading,
     error,
     scheduleName: schedule?.name || '',
