@@ -8,7 +8,7 @@ function isAbortError(error) {
 }
 
 function createAbortError() {
-  const error = new Error('La exportaciÃ³n fue cancelada.');
+  const error = new Error('La exportación fue cancelada.');
   error.name = 'AbortError';
   return error;
 }
@@ -40,7 +40,7 @@ function awaitWithAbort(promise, signal) {
 
 export async function exportDeckToPDF(deckTitle, cards, type = 'guide', options = {}) {
   if (!getPdfExport(type)) {
-    throw new Error('El formato de exportaciÃ³n solicitado no es vÃ¡lido.');
+    throw new Error('El formato de exportación solicitado no es válido.');
   }
 
   validateDeckImageBudget(cards || []);
@@ -70,6 +70,10 @@ export async function exportDeckToPDF(deckTitle, cards, type = 'guide', options 
 }
 
 export async function exportScheduleToPDF(schedule, orientation = 'portrait', options = {}) {
+  if (!schedule || typeof schedule !== 'object') {
+    throw new Error('No hay un horario disponible para exportar.');
+  }
+
   const payload = {
     documentType: 'schedule',
     scheduleName: schedule?.name || 'Horario',
@@ -97,6 +101,6 @@ export async function exportScheduleToPDF(schedule, orientation = 'portrait', op
     result = await renderSchedulePdf({ ...payload, ...options });
   }
 
-  savePdfBuffer(result.buffer, result.fileName);
+  savePdfBuffer(result.buffer, result.fileName, { target: options.downloadTarget });
   return result;
 }
