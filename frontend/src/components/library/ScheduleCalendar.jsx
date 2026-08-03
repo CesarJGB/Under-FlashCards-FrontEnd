@@ -1,31 +1,28 @@
-// FILE: frontend/src/components/library/ScheduleCalendar.jsx
-import { useState } from 'react';
-import { Plus, Calendar } from 'lucide-react';
-import { useScheduleCalendar, WEEKDAYS } from './calendar/useScheduleCalendar';
+import { useMemo, useState } from 'react';
+import { Calendar, Plus } from 'lucide-react';
+import ActionSheet from '../common/ActionSheet';
+import PdfExportOverlay from '../PdfExportOverlay';
+import useSchedulePdfExport from '../../hooks/useSchedulePdfExport';
+import { resolveScheduleClassColor } from './calendar/scheduleUtils';
+import { SHORT_WEEKDAYS, useScheduleCalendar, WEEKDAYS } from './calendar/useScheduleCalendar';
 import ScheduleHeader from './calendar/ScheduleHeader';
 import DayTabs from './calendar/DayTabs';
 import ClassList from './calendar/ClassList';
 import CalendarFAB from './calendar/CalendarFAB';
-import ActionSheet from '../common/ActionSheet';
-
 import DayPickerModal from './calendar/modals/DayPickerModal';
 import ClassFormModal from './calendar/modals/ClassFormModal';
 import ClassDetailModal from './calendar/modals/ClassDetailModal';
 import ScheduleSettingsModal from './calendar/modals/ScheduleSettingsModal';
 
-export default function ScheduleCalendar({ 
-  userId, 
-  scheduleId, 
-  onBack, 
-  dashboardShell, 
-  onOpenSwitcher 
-}) {
+export default function ScheduleCalendar({ userId, scheduleId, onBack, dashboardShell, onOpenSwitcher }) {
   const {
+    schedule,
     loading,
     error,
     scheduleName,
     daysCount,
     classes,
+    subjectColors,
     activeDayIndex,
     setActiveDayIndex,
     currentDayClasses,
@@ -46,145 +43,82 @@ export default function ScheduleCalendar({
     handleDeleteClass,
     handleUpdateAttendance,
     handleUpdateSettings,
+    savingClass,
+    savingSettings,
+    updatingAttendance,
+    reload,
   } = useScheduleCalendar(userId, scheduleId);
 
-  // Estado para el Action Sheet del FAB
+  const pdfExport = useSchedulePdfExport();
   const [showFabSheet, setShowFabSheet] = useState(false);
+  const [showExportSheet, setShowExportSheet] = useState(false);
+  const isAnyModalOpen = showSettings || showDayPicker || showClassForm || !!selectedClassDetail || showFabSheet || showExportSheet || pdfExport.isExporting;
 
-  if (loading) {
-    return (
-      <div className="w-full max-w-2xl mx-auto py-20 text-center text-sm text-slate-400">
-        Cargando horario...
-      </div>
-    );
+  const classesWithColors = useMemo(() => classes.map((item) => ({
+    ...item,
+    resolvedColor: resolveScheduleClassColor(item, subjectColors),
+  })), [classes, subjectColors]);
+
+  if (loading && !schedule) {
+    return <div className="mx-auto w-full max-w-2xl px-2 py-20 text-center text-sm text-slate-400 dark:text-slate-500" role="status">Cargando horario…</div>;
   }
 
-  const isAnyModalOpen = showSettings || showDayPicker || showClassForm || !!selectedClassDetail || showFabSheet;
-
-  // Handlers con delay prudencial para que iOS libere el scrollLock y el status bar
-  const handleSelectAddCurrentDay = () => {
-    setShowFabSheet(false);
-    setTimeout(() => {
-      setSelectedDayForForm(activeDayIndex);
-      setShowClassForm(true);
-    }, 200);
+  const handleExport = (orientation) => {
+    setShowExportSheet(false);
+    void pdfExport.exportPdf(schedule, orientation);
   };
 
-  const handleSelectPickOtherDay = () => {
-    setShowFabSheet(false);
-    setTimeout(() => {
-      setShowDayPicker(true);
-    }, 200);
-  };
-
-  // Opciones para el ActionSheet reutilizable
   const fabOptions = [
-    {
-      id: 'add-current-day',
-      label: `Añadir a ${WEEKDAYS[activeDayIndex] || `Día ${activeDayIndex + 1}`}`,
-      description: 'Crear una nueva clase en el día seleccionado',
-      icon: Plus,
-      onSelect: handleSelectAddCurrentDay,
-    },
-    {
-      id: 'pick-other-day',
-      label: 'Elegir otro día...',
-      description: 'Seleccionar un día distinto del calendario',
-      icon: Calendar,
-      onSelect: handleSelectPickOtherDay,
-    },
+    { id: 'add-current-day', label: `Añadir a ${WEEKDAYS[activeDayIndex] || `Día ${activeDayIndex + 1}`}`, icon: Plus, onSelect: () => { setSelectedDayForForm(activeDayIndex); setShowClassForm(true); } },
+    { id: 'pick-other-day', label: 'Elegir otro día', icon: Calendar, onSelect: () => setShowDayPicker(true) },
+  ];
+
+  const exportOptions = [
+    { id: 'landscape', label: 'Horizontal', onSelect: () => handleExport('landscape') },
+    { id: 'portrait', label: 'Vertical', onSelect: () => handleExport('portrait') },
   ];
 
   return (
-    <div className="w-full max-w-2xl mx-auto pb-20 animate-[fadeIn_0.15s_ease] select-none relative">
-      <ScheduleHeader 
-        onBack={onBack} 
-        scheduleName={scheduleName} 
-        onOpenSettings={() => setShowSettings(true)} 
-        onOpenSwitcher={onOpenSwitcher}
-      />
+    <div className="relative mx-auto w-full max-w-2xl animate-[fadeIn_0.15s_ease] select-none pb-[calc(8rem+env(safe-area-inset-bottom))]">
+      <ScheduleHeader onBack={onBack} scheduleName={scheduleName} onOpenSettings={() => setShowSettings(true)} onOpenSwitcher={onOpenSwitcher} onExport={() => setShowExportSheet(true)} exporting={pdfExport.isExporting} />
 
-      {error && (
-        <div className="mx-2 mb-4 px-3 py-2 bg-red-50 border border-red-200 rounded-xl text-xs font-medium text-red-700">
-          {error}
-        </div>
-      )}
+      {error && !showClassForm && !showSettings && !selectedClassDetail && <div className="mx-1 my-3 flex items-center gap-3 rounded-2xl border border-red-200 bg-red-50 px-3 py-2.5 text-xs font-semibold text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300" role="alert"><span className="min-w-0 flex-1">{error}</span><button type="button" onClick={() => void reload()} className="min-h-11 shrink-0 rounded-xl px-2 font-bold underline underline-offset-2 hover:bg-red-100 dark:hover:bg-red-500/20">Reintentar</button></div>}
+      {pdfExport.error && <div className="mx-1 my-3 rounded-2xl border border-red-200 bg-red-50 px-3 py-2.5 text-xs font-semibold text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300" role="alert">{pdfExport.error}</div>}
 
-      <DayTabs 
-        daysCount={daysCount} 
-        activeDayIndex={activeDayIndex} 
-        setActiveDayIndex={setActiveDayIndex} 
-        classes={classes} 
-      />
+      <DayTabs daysCount={daysCount} activeDayIndex={activeDayIndex} setActiveDayIndex={setActiveDayIndex} classes={classesWithColors} />
+      <ClassList currentDayClasses={currentDayClasses} activeDayIndex={activeDayIndex} subjectColors={subjectColors} onSelectClass={setSelectedClassDetail} />
 
-      <ClassList 
-        currentDayClasses={currentDayClasses} 
-        onSelectClass={setSelectedClassDetail} 
-      />
+      {!isAnyModalOpen && <CalendarFAB onClick={() => setShowFabSheet(true)} dashboardShell={dashboardShell} />}
 
-      {/* FAB */}
-      {!isAnyModalOpen && (
-        <CalendarFAB 
-          onClick={() => setShowFabSheet(true)} 
-          dashboardShell={dashboardShell} 
-        />
-      )}
+      <ActionSheet open={showFabSheet} title="Añadir clase" options={fabOptions} onClose={() => setShowFabSheet(false)} compact />
+      <ActionSheet open={showExportSheet} title="Descargar horario" options={exportOptions} onClose={() => setShowExportSheet(false)} compact />
 
-      {/* ACTION SHEET REUTILIZABLE */}
-      <ActionSheet 
-        open={showFabSheet}
-        title="Acciones del Horario"
-        options={fabOptions}
-        onClose={() => setShowFabSheet(false)}
-      />
+      <DayPickerModal open={showDayPicker} daysCount={daysCount} onSelectDay={(index) => { setSelectedDayForForm(index); setShowDayPicker(false); window.setTimeout(() => setShowClassForm(true), 180); }} onClose={() => setShowDayPicker(false)} />
 
-      {/* MODALES */}
-      <DayPickerModal 
-        open={showDayPicker}
-        daysCount={daysCount}
-        onSelectDay={(idx) => {
-          setSelectedDayForForm(idx);
-          setShowDayPicker(false);
-          // Transición suave al formulario de clase tras elegir el día
-          setTimeout(() => setShowClassForm(true), 200);
-        }}
-        onClose={() => setShowDayPicker(false)}
-      />
+      {showClassForm && <ClassFormModal
+        key={editingClass?.id || 'new'}
+        selectedDay={selectedDayForForm}
+        onClose={handleCloseClassForm}
+        onSave={(data) => handleSaveClass(data, editingClass?.id)}
+        saving={savingClass}
+        initialSubject={editingClass?.subject || ''}
+        initialTeacher={editingClass?.teacher || ''}
+        initialRoom={editingClass?.room || ''}
+        initialStartTime={editingClass?.startTime || '08:00'}
+        initialEndTime={editingClass?.endTime || '09:30'}
+        initialSubjectKey={editingClass?.subjectKey || ''}
+        initialColor={editingClass?.colorMode === 'custom' ? editingClass.color : null}
+        initialColorMode={editingClass?.colorMode || 'automatic'}
+        existingClasses={classes}
+      />}
 
-      {showClassForm && (
-        <ClassFormModal 
-          key={editingClass?.id || 'new'}
-          selectedDay={selectedDayForForm}
-          onClose={handleCloseClassForm}
-          onSave={(data) => handleSaveClass(data, editingClass?.id)}
-          initialSubject={editingClass?.subject || ''}
-          initialTeacher={editingClass?.teacher || ''}
-          initialRoom={editingClass?.room || ''}
-          initialStartTime={editingClass?.startTime || '08:00'}
-          initialEndTime={editingClass?.endTime || '09:30'}
-          existingClasses={classes}
-        />
-      )}
+      {selectedClassDetail && <ClassDetailModal selectedClass={selectedClassDetail} subjectColors={subjectColors} error={error} onClose={() => setSelectedClassDetail(null)} onDelete={handleDeleteClass} onUpdateAttendance={handleUpdateAttendance} onEdit={handleEditClassClick} updatingAttendance={updatingAttendance} />}
 
-      {selectedClassDetail && (
-        <ClassDetailModal 
-          selectedClass={selectedClassDetail}
-          onClose={() => setSelectedClassDetail(null)}
-          onDelete={handleDeleteClass}
-          onUpdateAttendance={handleUpdateAttendance}
-          onEdit={handleEditClassClick}
-        />
-      )}
+      {showSettings && <ScheduleSettingsModal scheduleName={scheduleName} daysCount={daysCount} classes={classes} onSave={handleUpdateSettings} saving={savingSettings} onClose={() => setShowSettings(false)} />}
 
-      {showSettings && (
-        <ScheduleSettingsModal 
-          scheduleName={scheduleName}
-          daysCount={daysCount}
-          classes={classes}
-          onSave={handleUpdateSettings}
-          onClose={() => setShowSettings(false)}
-        />
-      )}
+      <PdfExportOverlay isOpen={pdfExport.isExporting} progress={pdfExport.progress} onCancel={pdfExport.cancel} title="Generando horario" itemLabel="páginas" />
     </div>
   );
 }
+
+export { SHORT_WEEKDAYS };
