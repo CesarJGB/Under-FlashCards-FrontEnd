@@ -16,8 +16,9 @@ export default function DayPickerModal({ daysCount, onSelectDay, onClose, open =
     <ActionSheet
       open={open}
       title="¿Qué día?"
-      options={dayOptions}
-      onClose={onClose}
-    />
+    options={dayOptions}
+    onClose={onClose}
+    compact
+  />
   );
 }

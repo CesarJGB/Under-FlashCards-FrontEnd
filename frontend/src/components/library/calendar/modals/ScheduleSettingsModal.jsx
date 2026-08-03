@@ -1,134 +1,57 @@
-// FILE: frontend/src/components/library/calendar/modals/ScheduleSettingsModal.jsx
 import { useState } from 'react';
-import { X, Minus, Plus, AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Loader2, Minus, Plus, X } from 'lucide-react';
 import ActionSheet from '../../../common/ActionSheet';
+import { useBodyScrollLock } from '../../../../lib/scrollLock';
+import useModalAccessibility from '../../../../hooks/useModalAccessibility';
 
-export default function ScheduleSettingsModal({ 
-  scheduleName, 
-  daysCount, 
-  classes = [], 
-  onSave, 
-  onClose 
-}) {
+export default function ScheduleSettingsModal({ scheduleName, daysCount, classes = [], onSave, onClose, saving = false }) {
   const [draftName, setDraftName] = useState(scheduleName);
   const [draftDays, setDraftDays] = useState(daysCount);
   const [showWarning, setShowWarning] = useState(false);
+  const [formError, setFormError] = useState('');
+  useBodyScrollLock(true, 'schedule-settings');
+  const dialogRef = useModalAccessibility({ open: !showWarning, onClose });
+  const hiddenClassesCount = classes.filter((item) => item.dayIndex >= draftDays).length;
 
-  const hiddenClassesCount = classes.filter((c) => c.dayIndex >= draftDays).length;
-
-  const saveAndClose = () => {
-    onSave({ name: draftName, daysCount: draftDays });
+  const saveAndClose = async () => {
+    if (!draftName.trim()) {
+      setFormError('El nombre del horario es requerido.');
+      setShowWarning(false);
+      return;
+    }
+    const result = await onSave({ name: draftName.trim(), daysCount: draftDays });
+    if (result?.ok === false) {
+      setFormError(result.error || 'No se pudieron guardar los ajustes.');
+      return;
+    }
     onClose();
   };
 
   const handleDone = () => {
-    if (hiddenClassesCount > 0) {
-      setShowWarning(true); // Abre el ActionSheet de advertencia si hay clases en días a ocultar
-    } else {
-      saveAndClose(); // Guarda directo si no hay clases afectadas
-    }
+    setFormError('');
+    if (hiddenClassesCount > 0) setShowWarning(true);
+    else void saveAndClose();
   };
 
   return (
     <>
-      <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 animate-[fadeIn_0.15s_ease]">
-        <div className="w-full max-w-sm bg-slate-100 rounded-3xl p-5 shadow-2xl space-y-4">
-          
-          <div className="flex items-center justify-between pb-2">
-            <h3 className="text-base font-extrabold text-slate-900">Ajustes</h3>
-            <button
-              type="button"
-              onClick={onClose}
-              className="p-1 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-200 cursor-pointer transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-
+      <div ref={dialogRef} tabIndex={-1} className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4 outline-none backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Ajustes del horario">
+        <div className="w-full max-w-sm rounded-3xl bg-white p-5 text-slate-900 shadow-2xl dark:bg-slate-900 dark:text-white">
+          <div className="flex items-center justify-between pb-3"><h2 className="text-base font-extrabold">Ajustes</h2><button type="button" onClick={onClose} disabled={saving} className="min-h-11 min-w-11 rounded-full p-2 text-slate-400 hover:bg-slate-100 disabled:opacity-40 dark:hover:bg-slate-800" aria-label="Cerrar ajustes"><X className="mx-auto h-5 w-5" /></button></div>
+          {formError && <p className="mb-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300" role="alert">{formError}</p>}
           <div className="space-y-1">
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-wide px-1">
-              Horario
-            </p>
-            
-            <div className="bg-white rounded-2xl border border-slate-200/80 divide-y divide-slate-100 overflow-hidden">
-              <div className="p-3.5 flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-800">
-                  Nombre del horario
-                </span>
-                <input
-                  type="text"
-                  value={draftName}
-                  onChange={(e) => setDraftName(e.target.value)}
-                  className="text-xs font-medium text-slate-500 text-right bg-transparent focus:outline-none focus:text-slate-900 max-w-[130px]"
-                />
-              </div>
-
-              <div className="p-3.5 flex items-center justify-between">
-                <div>
-                  <span className="text-xs font-bold text-slate-800 block">Días</span>
-                  <span className="text-[11px] font-medium text-slate-400">{draftDays} días</span>
-                </div>
-                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
-                  <button
-                    type="button"
-                    disabled={draftDays <= 5}
-                    onClick={() => setDraftDays((prev) => Math.max(5, prev - 1))}
-                    className="p-1 rounded-lg hover:bg-white disabled:opacity-30 cursor-pointer"
-                  >
-                    <Minus className="w-3.5 h-3.5 text-slate-700" />
-                  </button>
-                  <button
-                    type="button"
-                    disabled={draftDays >= 7}
-                    onClick={() => setDraftDays((prev) => Math.min(7, prev + 1))}
-                    className="p-1 rounded-lg hover:bg-white disabled:opacity-30 cursor-pointer"
-                  >
-                    <Plus className="w-3.5 h-3.5 text-slate-700" />
-                  </button>
-                </div>
-              </div>
+            <p className="px-1 text-xs font-bold uppercase tracking-wide text-slate-400">Horario</p>
+            <div className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 dark:divide-slate-800 dark:border-slate-700">
+              <label className="flex items-center justify-between gap-3 bg-white p-3.5 dark:bg-slate-900"><span className="text-xs font-bold">Nombre</span><input type="text" value={draftName} onChange={(event) => setDraftName(event.target.value)} className="min-h-11 max-w-[170px] rounded-lg bg-transparent px-2 text-right text-xs font-medium focus:outline-none focus:ring-2 focus:ring-slate-300 dark:focus:ring-slate-600" /></label>
+              <div className="flex items-center justify-between bg-white p-3.5 dark:bg-slate-900"><div><span className="block text-xs font-bold">Días</span><span className="text-[11px] text-slate-400">{draftDays} días</span></div><div className="flex items-center gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-800"><button type="button" disabled={draftDays <= 5} onClick={() => setDraftDays((value) => Math.max(5, value - 1))} className="min-h-11 min-w-11 rounded-lg hover:bg-white disabled:opacity-30 dark:hover:bg-slate-700" aria-label="Reducir días"><Minus className="mx-auto h-4 w-4" /></button><button type="button" disabled={draftDays >= 7} onClick={() => setDraftDays((value) => Math.min(7, value + 1))} className="min-h-11 min-w-11 rounded-lg hover:bg-white disabled:opacity-30 dark:hover:bg-slate-700" aria-label="Aumentar días"><Plus className="mx-auto h-4 w-4" /></button></div></div>
             </div>
-
-            {hiddenClassesCount > 0 && (
-              <p className="text-[11px] font-semibold text-amber-600 px-1 pt-1">
-                Ocultarás {hiddenClassesCount} clase{hiddenClassesCount !== 1 ? 's' : ''} (no se borran, solo dejan de verse).
-              </p>
-            )}
+            {hiddenClassesCount > 0 && <p className="px-1 pt-2 text-[11px] font-semibold text-amber-600 dark:text-amber-300">{hiddenClassesCount} clase{hiddenClassesCount !== 1 ? 's quedan' : ' queda'} fuera de los días visibles. No se borrará.</p>}
           </div>
-
-          <div className="pt-4">
-            <button
-              type="button"
-              onClick={handleDone}
-              className="w-full py-3 bg-slate-900 hover:bg-slate-800 rounded-xl text-sm font-bold text-white cursor-pointer transition-colors"
-            >
-              Guardar Cambios
-            </button>
-          </div>
-
+          <button type="button" disabled={saving} onClick={handleDone} className="mt-5 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 text-sm font-bold text-white hover:bg-slate-800 disabled:opacity-60 dark:bg-white dark:text-slate-900">{saving && <Loader2 className="h-4 w-4 animate-spin" />}Guardar cambios</button>
         </div>
       </div>
 
-      {/* ActionSheet de advertencia al reducir días */}
-      <ActionSheet
-        open={showWarning}
-        title="Reducir días"
-        options={[
-          {
-            id: 'confirm',
-            label: 'Entendido, continuar',
-            description: `Ocultarás ${hiddenClassesCount} clase(s) en los días que ya no serán visibles. No se borrarán.`,
-            icon: AlertTriangle,
-            danger: true,
-            onSelect: saveAndClose,
-          },
-          {
-            id: 'cancel',
-            label: 'Cancelar',
-          },
-        ]}
-        onClose={() => setShowWarning(false)}
-      />
+      <ActionSheet open={showWarning} title="Reducir días" options={[{ id: 'confirm', label: 'Continuar', description: `Se ocultarán ${hiddenClassesCount} clase(s) en los días no visibles.`, icon: AlertTriangle, danger: true, onSelect: saveAndClose }, { id: 'cancel', label: 'Cancelar' }]} onClose={() => setShowWarning(false)} />
     </>
   );
 }
