@@ -1,31 +1,34 @@
 // FILE: frontend/src/components/library/calendar/ScheduleListScreen.jsx
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { CalendarDays, Plus, Trash2, MoreHorizontal, ArrowLeft } from 'lucide-react';
 import ScheduleCalendar from '../ScheduleCalendar';
 import ActionSheet from '../../common/ActionSheet';
 import { getJSON, setJSON } from '../../../lib/safeLocalStorage';
+import { getScheduleErrorMessage, getScheduleListCacheKey, removeScheduleCaches, requestSchedule } from './scheduleApi';
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
 // =======================================================================
 // SUBCOMPONENTE: Tarjeta de Horario Individual (con su propio ActionSheet)
 // =======================================================================
-function ScheduleItemCard({ schedule, onSelect, onDelete }) {
+function ScheduleItemCard({ schedule, onSelect, onDelete, deleting = false }) {
   const [showMenu, setShowMenu] = useState(false);
   const classCount = schedule.classes?.length || 0;
 
   const handleSelect = () => onSelect(schedule.id);
 
   const handleKeyDown = (e) => {
-    if (e.key === 'Enter') handleSelect();
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handleSelect();
+    }
   };
 
   return (
     <>
-      <div
-        role="button"
+      <article
         tabIndex={0}
+        aria-label={`Abrir ${schedule.name}`}
         onClick={handleSelect}
         onKeyDown={handleKeyDown}
         className="group relative w-full text-left bg-white dark:bg-slate-800/50 dark:backdrop-blur-sm border border-slate-200/80 dark:border-white/10 rounded-3xl p-5 shadow-sm hover:shadow-xl hover:border-slate-300 dark:hover:border-white/20 hover:-translate-y-0.5 transition-all duration-300 cursor-pointer flex items-center gap-4 overflow-hidden"
@@ -41,7 +44,8 @@ function ScheduleItemCard({ schedule, onSelect, onDelete }) {
           <button
             type="button"
             onClick={() => setShowMenu(true)}
-            className="p-2 text-slate-300 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-xl transition-colors cursor-pointer"
+            disabled={deleting}
+            className="min-h-11 min-w-11 rounded-xl p-2 text-slate-300 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:opacity-40 dark:text-slate-500 dark:hover:bg-slate-700/50 dark:hover:text-slate-200"
             aria-label="Más acciones"
           >
             <MoreHorizontal className="w-5 h-5" />
@@ -65,7 +69,7 @@ function ScheduleItemCard({ schedule, onSelect, onDelete }) {
             </span>
           </div>
         </div>
-      </div>
+      </article>
 
       {/* ActionSheet local para esta tarjeta específica */}
       <ActionSheet
@@ -89,6 +93,7 @@ function ScheduleItemCard({ schedule, onSelect, onDelete }) {
           },
         ]}
         onClose={() => setShowMenu(false)}
+        compact
       />
     </>
   );
@@ -98,47 +103,71 @@ function ScheduleItemCard({ schedule, onSelect, onDelete }) {
 // COMPONENTE PRINCIPAL
 // =======================================================================
 export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
-  const listCacheKey = userId ? `schedules_list_${userId}` : null;
+  const listCacheKey = getScheduleListCacheKey(userId);
+  const initialListCache = listCacheKey ? getJSON(listCacheKey) : null;
 
-  const [schedules, setSchedules] = useState(() => (listCacheKey ? getJSON(listCacheKey) || [] : []));
-  const [loading, setLoading] = useState(() => (listCacheKey ? !getJSON(listCacheKey) : true));
+  const cachedSchedules = Array.isArray(initialListCache) ? initialListCache : [];
+  const [schedules, setSchedules] = useState(() => cachedSchedules);
+  const [loading, setLoading] = useState(() => Boolean(userId && !initialListCache));
   const [error, setError] = useState('');
   const [selectedScheduleId, setSelectedScheduleId] = useState(null);
   const [creating, setCreating] = useState(false);
   const [showSwitcher, setShowSwitcher] = useState(false);
   const [showCreateConfirm, setShowCreateConfirm] = useState(false);
+  const [deletingScheduleId, setDeletingScheduleId] = useState(null);
+  const loadControllerRef = useRef(null);
+  const mountedRef = useRef(true);
 
   const loadSchedules = useCallback(async () => {
-    if (!userId) return;
+    if (!userId || !listCacheKey) {
+      setLoading(false);
+      return null;
+    }
 
-    if (!getJSON(listCacheKey)) setLoading(true);
+    loadControllerRef.current?.abort();
+    const controller = new AbortController();
+    loadControllerRef.current = controller;
+    if (!Array.isArray(getJSON(listCacheKey))) setLoading(true);
     setError('');
 
     try {
-      const res = await fetch(`${BACKEND_URL}/api/schedules/${userId}`, {
+      const data = await requestSchedule(`/api/schedules/${userId}`, {
         headers: { 'X-User-Id': userId },
+        signal: controller.signal,
       });
-      if (!res.ok) throw new Error();
-      const data = await res.json();
+      if (!Array.isArray(data)) throw new Error('La respuesta de horarios no es válida.');
+      if (!mountedRef.current) return data;
       setSchedules(data);
       if (listCacheKey) setJSON(listCacheKey, data);
-    } catch {
-      setError('No se pudieron cargar tus horarios.');
+      return data;
+    } catch (loadError) {
+      if (loadError?.name !== 'AbortError' && mountedRef.current) {
+        const message = getScheduleErrorMessage(loadError, 'No se pudieron actualizar tus horarios.');
+        setError(Array.isArray(getJSON(listCacheKey)) ? `${message} Se muestra la última copia guardada.` : message);
+      }
+      return null;
     } finally {
-      setLoading(false);
+      if (mountedRef.current) setLoading(false);
+      if (loadControllerRef.current === controller) loadControllerRef.current = null;
     }
-  }, [userId, listCacheKey]);
+  }, [listCacheKey, loadControllerRef, userId]);
 
   useEffect(() => {
+    mountedRef.current = true;
     if (userId) loadSchedules();
+    return () => {
+      mountedRef.current = false;
+      loadControllerRef.current?.abort();
+    };
   }, [userId, loadSchedules]);
 
   const handleCreate = async () => {
+    if (creating) return;
     setCreating(true);
     setShowCreateConfirm(false);
     setShowSwitcher(false);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/schedules`, {
+      const newSchedule = await requestSchedule('/api/schedules', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
         body: JSON.stringify({
@@ -146,9 +175,6 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
           name: `Horario ${schedules.length + 1}`,
         }),
       });
-      if (!res.ok) throw new Error();
-      const newSchedule = await res.json();
-
       setSchedules((prev) => {
         const next = [...prev, newSchedule];
         if (listCacheKey) setJSON(listCacheKey, next);
@@ -156,28 +182,32 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
       });
 
       setSelectedScheduleId(newSchedule.id);
-    } catch {
-      setError('No se pudo crear el horario.');
+    } catch (createError) {
+      setError(getScheduleErrorMessage(createError, 'No se pudo crear el horario.'));
     } finally {
       setCreating(false);
     }
   };
 
   const handleDeleteSchedule = async (scheduleId) => {
+    if (deletingScheduleId) return;
+    setDeletingScheduleId(scheduleId);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/schedules/${scheduleId}`, {
+      await requestSchedule(`/api/schedules/${scheduleId}`, {
         method: 'DELETE',
         headers: { 'X-User-Id': userId },
       });
-      if (!res.ok) throw new Error();
+      removeScheduleCaches(userId, scheduleId);
 
       setSchedules((prev) => {
         const next = prev.filter((s) => s.id !== scheduleId);
         if (listCacheKey) setJSON(listCacheKey, next);
         return next;
       });
-    } catch {
-      setError('No se pudo eliminar el horario.');
+    } catch (deleteError) {
+      setError(getScheduleErrorMessage(deleteError, 'No se pudo eliminar el horario.'));
+    } finally {
+      setDeletingScheduleId(null);
     }
   };
 
@@ -227,6 +257,7 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
     return (
       <>
         <ScheduleCalendar
+          key={selectedScheduleId}
           userId={userId}
           scheduleId={selectedScheduleId}
           onBack={() => {
@@ -243,6 +274,7 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
           options={switcherOptions}
           selectedId={selectedScheduleId}
           onClose={() => setShowSwitcher(false)}
+          compact
         />
 
         <ActionSheet
@@ -262,6 +294,7 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
             },
           ]}
           onClose={() => setShowCreateConfirm(false)}
+          compact
         />
       </>
     );
@@ -278,6 +311,7 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
             onClick={onBack}
             className="h-9 w-9 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl flex items-center justify-center text-slate-600 dark:text-slate-300 active:scale-95 transition-all cursor-pointer shadow-3xs"
             title="Volver"
+            aria-label="Volver a General"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
@@ -292,8 +326,9 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
 
       {/* Estado de Error Mejorado */}
       {error && (
-        <div className="mx-2 mb-4 px-4 py-3 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-2xl text-sm font-medium text-red-600 dark:text-red-400 flex items-center gap-2">
-          {error}
+        <div className="mx-2 mb-4 flex items-center gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-600 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-400" role="alert">
+          <span className="min-w-0 flex-1">{error}</span>
+          <button type="button" onClick={() => void loadSchedules()} className="min-h-11 shrink-0 rounded-xl px-2 font-bold underline underline-offset-2 hover:bg-red-100 dark:hover:bg-red-500/20">Reintentar</button>
         </div>
       )}
 
@@ -321,7 +356,8 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
               key={s.id} 
               schedule={s} 
               onSelect={setSelectedScheduleId} 
-              onDelete={handleDeleteSchedule} 
+              onDelete={handleDeleteSchedule}
+              deleting={deletingScheduleId === s.id}
             />
           ))}
         </div>
@@ -336,6 +372,7 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
         title="Cambiar horario"
         options={switcherOptions}
         onClose={() => setShowSwitcher(false)}
+        compact
       />
 
       {/* ActionSheet de confirmación para crear */}
@@ -356,6 +393,7 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
           },
         ]}
         onClose={() => setShowCreateConfirm(false)}
+        compact
       />
     </div>
   );

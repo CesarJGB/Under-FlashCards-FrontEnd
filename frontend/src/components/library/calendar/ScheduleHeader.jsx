@@ -1,38 +1,18 @@
-// FILE: frontend/src/components/library/calendar/ScheduleHeader.jsx
-import { ArrowLeft, Settings, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Download, Settings, ChevronDown } from 'lucide-react';
 
-export default function ScheduleHeader({ onBack, scheduleName, onOpenSettings, onOpenSwitcher }) {
+export default function ScheduleHeader({ onBack, scheduleName, onOpenSettings, onOpenSwitcher, onExport, exporting = false }) {
   return (
-    <header className="grid grid-cols-3 items-center py-3 border-b border-slate-200/80 dark:border-slate-700/50 mb-4 px-2">
-      {/* Columna Izquierda: Botón de retroceso cuadrado */}
-      <button
-        type="button"
-        onClick={onBack}
-        className="justify-self-start h-9 w-9 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl flex items-center justify-center text-slate-600 dark:text-slate-300 active:scale-95 transition-all cursor-pointer shadow-3xs"
-        title="Volver"
-      >
-        <ArrowLeft className="w-4 h-4" />
+    <header className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-b border-slate-200/80 px-1 py-2.5 dark:border-slate-800">
+      <button type="button" onClick={onBack} className="min-h-11 min-w-11 rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition-transform active:scale-95 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800" aria-label="Volver a horarios"><ArrowLeft className="mx-auto h-4 w-4" /></button>
+
+      <button type="button" onClick={onOpenSwitcher} className="mx-auto flex min-w-0 max-w-full items-center justify-center gap-1.5 rounded-xl px-2 text-base font-extrabold text-slate-900 hover:bg-slate-100 dark:text-white dark:hover:bg-slate-800" aria-label="Cambiar horario">
+        <span className="truncate">{scheduleName || 'Horario'}</span><ChevronDown className="h-4 w-4 shrink-0 text-slate-400" />
       </button>
 
-      {/* Columna Central: Selector de horario (limitado a su propio espacio) */}
-      <button
-        type="button"
-        onClick={onOpenSwitcher}
-        className="justify-self-center flex items-center justify-center gap-1.5 text-base font-extrabold text-slate-900 dark:text-white truncate px-2 cursor-pointer hover:opacity-80 transition-opacity max-w-full"
-      >
-        <span className="truncate">{scheduleName}</span>
-        <ChevronDown className="w-4 h-4 text-slate-400 dark:text-slate-500 shrink-0" />
-      </button>
-
-      {/* Columna Derecha: Botón de ajustes cuadrado (simétrico al izquierdo) */}
-      <button
-        type="button"
-        onClick={onOpenSettings}
-        className="justify-self-end h-9 w-9 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl flex items-center justify-center text-slate-600 dark:text-slate-300 active:scale-95 transition-all cursor-pointer shadow-3xs"
-        title="Ajustes de horario"
-      >
-        <Settings className="w-4 h-4" />
-      </button>
+      <div className="flex items-center gap-1">
+        <button type="button" onClick={onExport} disabled={exporting} className="min-h-11 min-w-11 rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition-transform active:scale-95 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800" aria-label="Descargar horario como PDF"><Download className="mx-auto h-4 w-4" /></button>
+        <button type="button" onClick={onOpenSettings} className="min-h-11 min-w-11 rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition-transform active:scale-95 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800" aria-label="Ajustes del horario"><Settings className="mx-auto h-4 w-4" /></button>
+      </div>
     </header>
   );
 }
