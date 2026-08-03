@@ -1,10 +1,10 @@
 import { jsPDF } from 'jspdf';
 
-export function createPdfDocument() {
+export function createPdfDocument(options = {}) {
   return new jsPDF({
-    orientation: 'portrait',
-    unit: 'mm',
-    format: 'a4',
+    orientation: options.orientation || 'portrait',
+    unit: options.unit || 'mm',
+    format: options.format || 'a4',
     compress: true,
   });
 }
