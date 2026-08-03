@@ -8,7 +8,7 @@ function isAbortError(error) {
 }
 
 function createAbortError() {
-  const error = new Error('La exportación fue cancelada.');
+  const error = new Error('La exportaciÃ³n fue cancelada.');
   error.name = 'AbortError';
   return error;
 }
@@ -40,7 +40,7 @@ function awaitWithAbort(promise, signal) {
 
 export async function exportDeckToPDF(deckTitle, cards, type = 'guide', options = {}) {
   if (!getPdfExport(type)) {
-    throw new Error('El formato de exportación solicitado no es válido.');
+    throw new Error('El formato de exportaciÃ³n solicitado no es vÃ¡lido.');
   }
 
   validateDeckImageBudget(cards || []);
@@ -63,6 +63,38 @@ export async function exportDeckToPDF(deckTitle, cards, type = 'guide', options 
     const { renderPdf } = await awaitWithAbort(import('./renderPdf'), options.signal);
     if (options.signal?.aborted) throw createAbortError();
     result = await renderPdf({ ...payload, ...options });
+  }
+
+  savePdfBuffer(result.buffer, result.fileName);
+  return result;
+}
+
+export async function exportScheduleToPDF(schedule, orientation = 'portrait', options = {}) {
+  const payload = {
+    documentType: 'schedule',
+    scheduleName: schedule?.name || 'Horario',
+    classes: Array.isArray(schedule?.classes) ? schedule.classes : [],
+    daysCount: schedule?.daysCount || 5,
+    subjectColors: Array.isArray(schedule?.subjectColors) ? schedule.subjectColors : [],
+    orientation: orientation === 'landscape' ? 'landscape' : 'portrait',
+  };
+  let result;
+
+  try {
+    result = await renderPdfInWorker(payload, options);
+  } catch (workerError) {
+    if (isAbortError(workerError)) throw workerError;
+    if (workerError?.name !== 'PdfWorkerError') throw workerError;
+
+    options.onProgress?.({
+      phase: 'fallback',
+      current: 0,
+      total: 0,
+      message: 'Usando el modo de compatibilidad del navegador...',
+    });
+    const { renderSchedulePdf } = await awaitWithAbort(import('./schedule/schedulePdfRenderer'), options.signal);
+    if (options.signal?.aborted) throw createAbortError();
+    result = await renderSchedulePdf({ ...payload, ...options });
   }
 
   savePdfBuffer(result.buffer, result.fileName);
