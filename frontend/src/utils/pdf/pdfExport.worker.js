@@ -1,4 +1,5 @@
 import { renderPdf } from './renderPdf';
+import { renderSchedulePdf } from './schedule/schedulePdfRenderer';
 
 const controllers = new Map();
 
@@ -16,7 +17,8 @@ self.onmessage = async (event) => {
   controllers.set(jobId, controller);
 
   try {
-    const result = await renderPdf({
+    const renderer = payload?.documentType === 'schedule' ? renderSchedulePdf : renderPdf;
+    const result = await renderer({
       ...payload,
       signal: controller.signal,
       onProgress: (progress) => self.postMessage({ type: 'progress', jobId, progress }),
