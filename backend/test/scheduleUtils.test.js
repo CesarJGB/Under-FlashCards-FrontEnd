@@ -74,3 +74,34 @@ test('serializa documentos existentes y usa el registro como fuente de color coh
     ['calculo', null, 'automatic'],
   ]);
 });
+
+
+test('valida y serializa las métricas nuevas sin perder compatibilidad heredada', () => {
+  assert.equal(validateClassInput(classItem({ tardies: 2, participations: 4 })), null);
+  assert.match(validateClassInput(classItem({ tardies: -1 })), /tardies/);
+  assert.match(validateClassInput(classItem({ participations: -1 })), /participations/);
+
+  const legacy = new Schedule({
+    userId: new mongoose.Types.ObjectId(),
+    classes: [classItem({
+      _id: new mongoose.Types.ObjectId(),
+      partialAttendances: 3,
+      canceledClasses: 2,
+    })],
+  });
+  assert.equal(legacy.serialize().classes[0].tardies, 3);
+  assert.equal(legacy.serialize().classes[0].participations, 2);
+
+  const current = new Schedule({
+    userId: new mongoose.Types.ObjectId(),
+    classes: [classItem({
+      _id: new mongoose.Types.ObjectId(),
+      tardies: 0,
+      participations: 5,
+      partialAttendances: 8,
+      canceledClasses: 9,
+    })],
+  });
+  assert.equal(current.serialize().classes[0].tardies, 0);
+  assert.equal(current.serialize().classes[0].participations, 5);
+});
