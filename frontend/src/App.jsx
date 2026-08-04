@@ -48,6 +48,10 @@ function DashboardScreen({ user, onLogout, onInviteRequired }) {
   const contentScrollRef = useRef(null);
   const homeAdaptivePreviewRef = useRef(null);
   const [dashboardShell, setDashboardShell] = useState(null);
+  const [isCalendarImmersive, setIsCalendarImmersive] = useState(false);
+  const handleCalendarImmersiveChange = useCallback((immersive) => {
+    setIsCalendarImmersive(Boolean(immersive));
+  }, []);
   
   // Estado puente para navegación Home → Library
   const [pendingLibraryNav, setPendingLibraryNav] = useState(null);
@@ -131,6 +135,7 @@ function DashboardScreen({ user, onLogout, onInviteRequired }) {
   }, []);
 
   const handleTabChange = (id) => {
+    if (id !== 'library') setIsCalendarImmersive(false);
     if (id === 'library') {
       setCurrentDeck(null);
       setInitialMode('edit');
@@ -251,7 +256,7 @@ function DashboardScreen({ user, onLogout, onInviteRequired }) {
         )}
 
         {/* 💡 Si se está editando un mazo, pb-0 remueve el padding inferior reservado para la barra móvil */}
-        <div className={`max-w-5xl mx-auto px-4 pt-4 ${tab === 'home' || isEditingDeck ? 'pb-0' : 'pb-[calc(env(safe-area-inset-bottom)+6rem)]'} md:px-6 md:pt-8 md:pb-8`}>
+        <div className={`max-w-5xl mx-auto px-4 pt-4 ${tab === 'home' || isEditingDeck || isCalendarImmersive ? 'pb-0' : 'pb-[calc(env(safe-area-inset-bottom)+6rem)]'} md:px-6 md:pt-8 md:pb-8`}>
           {tab === 'home' && (
             <HomeSection 
               key={homeKey}
@@ -279,6 +284,7 @@ function DashboardScreen({ user, onLogout, onInviteRequired }) {
               userEmail={user.email}
               onOpenReview={handleOpenReviewFromStudy}
               dashboardShell={dashboardShell}
+              onCalendarImmersiveChange={handleCalendarImmersiveChange}
             />
           )}
 
@@ -338,7 +344,7 @@ function DashboardScreen({ user, onLogout, onInviteRequired }) {
       </main>
 
       {/* 👇 MENÚ DE NAVEGACIÓN MÓVIL OPTIMIZADO (Se oculta en modo edición de mazo) 👇 */}
-      {!isEditingDeck && (
+      {!isEditingDeck && !isCalendarImmersive && (
         <div ref={mobileNavRef} className="md:hidden absolute inset-x-0 mx-auto w-fit bg-white/90 backdrop-blur-xl border border-slate-200/80 h-14 rounded-full px-2 flex items-center gap-1.5 z-40 shadow-[0_8px_32px_rgba(0,0,0,0.12)] animate-[slideUp_0.2s_ease-out]" style={{ bottom: 'calc(env(safe-area-inset-bottom) + 0.75rem)' }}>
           {[
             { id: 'home', title: 'Inicio', Icon: Home },
