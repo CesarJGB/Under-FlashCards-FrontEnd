@@ -54,6 +54,7 @@ export default function ClassFormModal({
   const [formEndTime, setFormEndTime] = useState(initialEndTime);
   const [formColor, setFormColor] = useState(initialColor);
   const [formColorMode, setFormColorMode] = useState(initialColorMode === 'custom' ? 'custom' : 'automatic');
+  const [colorWasChanged, setColorWasChanged] = useState(false);
   const [formSubjectKey, setFormSubjectKey] = useState(initialSubjectKey || getSubjectKey(initialSubject));
   const [subjectSelectionLocked, setSubjectSelectionLocked] = useState(Boolean(initialSubjectKey));
   const [formError, setFormError] = useState('');
@@ -120,6 +121,7 @@ export default function ClassFormModal({
     setFormTeacher(classItem.teacher || '');
     setFormColor(classItem.colorMode === 'custom' ? classItem.color : null);
     setFormColorMode(classItem.colorMode === 'custom' ? 'custom' : 'automatic');
+    setColorWasChanged(false);
     setFormSubjectKey(classItem.subjectKey || getSubjectKey(classItem.subject));
     setSubjectSelectionLocked(true);
     setCombinedDraft({
@@ -156,8 +158,10 @@ export default function ClassFormModal({
         startTime: formStartTime,
         endTime: formEndTime,
         subjectKey,
-        color: formColorMode === 'custom' ? formColor : null,
-        colorMode: formColorMode,
+        ...(colorWasChanged ? {
+          color: formColorMode === 'custom' ? formColor : null,
+          colorMode: formColorMode,
+        } : {}),
       });
       if (result?.ok === false && result.error) setFormError(result.error);
     } catch (saveError) {
@@ -177,6 +181,7 @@ export default function ClassFormModal({
         value={formColor}
         mode={formColorMode}
         onSelect={(color) => {
+          setColorWasChanged(true);
           if (color) {
             setFormColor(color);
             setFormColorMode('custom');

@@ -53,7 +53,7 @@ export default function ClassDetailModal({
               </div>
             </div>
 
-            <div className="mt-5 rounded-2xl border bg-slate-50 p-3 dark:bg-slate-950/40" style={{ borderColor: mixWithWhite(accent, 0.35) }}>
+            <div className="mt-5 rounded-2xl border bg-slate-50 p-3 dark:bg-slate-950/40" style={{ borderColor: mixWithWhite(accent, 0.35) }} aria-busy={updatingAttendance}>
               <div className="mb-3 flex items-center justify-between gap-2">
                 <h3 className="text-xs font-bold uppercase tracking-wide text-slate-500">Asistencia</h3>
                 {updatingAttendance && <span className="text-[11px] font-semibold text-slate-500">Guardando…</span>}
@@ -66,10 +66,10 @@ export default function ClassDetailModal({
                       <span className="text-xl font-black text-slate-900 dark:text-white">{selectedClass[item.key] || 0}</span>
                     </div>
                     <div className="mt-2 flex gap-2">
-                      <button type="button" onClick={() => onUpdateAttendance(selectedClass.id, item.key, -1)} className="min-h-11 min-w-11 flex-1 rounded-xl bg-slate-100 text-lg font-bold text-slate-700 hover:bg-slate-200 active:scale-95 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700" aria-label={`Restar ${item.label}`}>
+                      <button type="button" disabled={updatingAttendance} onClick={() => onUpdateAttendance(selectedClass.id, item.key, -1)} className="min-h-11 min-w-11 flex-1 rounded-xl bg-slate-100 text-lg font-bold text-slate-700 hover:bg-slate-200 active:scale-95 disabled:cursor-not-allowed disabled:opacity-45 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700" aria-label={`Restar ${item.label}`}>
                         −
                       </button>
-                      <button type="button" onClick={() => onUpdateAttendance(selectedClass.id, item.key, 1)} className="min-h-11 min-w-11 flex-1 rounded-xl bg-slate-100 text-lg font-bold text-slate-700 hover:bg-slate-200 active:scale-95 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700" aria-label={`Sumar ${item.label}`}>
+                      <button type="button" disabled={updatingAttendance} onClick={() => onUpdateAttendance(selectedClass.id, item.key, 1)} className="min-h-11 min-w-11 flex-1 rounded-xl bg-slate-100 text-lg font-bold text-slate-700 hover:bg-slate-200 active:scale-95 disabled:cursor-not-allowed disabled:opacity-45 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700" aria-label={`Sumar ${item.label}`}>
                         +
                       </button>
                     </div>
