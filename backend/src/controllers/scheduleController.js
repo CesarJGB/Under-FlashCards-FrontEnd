@@ -41,7 +41,7 @@ exports.getSchedules = async (req, res) => {
 exports.getScheduleById = async (req, res) => {
   try {
     const { id } = req.params;
-    const requestedUserId = req.headers['x-user-id']; // Seguridad: comprobar dueÃ±o
+    const requestedUserId = req.headers['x-user-id']; // Seguridad: comprobar dueño
 
     const schedule = await Schedule.findById(id);
 
@@ -49,7 +49,7 @@ exports.getScheduleById = async (req, res) => {
       return res.status(404).json({ error: 'Horario no encontrado.' });
     }
 
-    // Seguridad: Verificar que el horario pertenece al usuario que hace la peticiÃ³n
+    // Seguridad: verificar que el horario pertenece al usuario que hace la petición
     if (schedule.userId.toString() !== requestedUserId) {
       return res.status(403).json({ error: 'No autorizado para ver este horario.' });
     }
@@ -57,7 +57,7 @@ exports.getScheduleById = async (req, res) => {
     return res.json(schedule.serialize());
   } catch (err) {
     console.error('[schedule:getScheduleById] error:', err.message);
-    // Si el ID no tiene formato vÃ¡lido de MongoDB, Mongoose lanza un error de "Cast"
+    // Si el ID no tiene formato válido de MongoDB, Mongoose lanza un error de "Cast"
     if (err.kind === 'ObjectId') {
       return res.status(404).json({ error: 'Horario no encontrado.' });
     }
@@ -69,11 +69,11 @@ exports.createSchedule = async (req, res) => {
   try {
     const { userId, name, daysCount } = req.body || {};
     if (!userId) return res.status(400).json({ error: 'userId es requerido.' });
-    if (name !== undefined && typeof name !== 'string') return sendValidationError(res, 'El nombre del horario no es vÃ¡lido.');
+    if (name !== undefined && typeof name !== 'string') return sendValidationError(res, 'El nombre del horario no es válido.');
 
     const normalizedDays = daysCount === undefined ? 5 : Number(daysCount);
     if (!isValidDaysCount(normalizedDays)) {
-      return sendValidationError(res, 'daysCount debe ser un nÃºmero entero entre 5 y 7.');
+      return sendValidationError(res, 'daysCount debe ser un número entero entre 5 y 7.');
     }
 
     const schedule = await Schedule.create({
@@ -99,14 +99,14 @@ exports.updateSchedule = async (req, res) => {
     if (!schedule) return res.status(404).json({ error: 'Horario no encontrado.' });
 
     if (name !== undefined) {
-      if (typeof name !== 'string') return sendValidationError(res, 'El nombre del horario no es vÃ¡lido.');
+      if (typeof name !== 'string') return sendValidationError(res, 'El nombre del horario no es válido.');
       if (!name.trim()) return res.status(400).json({ error: 'El nombre del horario es requerido.' });
       schedule.name = name.trim();
     }
     if (daysCount !== undefined) {
       const normalizedDays = Number(daysCount);
       if (!isValidDaysCount(normalizedDays)) {
-        return sendValidationError(res, 'daysCount debe ser un nÃºmero entero entre 5 y 7.');
+        return sendValidationError(res, 'daysCount debe ser un número entero entre 5 y 7.');
       }
       schedule.daysCount = normalizedDays;
     }
@@ -168,6 +168,7 @@ exports.addClass = async (req, res) => {
       room: room?.trim() || 'Por definir',
       subjectKey: normalizedSubjectKey,
       color: colorMode === 'automatic' ? null : (color || null),
+      colorMode: colorMode || null,
       dayIndex: Number(dayIndex),
       startTime,
       endTime,
@@ -240,7 +241,7 @@ exports.updateClass = async (req, res) => {
 
     // Solo se actualizan los campos que vienen en el body (updates parciales)
     const allowedFields = [
-      'subject', 'teacher', 'room', 'dayIndex', 'startTime', 'endTime', 'subjectKey', 'color',
+      'subject', 'teacher', 'room', 'dayIndex', 'startTime', 'endTime', 'subjectKey', 'color', 'colorMode',
       'attendances', 'absences', 'partialAttendances', 'canceledClasses',
     ];
     allowedFields.forEach((field) => {
