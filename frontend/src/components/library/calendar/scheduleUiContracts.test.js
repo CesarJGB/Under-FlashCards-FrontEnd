@@ -48,3 +48,51 @@ test('el hook publica el contrato que consume el calendario y bloquea envíos re
   assert.match(hook, /savingClassRef\.current/);
   assert.match(hook, /attendanceRef\.current/);
 });
+
+
+test('el footer móvil conserva safe area, targets táctiles y la secuencia Día/Semana sin duplicar controles', async () => {
+  const [footer, calendar] = await Promise.all([
+    source('./ScheduleMobileFooter.jsx'),
+    source('../ScheduleCalendar.jsx'),
+  ]);
+  assert.match(footer, /data-testid="schedule-mobile-footer"/);
+  assert.match(footer, /safe-area-inset-bottom/);
+  assert.match(footer, /min-h-11/);
+  assert.match(footer, /data-view-mode/);
+  assert.match(footer, /disabled=\{disabled \|\| isDayView\}/);
+  assert.match(footer, /disabled=\{disabled \|\| isWeekView\}/);
+  assert.doesNotMatch(calendar, /CalendarFAB/);
+  assert.match(calendar, /hidden md:block/);
+  assert.match(calendar, /isSwitcherOpen/);
+});
+
+test('la navegación global se controla con estado contextual y se limpia al salir del calendario', async () => {
+  const [app, library] = await Promise.all([
+    source('../../../App.jsx'),
+    source('../../LibrarySection.jsx'),
+  ]);
+  assert.match(app, /isCalendarImmersive/);
+  assert.match(app, /onCalendarImmersiveChange/);
+  assert.match(app, /pb-0/);
+  assert.match(app, /!isCalendarImmersive/);
+  assert.match(library, /sectionMode === 'calendar'/);
+  assert.match(library, /onCalendarImmersiveChange\?\.\(false\)/);
+});
+
+test('la asistencia usa Retardos y Participaciones con claves nuevas', async () => {
+  const [detail, hook, api, attendance] = await Promise.all([
+    source('./modals/ClassDetailModal.jsx'),
+    source('./useScheduleCalendar.js'),
+    source('./scheduleApi.js'),
+    source('./attendanceUtils.js'),
+  ]);
+  assert.match(detail, /tardies/);
+  assert.match(detail, /Retardos/);
+  assert.match(detail, /participations/);
+  assert.match(detail, /Participaciones/);
+  assert.match(hook, /isAttendanceField/);
+  assert.match(api, /normalizeScheduleAttendance/);
+  assert.match(attendance, /partialAttendances/);
+  assert.match(attendance, /canceledClasses/);
+  assert.match(attendance, /current value, including zero|present new value/i);
+});

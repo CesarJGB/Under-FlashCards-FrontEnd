@@ -5,6 +5,7 @@ import { CalendarDays, Plus, Trash2, MoreHorizontal, ArrowLeft } from 'lucide-re
 import ScheduleCalendar from '../ScheduleCalendar';
 import ActionSheet from '../../common/ActionSheet';
 import { getJSON, setJSON } from '../../../lib/safeLocalStorage';
+import { normalizeScheduleListAttendance } from './attendanceUtils';
 import { getScheduleErrorMessage, getScheduleListCacheKey, removeScheduleCaches, requestSchedule } from './scheduleApi';
 
 
@@ -104,7 +105,7 @@ function ScheduleItemCard({ schedule, onSelect, onDelete, deleting = false }) {
 // =======================================================================
 export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
   const listCacheKey = getScheduleListCacheKey(userId);
-  const initialListCache = listCacheKey ? getJSON(listCacheKey) : null;
+  const initialListCache = listCacheKey ? normalizeScheduleListAttendance(getJSON(listCacheKey)) : null;
 
   const cachedSchedules = Array.isArray(initialListCache) ? initialListCache : [];
   const [schedules, setSchedules] = useState(() => cachedSchedules);

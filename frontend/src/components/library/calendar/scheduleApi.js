@@ -1,4 +1,5 @@
 import { getJSON, remove, setJSON } from '../../../lib/safeLocalStorage';
+import { normalizeScheduleAttendance, normalizeScheduleListAttendance } from './attendanceUtils';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
@@ -27,7 +28,7 @@ export async function requestSchedule(path, options = {}) {
       { status: response.status, code: payload?.code || '', details: payload }
     );
   }
-  return payload;
+  return Array.isArray(payload) ? normalizeScheduleListAttendance(payload) : normalizeScheduleAttendance(payload);
 }
 
 export function getScheduleCacheKey(scheduleId) {
@@ -43,7 +44,8 @@ export function getScheduleListCacheKey(userId) {
 }
 
 export function cacheSchedule(schedule) {
-  if (schedule?.id) setJSON(getScheduleCacheKey(schedule.id), schedule);
+  const normalized = normalizeScheduleAttendance(schedule);
+  if (normalized?.id) setJSON(getScheduleCacheKey(normalized.id), normalized);
 }
 
 export function syncScheduleListCache(userId, schedule) {
@@ -51,7 +53,8 @@ export function syncScheduleListCache(userId, schedule) {
   if (!key || !schedule?.id) return;
   const current = getJSON(key);
   if (!Array.isArray(current)) return;
-  const next = current.map((item) => item.id === schedule.id ? schedule : item);
+  const normalized = normalizeScheduleAttendance(schedule);
+  const next = current.map((item) => item.id === normalized.id ? normalized : item);
   setJSON(key, next);
 }
 

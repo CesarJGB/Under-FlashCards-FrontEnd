@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getJSON, setJSON } from '../../../lib/safeLocalStorage';
+import { isAttendanceField, normalizeScheduleAttendance } from './attendanceUtils';
 import {
   cacheSchedule,
   getScheduleCacheKey,
@@ -16,7 +17,7 @@ export const SHORT_WEEKDAYS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'
 export function useScheduleCalendar(userId, scheduleId) {
   const cacheKey = getScheduleCacheKey(scheduleId);
   const dayCacheKey = getScheduleDayCacheKey(scheduleId);
-  const initialSchedule = cacheKey ? getJSON(cacheKey) : null;
+  const initialSchedule = cacheKey ? normalizeScheduleAttendance(getJSON(cacheKey)) : null;
   const initialDaysCount = initialSchedule?.daysCount || 5;
 
   const [schedule, setSchedule] = useState(initialSchedule);
@@ -48,11 +49,12 @@ export function useScheduleCalendar(userId, scheduleId) {
   const dayInitializedRef = useRef(Boolean(initialSchedule));
 
   const commitSchedule = useCallback((nextSchedule) => {
-    scheduleRef.current = nextSchedule;
-    if (mountedRef.current) setSchedule(nextSchedule);
-    if (nextSchedule) {
-      cacheSchedule(nextSchedule);
-      syncScheduleListCache(userId, nextSchedule);
+    const normalized = normalizeScheduleAttendance(nextSchedule);
+    scheduleRef.current = normalized;
+    if (mountedRef.current) setSchedule(normalized);
+    if (normalized) {
+      cacheSchedule(normalized);
+      syncScheduleListCache(userId, normalized);
     }
   }, [userId]);
 
@@ -243,7 +245,7 @@ export function useScheduleCalendar(userId, scheduleId) {
   }, [commitSchedule, scheduleId, userId]);
 
   const handleUpdateAttendance = useCallback(async (classId, field, delta) => {
-    if (attendanceRef.current) return { ok: false };
+    if (attendanceRef.current || !isAttendanceField(field) || !Number.isInteger(delta)) return { ok: false };
     const previousSchedule = scheduleRef.current;
     const target = previousSchedule?.classes.find((item) => item.id === classId);
     if (!target) return { ok: false };
