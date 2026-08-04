@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   isAttendanceField,
   normalizeAttendanceClass,
+  normalizeScheduleAttendance,
   normalizeScheduleListAttendance,
 } from './attendanceUtils.js';
 
@@ -39,4 +40,31 @@ test('normaliza listas cacheadas y limita los campos actualizables', () => {
   assert.equal(isAttendanceField('participations'), true);
   assert.equal(isAttendanceField('partialAttendances'), false);
   assert.equal(isAttendanceField('canceledClasses'), false);
+});
+
+test('proyecta una métrica global a todas las apariciones sin sumarla', () => {
+  const normalized = normalizeScheduleAttendance({
+    id: 'schedule-1',
+    classes: [
+      { id: 'monday', subject: 'Cálculo', subjectKey: 'calculo', attendances: 4, dayIndex: 0 },
+      { id: 'wednesday', subject: 'Calculo', subjectKey: 'calculo', attendances: 2, dayIndex: 2 },
+    ],
+  });
+
+  assert.equal(normalized.subjectProfiles[0].key, 'calculo');
+  assert.equal(normalized.subjectProfiles[0].attendances, 4);
+  assert.deepEqual(normalized.classes.map((item) => item.attendances), [4, 4]);
+});
+
+test('un color local explícito no se reemplaza por el color compartido', () => {
+  const normalized = normalizeScheduleAttendance({
+    subjectProfiles: [{ key: 'calculo', name: 'Cálculo', color: '#123456', colorMode: 'custom' }],
+    classes: [
+      { id: 'monday', subject: 'Cálculo', subjectKey: 'calculo', colorMode: 'automatic', dayIndex: 0 },
+      { id: 'wednesday', subject: 'Cálculo', subjectKey: 'calculo', color: '#ABCDEF', colorMode: 'custom', dayIndex: 2 },
+    ],
+  });
+
+  assert.equal(normalized.classes[0].color, null);
+  assert.equal(normalized.classes[1].color, '#ABCDEF');
 });

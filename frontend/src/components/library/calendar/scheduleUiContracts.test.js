@@ -31,22 +31,26 @@ test('modales del calendario conservan safe areas, bloqueo de guardado y confirm
   assert.match(form, /disabled=\{saving\}/);
   assert.match(detail, /ActionSheet/);
   assert.match(detail, /showConfirmDelete/);
-  assert.match(detail, /disabled=\{updatingAttendance\}/);
+  assert.match(detail, /Actualizando materia/);
+  assert.match(detail, /Eliminar sólo esta aparición/);
+  assert.match(detail, /Eliminar la materia de todo el horario/);
   assert.match(settings, /safe-area-inset/);
   assert.match(settings, /min-h-11/);
   assert.match(settings, /dark:/);
 });
 
-test('el hook publica el contrato que consume el calendario y bloquea envíos repetidos', async () => {
+test('el hook publica el contrato que consume el calendario y serializa la asistencia', async () => {
   const hook = await source('./useScheduleCalendar.js');
   const publicContract = hook.slice(hook.lastIndexOf('return {'));
   assert.match(publicContract, /subjectColors:/);
+  assert.match(publicContract, /subjectProfiles:/);
   assert.match(publicContract, /savingClass,/);
   assert.match(publicContract, /savingSettings,/);
   assert.match(publicContract, /updatingAttendance,/);
   assert.match(publicContract, /reload: loadSchedule/);
   assert.match(hook, /savingClassRef\.current/);
-  assert.match(hook, /attendanceRef\.current/);
+  assert.match(hook, /attendanceQueueRef/);
+  assert.match(hook, /attendanceDelta/);
 });
 
 
@@ -95,4 +99,5 @@ test('la asistencia usa Retardos y Participaciones con claves nuevas', async () 
   assert.match(attendance, /partialAttendances/);
   assert.match(attendance, /canceledClasses/);
   assert.match(attendance, /current value, including zero|present new value/i);
+  assert.match(attendance, /subjectProfiles/);
 });

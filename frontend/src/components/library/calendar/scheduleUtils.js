@@ -77,24 +77,30 @@ export function getMinutesUntilNextClass(classItem, now = new Date()) {
 
 export function resolveScheduleClassColor(classItem, subjectColors = []) {
   const subjectKey = classItem?.subjectKey || getSubjectKey(classItem?.subject);
+  // An explicit occurrence mode is a deliberate local override. Check it
+  // before the shared registry so "Aplicar sólo a este día" remains visible.
+  if (classItem?.colorMode === 'custom' && isValidHexColor(classItem?.color)) return classItem.color;
+  if (classItem?.colorMode === 'automatic') return getMateriaColor({ name: subjectKey });
+
   const registry = subjectColors.find((entry) => entry?.key === subjectKey);
-  // The per-schedule registry is authoritative for a subject. A legacy
-  // per-class color remains a compatible fallback when no registry exists.
+  // The per-schedule profile is authoritative when the occurrence does not
+  // carry an explicit local override. Legacy per-class colors remain a
+  // compatible fallback when no registry exists.
   if (registry) {
     return isValidHexColor(registry.color) ? registry.color : getMateriaColor({ name: subjectKey });
   }
-  const override = classItem?.colorMode === 'automatic' ? null : classItem?.color;
-
-  if (isValidHexColor(override)) return override;
+  if (isValidHexColor(classItem?.color)) return classItem.color;
   if (isValidHexColor(classItem?.resolvedColor)) return classItem.resolvedColor;
   return getMateriaColor({ name: subjectKey });
 }
 
 export function getScheduleColorMode(classItem, subjectColors = []) {
   const key = classItem?.subjectKey || getSubjectKey(classItem?.subject);
+  if (classItem?.colorMode === 'custom') return 'custom';
+  if (classItem?.colorMode === 'automatic') return 'automatic';
   const registry = subjectColors.find((entry) => entry?.key === key);
   if (registry) return isValidHexColor(registry.color) ? 'custom' : 'automatic';
-  return classItem?.colorMode === 'custom' || isValidHexColor(classItem?.color) ? 'custom' : 'automatic';
+  return isValidHexColor(classItem?.color) ? 'custom' : 'automatic';
 }
 
 export function formatDuration(minutes) {

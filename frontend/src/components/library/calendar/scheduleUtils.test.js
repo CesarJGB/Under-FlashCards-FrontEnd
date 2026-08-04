@@ -30,16 +30,16 @@ test('abre hoy cuando es visible y recuerda otro día válido cuando no lo es', 
   assert.equal(getInitialDayIndex(5, 8, sunday), 0);
 });
 
-test('el registro de asignatura prevalece y el automático conserva fallback determinista', () => {
-  const classItem = { subject: 'Química', subjectKey: 'quimica', colorMode: 'automatic' };
-  const automatic = resolveScheduleClassColor(classItem, []);
+test('el registro compartido prevalece y un override local conserva su alcance', () => {
+  const classItem = { subject: 'Química', subjectKey: 'quimica', colorMode: null };
+  const automatic = resolveScheduleClassColor({ ...classItem, colorMode: 'automatic' }, []);
   const registry = [{ key: 'quimica', name: 'Química', color: '#123456' }];
   const automaticRegistry = [{ key: 'quimica', name: 'Química', color: null }];
   assert.match(automatic, /^#[0-9A-F]{6}$/i);
   assert.equal(resolveScheduleClassColor(classItem, registry), '#123456');
   assert.equal(getScheduleColorMode(classItem, registry), 'custom');
-  assert.equal(resolveScheduleClassColor({ ...classItem, color: '#ABCDEF', colorMode: 'custom' }, automaticRegistry), automatic);
-  assert.equal(getScheduleColorMode({ ...classItem, color: '#ABCDEF', colorMode: 'custom' }, automaticRegistry), 'automatic');
+  assert.equal(resolveScheduleClassColor({ ...classItem, color: '#ABCDEF', colorMode: 'custom' }, automaticRegistry), '#ABCDEF');
+  assert.equal(getScheduleColorMode({ ...classItem, color: '#ABCDEF', colorMode: 'custom' }, automaticRegistry), 'custom');
 });
 
 test('detecta una clase actual solo en el día seleccionado correcto', () => {

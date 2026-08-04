@@ -9,10 +9,55 @@ import {
   requestSchedule,
   syncScheduleListCache,
 } from './scheduleApi';
-import { getInitialDayIndex, sortClassesByStart } from './scheduleUtils';
+import { getInitialDayIndex, getSubjectKey, sortClassesByStart } from './scheduleUtils';
 
 export const WEEKDAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 export const SHORT_WEEKDAYS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+
+const LEGACY_ATTENDANCE_FIELDS = { tardies: 'partialAttendances', participations: 'canceledClasses' };
+
+function getClassSubjectKey(classItem) {
+  return classItem?.subjectKey || getSubjectKey(classItem?.subject);
+}
+
+function withAttendanceDelta(schedule, subjectKey, field, delta) {
+  if (!schedule?.classes?.length) return { schedule, applied: 0 };
+  const target = schedule.classes.find((item) => getClassSubjectKey(item) === subjectKey);
+  if (!target) return { schedule, applied: 0 };
+
+  const current = Math.max(0, Number(target[field]) || 0);
+  const next = Math.max(0, current + delta);
+  const applied = next - current;
+  if (applied === 0) return { schedule, applied: 0 };
+
+  const nextProfiles = (schedule.subjectProfiles || []).map((profile) => (
+    profile.key === subjectKey ? { ...profile, [field]: next } : profile
+  ));
+  const legacyField = LEGACY_ATTENDANCE_FIELDS[field];
+  const nextClasses = schedule.classes.map((item) => {
+    if (getClassSubjectKey(item) !== subjectKey) return item;
+    return {
+      ...item,
+      [field]: next,
+      ...(legacyField ? { [legacyField]: next } : {}),
+    };
+  });
+
+  return {
+    applied,
+    schedule: {
+      ...schedule,
+      subjectProfiles: nextProfiles,
+      classes: nextClasses,
+    },
+  };
+}
+
+function applyPendingAttendanceOperations(schedule, operations) {
+  return operations.reduce((currentSchedule, operation) => (
+    withAttendanceDelta(currentSchedule, operation.subjectKey, operation.field, operation.delta).schedule
+  ), schedule);
+}
 
 export function useScheduleCalendar(userId, scheduleId) {
   const cacheKey = getScheduleCacheKey(scheduleId);
@@ -44,7 +89,8 @@ export function useScheduleCalendar(userId, scheduleId) {
   const loadControllerRef = useRef(null);
   const savingClassRef = useRef(false);
   const savingSettingsRef = useRef(false);
-  const attendanceRef = useRef(false);
+  const attendanceQueueRef = useRef([]);
+  const attendanceWorkerRef = useRef(false);
   const deletingClassRef = useRef(false);
   const dayInitializedRef = useRef(Boolean(initialSchedule));
 
@@ -144,6 +190,7 @@ export function useScheduleCalendar(userId, scheduleId) {
     return () => {
       mountedRef.current = false;
       loadControllerRef.current?.abort();
+      attendanceQueueRef.current = [];
     };
   }, [loadSchedule]);
 
@@ -171,10 +218,8 @@ export function useScheduleCalendar(userId, scheduleId) {
     setShowClassFormState(true);
   }, [closeOtherSurfaces]);
 
-  const handleSaveClass = useCallback(async (formData, editingClassId = null) => {
-    if (savingClassRef.current) {
-      return { ok: false, error: 'Ya se está guardando esta clase.' };
-    }
+  const handleSaveClass = useCallback(async (formData, editingClassId = null, scope = 'occurrence') => {
+    if (savingClassRef.current) return { ok: false, error: 'Ya se está guardando esta clase.' };
 
     const currentSchedule = scheduleRef.current;
     const conflict = currentSchedule?.classes.find((classItem) => (
@@ -184,10 +229,7 @@ export function useScheduleCalendar(userId, scheduleId) {
       && formData.endTime > classItem.startTime
     ));
     if (conflict) {
-      return {
-        ok: false,
-        error: `Esta clase se superpone con ${conflict.subject} (${conflict.startTime} - ${conflict.endTime}).`,
-      };
+      return { ok: false, error: `Esta clase se superpone con ${conflict.subject} (${conflict.startTime} - ${conflict.endTime}).` };
     }
 
     savingClassRef.current = true;
@@ -200,7 +242,9 @@ export function useScheduleCalendar(userId, scheduleId) {
         {
           method: editingClassId ? 'PUT' : 'POST',
           headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
-          body: JSON.stringify(editingClassId ? formData : { ...formData, dayIndex: selectedDayForForm }),
+          body: JSON.stringify(editingClassId
+            ? { ...formData, scope }
+            : { ...formData, dayIndex: selectedDayForForm }),
         }
       );
       commitSchedule(data);
@@ -216,27 +260,38 @@ export function useScheduleCalendar(userId, scheduleId) {
     }
   }, [commitSchedule, scheduleId, selectedDayForForm, setActiveDayIndex, userId]);
 
-  const handleDeleteClass = useCallback(async (classId) => {
+  const handleDeleteClass = useCallback(async (classId, scope = 'occurrence') => {
     if (deletingClassRef.current) return { ok: false };
     const previousSchedule = scheduleRef.current;
+    const target = previousSchedule?.classes.find((item) => item.id === classId);
+    if (!target) return { ok: false };
+    const subjectKey = getClassSubjectKey(target);
     const optimisticSchedule = previousSchedule
-      ? { ...previousSchedule, classes: previousSchedule.classes.filter((item) => item.id !== classId) }
+      ? {
+        ...previousSchedule,
+        classes: previousSchedule.classes.filter((item) => (
+          scope === 'all' ? getClassSubjectKey(item) !== subjectKey : item.id !== classId
+        )),
+      }
       : null;
+
     deletingClassRef.current = true;
     setDeletingClassId(classId);
-    setSelectedClassDetailState(null);
+    setDetailError('');
     if (optimisticSchedule) commitSchedule(optimisticSchedule);
 
     try {
       const data = await requestSchedule(`/api/schedules/${scheduleId}/classes/${classId}`, {
         method: 'DELETE',
-        headers: { 'X-User-Id': userId },
+        headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
+        body: JSON.stringify({ scope }),
       });
       commitSchedule(data);
+      setSelectedClassDetailState(null);
       return { ok: true };
     } catch (deleteError) {
       if (previousSchedule) commitSchedule(previousSchedule);
-      setError(getScheduleErrorMessage(deleteError, 'No se pudo eliminar la clase.'));
+      setDetailError(getScheduleErrorMessage(deleteError, 'No se pudo eliminar la clase.'));
       return { ok: false };
     } finally {
       deletingClassRef.current = false;
@@ -244,48 +299,62 @@ export function useScheduleCalendar(userId, scheduleId) {
     }
   }, [commitSchedule, scheduleId, userId]);
 
-  const handleUpdateAttendance = useCallback(async (classId, field, delta) => {
-    if (attendanceRef.current || !isAttendanceField(field) || !Number.isInteger(delta)) return { ok: false };
-    const previousSchedule = scheduleRef.current;
-    const target = previousSchedule?.classes.find((item) => item.id === classId);
-    if (!target) return { ok: false };
-
-    const nextValue = Math.max(0, (Number(target[field]) || 0) + delta);
-    if (nextValue === target[field]) return { ok: true };
-    const optimisticSchedule = {
-      ...previousSchedule,
-      classes: previousSchedule.classes.map((item) => (
-        item.id === classId ? { ...item, [field]: nextValue } : item
-      )),
-    };
-
-    attendanceRef.current = true;
-    setUpdatingAttendance(true);
-    setDetailError('');
-    commitSchedule(optimisticSchedule);
-
+  const drainAttendanceQueue = useCallback(async () => {
+    if (attendanceWorkerRef.current) return;
+    attendanceWorkerRef.current = true;
     try {
-      const data = await requestSchedule(`/api/schedules/${scheduleId}/classes/${classId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
-        body: JSON.stringify({ [field]: nextValue }),
-      });
-      commitSchedule(data);
-      return { ok: true };
-    } catch (attendanceError) {
-      commitSchedule(previousSchedule);
-      setDetailError(getScheduleErrorMessage(attendanceError, 'No se pudo actualizar la asistencia. Revisa tu conexión.'));
-      return { ok: false };
+      while (attendanceQueueRef.current.length > 0 && mountedRef.current) {
+        const operation = attendanceQueueRef.current.shift();
+        try {
+          const data = await requestSchedule(`/api/schedules/${scheduleId}/classes/${operation.classId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
+            // Delta updates are atomic at the subject level on the backend;
+            // serializing the queue also protects older Mongo deployments.
+            body: JSON.stringify({ attendanceDelta: { [operation.field]: operation.delta } }),
+          });
+          // Clicks that arrived while the request was in flight were already
+          // rendered optimistically. Reapply them to the authoritative response
+          // so a fast sequence never flashes backward or loses increments.
+          commitSchedule(applyPendingAttendanceOperations(data, attendanceQueueRef.current));
+        } catch (attendanceError) {
+          const rollback = withAttendanceDelta(scheduleRef.current, operation.subjectKey, operation.field, -operation.delta);
+          if (rollback.applied !== 0) commitSchedule(rollback.schedule);
+          setDetailError(getScheduleErrorMessage(attendanceError, 'No se pudo actualizar la asistencia. Revisa tu conexión.'));
+        }
+      }
     } finally {
-      attendanceRef.current = false;
-      if (mountedRef.current) setUpdatingAttendance(false);
+      attendanceWorkerRef.current = false;
+      if (mountedRef.current) setUpdatingAttendance(attendanceQueueRef.current.length > 0);
+      if (attendanceQueueRef.current.length > 0 && mountedRef.current) void drainAttendanceQueue();
     }
   }, [commitSchedule, scheduleId, userId]);
 
+  const handleUpdateAttendance = useCallback((classId, field, delta) => {
+    if (!isAttendanceField(field) || !Number.isInteger(delta)) return { ok: false };
+    const currentSchedule = scheduleRef.current;
+    const target = currentSchedule?.classes.find((item) => item.id === classId);
+    if (!target) return { ok: false };
+
+    const subjectKey = getClassSubjectKey(target);
+    const optimistic = withAttendanceDelta(currentSchedule, subjectKey, field, delta);
+    if (optimistic.applied === 0) return { ok: true };
+
+    setDetailError('');
+    commitSchedule(optimistic.schedule);
+    attendanceQueueRef.current.push({
+      classId,
+      subjectKey,
+      field,
+      delta: optimistic.applied,
+    });
+    setUpdatingAttendance(true);
+    void drainAttendanceQueue();
+    return { ok: true };
+  }, [commitSchedule, drainAttendanceQueue]);
+
   const handleUpdateSettings = useCallback(async ({ name, daysCount }) => {
-    if (savingSettingsRef.current) {
-      return { ok: false, error: 'Ya se están guardando los ajustes.' };
-    }
+    if (savingSettingsRef.current) return { ok: false, error: 'Ya se están guardando los ajustes.' };
 
     savingSettingsRef.current = true;
     setSavingSettings(true);
@@ -318,6 +387,7 @@ export function useScheduleCalendar(userId, scheduleId) {
     scheduleName: schedule?.name || '',
     daysCount: schedule?.daysCount || 5,
     classes: schedule?.classes || [],
+    subjectProfiles: schedule?.subjectProfiles || [],
     subjectColors: schedule?.subjectColors || [],
     activeDayIndex: activeDayIndexState,
     setActiveDayIndex,

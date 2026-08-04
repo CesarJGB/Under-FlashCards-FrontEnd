@@ -43,7 +43,11 @@ export default function ScheduleWeekView({
         <p className="text-xs font-bold text-slate-700 dark:text-slate-200">Semana completa</p>
         <p className="mt-0.5 text-[11px] text-slate-400">Desliza horizontalmente y toca un día para abrir su detalle.</p>
       </div>
-      <div className="overflow-x-auto overscroll-x-contain [scrollbar-width:thin]">
+      <div
+        className="overflow-x-auto overflow-y-hidden overscroll-x-contain [scrollbar-width:thin]"
+        style={{ touchAction: 'pan-x pan-y', overscrollBehaviorX: 'contain' }}
+        data-testid="schedule-week-scroll"
+      >
         <div style={{ minWidth: `${gridWidth}px` }}>
           <div className="sticky top-0 z-20 grid border-b border-slate-200 bg-white/95 backdrop-blur dark:border-slate-800 dark:bg-slate-900/95" style={{ gridTemplateColumns: `${LABEL_WIDTH}px repeat(${daysCount}, ${DAY_WIDTH}px)` }}>
             <div className="flex min-h-14 items-center justify-center text-[9px] font-bold uppercase tracking-wide text-slate-400">Hora</div>
