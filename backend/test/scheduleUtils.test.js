@@ -3,8 +3,11 @@ const assert = require('node:assert/strict');
 const mongoose = require('mongoose');
 const Schedule = require('../src/models/Schedule');
 const {
+  applySharedSubjectUpdate,
   applySubjectColor,
+  applySubjectAttendance,
   classesOverlap,
+  ensureSubjectProfiles,
   findScheduleConflict,
   validateClassInput,
 } = require('../src/utils/scheduleUtils');
@@ -71,7 +74,7 @@ test('serializa documentos existentes y usa el registro como fuente de color coh
   assert.deepEqual(serialized.classes.map((item) => [item.subjectKey, item.color, item.colorMode]), [
     ['quimica', '#123456', 'custom'],
     ['fisica', '#ABCDEF', 'custom'],
-    ['calculo', null, 'automatic'],
+    ['calculo', '#AA0000', 'custom'],
   ]);
 });
 
@@ -104,4 +107,45 @@ test('valida y serializa las métricas nuevas sin perder compatibilidad heredada
   });
   assert.equal(current.serialize().classes[0].tardies, 0);
   assert.equal(current.serialize().classes[0].participations, 5);
+});
+
+test('crea una materia compartida idempotente y no multiplica métricas antiguas', () => {
+  const schedule = {
+    classes: [
+      classItem({ _id: 'monday', dayIndex: 0, attendances: 4 }),
+      classItem({ _id: 'wednesday', dayIndex: 2, attendances: 2 }),
+    ],
+  };
+
+  const first = ensureSubjectProfiles(schedule);
+  const second = ensureSubjectProfiles(schedule);
+  assert.equal(first.length, 1);
+  assert.equal(second.length, 1);
+  assert.equal(second[0].attendances, 4);
+  assert.deepEqual(schedule.classes.map((item) => item.subjectKey), ['quimica', 'quimica']);
+});
+
+test('actualiza métricas globales y permite cambiar datos compartidos sin tocar horarios', () => {
+  const schedule = {
+    classes: [
+      classItem({ _id: 'monday', dayIndex: 0, startTime: '08:00', endTime: '09:00' }),
+      classItem({ _id: 'friday', dayIndex: 4, startTime: '13:00', endTime: '14:30' }),
+    ],
+  };
+  ensureSubjectProfiles(schedule);
+  applySubjectAttendance(schedule, { subjectKey: 'quimica', deltas: { attendances: 1, tardies: 2 } });
+  assert.deepEqual(schedule.classes.map((item) => [item.attendances, item.tardies]), [[1, 2], [1, 2]]);
+
+  applySharedSubjectUpdate(schedule, {
+    subjectKey: 'quimica',
+    subject: 'Química avanzada',
+    teacher: 'Dra. López',
+    colorMode: 'custom',
+    color: '#123456',
+  });
+  assert.deepEqual(schedule.classes.map((item) => [item.subject, item.teacher, item.startTime, item.endTime]), [
+    ['Química avanzada', 'Dra. López', '08:00', '09:00'],
+    ['Química avanzada', 'Dra. López', '13:00', '14:30'],
+  ]);
+  assert.equal(schedule.subjectProfiles[0].color, '#123456');
 });
