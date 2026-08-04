@@ -23,6 +23,7 @@ export default function ClassDetailModal({
   onUpdateAttendance,
   onEdit,
   updatingAttendance = false,
+  occurrenceCount = 1,
 }) {
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   useBodyScrollLock(Boolean(selectedClass), 'schedule-class-detail');
@@ -56,7 +57,7 @@ export default function ClassDetailModal({
             <div className="mt-5 rounded-2xl border bg-slate-50 p-3 dark:bg-slate-950/40" style={{ borderColor: mixWithWhite(accent, 0.35) }} aria-busy={updatingAttendance}>
               <div className="mb-3 flex items-center justify-between gap-2">
                 <h3 className="text-xs font-bold uppercase tracking-wide text-slate-500">Asistencia</h3>
-                {updatingAttendance && <span className="text-[11px] font-semibold text-slate-500">Guardando…</span>}
+                {updatingAttendance && <span className="text-[11px] font-semibold text-slate-500">Actualizando materia…</span>}
               </div>
               <div className="grid grid-cols-2 gap-3">
                 {ATTENDANCE_ITEMS.map((item) => (
@@ -66,10 +67,10 @@ export default function ClassDetailModal({
                       <span className="text-xl font-black text-slate-900 dark:text-white">{selectedClass[item.key] || 0}</span>
                     </div>
                     <div className="mt-2 flex gap-2">
-                      <button type="button" disabled={updatingAttendance} onClick={() => onUpdateAttendance(selectedClass.id, item.key, -1)} className="min-h-11 min-w-11 flex-1 rounded-xl bg-slate-100 text-lg font-bold text-slate-700 hover:bg-slate-200 active:scale-95 disabled:cursor-not-allowed disabled:opacity-45 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700" aria-label={`Restar ${item.label}`}>
+                      <button type="button" onClick={() => onUpdateAttendance(selectedClass.id, item.key, -1)} className="min-h-11 min-w-11 flex-1 rounded-xl bg-slate-100 text-lg font-bold text-slate-700 hover:bg-slate-200 active:scale-95 disabled:cursor-not-allowed disabled:opacity-45 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700" aria-label={`Restar ${item.label}`}>
                         −
                       </button>
-                      <button type="button" disabled={updatingAttendance} onClick={() => onUpdateAttendance(selectedClass.id, item.key, 1)} className="min-h-11 min-w-11 flex-1 rounded-xl bg-slate-100 text-lg font-bold text-slate-700 hover:bg-slate-200 active:scale-95 disabled:cursor-not-allowed disabled:opacity-45 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700" aria-label={`Sumar ${item.label}`}>
+                      <button type="button" onClick={() => onUpdateAttendance(selectedClass.id, item.key, 1)} className="min-h-11 min-w-11 flex-1 rounded-xl bg-slate-100 text-lg font-bold text-slate-700 hover:bg-slate-200 active:scale-95 disabled:cursor-not-allowed disabled:opacity-45 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700" aria-label={`Sumar ${item.label}`}>
                         +
                       </button>
                     </div>
@@ -92,7 +93,21 @@ export default function ClassDetailModal({
         open={showConfirmDelete}
         title={`Eliminar ${selectedClass.subject}`}
         options={[
-          { id: 'confirm', label: 'Eliminar clase', description: 'Esta acción no se puede deshacer.', icon: Trash2, danger: true, onSelect: () => onDelete(selectedClass.id) },
+          {
+            id: 'occurrence',
+            label: 'Eliminar sólo esta aparición',
+            description: occurrenceCount > 1 ? 'Las demás apariciones y sus métricas se conservarán.' : 'Se eliminará la única aparición de esta materia.',
+            icon: Trash2,
+            onSelect: () => onDelete(selectedClass.id, 'occurrence'),
+          },
+          {
+            id: 'all',
+            label: 'Eliminar la materia de todo el horario',
+            description: 'Se eliminarán todas sus apariciones y sus datos compartidos. Esta acción no se puede deshacer.',
+            icon: Trash2,
+            danger: true,
+            onSelect: () => onDelete(selectedClass.id, 'all'),
+          },
           { id: 'cancel', label: 'Cancelar' },
         ]}
         onClose={() => setShowConfirmDelete(false)}

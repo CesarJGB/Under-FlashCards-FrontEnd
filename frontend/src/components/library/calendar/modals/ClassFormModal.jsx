@@ -43,7 +43,9 @@ export default function ClassFormModal({
   initialColor = null,
   initialColorMode = 'automatic',
   existingClasses = [],
+  subjectProfiles = [],
   saving = false,
+  error = '',
 }) {
   useLockBodyScroll();
 
@@ -75,13 +77,28 @@ export default function ClassFormModal({
 
   const uniqueSubjects = useMemo(() => {
     const map = new Map();
+    subjectProfiles.forEach((profile) => {
+      if (!profile?.name) return;
+      const raw = existingClasses.find((classItem) => (
+        (classItem.subjectKey || getSubjectKey(classItem.subject)) === profile.key
+      ));
+      map.set(profile.key, {
+        ...(raw || {}),
+        subject: profile.name,
+        subjectKey: profile.key,
+        teacher: profile.teacher || raw?.teacher || '',
+        room: profile.room || raw?.room || '',
+        color: profile.color || null,
+        colorMode: profile.colorMode || (profile.color ? 'custom' : 'automatic'),
+      });
+    });
     existingClasses.forEach((classItem) => {
       if (!classItem.subject) return;
       const key = classItem.subjectKey || getSubjectKey(classItem.subject);
       if (!map.has(key)) map.set(key, classItem);
     });
     return Array.from(map.values()).sort((a, b) => a.subject.localeCompare(b.subject));
-  }, [existingClasses]);
+  }, [existingClasses, subjectProfiles]);
 
   const subjectItems = useMemo(() => {
     const query = formSubject.trim().toLowerCase();
@@ -119,6 +136,7 @@ export default function ClassFormModal({
   const handleSelectSubject = (classItem) => {
     setFormSubject(classItem.subject);
     setFormTeacher(classItem.teacher || '');
+    setFormRoom(classItem.room || '');
     setFormColor(classItem.colorMode === 'custom' ? classItem.color : null);
     setFormColorMode(classItem.colorMode === 'custom' ? 'custom' : 'automatic');
     setColorWasChanged(false);
@@ -127,8 +145,8 @@ export default function ClassFormModal({
     setCombinedDraft({
       subject: classItem.subject,
       teacher: classItem.teacher || '',
-      room: formRoom,
-      roomSuggestion: classItem.room || '',
+      room: classItem.room || '',
+      roomSuggestion: '',
     });
     setActiveScreen('combined');
   };
@@ -205,7 +223,7 @@ export default function ClassFormModal({
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
-          {formError && <div className="rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs font-semibold text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300" role="alert">{formError}</div>}
+          {(error || formError) && <div className="rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs font-semibold text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300" role="alert">{error || formError}</div>}
 
           <FieldButton label="Asignatura" value={formSubject} placeholder="Ej. Inglés" size="lg" onClick={() => setActiveScreen('subject')} />
           <FieldButton label="Profesor" value={formTeacher} placeholder="Ej. Juan García" onClick={() => setActiveScreen('teacher')} />
