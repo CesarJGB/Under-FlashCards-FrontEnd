@@ -8,17 +8,22 @@ import { SHORT_WEEKDAYS, useScheduleCalendar, WEEKDAYS } from './calendar/useSch
 import ScheduleHeader from './calendar/ScheduleHeader';
 import DayTabs from './calendar/DayTabs';
 import ClassList from './calendar/ClassList';
+import ScheduleDaySummary from './calendar/ScheduleDaySummary';
+import ScheduleViewSwitcher from './calendar/ScheduleViewSwitcher';
+import ScheduleWeekView from './calendar/ScheduleWeekView';
 import CalendarFAB from './calendar/CalendarFAB';
 import DayPickerModal from './calendar/modals/DayPickerModal';
 import ClassFormModal from './calendar/modals/ClassFormModal';
 import ClassDetailModal from './calendar/modals/ClassDetailModal';
 import ScheduleSettingsModal from './calendar/modals/ScheduleSettingsModal';
+import { estimateSchedulePdfPages } from '../../utils/pdf/schedule/schedulePdfLayout';
 
 export default function ScheduleCalendar({ userId, scheduleId, onBack, dashboardShell, onOpenSwitcher }) {
   const {
     schedule,
     loading,
     error,
+    detailError,
     scheduleName,
     daysCount,
     classes,
@@ -52,6 +57,7 @@ export default function ScheduleCalendar({ userId, scheduleId, onBack, dashboard
   const pdfExport = useSchedulePdfExport();
   const [showFabSheet, setShowFabSheet] = useState(false);
   const [showExportSheet, setShowExportSheet] = useState(false);
+  const [viewMode, setViewMode] = useState('day');
   const isAnyModalOpen = showSettings || showDayPicker || showClassForm || !!selectedClassDetail || showFabSheet || showExportSheet || pdfExport.isExporting;
 
   const classesWithColors = useMemo(() => classes.map((item) => ({
@@ -59,11 +65,17 @@ export default function ScheduleCalendar({ userId, scheduleId, onBack, dashboard
     resolvedColor: resolveScheduleClassColor(item, subjectColors),
   })), [classes, subjectColors]);
 
+  const exportPageEstimates = useMemo(() => ({
+    landscape: estimateSchedulePdfPages({ classes, daysCount, orientation: 'landscape' }),
+    portrait: estimateSchedulePdfPages({ classes, daysCount, orientation: 'portrait' }),
+  }), [classes, daysCount]);
+
   if (loading && !schedule) {
     return <div className="mx-auto w-full max-w-2xl px-2 py-20 text-center text-sm text-slate-400 dark:text-slate-500" role="status">Cargando horario…</div>;
   }
 
   const handleExport = (orientation) => {
+    if (pdfExport.isExporting) return;
     setShowExportSheet(false);
     void pdfExport.exportPdf(schedule, orientation);
   };
@@ -74,8 +86,20 @@ export default function ScheduleCalendar({ userId, scheduleId, onBack, dashboard
   ];
 
   const exportOptions = [
-    { id: 'landscape', label: 'Horizontal', onSelect: () => handleExport('landscape') },
-    { id: 'portrait', label: 'Vertical', onSelect: () => handleExport('portrait') },
+    {
+      id: 'landscape',
+      label: 'Horizontal · Semana en cuadrícula',
+      description: `${exportPageEstimates.landscape} ${exportPageEstimates.landscape === 1 ? 'página' : 'páginas'} estimadas · eje horario común`,
+      disabled: pdfExport.isExporting,
+      onSelect: () => handleExport('landscape'),
+    },
+    {
+      id: 'portrait',
+      label: 'Vertical · Semana compacta',
+      description: `${exportPageEstimates.portrait} ${exportPageEstimates.portrait === 1 ? 'página' : 'páginas'} estimadas · días apilados`,
+      disabled: pdfExport.isExporting,
+      onSelect: () => handleExport('portrait'),
+    },
   ];
 
   return (
@@ -85,13 +109,25 @@ export default function ScheduleCalendar({ userId, scheduleId, onBack, dashboard
       {error && !showClassForm && !showSettings && !selectedClassDetail && <div className="mx-1 my-3 flex items-center gap-3 rounded-2xl border border-red-200 bg-red-50 px-3 py-2.5 text-xs font-semibold text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300" role="alert"><span className="min-w-0 flex-1">{error}</span><button type="button" onClick={() => void reload()} className="min-h-11 shrink-0 rounded-xl px-2 font-bold underline underline-offset-2 hover:bg-red-100 dark:hover:bg-red-500/20">Reintentar</button></div>}
       {pdfExport.error && <div className="mx-1 my-3 rounded-2xl border border-red-200 bg-red-50 px-3 py-2.5 text-xs font-semibold text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300" role="alert">{pdfExport.error}</div>}
 
-      <DayTabs daysCount={daysCount} activeDayIndex={activeDayIndex} setActiveDayIndex={setActiveDayIndex} classes={classesWithColors} />
-      <ClassList currentDayClasses={currentDayClasses} activeDayIndex={activeDayIndex} subjectColors={subjectColors} onSelectClass={setSelectedClassDetail} />
+      <ScheduleViewSwitcher value={viewMode} onChange={setViewMode} />
+
+      {viewMode === 'day' ? <>
+        <DayTabs daysCount={daysCount} activeDayIndex={activeDayIndex} setActiveDayIndex={setActiveDayIndex} classes={classesWithColors} />
+        <ScheduleDaySummary classes={currentDayClasses} activeDayIndex={activeDayIndex} />
+        <ClassList currentDayClasses={currentDayClasses} activeDayIndex={activeDayIndex} subjectColors={subjectColors} onSelectClass={setSelectedClassDetail} />
+      </> : <ScheduleWeekView
+        classes={classesWithColors}
+        daysCount={daysCount}
+        activeDayIndex={activeDayIndex}
+        subjectColors={subjectColors}
+        onSelectDay={(dayIndex) => { setActiveDayIndex(dayIndex); setViewMode('day'); }}
+        onSelectClass={setSelectedClassDetail}
+      />}
 
       {!isAnyModalOpen && <CalendarFAB onClick={() => setShowFabSheet(true)} dashboardShell={dashboardShell} />}
 
       <ActionSheet open={showFabSheet} title="Añadir clase" options={fabOptions} onClose={() => setShowFabSheet(false)} compact />
-      <ActionSheet open={showExportSheet} title="Descargar horario" options={exportOptions} onClose={() => setShowExportSheet(false)} compact />
+      <ActionSheet open={showExportSheet} title="Exportar horario" options={exportOptions} onClose={() => setShowExportSheet(false)} compact />
 
       <DayPickerModal open={showDayPicker} daysCount={daysCount} onSelectDay={(index) => { setSelectedDayForForm(index); setShowDayPicker(false); window.setTimeout(() => setShowClassForm(true), 180); }} onClose={() => setShowDayPicker(false)} />
 
@@ -112,7 +148,7 @@ export default function ScheduleCalendar({ userId, scheduleId, onBack, dashboard
         existingClasses={classes}
       />}
 
-      {selectedClassDetail && <ClassDetailModal selectedClass={selectedClassDetail} subjectColors={subjectColors} error={error} onClose={() => setSelectedClassDetail(null)} onDelete={handleDeleteClass} onUpdateAttendance={handleUpdateAttendance} onEdit={handleEditClassClick} updatingAttendance={updatingAttendance} />}
+      {selectedClassDetail && <ClassDetailModal selectedClass={selectedClassDetail} subjectColors={subjectColors} error={detailError} onClose={() => setSelectedClassDetail(null)} onDelete={handleDeleteClass} onUpdateAttendance={handleUpdateAttendance} onEdit={handleEditClassClick} updatingAttendance={updatingAttendance} />}
 
       {showSettings && <ScheduleSettingsModal scheduleName={scheduleName} daysCount={daysCount} classes={classes} onSave={handleUpdateSettings} saving={savingSettings} onClose={() => setShowSettings(false)} />}
 
