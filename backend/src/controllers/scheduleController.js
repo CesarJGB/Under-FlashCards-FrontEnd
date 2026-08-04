@@ -139,7 +139,7 @@ exports.deleteSchedule = async (req, res) => {
 exports.addClass = async (req, res) => {
   try {
     const { id } = req.params; // scheduleId
-    const { subject, teacher, room, dayIndex, startTime, endTime, subjectKey, color, colorMode } = req.body || {};
+    const { subject, teacher, room, dayIndex, startTime, endTime, subjectKey, color, colorMode, tardies, participations, partialAttendances, canceledClasses } = req.body || {};
 
     const schedule = await Schedule.findById(id);
     if (!schedule) return res.status(404).json({ error: 'Horario no encontrado.' });
@@ -154,6 +154,8 @@ exports.addClass = async (req, res) => {
       subjectKey,
       color: color ?? null,
       colorMode,
+      tardies: tardies ?? partialAttendances,
+      participations: participations ?? canceledClasses,
     };
     const validationError = validateClassInput(classPayload, { daysCount: schedule.daysCount });
     if (validationError) return sendValidationError(res, validationError);
@@ -172,6 +174,8 @@ exports.addClass = async (req, res) => {
       dayIndex: Number(dayIndex),
       startTime,
       endTime,
+      tardies: tardies ?? partialAttendances,
+      participations: participations ?? canceledClasses,
     });
 
     if (colorMode !== undefined || color !== undefined) {
@@ -195,7 +199,14 @@ exports.addClass = async (req, res) => {
 exports.updateClass = async (req, res) => {
   try {
     const { id, classId } = req.params;
-    const updates = req.body || {};
+    const updates = { ...(req.body || {}) };
+    // Accept legacy clients during migration, but normalize every new write.
+    if (updates.tardies === undefined && updates.partialAttendances !== undefined) {
+      updates.tardies = updates.partialAttendances;
+    }
+    if (updates.participations === undefined && updates.canceledClasses !== undefined) {
+      updates.participations = updates.canceledClasses;
+    }
 
     const schedule = await Schedule.findById(id);
     if (!schedule) return res.status(404).json({ error: 'Horario no encontrado.' });
@@ -242,7 +253,7 @@ exports.updateClass = async (req, res) => {
     // Solo se actualizan los campos que vienen en el body (updates parciales)
     const allowedFields = [
       'subject', 'teacher', 'room', 'dayIndex', 'startTime', 'endTime', 'subjectKey', 'color', 'colorMode',
-      'attendances', 'absences', 'partialAttendances', 'canceledClasses',
+      'attendances', 'absences', 'tardies', 'participations',
     ];
     allowedFields.forEach((field) => {
       if (updates[field] !== undefined) classItem[field] = updates[field];
