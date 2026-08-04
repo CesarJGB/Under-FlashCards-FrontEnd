@@ -1,5 +1,12 @@
-import { getPageMetrics, createPdfDocument, createPdfFileName } from '../document.js';
-import { formatDuration, getDurationMinutes, timeToMinutes } from '../../../components/library/calendar/scheduleUtils.js';
+import { createPdfDocument, createPdfFileName, getPageMetrics } from '../document.js';
+import {
+  formatFreeTime,
+  formatScheduleDuration,
+  getScheduleGaps,
+  getScheduleStats,
+  minutesToTime,
+  timeToMinutes,
+} from '../../../components/library/calendar/scheduleTimeline.js';
 import { getSchedulePdfColors } from './schedulePdfColors.js';
 import { createSchedulePdfLayout } from './schedulePdfLayout.js';
 
@@ -7,6 +14,8 @@ const WEEKDAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado
 const INK = { r: 15, g: 23, b: 42 };
 const MUTED = { r: 100, g: 116, b: 139 };
 const GRID = { r: 226, g: 232, b: 240 };
+const SOFT = { r: 248, g: 250, b: 252 };
+const INDIGO = { r: 79, g: 70, b: 229 };
 
 function createAbortError() {
   const error = new Error('La exportación fue cancelada.');
@@ -30,115 +39,189 @@ function setText(doc, color) {
   doc.setTextColor(color.r, color.g, color.b);
 }
 
+export function sanitizeSchedulePdfText(value) {
+  return String(value ?? '')
+    .replace(/[\u2010-\u2015\u2212]/g, '-')
+    .replace(/\u2026/g, '...')
+    .replace(/[\u2022\u00b7]/g, '|')
+    .replace(/[^\x20-\x7E\u00C0-\u00FF]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function safeTime(value) {
   return timeToMinutes(value) === null ? '--:--' : value;
 }
 
-function formatHour(minutes) {
-  const hours = Math.floor(minutes / 60);
-  const remainder = minutes % 60;
-  return `${String(hours).padStart(2, '0')}:${String(remainder).padStart(2, '0')}`;
+function fitSingleLine(doc, value, width) {
+  const text = sanitizeSchedulePdfText(value);
+  if (doc.getTextWidth(text) <= width) return text;
+  const suffix = '...';
+  let visible = text;
+  while (visible.length > 1 && doc.getTextWidth(`${visible}${suffix}`) > width) {
+    visible = visible.slice(0, -1);
+  }
+  return `${visible.trimEnd()}${suffix}`;
 }
 
-function getClassesDuration(classes = []) {
-  return classes.reduce((total, item) => total + getDurationMinutes(item), 0);
-}
-
-function getPageClasses(page) {
-  return page.days.flatMap((day) => day.classes || []);
-}
-
-function ellipsizeLines(doc, value, width, maximumLines) {
-  const lines = doc.splitTextToSize(String(value || ''), Math.max(4, width));
+function fitLines(doc, value, width, maximumLines) {
+  const lines = doc.splitTextToSize(sanitizeSchedulePdfText(value), Math.max(4, width));
   if (lines.length <= maximumLines) return lines;
   const visible = lines.slice(0, maximumLines);
-  visible[visible.length - 1] = `${String(visible[visible.length - 1]).replace(/[.…]+$/, '')}…`;
+  visible[visible.length - 1] = fitSingleLine(doc, visible[visible.length - 1], width);
   return visible;
 }
 
-function drawHeader(doc, scheduleName, orientation, pageNumber, pageCount) {
-  const metrics = getPageMetrics(doc, orientation === 'landscape' ? 10 : 14);
+function getClassesDuration(classes = []) {
+  return classes.reduce((total, item) => {
+    const start = timeToMinutes(item?.startTime);
+    const end = timeToMinutes(item?.endTime);
+    return total + (start !== null && end !== null && end > start ? end - start : 0);
+  }, 0);
+}
+
+function drawHeader(doc, {
+  scheduleName,
+  orientation,
+  pageNumber,
+  pageCount,
+  stats,
+  hiddenEventCount,
+}) {
+  const metrics = getPageMetrics(doc, orientation === 'landscape' ? 10 : 11);
   const x = metrics.margin;
   const width = metrics.contentWidth;
 
-  setFill(doc, { r: 248, g: 250, b: 252 });
-  setStroke(doc, GRID);
-  doc.setLineWidth(0.25);
-  doc.roundedRect(x, metrics.top, width, 20, 2.5, 2.5, 'FD');
-  setFill(doc, { r: 99, g: 102, b: 241 });
-  doc.roundedRect(x + 4, metrics.top + 4, 2.2, 11.8, 1.1, 1.1, 'F');
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(15.5);
-  setText(doc, INK);
-  doc.text(String(scheduleName || 'Horario'), x + 9, metrics.top + 9.4, { maxWidth: width - 74 });
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(6.3);
-  setText(doc, MUTED);
-  doc.text('UNDER FLASHCARDS · HORARIO ACADÉMICO', x + 9, metrics.top + 14.3);
-
-  const mode = orientation === 'landscape' ? 'VISTA SEMANAL' : 'UNA HOJA POR DÍA';
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(6.2);
-  setText(doc, { r: 79, g: 70, b: 229 });
-  doc.text(mode, metrics.width - metrics.margin - 3.5, metrics.top + 8.7, { align: 'right' });
+  setText(doc, INDIGO);
+  doc.text('UNDER FLASHCARDS | HORARIO ACADÉMICO', x, metrics.top + 3.6);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(orientation === 'landscape' ? 16 : 15);
+  setText(doc, INK);
+  doc.text(fitSingleLine(doc, scheduleName || 'Horario', width - 56), x, metrics.top + 11);
+
+  const mode = orientation === 'landscape' ? 'SEMANA EN CUADRÍCULA' : 'SEMANA COMPACTA';
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.2);
+  setText(doc, INDIGO);
+  doc.text(mode, metrics.width - metrics.margin, metrics.top + 5, { align: 'right' });
+  if (pageCount > 1) {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.1);
+    setText(doc, MUTED);
+    doc.text(`Página ${pageNumber} de ${pageCount}`, metrics.width - metrics.margin, metrics.top + 10, { align: 'right' });
+  }
+
+  const summary = [
+    `${stats.eventCount} ${stats.eventCount === 1 ? 'clase' : 'clases'}`,
+    `${formatScheduleDuration(stats.totalMinutes)} programadas`,
+    stats.largestGap ? `mayor hueco: ${formatFreeTime(stats.largestGap.durationMinutes)}` : null,
+    stats.invalidEventCount > 0 ? `${stats.invalidEventCount} con horario inválido` : null,
+    hiddenEventCount > 0 ? `${hiddenEventCount} ${hiddenEventCount === 1 ? 'clase oculta no incluida' : 'clases ocultas no incluidas'}` : null,
+  ].filter(Boolean).join(' | ');
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.4);
+  setText(doc, MUTED);
+  doc.text(fitSingleLine(doc, summary, width), x, metrics.top + 16.2);
+
+  setStroke(doc, GRID);
+  doc.setLineWidth(0.3);
+  doc.line(x, metrics.top + 20.4, metrics.width - metrics.margin, metrics.top + 20.4);
+
+  return { metrics, top: metrics.top + 24.5 };
+}
+
+function drawFooter(doc, metrics, pageNumber, pageCount) {
+  if (pageCount <= 1) return;
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(6.1);
   setText(doc, MUTED);
-  doc.text(`Página ${pageNumber} de ${pageCount}`, metrics.width - metrics.margin - 3.5, metrics.top + 14.1, { align: 'right' });
-
-  return { metrics, top: metrics.top + 27 };
+  doc.text('Under Flashcards | Horario académico', metrics.margin, metrics.height - 5.5);
+  doc.text(`${pageNumber} / ${pageCount}`, metrics.width - metrics.margin, metrics.height - 5.5, { align: 'right' });
 }
 
-function drawFooter(doc, metrics) {
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(6.7);
-  setText(doc, MUTED);
-  doc.text('Under Flashcards · Horario listo para imprimir', metrics.margin, metrics.height - 6);
-}
-
-function drawEventBlock(doc, item, x, y, width, height, subjectColors) {
-  if (height < 1.4 || width < 4) return;
-
+function drawLandscapeEvent(doc, item, x, y, width, height, subjectColors) {
+  if (height < 1 || width < 5) return;
   const colors = getSchedulePdfColors(item, subjectColors);
-  const blockHeight = Math.max(1.4, height);
+  const blockHeight = Math.max(1, height);
   setFill(doc, colors.surface);
   setStroke(doc, colors.border);
-  doc.setLineWidth(0.28);
-  doc.roundedRect(x, y, width, blockHeight, 1.15, 1.15, 'FD');
+  doc.setLineWidth(0.24);
+  doc.roundedRect(x, y, width, blockHeight, 1, 1, 'FD');
   setFill(doc, colors.accent);
-  doc.roundedRect(x, y, Math.min(1.45, width), blockHeight, 1.15, 1.15, 'F');
+  doc.roundedRect(x, y, Math.min(1.35, width), blockHeight, 0.8, 0.8, 'F');
 
-  const contentX = x + Math.min(3.1, width - 1.5);
-  const contentWidth = Math.max(2, width - (contentX - x) - 1.2);
-  const timeLine = `${safeTime(item.startTime)} – ${safeTime(item.endTime)}`;
+  const contentX = x + 2.5;
+  const contentWidth = Math.max(2, width - 3.6);
+  const startTime = safeTime(item.startTime);
+  const title = item.subject || item.title || 'Asignatura';
 
-  if (blockHeight < 4.1) return;
+  if (blockHeight < 3.4) {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(3.7);
+    setText(doc, colors.accent);
+    doc.text(startTime, contentX, y + (blockHeight / 2) + 0.7, { maxWidth: contentWidth });
+    return;
+  }
+
+  if (blockHeight < 6.2) {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(width < 30 ? 3.9 : 4.3);
+    setText(doc, INK);
+    const line = `${startTime} ${title}`;
+    doc.text(fitSingleLine(doc, line, contentWidth), contentX, y + (blockHeight / 2) + 0.75);
+    return;
+  }
+
+  const roomy = blockHeight >= 11;
+  const titleLines = fitLines(doc, title, contentWidth, roomy ? 2 : 1);
+  const lineHeight = width < 30 ? 2.1 : 2.45;
+  const detail = [item.room, item.teacher]
+    .filter((value) => value && !['Sin profesor', 'Por definir'].includes(value))
+    .join(' | ');
+  const contentHeight = 2.1 + (titleLines.length * lineHeight) + (roomy ? 2.5 : 0);
+  const contentTop = y + Math.max(1.1, (blockHeight - contentHeight) / 2);
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(width < 30 ? 3.9 : 5.1);
+  doc.setFontSize(width < 30 ? 3.8 : 4.5);
   setText(doc, colors.accent);
-  doc.text(timeLine, contentX, y + 2.45, { maxWidth: contentWidth });
+  doc.text(`${startTime} | ${formatScheduleDuration(getClassesDuration([item]))}`, contentX, contentTop + 1.5, { maxWidth: contentWidth });
 
-  if (blockHeight < 6.2) return;
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(width < 30 ? 4.45 : 6.2);
+  doc.setFontSize(width < 30 ? 4.25 : 5.2);
   setText(doc, INK);
-  const titleLines = ellipsizeLines(doc, item.subject || 'Asignatura', contentWidth, blockHeight < 9 ? 1 : 2);
-  doc.text(titleLines, contentX, y + 4.7, { maxWidth: contentWidth, lineHeightFactor: 0.95 });
+  doc.text(titleLines, contentX, contentTop + 3.8, { maxWidth: contentWidth, lineHeightFactor: 0.92 });
 
-  if (blockHeight < 14) return;
-  const detail = [item.teacher, item.room].filter((value) => value && !['Sin profesor', 'Por definir'].includes(value)).join(' · ');
-  const duration = formatDuration(getDurationMinutes(item));
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(width < 30 ? 3.8 : 5.1);
-  setText(doc, MUTED);
-  const detailY = y + 4.9 + (titleLines.length * (width < 30 ? 3.55 : 4.7));
-  doc.text(detail || duration, contentX, Math.min(y + blockHeight - 2, detailY), { maxWidth: contentWidth });
+  if (roomy && detail) {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(width < 30 ? 3.6 : 4.4);
+    setText(doc, MUTED);
+    doc.text(fitSingleLine(doc, detail, contentWidth), contentX, Math.min(y + blockHeight - 1.25, contentTop + 4.1 + (titleLines.length * lineHeight)));
+  }
 }
 
-function drawTimeGrid(doc, { metrics, gridLeft, gridRight, top, bottom, timeRange, labelWidth }) {
+function drawGapArea(doc, gap, x, y, width, height) {
+  if (height < 0.45 || width < 5) return;
+  setFill(doc, { r: 250, g: 251, b: 253 });
+  doc.rect(x, y, width, Math.max(0.45, height), 'F');
+  setStroke(doc, { r: 203, g: 213, b: 225 });
+  doc.setLineWidth(0.18);
+  doc.setLineDashPattern([1.1, 1.1], 0);
+  doc.line(x, y + 0.2, x + width, y + 0.2);
+  doc.line(x, y + Math.max(0.25, height - 0.2), x + width, y + Math.max(0.25, height - 0.2));
+  doc.setLineDashPattern([], 0);
+
+  if (height >= 3.4) {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(4.4);
+    setText(doc, MUTED);
+    doc.text(formatFreeTime(gap.durationMinutes), x + (width / 2), y + (height / 2) + 0.75, { align: 'center', maxWidth: width - 2 });
+  }
+}
+
+function drawTimeGrid(doc, { gridLeft, gridRight, top, bottom, timeRange, labelWidth }) {
   const duration = Math.max(1, timeRange.end - timeRange.start);
   const scale = (bottom - top) / duration;
 
@@ -146,55 +229,51 @@ function drawTimeGrid(doc, { metrics, gridLeft, gridRight, top, bottom, timeRang
     const y = top + ((minute - timeRange.start) * scale);
     const isHour = minute % 60 === 0;
     setStroke(doc, isHour ? GRID : { r: 241, g: 245, b: 249 });
-    doc.setLineWidth(isHour ? 0.3 : 0.16);
+    doc.setLineWidth(isHour ? 0.28 : 0.14);
     doc.line(gridLeft, y, gridRight, y);
     if (isHour) {
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(5.6);
+      doc.setFontSize(5.4);
       setText(doc, MUTED);
-      doc.text(formatHour(minute), gridLeft - 2.1, y + 1.8, { align: 'right', maxWidth: labelWidth - 2 });
+      doc.text(minutesToTime(minute), gridLeft - 2, y + 1.7, { align: 'right', maxWidth: labelWidth - 2 });
     }
   }
-
   return scale;
 }
 
-function drawLandscapePage(doc, page, subjectColors, header) {
+function drawLandscapePage(doc, page, subjectColors, header, pageCount) {
   const { metrics, top } = header;
-  const timeLabelWidth = 15;
-  const dayHeaderHeight = 10.5;
-  const summaryHeight = 7;
-  const dayHeaderTop = top + summaryHeight;
-  const gridTop = dayHeaderTop + dayHeaderHeight;
-  const gridBottom = metrics.bottom - 9;
+  const timeLabelWidth = 14;
+  const dayHeaderHeight = 10;
+  const gridTop = top + dayHeaderHeight;
+  const gridBottom = metrics.bottom - (pageCount > 1 ? 5 : 1);
   const gridWidth = metrics.contentWidth - timeLabelWidth;
   const dayWidth = gridWidth / page.days.length;
-  const allClasses = getPageClasses(page);
-  const totalMinutes = getClassesDuration(allClasses);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(6.6);
-  setText(doc, MUTED);
-  doc.text(`${allClasses.length} clases · ${formatDuration(totalMinutes)} ocupadas`, metrics.margin + timeLabelWidth, top + 4.2);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(6.2);
-  setText(doc, { r: 79, g: 70, b: 229 });
-  doc.text(`${formatHour(page.timeRange.start)} – ${formatHour(page.timeRange.end)}`, metrics.width - metrics.margin, top + 4.2, { align: 'right' });
 
   page.days.forEach((day, index) => {
     const x = metrics.margin + timeLabelWidth + (index * dayWidth);
-    setFill(doc, { r: 248, g: 250, b: 252 });
+    const invalidCount = day.classes.filter((item) => {
+      const start = timeToMinutes(item.startTime);
+      const end = timeToMinutes(item.endTime);
+      return start === null || end === null || end <= start;
+    }).length;
+    setFill(doc, index % 2 === 0 ? SOFT : { r: 255, g: 255, b: 255 });
+    doc.rect(x, gridTop, dayWidth, gridBottom - gridTop, 'F');
+    setFill(doc, SOFT);
     setStroke(doc, GRID);
-    doc.setLineWidth(0.25);
-    doc.roundedRect(x + 0.45, dayHeaderTop, dayWidth - 0.9, dayHeaderHeight, 1.3, 1.3, 'FD');
+    doc.setLineWidth(0.24);
+    doc.roundedRect(x + 0.45, top, dayWidth - 0.9, dayHeaderHeight - 1, 1.2, 1.2, 'FD');
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(dayWidth < 34 ? 6 : 7.1);
+    doc.setFontSize(dayWidth < 33 ? 5.8 : 6.8);
     setText(doc, INK);
-    doc.text(WEEKDAYS[day.dayIndex], x + (dayWidth / 2), dayHeaderTop + 4.2, { align: 'center', maxWidth: dayWidth - 3 });
+    doc.text(WEEKDAYS[day.dayIndex], x + (dayWidth / 2), top + 3.7, { align: 'center', maxWidth: dayWidth - 3 });
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(5.1);
+    doc.setFontSize(4.9);
     setText(doc, MUTED);
-    doc.text(day.classes.length ? `${day.classes.length} bloque${day.classes.length === 1 ? '' : 's'}` : 'Disponible', x + (dayWidth / 2), dayHeaderTop + 7.3, { align: 'center', maxWidth: dayWidth - 3 });
+    const daySummary = invalidCount > 0
+      ? `${day.classes.length} | ${invalidCount} sin hora`
+      : (day.classes.length ? `${day.classes.length} ${day.classes.length === 1 ? 'clase' : 'clases'}` : 'Día libre');
+    doc.text(daySummary, x + (dayWidth / 2), top + 6.8, { align: 'center', maxWidth: dayWidth - 3 });
     setStroke(doc, GRID);
     doc.line(x, gridTop, x, gridBottom);
   });
@@ -202,7 +281,6 @@ function drawLandscapePage(doc, page, subjectColors, header) {
   doc.line(metrics.width - metrics.margin, gridTop, metrics.width - metrics.margin, gridBottom);
 
   const scale = drawTimeGrid(doc, {
-    metrics,
     gridLeft: metrics.margin + timeLabelWidth,
     gridRight: metrics.width - metrics.margin,
     top: gridTop,
@@ -213,78 +291,150 @@ function drawLandscapePage(doc, page, subjectColors, header) {
 
   page.days.forEach((day, index) => {
     const x = metrics.margin + timeLabelWidth + (index * dayWidth);
+    const gaps = getScheduleGaps(day.classes, { dayIndex: day.dayIndex }).filter((gap) => gap.status === 'positive');
+    gaps.forEach((gap) => {
+      if (gap.endMinutes <= page.timeRange.start || gap.startMinutes >= page.timeRange.end) return;
+      const clippedStart = Math.max(gap.startMinutes, page.timeRange.start);
+      const clippedEnd = Math.min(gap.endMinutes, page.timeRange.end);
+      const y = gridTop + ((clippedStart - page.timeRange.start) * scale);
+      drawGapArea(doc, gap, x + 1.15, y, dayWidth - 2.3, (clippedEnd - clippedStart) * scale);
+    });
+
     day.classes.forEach((item) => {
       const start = timeToMinutes(item.startTime);
       const end = timeToMinutes(item.endTime);
       if (start === null || end === null || end <= page.timeRange.start || start >= page.timeRange.end) return;
       const clippedStart = Math.max(start, page.timeRange.start);
       const clippedEnd = Math.min(end, page.timeRange.end);
-      const y = gridTop + ((clippedStart - page.timeRange.start) * scale) + 0.8;
-      const height = Math.max(1.4, ((clippedEnd - clippedStart) * scale) - 1.6);
-      drawEventBlock(doc, item, x + 1.2, y, dayWidth - 2.4, height, subjectColors);
+      const y = gridTop + ((clippedStart - page.timeRange.start) * scale) + 0.55;
+      const height = Math.max(1, ((clippedEnd - clippedStart) * scale) - 1.1);
+      drawLandscapeEvent(doc, item, x + 1.05, y, dayWidth - 2.1, height, subjectColors);
     });
+  });
+}
+
+function drawPortraitEvent(doc, item, x, y, width, height, subjectColors) {
+  const event = item.event;
+  if (!item.isValid) {
+    setFill(doc, { r: 255, g: 251, b: 235 });
+    setStroke(doc, { r: 253, g: 230, b: 138 });
+    doc.roundedRect(x, y, width, height - 0.5, 1, 1, 'FD');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(5.5);
+    setText(doc, { r: 180, g: 83, b: 9 });
+    doc.text(fitSingleLine(doc, `${event.subject || 'Clase'} | horario inválido`, width - 4), x + 2, y + (height / 2) + 0.8);
+    return;
+  }
+
+  const colors = getSchedulePdfColors(event, subjectColors);
+  setFill(doc, colors.surface);
+  setStroke(doc, colors.border);
+  doc.setLineWidth(0.22);
+  doc.roundedRect(x, y, width, height - 0.5, 1.1, 1.1, 'FD');
+  setFill(doc, colors.accent);
+  doc.roundedRect(x, y, 1.4, height - 0.5, 0.8, 0.8, 'F');
+
+  const timeWidth = Math.min(25, width * 0.29);
+  const contentX = x + timeWidth;
+  const contentWidth = width - timeWidth - 2;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(5.1);
+  setText(doc, colors.accent);
+  doc.text(`${safeTime(event.startTime)} - ${safeTime(event.endTime)}`, x + 3, y + 3.6, { maxWidth: timeWidth - 4 });
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(4.5);
+  setText(doc, MUTED);
+  doc.text(formatScheduleDuration(item.durationMinutes), x + 3, y + 6.8, { maxWidth: timeWidth - 4 });
+
+  const detail = [event.room, event.teacher]
+    .filter((value) => value && !['Sin profesor', 'Por definir'].includes(value))
+    .join(' | ');
+  const showDetail = Boolean(detail && height >= 10.2);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.5);
+  setText(doc, INK);
+  doc.text(
+    fitSingleLine(doc, event.subject || event.title || 'Asignatura', contentWidth),
+    contentX,
+    showDetail ? y + 3.8 : y + (height / 2) + 0.8
+  );
+
+  if (showDetail) {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(4.8);
+    setText(doc, MUTED);
+    doc.text(fitSingleLine(doc, detail, contentWidth), contentX, y + 7.2);
+  }
+}
+
+function drawPortraitGap(doc, gap, x, y, width, height) {
+  const centerY = y + (height / 2);
+  setStroke(doc, { r: 203, g: 213, b: 225 });
+  doc.setLineWidth(0.18);
+  doc.setLineDashPattern([1, 1], 0);
+  doc.line(x, centerY, x + width, centerY);
+  doc.setLineDashPattern([], 0);
+
+  const label = formatFreeTime(gap.durationMinutes);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(height < 4 ? 4.1 : 4.6);
+  const labelWidth = Math.min(width - 8, doc.getTextWidth(label) + 5);
+  setFill(doc, { r: 255, g: 255, b: 255 });
+  doc.roundedRect(x + ((width - labelWidth) / 2), centerY - 1.7, labelWidth, 3.4, 1.7, 1.7, 'F');
+  setText(doc, MUTED);
+  doc.text(label, x + (width / 2), centerY + 0.7, { align: 'center', maxWidth: labelWidth - 2 });
+}
+
+function drawPortraitSection(doc, section, allDays, x, y, width, subjectColors) {
+  const day = allDays.find((candidate) => candidate.dayIndex === section.dayIndex) || { classes: [] };
+  const height = section.estimatedHeight;
+  setFill(doc, { r: 255, g: 255, b: 255 });
+  setStroke(doc, GRID);
+  doc.setLineWidth(0.26);
+  doc.roundedRect(x, y, width, height, 2, 2, 'FD');
+
+  setFill(doc, SOFT);
+  doc.roundedRect(x + 0.25, y + 0.25, width - 0.5, 8.2, 1.7, 1.7, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.1);
+  setText(doc, INK);
+  const title = `${WEEKDAYS[section.dayIndex]}${section.continued ? ' (continuación)' : ''}`;
+  doc.text(fitSingleLine(doc, title, width - 31), x + 3, y + 5.1);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(5.1);
+  setText(doc, MUTED);
+  const countLabel = day.classes.length ? `${day.classes.length} ${day.classes.length === 1 ? 'clase' : 'clases'}` : 'Día libre';
+  doc.text(countLabel, x + width - 3, y + 5.1, { align: 'right', maxWidth: 28 });
+
+  if (section.items.length === 0) {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6);
+    setText(doc, MUTED);
+    doc.text('Sin clases programadas', x + 3, y + 14.2);
+    return;
+  }
+
+  let cursorY = y + 9.5;
+  section.items.forEach((item) => {
+    if (item.type === 'gap') drawPortraitGap(doc, item, x + 3, cursorY, width - 6, item.estimatedHeight);
+    else drawPortraitEvent(doc, item, x + 2.5, cursorY, width - 5, item.estimatedHeight, subjectColors);
+    cursorY += item.estimatedHeight;
   });
 }
 
 function drawPortraitPage(doc, page, subjectColors, header) {
   const { metrics, top } = header;
-  const day = page.days[0];
-  const totalMinutes = getClassesDuration(day.classes);
-  const timelineX = metrics.margin + 21;
-  const timelineTop = top + 21;
-  const timelineBottom = metrics.bottom - 13;
+  const columnGap = 6;
+  const columnWidth = (metrics.contentWidth - columnGap) / 2;
 
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(14.2);
-  setText(doc, INK);
-  doc.text(WEEKDAYS[day.dayIndex], metrics.margin, top + 5.5);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(6.8);
-  setText(doc, MUTED);
-  doc.text(day.classes.length ? `${day.classes.length} clases · ${formatDuration(totalMinutes)} programadas` : 'Sin clases programadas', metrics.margin, top + 10.4);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(6.4);
-  setText(doc, { r: 79, g: 70, b: 229 });
-  doc.text(`${formatHour(page.timeRange.start)} – ${formatHour(page.timeRange.end)}`, metrics.width - metrics.margin, top + 7.6, { align: 'right' });
-
-  setStroke(doc, { r: 203, g: 213, b: 225 });
-  doc.setLineWidth(0.55);
-  doc.line(timelineX, timelineTop, timelineX, timelineBottom);
-  const scale = drawTimeGrid(doc, {
-    metrics,
-    gridLeft: timelineX,
-    gridRight: metrics.width - metrics.margin,
-    top: timelineTop,
-    bottom: timelineBottom,
-    timeRange: page.timeRange,
-    labelWidth: 18,
-  });
-
-  if (day.classes.length === 0) {
-    const emptyY = timelineTop + ((timelineBottom - timelineTop) / 2);
-    setFill(doc, { r: 248, g: 250, b: 252 });
-    setStroke(doc, GRID);
-    doc.setLineWidth(0.25);
-    doc.roundedRect(timelineX + 8, emptyY - 8, metrics.width - metrics.margin - timelineX - 16, 16, 2, 2, 'FD');
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8.5);
-    setText(doc, MUTED);
-    doc.text('Día sin clases', metrics.width / 2, emptyY - 1, { align: 'center' });
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(6.5);
-    doc.text('Espacio disponible para estudio o descanso.', metrics.width / 2, emptyY + 3.6, { align: 'center' });
-    return;
-  }
-
-  day.classes.forEach((item) => {
-    const start = timeToMinutes(item.startTime);
-    const end = timeToMinutes(item.endTime);
-    if (start === null || end === null || end <= page.timeRange.start || start >= page.timeRange.end) return;
-    const clippedStart = Math.max(start, page.timeRange.start);
-    const clippedEnd = Math.min(end, page.timeRange.end);
-    const y = timelineTop + ((clippedStart - page.timeRange.start) * scale) + 1;
-    const height = Math.max(1.4, ((clippedEnd - clippedStart) * scale) - 2);
-    drawEventBlock(doc, item, timelineX + 3.5, y, metrics.width - metrics.margin - timelineX - 3.5, height, subjectColors);
+  page.columns.forEach((sections, columnIndex) => {
+    const x = metrics.margin + (columnIndex * (columnWidth + columnGap));
+    let y = top;
+    sections.forEach((section, sectionIndex) => {
+      if (sectionIndex > 0) y += 4;
+      drawPortraitSection(doc, section, page.days, x, y, columnWidth, subjectColors);
+      y += section.estimatedHeight;
+    });
   });
 }
 
@@ -300,16 +450,24 @@ export async function renderSchedulePdf({
   throwIfCancelled(signal);
   const safeOrientation = orientation === 'landscape' ? 'landscape' : 'portrait';
   const layout = createSchedulePdfLayout({ classes, daysCount, orientation: safeOrientation });
+  const stats = getScheduleStats(layout.classes, layout.daysCount);
   const doc = createPdfDocument({ orientation: safeOrientation, format: 'a4', unit: 'mm' });
 
   for (let index = 0; index < layout.pages.length; index += 1) {
     throwIfCancelled(signal);
-    if (index > 0) doc.addPage(undefined, safeOrientation);
+    if (index > 0) doc.addPage('a4', safeOrientation);
     const page = layout.pages[index];
-    const header = drawHeader(doc, scheduleName, safeOrientation, index + 1, layout.pages.length);
-    if (page.type === 'week') drawLandscapePage(doc, page, subjectColors, header);
+    const header = drawHeader(doc, {
+      scheduleName,
+      orientation: safeOrientation,
+      pageNumber: index + 1,
+      pageCount: layout.pages.length,
+      stats,
+      hiddenEventCount: layout.hiddenEventCount,
+    });
+    if (page.type === 'landscape-week') drawLandscapePage(doc, page, subjectColors, header, layout.pages.length);
     else drawPortraitPage(doc, page, subjectColors, header);
-    drawFooter(doc, header.metrics);
+    drawFooter(doc, header.metrics, index + 1, layout.pages.length);
     onProgress?.({
       phase: 'rendering',
       current: index + 1,
@@ -325,5 +483,7 @@ export async function renderSchedulePdf({
     buffer: doc.output('arraybuffer'),
     fileName: createPdfFileName(scheduleName || 'Horario', safeOrientation === 'landscape' ? 'horizontal' : 'vertical'),
     pagesProcessed: layout.pages.length,
+    pageCount: layout.pages.length,
+    singleFile: true,
   };
 }

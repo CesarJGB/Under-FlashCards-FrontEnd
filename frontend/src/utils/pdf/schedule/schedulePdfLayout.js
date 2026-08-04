@@ -1,95 +1,172 @@
 import {
-  getDurationMinutes,
-  getScheduleTimeRange,
-  sortClassesByStart,
-} from '../../../components/library/calendar/scheduleUtils.js';
+  getEventDurationMinutes,
+  getRoundedScheduleTimeRange,
+  getScheduleTimelineItems,
+  sortScheduleEvents,
+} from '../../../components/library/calendar/scheduleTimeline.js';
 
-// A4 horizontal remains legible with a 16-hour day (a 30-minute class still
-// gets roughly five millimetres of height). This keeps a normal 08:00–22:00
-// school week together on one printed sheet, like a real timetable.
-const LANDSCAPE_MAX_HOURS_PER_PAGE = 16;
+const LANDSCAPE_MAX_MINUTES_PER_PAGE = 16 * 60;
+const PORTRAIT_COLUMN_CAPACITY = 232;
+const PORTRAIT_COLUMNS = 2;
+const PORTRAIT_SECTION_GAP = 4;
 
-function clamp(value, minimum, maximum) {
-  return Math.max(minimum, Math.min(maximum, value));
+function getPortraitItemHeight(item) {
+  if (item.type === 'gap') return item.durationMinutes >= 15 ? 3.6 : 3;
+  if (!item.isValid) return 9.5;
+  const duration = item.durationMinutes;
+  if (duration <= 60) return 9.5;
+  if (duration <= 120) return 10.5;
+  return 11.5;
 }
 
-// Todos los días comparten un eje horario con una pequeña respiración arriba y
-// abajo. Así, al imprimir las páginas verticales, las 08:00 siempre quedan a
-// la misma altura y es mucho más fácil comparar días distintos.
-function createVisualTimeRange(classes) {
-  const raw = getScheduleTimeRange(classes);
-  const minimumDuration = 8 * 60;
-  let start = clamp(Math.floor((raw.start - 30) / 60) * 60, 0, 23 * 60);
-  let end = clamp(Math.ceil((raw.end + 30) / 60) * 60, 60, 24 * 60);
+function createDayTimeline(day) {
+  return getScheduleTimelineItems(day.classes, { dayIndex: day.dayIndex }).filter((item) => (
+    item.type === 'event' || (item.type === 'gap' && item.status === 'positive')
+  ));
+}
 
-  if (end - start < minimumDuration) {
-    const deficit = minimumDuration - (end - start);
-    start = clamp(start - Math.floor(deficit / 2), 0, 24 * 60 - minimumDuration);
-    end = start + minimumDuration;
+function createDaySections(day) {
+  const timelineItems = createDayTimeline(day);
+  if (timelineItems.length === 0) {
+    return [{
+      dayIndex: day.dayIndex,
+      classes: [],
+      items: [],
+      continued: false,
+      hasContinuation: false,
+      estimatedHeight: 21,
+    }];
   }
 
-  return { start, end: Math.max(start + 60, end) };
+  const headerHeight = 10;
+  const maximumItemsHeight = PORTRAIT_COLUMN_CAPACITY - headerHeight;
+  const chunks = [];
+  let currentItems = [];
+  let currentHeight = 0;
+
+  timelineItems.forEach((item) => {
+    const itemHeight = getPortraitItemHeight(item);
+    if (currentItems.length > 0 && currentHeight + itemHeight > maximumItemsHeight) {
+      chunks.push(currentItems);
+      currentItems = [];
+      currentHeight = 0;
+    }
+    currentItems.push({ ...item, estimatedHeight: itemHeight });
+    currentHeight += itemHeight;
+  });
+  if (currentItems.length > 0) chunks.push(currentItems);
+
+  return chunks.map((items, index) => ({
+    dayIndex: day.dayIndex,
+    classes: items.filter((item) => item.type === 'event').map((item) => item.event),
+    items,
+    continued: index > 0,
+    hasContinuation: index < chunks.length - 1,
+    estimatedHeight: headerHeight + items.reduce((total, item) => total + item.estimatedHeight, 0),
+  }));
 }
 
-function estimateDayHeight(classes) {
-  return classes.length === 0
-    ? 30
-    : 34 + classes.reduce((total, item) => total + Math.max(18, getDurationMinutes(item) * 0.28), 0);
+function packPortraitPages(days) {
+  const sections = days.flatMap(createDaySections);
+  const pages = [];
+  const columnHeight = (column) => column.reduce((total, section, index) => (
+    total + section.estimatedHeight + (index > 0 ? PORTRAIT_SECTION_GAP : 0)
+  ), 0);
+  let cursor = 0;
+
+  while (cursor < sections.length) {
+    let best = null;
+
+    for (let take = 1; cursor + take <= sections.length; take += 1) {
+      const candidateSections = sections.slice(cursor, cursor + take);
+      let bestSplit = null;
+      const lastSplit = take === 1 ? 1 : take - 1;
+
+      for (let split = 1; split <= lastSplit; split += 1) {
+        const columns = [candidateSections.slice(0, split), candidateSections.slice(split)];
+        const heights = columns.map(columnHeight);
+        if (heights.every((height) => height <= PORTRAIT_COLUMN_CAPACITY)) {
+          const imbalance = Math.abs(heights[0] - heights[1]);
+          if (!bestSplit || imbalance < bestSplit.imbalance) {
+            bestSplit = { columns, heights, imbalance };
+          }
+        }
+      }
+
+      if (!bestSplit) break;
+      best = { take, ...bestSplit };
+    }
+
+    // Every section is capped to one column, so this fallback is defensive.
+    if (!best) best = { take: 1, columns: [[sections[cursor]], []] };
+    pages.push({ type: 'portrait-week', columns: best.columns });
+    cursor += best.take;
+  }
+
+  return pages.length > 0 ? pages : [{ type: 'portrait-week', columns: [[], []] }];
 }
 
-function createTimeRanges(classes) {
-  const { start, end } = createVisualTimeRange(classes);
+function createLandscapeTimeRanges(classes) {
+  const timeRange = getRoundedScheduleTimeRange(classes);
   const ranges = [];
-  const pageMinutes = LANDSCAPE_MAX_HOURS_PER_PAGE * 60;
-  let cursor = start;
+  const totalMinutes = timeRange.end - timeRange.start;
+  const pageCount = Math.max(1, Math.ceil(totalMinutes / LANDSCAPE_MAX_MINUTES_PER_PAGE));
+  const balancedBandMinutes = Math.ceil((totalMinutes / pageCount) / 30) * 30;
+  let cursor = timeRange.start;
 
-  while (cursor < end) {
-    const next = Math.min(end, cursor + pageMinutes);
-    ranges.push({ start: cursor, end: next });
-    cursor = next;
+  while (cursor < timeRange.end) {
+    const end = Math.min(timeRange.end, cursor + balancedBandMinutes);
+    ranges.push({ start: cursor, end });
+    cursor = end;
   }
-  return ranges.length ? ranges : [{ start, end }];
+
+  return ranges.length > 0 ? ranges : [timeRange];
 }
 
 export function createSchedulePdfLayout({ classes = [], daysCount = 5, orientation = 'portrait' } = {}) {
   const safeDaysCount = Math.max(5, Math.min(7, Number(daysCount) || 5));
-  const normalizedClasses = sortClassesByStart(classes).filter((item) => (
-    Number.isInteger(Number(item?.dayIndex)) && Number(item.dayIndex) >= 0 && Number(item.dayIndex) < safeDaysCount
-  ));
+  const normalizedClasses = sortScheduleEvents(Array.isArray(classes) ? classes : []).filter((item) => {
+    const dayIndex = Number(item?.dayIndex);
+    return Number.isInteger(dayIndex) && dayIndex >= 0 && dayIndex < 7;
+  });
+  const visibleClasses = normalizedClasses.filter((item) => Number(item.dayIndex) < safeDaysCount);
+  const hiddenEventCount = normalizedClasses.length - visibleClasses.length;
   const days = Array.from({ length: safeDaysCount }, (_, dayIndex) => ({
     dayIndex,
-    classes: normalizedClasses.filter((item) => Number(item.dayIndex) === dayIndex),
+    classes: visibleClasses.filter((item) => Number(item.dayIndex) === dayIndex),
   }));
 
-  if (orientation === 'landscape') {
-    return {
-      orientation: 'landscape',
-      daysCount: safeDaysCount,
-      classes: normalizedClasses,
-      pages: createTimeRanges(normalizedClasses).map((timeRange) => ({
-        type: 'week',
-        days,
-        timeRange,
-      })),
-    };
-  }
-
-  // Una página por día es un contrato deliberado del formato vertical: un
-  // horario de siete días siempre produce siete hojas, incluso cuando un día
-  // no tiene clases o el rango total de horas es muy largo.
-  const portraitTimeRange = createVisualTimeRange(normalizedClasses);
-  const portraitPages = days.map((day) => ({
-    type: 'day',
-    days: [day],
-    timeRange: portraitTimeRange,
-  }));
+  const safeOrientation = orientation === 'landscape' ? 'landscape' : 'portrait';
+  const pages = safeOrientation === 'landscape'
+    ? createLandscapeTimeRanges(visibleClasses).map((timeRange) => ({
+      type: 'landscape-week',
+      days,
+      timeRange,
+    }))
+    : packPortraitPages(days).map((page) => ({
+      ...page,
+      days,
+      timeRange: getRoundedScheduleTimeRange(visibleClasses),
+    }));
 
   return {
-    orientation: 'portrait',
+    orientation: safeOrientation,
     daysCount: safeDaysCount,
-    classes: normalizedClasses,
-    pages: portraitPages,
+    classes: visibleClasses,
+    hiddenEventCount,
+    days,
+    pages,
+    pageCount: pages.length,
   };
 }
 
-export { createVisualTimeRange, estimateDayHeight };
+export function estimateSchedulePdfPages(input) {
+  return createSchedulePdfLayout(input).pages.length;
+}
+
+export function estimateDayHeight(classes = [], dayIndex = Number(classes[0]?.dayIndex) || 0) {
+  return createDaySections({ dayIndex, classes })
+    .reduce((total, section) => total + section.estimatedHeight, 0);
+}
+
+export { LANDSCAPE_MAX_MINUTES_PER_PAGE, PORTRAIT_COLUMN_CAPACITY, getPortraitItemHeight };
