@@ -8,7 +8,9 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test:pdf-extraction": "node --test src/components/creator/pdf/pdfExtractionEngine.test.js"
+    "test:pdf-extraction": "node --test src/components/creator/pdf/pdfExtractionEngine.test.js",
+    "test:schedule": "node --test src/components/library/calendar/scheduleUtils.test.js src/components/library/calendar/scheduleTimeline.test.js src/components/library/calendar/scheduleUiContracts.test.js src/utils/pdf/schedule/schedulePdfLayout.test.js src/utils/pdf/schedule/schedulePdfRenderer.test.js src/utils/pdf/workerClient.test.js src/utils/pdf/download.test.js src/utils/pdf/index.test.js",
+    "qa:schedule-pdf": "node scripts/generateSchedulePdfSamples.mjs"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.1",
