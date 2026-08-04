@@ -1,6 +1,11 @@
 import { getMateriaColor, isValidHexColor, normalizeMateriaName } from '../../../lib/materiaColors.js';
-
-const TIME_PATTERN = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
+import {
+  formatScheduleDuration,
+  getEventDurationMinutes,
+  getRoundedScheduleTimeRange,
+  sortScheduleEvents,
+  timeToMinutes,
+} from './scheduleTimeline.js';
 
 export function normalizeSubjectName(value) {
   return normalizeMateriaName(value);
@@ -10,39 +15,16 @@ export function getSubjectKey(subject, fallback = 'materia') {
   return normalizeSubjectName(subject) || fallback;
 }
 
-export function timeToMinutes(value) {
-  if (typeof value !== 'string' || !TIME_PATTERN.test(value)) return null;
-  const [hours, minutes] = value.split(':').map(Number);
-  return (hours * 60) + minutes;
-}
-
 export function getDurationMinutes(classItem) {
-  const start = timeToMinutes(classItem?.startTime);
-  const end = timeToMinutes(classItem?.endTime);
-  if (start === null || end === null || end <= start) return 0;
-  return end - start;
+  return getEventDurationMinutes(classItem);
 }
 
 export function sortClassesByStart(classes = []) {
-  return [...classes].sort((a, b) => {
-    const startDifference = (timeToMinutes(a?.startTime) ?? Number.MAX_SAFE_INTEGER)
-      - (timeToMinutes(b?.startTime) ?? Number.MAX_SAFE_INTEGER);
-    if (startDifference !== 0) return startDifference;
-    return (timeToMinutes(a?.endTime) ?? Number.MAX_SAFE_INTEGER)
-      - (timeToMinutes(b?.endTime) ?? Number.MAX_SAFE_INTEGER);
-  });
+  return sortScheduleEvents(classes);
 }
 
 export function getScheduleTimeRange(classes = []) {
-  const valid = classes
-    .map((item) => ({ start: timeToMinutes(item?.startTime), end: timeToMinutes(item?.endTime) }))
-    .filter(({ start, end }) => start !== null && end !== null && end > start);
-
-  if (valid.length === 0) return { start: 8 * 60, end: 18 * 60 };
-  return {
-    start: Math.min(...valid.map(({ start }) => start)),
-    end: Math.max(...valid.map(({ end }) => end)),
-  };
+  return getRoundedScheduleTimeRange(classes);
 }
 
 export function getCurrentDayIndex(date = new Date()) {
@@ -96,9 +78,12 @@ export function getMinutesUntilNextClass(classItem, now = new Date()) {
 export function resolveScheduleClassColor(classItem, subjectColors = []) {
   const subjectKey = classItem?.subjectKey || getSubjectKey(classItem?.subject);
   const registry = subjectColors.find((entry) => entry?.key === subjectKey);
-  const override = classItem?.colorMode === 'automatic'
-    ? null
-    : (classItem?.color || registry?.color);
+  // The per-schedule registry is authoritative for a subject. A legacy
+  // per-class color remains a compatible fallback when no registry exists.
+  if (registry) {
+    return isValidHexColor(registry.color) ? registry.color : getMateriaColor({ name: subjectKey });
+  }
+  const override = classItem?.colorMode === 'automatic' ? null : classItem?.color;
 
   if (isValidHexColor(override)) return override;
   if (isValidHexColor(classItem?.resolvedColor)) return classItem.resolvedColor;
@@ -106,19 +91,14 @@ export function resolveScheduleClassColor(classItem, subjectColors = []) {
 }
 
 export function getScheduleColorMode(classItem, subjectColors = []) {
-  if (classItem?.colorMode === 'custom' || isValidHexColor(classItem?.color)) return 'custom';
   const key = classItem?.subjectKey || getSubjectKey(classItem?.subject);
   const registry = subjectColors.find((entry) => entry?.key === key);
-  return isValidHexColor(registry?.color) ? 'custom' : 'automatic';
+  if (registry) return isValidHexColor(registry.color) ? 'custom' : 'automatic';
+  return classItem?.colorMode === 'custom' || isValidHexColor(classItem?.color) ? 'custom' : 'automatic';
 }
 
 export function formatDuration(minutes) {
-  const safeMinutes = Math.max(0, Number(minutes) || 0);
-  const hours = Math.floor(safeMinutes / 60);
-  const remainder = safeMinutes % 60;
-  if (hours === 0) return `${remainder} min`;
-  if (remainder === 0) return `${hours} h`;
-  return `${hours} h ${remainder} min`;
+  return formatScheduleDuration(minutes);
 }
 
 export function getNextClassLabel(minutes) {
@@ -129,3 +109,5 @@ export function getNextClassLabel(minutes) {
   const remainder = minutes % 60;
   return remainder ? `En ${hours} h ${remainder} min` : `En ${hours} h`;
 }
+
+export { timeToMinutes };

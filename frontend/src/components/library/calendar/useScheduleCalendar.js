@@ -1,292 +1,323 @@
-// FILE: frontend/src/components/library/calendar/useScheduleCalendar.js
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getJSON, setJSON } from '../../../lib/safeLocalStorage';
+import {
+  cacheSchedule,
+  getScheduleCacheKey,
+  getScheduleDayCacheKey,
+  getScheduleErrorMessage,
+  requestSchedule,
+  syncScheduleListCache,
+} from './scheduleApi';
+import { getInitialDayIndex, sortClassesByStart } from './scheduleUtils';
 
 export const WEEKDAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 export const SHORT_WEEKDAYS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
-
 export function useScheduleCalendar(userId, scheduleId) {
-  const cacheKey = scheduleId ? `schedule_${scheduleId}` : null;
+  const cacheKey = getScheduleCacheKey(scheduleId);
+  const dayCacheKey = getScheduleDayCacheKey(scheduleId);
+  const initialSchedule = cacheKey ? getJSON(cacheKey) : null;
+  const initialDaysCount = initialSchedule?.daysCount || 5;
 
-  // Intentamos cargar del cache inmediatamente para sensación 0ms
-  const [schedule, setSchedule] = useState(() => (cacheKey ? getJSON(cacheKey) : null));
-  const [loading, setLoading] = useState(() => (cacheKey ? !getJSON(cacheKey) : true));
+  const [schedule, setSchedule] = useState(initialSchedule);
+  const scheduleRef = useRef(initialSchedule);
+  const [loading, setLoading] = useState(() => Boolean(scheduleId && !initialSchedule));
   const [error, setError] = useState('');
+  const [detailError, setDetailError] = useState('');
+  const [activeDayIndexState, setActiveDayIndexState] = useState(() => (
+    getInitialDayIndex(initialDaysCount, dayCacheKey ? getJSON(dayCacheKey) : null)
+  ));
 
-  const [activeDayIndex, setActiveDayIndex] = useState(0);
-
-  // Modales (Usamos setters internos _set... para interceptar y garantizar exclusión mutua)
-  const [showSettings, _setShowSettings] = useState(false);
-  const [showDayPicker, _setShowDayPicker] = useState(false);
-  const [showClassForm, _setShowClassForm] = useState(false);
+  const [showSettings, setShowSettingsState] = useState(false);
+  const [showDayPicker, setShowDayPickerState] = useState(false);
+  const [showClassForm, setShowClassFormState] = useState(false);
   const [selectedDayForForm, setSelectedDayForForm] = useState(0);
-  const [selectedClassDetail, _setSelectedClassDetail] = useState(null);
-
-  // Estado para modo edición
+  const [selectedClassDetail, setSelectedClassDetailState] = useState(null);
   const [editingClass, setEditingClass] = useState(null);
+  const [savingClass, setSavingClass] = useState(false);
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [updatingAttendance, setUpdatingAttendance] = useState(false);
+  const [deletingClassId, setDeletingClassId] = useState(null);
 
-  // --- INTERCEPTORES DE MODALES (Exclusión mutua y limpieza de errores) ---
-  const setShowSettings = (val) => {
-    if (val) {
-      _setShowDayPicker(false);
-      _setShowClassForm(false);
-      _setSelectedClassDetail(null);
+  const mountedRef = useRef(true);
+  const loadControllerRef = useRef(null);
+  const savingClassRef = useRef(false);
+  const savingSettingsRef = useRef(false);
+  const attendanceRef = useRef(false);
+  const deletingClassRef = useRef(false);
+  const dayInitializedRef = useRef(Boolean(initialSchedule));
+
+  const commitSchedule = useCallback((nextSchedule) => {
+    scheduleRef.current = nextSchedule;
+    if (mountedRef.current) setSchedule(nextSchedule);
+    if (nextSchedule) {
+      cacheSchedule(nextSchedule);
+      syncScheduleListCache(userId, nextSchedule);
     }
-    setError('');
-    _setShowSettings(val);
-  };
+  }, [userId]);
 
-  const setShowDayPicker = (val) => {
-    if (val) {
-      _setShowSettings(false);
-      _setShowClassForm(false);
-      _setSelectedClassDetail(null);
-    }
-    setError('');
-    _setShowDayPicker(val);
-  };
+  const setActiveDayIndex = useCallback((nextValue) => {
+    setActiveDayIndexState((previous) => {
+      const candidate = typeof nextValue === 'function' ? nextValue(previous) : nextValue;
+      const maximum = Math.max(0, (scheduleRef.current?.daysCount || 5) - 1);
+      const next = Math.max(0, Math.min(maximum, Number(candidate) || 0));
+      if (dayCacheKey) setJSON(dayCacheKey, next);
+      return next;
+    });
+  }, [dayCacheKey]);
 
-  const setShowClassForm = (val) => {
-    if (val) {
-      _setShowSettings(false);
-      _setShowDayPicker(false);
-      _setSelectedClassDetail(null);
-    }
+  const closeOtherSurfaces = useCallback((surface) => {
+    if (surface !== 'settings') setShowSettingsState(false);
+    if (surface !== 'day-picker') setShowDayPickerState(false);
+    if (surface !== 'class-form') setShowClassFormState(false);
+    if (surface !== 'detail') setSelectedClassDetailState(null);
     setError('');
-    _setShowClassForm(val);
-  };
+    setDetailError('');
+  }, []);
 
-  const setSelectedClassDetail = (val) => {
-    if (typeof val === 'function') {
-      _setSelectedClassDetail(val);
+  const setShowSettings = useCallback((value) => {
+    if (value) closeOtherSurfaces('settings');
+    setShowSettingsState(Boolean(value));
+  }, [closeOtherSurfaces]);
+
+  const setShowDayPicker = useCallback((value) => {
+    if (value) closeOtherSurfaces('day-picker');
+    setShowDayPickerState(Boolean(value));
+  }, [closeOtherSurfaces]);
+
+  const setShowClassForm = useCallback((value) => {
+    if (value) closeOtherSurfaces('class-form');
+    setShowClassFormState(Boolean(value));
+  }, [closeOtherSurfaces]);
+
+  const setSelectedClassDetail = useCallback((value) => {
+    if (typeof value === 'function') {
+      setSelectedClassDetailState(value);
       return;
     }
-    if (val) {
-      _setShowSettings(false);
-      _setShowDayPicker(false);
-      _setShowClassForm(false);
-    }
-    setError('');
-    _setSelectedClassDetail(val);
-  };
-  // -------------------------------------------------
-
-  const handleCloseClassForm = () => {
-    setShowClassForm(false);
-    setEditingClass(null);
-  };
-
-  const handleEditClassClick = (classItem) => {
-    setSelectedClassDetail(null);
-    setEditingClass(classItem);
-    setSelectedDayForForm(classItem.dayIndex);
-    setShowClassForm(true);
-  };
+    if (value) closeOtherSurfaces('detail');
+    setSelectedClassDetailState(value);
+  }, [closeOtherSurfaces]);
 
   const loadSchedule = useCallback(async () => {
-    if (!userId || !scheduleId) return;
+    if (!userId || !scheduleId) {
+      setLoading(false);
+      return null;
+    }
 
-    if (!getJSON(cacheKey)) setLoading(true);
+    loadControllerRef.current?.abort();
+    const controller = new AbortController();
+    loadControllerRef.current = controller;
+    if (!scheduleRef.current) setLoading(true);
     setError('');
 
     try {
-      const res = await fetch(`${BACKEND_URL}/api/schedules/by-id/${scheduleId}`, {
+      const data = await requestSchedule(`/api/schedules/by-id/${scheduleId}`, {
         headers: { 'X-User-Id': userId },
+        signal: controller.signal,
       });
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-      setSchedule(data);
-      if (cacheKey) setJSON(cacheKey, data);
-    } catch {
-      setError('No se pudo cargar el horario.');
+      if (!controller.signal.aborted) {
+        commitSchedule(data);
+        if (!dayInitializedRef.current) {
+          dayInitializedRef.current = true;
+          setActiveDayIndex(getInitialDayIndex(data?.daysCount || 5, dayCacheKey ? getJSON(dayCacheKey) : null));
+        }
+      }
+      return data;
+    } catch (loadError) {
+      if (loadError?.name !== 'AbortError' && mountedRef.current) {
+        const message = getScheduleErrorMessage(loadError, 'No se pudo cargar el horario.');
+        setError(scheduleRef.current ? `${message} Se muestra la última copia guardada.` : message);
+      }
+      return null;
     } finally {
-      setLoading(false);
+      if (mountedRef.current) setLoading(false);
+      if (loadControllerRef.current === controller) loadControllerRef.current = null;
     }
-  }, [userId, scheduleId, cacheKey]);
+  }, [commitSchedule, dayCacheKey, scheduleId, setActiveDayIndex, userId]);
 
   useEffect(() => {
-    loadSchedule();
+    mountedRef.current = true;
+    void loadSchedule();
+    return () => {
+      mountedRef.current = false;
+      loadControllerRef.current?.abort();
+    };
   }, [loadSchedule]);
 
   useEffect(() => {
-    if (selectedClassDetail && schedule) {
-      const stillExists = schedule.classes.some((c) => c.id === selectedClassDetail.id);
-      if (!stillExists) _setSelectedClassDetail(null);
-    }
+    const daysCount = schedule?.daysCount || 5;
+    if (activeDayIndexState >= daysCount) setActiveDayIndex(0);
+  }, [activeDayIndexState, schedule?.daysCount, setActiveDayIndex]);
+
+  useEffect(() => {
+    if (!selectedClassDetail || !schedule) return;
+    const latest = schedule.classes.find((item) => item.id === selectedClassDetail.id);
+    if (!latest) setSelectedClassDetailState(null);
+    else if (latest !== selectedClassDetail) setSelectedClassDetailState(latest);
   }, [schedule, selectedClassDetail]);
 
-  const handleSaveClass = async (formData, editingClassId = null) => {
-    const hasConflict = schedule?.classes.some((c) => {
-      if (c.id === editingClassId) return false;
-      if (c.dayIndex !== selectedDayForForm) return false;
-      return formData.startTime < c.endTime && formData.endTime > c.startTime;
-    });
+  const handleCloseClassForm = useCallback(() => {
+    setShowClassFormState(false);
+    setEditingClass(null);
+  }, []);
 
-    if (hasConflict) {
-      setError('Error: Esta clase se superpone con otra ya existente en este día.');
-      return;
+  const handleEditClassClick = useCallback((classItem) => {
+    closeOtherSurfaces('class-form');
+    setEditingClass(classItem);
+    setSelectedDayForForm(classItem.dayIndex);
+    setShowClassFormState(true);
+  }, [closeOtherSurfaces]);
+
+  const handleSaveClass = useCallback(async (formData, editingClassId = null) => {
+    if (savingClassRef.current) {
+      return { ok: false, error: 'Ya se está guardando esta clase.' };
     }
 
-    setError('');
+    const currentSchedule = scheduleRef.current;
+    const conflict = currentSchedule?.classes.find((classItem) => (
+      classItem.id !== editingClassId
+      && Number(classItem.dayIndex) === Number(selectedDayForForm)
+      && formData.startTime < classItem.endTime
+      && formData.endTime > classItem.startTime
+    ));
+    if (conflict) {
+      return {
+        ok: false,
+        error: `Esta clase se superpone con ${conflict.subject} (${conflict.startTime} - ${conflict.endTime}).`,
+      };
+    }
 
+    savingClassRef.current = true;
+    setSavingClass(true);
     try {
-      let res;
-      if (editingClassId) {
-        res = await fetch(`${BACKEND_URL}/api/schedules/${scheduleId}/classes/${editingClassId}`, {
-          method: 'PUT',
+      const data = await requestSchedule(
+        editingClassId
+          ? `/api/schedules/${scheduleId}/classes/${editingClassId}`
+          : `/api/schedules/${scheduleId}/classes`,
+        {
+          method: editingClassId ? 'PUT' : 'POST',
           headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
-          body: JSON.stringify(formData),
-        });
-      } else {
-        res = await fetch(`${BACKEND_URL}/api/schedules/${scheduleId}/classes`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
-          body: JSON.stringify({ ...formData, dayIndex: selectedDayForForm }),
-        });
-      }
-
-      if (!res.ok) throw new Error();
-
-      const updated = await res.json();
-      setSchedule(updated);
-      if (cacheKey) setJSON(cacheKey, updated);
-
-      if (!editingClassId) {
-        setActiveDayIndex(selectedDayForForm);
-      }
-
-      setShowClassForm(false);
+          body: JSON.stringify(editingClassId ? formData : { ...formData, dayIndex: selectedDayForForm }),
+        }
+      );
+      commitSchedule(data);
+      if (!editingClassId) setActiveDayIndex(selectedDayForForm);
+      setShowClassFormState(false);
       setEditingClass(null);
-    } catch {
-      setError('No se pudo guardar la clase.');
+      return { ok: true };
+    } catch (saveError) {
+      return { ok: false, error: getScheduleErrorMessage(saveError, 'No se pudo guardar la clase.') };
+    } finally {
+      savingClassRef.current = false;
+      if (mountedRef.current) setSavingClass(false);
     }
-  };
+  }, [commitSchedule, scheduleId, selectedDayForForm, setActiveDayIndex, userId]);
 
-  const handleDeleteClass = async (classId) => {
-    const prevSchedule = schedule;
-    
-    setSelectedClassDetail(null);
-    const optimisticSchedule = schedule ? { ...schedule, classes: schedule.classes.filter(c => c.id !== classId) } : null;
-    setSchedule(optimisticSchedule);
-    if (cacheKey && optimisticSchedule) setJSON(cacheKey, optimisticSchedule);
+  const handleDeleteClass = useCallback(async (classId) => {
+    if (deletingClassRef.current) return { ok: false };
+    const previousSchedule = scheduleRef.current;
+    const optimisticSchedule = previousSchedule
+      ? { ...previousSchedule, classes: previousSchedule.classes.filter((item) => item.id !== classId) }
+      : null;
+    deletingClassRef.current = true;
+    setDeletingClassId(classId);
+    setSelectedClassDetailState(null);
+    if (optimisticSchedule) commitSchedule(optimisticSchedule);
 
     try {
-      const res = await fetch(`${BACKEND_URL}/api/schedules/${scheduleId}/classes/${classId}`, {
+      const data = await requestSchedule(`/api/schedules/${scheduleId}/classes/${classId}`, {
         method: 'DELETE',
         headers: { 'X-User-Id': userId },
       });
-      if (!res.ok) throw new Error();
-      
-      const updated = await res.json();
-      setSchedule(updated);
-      if (cacheKey) setJSON(cacheKey, updated);
-    } catch {
-      setError('No se pudo eliminar la clase.');
-      setSchedule(prevSchedule);
-      if (cacheKey && prevSchedule) setJSON(cacheKey, prevSchedule);
+      commitSchedule(data);
+      return { ok: true };
+    } catch (deleteError) {
+      if (previousSchedule) commitSchedule(previousSchedule);
+      setError(getScheduleErrorMessage(deleteError, 'No se pudo eliminar la clase.'));
+      return { ok: false };
+    } finally {
+      deletingClassRef.current = false;
+      if (mountedRef.current) setDeletingClassId(null);
     }
-  };
+  }, [commitSchedule, scheduleId, userId]);
 
-  const handleUpdateAttendance = async (classId, field, delta) => {
-    let nextVal = 0;
-    let prevScheduleSnapshot = schedule;
-    let updatedScheduleSnapshot = null;
+  const handleUpdateAttendance = useCallback(async (classId, field, delta) => {
+    if (attendanceRef.current) return { ok: false };
+    const previousSchedule = scheduleRef.current;
+    const target = previousSchedule?.classes.find((item) => item.id === classId);
+    if (!target) return { ok: false };
 
-    setSchedule((prev) => {
-      if (!prev) return prev;
-      prevScheduleSnapshot = prev;
-      const target = prev.classes.find((c) => c.id === classId);
-      if (!target) return prev;
+    const nextValue = Math.max(0, (Number(target[field]) || 0) + delta);
+    if (nextValue === target[field]) return { ok: true };
+    const optimisticSchedule = {
+      ...previousSchedule,
+      classes: previousSchedule.classes.map((item) => (
+        item.id === classId ? { ...item, [field]: nextValue } : item
+      )),
+    };
 
-      nextVal = Math.max(0, (target[field] || 0) + delta);
-      if (target[field] === nextVal) return prev;
-
-      const optimisticClasses = prev.classes.map((c) =>
-        c.id === classId ? { ...c, [field]: nextVal } : c
-      );
-      updatedScheduleSnapshot = { ...prev, classes: optimisticClasses };
-      return updatedScheduleSnapshot;
-    });
-
-    if (updatedScheduleSnapshot && cacheKey) {
-      setJSON(cacheKey, updatedScheduleSnapshot);
-    }
-
-    setSelectedClassDetail((prevDetail) => {
-      if (prevDetail?.id === classId) {
-        return { ...prevDetail, [field]: nextVal };
-      }
-      return prevDetail;
-    });
+    attendanceRef.current = true;
+    setUpdatingAttendance(true);
+    setDetailError('');
+    commitSchedule(optimisticSchedule);
 
     try {
-      const res = await fetch(`${BACKEND_URL}/api/schedules/${scheduleId}/classes/${classId}`, {
+      const data = await requestSchedule(`/api/schedules/${scheduleId}/classes/${classId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
-        body: JSON.stringify({ [field]: nextVal }),
+        body: JSON.stringify({ [field]: nextValue }),
       });
-      if (!res.ok) throw new Error();
-    } catch {
-      setError('No se pudo actualizar la asistencia. Revisa tu conexión.');
-      setSchedule(prevScheduleSnapshot);
-      if (cacheKey && prevScheduleSnapshot) setJSON(cacheKey, prevScheduleSnapshot);
-
-      setSelectedClassDetail((prevDetail) => {
-        if (prevDetail?.id === classId) {
-          const target = prevScheduleSnapshot?.classes.find((c) => c.id === classId);
-          return target ? { ...prevDetail, [field]: target[field] } : prevDetail;
-        }
-        return prevDetail;
-      });
+      commitSchedule(data);
+      return { ok: true };
+    } catch (attendanceError) {
+      commitSchedule(previousSchedule);
+      setDetailError(getScheduleErrorMessage(attendanceError, 'No se pudo actualizar la asistencia. Revisa tu conexión.'));
+      return { ok: false };
+    } finally {
+      attendanceRef.current = false;
+      if (mountedRef.current) setUpdatingAttendance(false);
     }
-  };
+  }, [commitSchedule, scheduleId, userId]);
 
-  const handleUpdateSettings = async ({ name, daysCount }) => {
-    const prevSchedule = schedule;
-
-    const nextSchedule = schedule ? { ...schedule, name, daysCount } : null;
-    setSchedule(nextSchedule);
-    if (cacheKey && nextSchedule) setJSON(cacheKey, nextSchedule);
-
-    if (activeDayIndex >= daysCount) {
-      setActiveDayIndex(0);
+  const handleUpdateSettings = useCallback(async ({ name, daysCount }) => {
+    if (savingSettingsRef.current) {
+      return { ok: false, error: 'Ya se están guardando los ajustes.' };
     }
 
+    savingSettingsRef.current = true;
+    setSavingSettings(true);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/schedules/${scheduleId}`, {
+      const data = await requestSchedule(`/api/schedules/${scheduleId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
         body: JSON.stringify({ name, daysCount }),
       });
-      if (!res.ok) throw new Error();
-
-      const updated = await res.json();
-      setSchedule(updated);
-      if (cacheKey) setJSON(cacheKey, updated);
-    } catch {
-      setError('No se pudieron guardar los ajustes. Revisa tu conexión.');
-      setSchedule(prevSchedule);
-      if (cacheKey && prevSchedule) setJSON(cacheKey, prevSchedule);
+      commitSchedule(data);
+      if (activeDayIndexState >= daysCount) setActiveDayIndex(0);
+      return { ok: true };
+    } catch (settingsError) {
+      return { ok: false, error: getScheduleErrorMessage(settingsError, 'No se pudieron guardar los ajustes.') };
+    } finally {
+      savingSettingsRef.current = false;
+      if (mountedRef.current) setSavingSettings(false);
     }
-  };
+  }, [activeDayIndexState, commitSchedule, scheduleId, setActiveDayIndex, userId]);
 
-  // Cálculo memorizado de las clases del día activo
-  const currentDayClasses = useMemo(() => {
-    return (schedule?.classes || [])
-      .filter((c) => c.dayIndex === activeDayIndex)
-      .sort((a, b) => a.startTime.localeCompare(b.startTime));
-  }, [schedule, activeDayIndex]);
+  const currentDayClasses = useMemo(() => sortClassesByStart(
+    (schedule?.classes || []).filter((classItem) => Number(classItem.dayIndex) === activeDayIndexState)
+  ), [activeDayIndexState, schedule?.classes]);
 
   return {
     schedule,
     loading,
     error,
+    detailError,
     scheduleName: schedule?.name || '',
     daysCount: schedule?.daysCount || 5,
     classes: schedule?.classes || [],
-    activeDayIndex,
+    subjectColors: schedule?.subjectColors || [],
+    activeDayIndex: activeDayIndexState,
     setActiveDayIndex,
     currentDayClasses,
     showSettings,
@@ -306,5 +337,10 @@ export function useScheduleCalendar(userId, scheduleId) {
     handleDeleteClass,
     handleUpdateAttendance,
     handleUpdateSettings,
+    savingClass,
+    savingSettings,
+    updatingAttendance,
+    deletingClassId,
+    reload: loadSchedule,
   };
 }
