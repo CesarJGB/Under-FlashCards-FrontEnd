@@ -309,6 +309,7 @@ function DashboardScreen({ user, onLogout, onInviteRequired }) {
               pendingNav={pendingLibraryNav}
               clearPendingNav={() => setPendingLibraryNav(null)}
               dashboardShell={dashboardShell}
+              onCalendarImmersiveChange={handleCalendarImmersiveChange}
             />
           )}
 
