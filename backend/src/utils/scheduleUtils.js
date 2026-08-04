@@ -58,7 +58,7 @@ function validateClassInput(input, { daysCount = 7, requireVisibleDay = true } =
   if (input.color !== undefined && input.color !== null && !isValidHexColor(input.color)) {
     return 'El color debe ser un código hexadecimal válido.';
   }
-  if (input.colorMode !== undefined && !['automatic', 'custom'].includes(input.colorMode)) {
+  if (input.colorMode !== undefined && input.colorMode !== null && !['automatic', 'custom'].includes(input.colorMode)) {
     return 'El modo de color no es válido.';
   }
   if (input.colorMode === 'custom' && !isValidHexColor(input.color)) {
@@ -107,6 +107,7 @@ function applySubjectColor(schedule, { subjectKey, subject, colorMode, color }) 
     if (itemKey === key) {
       item.subjectKey = key;
       item.color = explicitColor;
+      item.colorMode = explicitColor ? 'custom' : 'automatic';
     }
   });
 }
