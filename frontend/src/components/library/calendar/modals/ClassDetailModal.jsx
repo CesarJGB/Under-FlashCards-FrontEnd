@@ -10,8 +10,8 @@ import useModalAccessibility from '../../../../hooks/useModalAccessibility';
 const ATTENDANCE_ITEMS = [
   { key: 'attendances', label: 'Asistencias' },
   { key: 'absences', label: 'Ausencias' },
-  { key: 'partialAttendances', label: 'Parciales' },
-  { key: 'canceledClasses', label: 'Anuladas' },
+  { key: 'tardies', label: 'Retardos' },
+  { key: 'participations', label: 'Participaciones' },
 ];
 
 export default function ClassDetailModal({
