@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Calendar, Plus } from 'lucide-react';
+import { Calendar, Download, Plus, Settings2 } from 'lucide-react';
 import ActionSheet from '../common/ActionSheet';
 import PdfExportOverlay from '../PdfExportOverlay';
 import useSchedulePdfExport from '../../hooks/useSchedulePdfExport';
@@ -11,14 +11,14 @@ import ClassList from './calendar/ClassList';
 import ScheduleDaySummary from './calendar/ScheduleDaySummary';
 import ScheduleViewSwitcher from './calendar/ScheduleViewSwitcher';
 import ScheduleWeekView from './calendar/ScheduleWeekView';
-import CalendarFAB from './calendar/CalendarFAB';
 import DayPickerModal from './calendar/modals/DayPickerModal';
 import ClassFormModal from './calendar/modals/ClassFormModal';
 import ClassDetailModal from './calendar/modals/ClassDetailModal';
 import ScheduleSettingsModal from './calendar/modals/ScheduleSettingsModal';
+import ScheduleMobileFooter from './calendar/ScheduleMobileFooter';
 import { estimateSchedulePdfPages } from '../../utils/pdf/schedule/schedulePdfLayout';
 
-export default function ScheduleCalendar({ userId, scheduleId, onBack, dashboardShell, onOpenSwitcher }) {
+export default function ScheduleCalendar({ userId, scheduleId, onBack, dashboardShell, onOpenSwitcher, isSwitcherOpen = false }) {
   const {
     schedule,
     loading,
@@ -57,8 +57,9 @@ export default function ScheduleCalendar({ userId, scheduleId, onBack, dashboard
   const pdfExport = useSchedulePdfExport();
   const [showFabSheet, setShowFabSheet] = useState(false);
   const [showExportSheet, setShowExportSheet] = useState(false);
+  const [showMobileActions, setShowMobileActions] = useState(false);
   const [viewMode, setViewMode] = useState('day');
-  const isAnyModalOpen = showSettings || showDayPicker || showClassForm || !!selectedClassDetail || showFabSheet || showExportSheet || pdfExport.isExporting;
+  const isAnyModalOpen = showSettings || showDayPicker || showClassForm || !!selectedClassDetail || showFabSheet || showExportSheet || showMobileActions || isSwitcherOpen || pdfExport.isExporting;
 
   const classesWithColors = useMemo(() => classes.map((item) => ({
     ...item,
@@ -85,6 +86,30 @@ export default function ScheduleCalendar({ userId, scheduleId, onBack, dashboard
     { id: 'pick-other-day', label: 'Elegir otro día', icon: Calendar, onSelect: () => setShowDayPicker(true) },
   ];
 
+  const mobileActionOptions = [
+    {
+      id: 'settings',
+      label: 'Ajustes del horario',
+      description: 'Nombre y días visibles',
+      icon: Settings2,
+      onSelect: () => {
+        setShowMobileActions(false);
+        setShowSettings(true);
+      },
+    },
+    {
+      id: 'export',
+      label: 'Descargar PDF',
+      description: 'Elige orientación horizontal o vertical',
+      icon: Download,
+      onSelect: () => {
+        setShowMobileActions(false);
+        setShowExportSheet(true);
+      },
+    },
+    { id: 'cancel', label: 'Cancelar' },
+  ];
+
   const exportOptions = [
     {
       id: 'landscape',
@@ -103,13 +128,17 @@ export default function ScheduleCalendar({ userId, scheduleId, onBack, dashboard
   ];
 
   return (
-    <div className="relative mx-auto w-full max-w-2xl animate-[fadeIn_0.15s_ease] select-none pb-[calc(8rem+env(safe-area-inset-bottom))]">
-      <ScheduleHeader onBack={onBack} scheduleName={scheduleName} onOpenSettings={() => setShowSettings(true)} onOpenSwitcher={onOpenSwitcher} onExport={() => setShowExportSheet(true)} exporting={pdfExport.isExporting} />
+    <div className="relative mx-auto w-full max-w-2xl animate-[fadeIn_0.15s_ease] select-none pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-8">
+      <div className="hidden md:block">
+        <ScheduleHeader onBack={onBack} scheduleName={scheduleName} onOpenSettings={() => setShowSettings(true)} onOpenSwitcher={onOpenSwitcher} onExport={() => setShowExportSheet(true)} exporting={pdfExport.isExporting} />
+      </div>
 
       {error && !showClassForm && !showSettings && !selectedClassDetail && <div className="mx-1 my-3 flex items-center gap-3 rounded-2xl border border-red-200 bg-red-50 px-3 py-2.5 text-xs font-semibold text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300" role="alert"><span className="min-w-0 flex-1">{error}</span><button type="button" onClick={() => void reload()} className="min-h-11 shrink-0 rounded-xl px-2 font-bold underline underline-offset-2 hover:bg-red-100 dark:hover:bg-red-500/20">Reintentar</button></div>}
       {pdfExport.error && <div className="mx-1 my-3 rounded-2xl border border-red-200 bg-red-50 px-3 py-2.5 text-xs font-semibold text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300" role="alert">{pdfExport.error}</div>}
 
-      <ScheduleViewSwitcher value={viewMode} onChange={setViewMode} />
+      <div className="hidden md:block">
+        <ScheduleViewSwitcher value={viewMode} onChange={setViewMode} />
+      </div>
 
       {viewMode === 'day' ? <>
         <DayTabs daysCount={daysCount} activeDayIndex={activeDayIndex} setActiveDayIndex={setActiveDayIndex} classes={classesWithColors} />
@@ -124,8 +153,20 @@ export default function ScheduleCalendar({ userId, scheduleId, onBack, dashboard
         onSelectClass={setSelectedClassDetail}
       />}
 
-      {!isAnyModalOpen && <CalendarFAB onClick={() => setShowFabSheet(true)} dashboardShell={dashboardShell} />}
+      {!isAnyModalOpen && (
+        <ScheduleMobileFooter
+          scheduleName={scheduleName}
+          viewMode={viewMode}
+          onBack={onBack}
+          onOpenActions={() => setShowMobileActions(true)}
+          onOpenSwitcher={onOpenSwitcher}
+          onViewChange={setViewMode}
+          onAddClass={() => setShowFabSheet(true)}
+          dashboardShell={dashboardShell}
+        />
+      )}
 
+      <ActionSheet open={showMobileActions} title="Acciones del horario" options={mobileActionOptions} onClose={() => setShowMobileActions(false)} compact />
       <ActionSheet open={showFabSheet} title="Añadir clase" options={fabOptions} onClose={() => setShowFabSheet(false)} compact />
       <ActionSheet open={showExportSheet} title="Exportar horario" options={exportOptions} onClose={() => setShowExportSheet(false)} compact />
 
