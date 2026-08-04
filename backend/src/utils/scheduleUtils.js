@@ -48,7 +48,7 @@ function validateClassInput(input, { daysCount = 7, requireVisibleDay = true } =
     return 'La hora final debe ser posterior a la hora inicial.';
   }
 
-  for (const field of ['attendances', 'absences', 'partialAttendances', 'canceledClasses']) {
+  for (const field of ['attendances', 'absences', 'tardies', 'participations', 'partialAttendances', 'canceledClasses']) {
     if (input[field] === undefined) continue;
     if (!Number.isInteger(Number(input[field])) || Number(input[field]) < 0) {
       return `El valor de ${field} no puede ser negativo.`;
