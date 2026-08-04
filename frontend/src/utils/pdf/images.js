@@ -1,4 +1,4 @@
-import { PDF_LIMITS } from './constants';
+import { PDF_LIMITS } from './constants.js';
 
 const MIME_TO_FORMAT = {
   'image/jpeg': 'JPEG',

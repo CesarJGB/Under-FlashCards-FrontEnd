@@ -1,7 +1,7 @@
-import { getPdfExport } from './constants';
-import { savePdfBuffer } from './download';
-import { validateDeckImageBudget } from './images';
-import { renderPdfInWorker } from './workerClient';
+import { getPdfExport } from './constants.js';
+import { savePdfBuffer } from './download.js';
+import { validateDeckImageBudget } from './images.js';
+import { renderPdfInWorker } from './workerClient.js';
 
 function isAbortError(error) {
   return error?.name === 'AbortError';
@@ -60,7 +60,7 @@ export async function exportDeckToPDF(deckTitle, cards, type = 'guide', options 
       total: cards?.length || 0,
       message: 'Usando el modo de compatibilidad del navegador...',
     });
-    const { renderPdf } = await awaitWithAbort(import('./renderPdf'), options.signal);
+    const { renderPdf } = await awaitWithAbort(import('./renderPdf.js'), options.signal);
     if (options.signal?.aborted) throw createAbortError();
     result = await renderPdf({ ...payload, ...options });
   }
@@ -82,10 +82,20 @@ export async function exportScheduleToPDF(schedule, orientation = 'portrait', op
     subjectColors: Array.isArray(schedule?.subjectColors) ? schedule.subjectColors : [],
     orientation: orientation === 'landscape' ? 'landscape' : 'portrait',
   };
-  let result;
+  const result = await renderScheduleWithFallback(payload, options);
+
+  savePdfBuffer(result.buffer, result.fileName, { target: options.downloadTarget });
+  return result;
+}
+
+export async function renderScheduleWithFallback(payload, options = {}, dependencies = {}) {
+  const renderInWorker = dependencies.renderInWorker || renderPdfInWorker;
+  const loadFallbackRenderer = dependencies.loadFallbackRenderer || (
+    async () => (await import('./schedule/schedulePdfRenderer.js')).renderSchedulePdf
+  );
 
   try {
-    result = await renderPdfInWorker(payload, options);
+    return await renderInWorker(payload, options);
   } catch (workerError) {
     if (isAbortError(workerError)) throw workerError;
     if (workerError?.name !== 'PdfWorkerError') throw workerError;
@@ -96,11 +106,8 @@ export async function exportScheduleToPDF(schedule, orientation = 'portrait', op
       total: 0,
       message: 'Usando el modo de compatibilidad del navegador...',
     });
-    const { renderSchedulePdf } = await awaitWithAbort(import('./schedule/schedulePdfRenderer'), options.signal);
+    const renderSchedule = await awaitWithAbort(loadFallbackRenderer(), options.signal);
     if (options.signal?.aborted) throw createAbortError();
-    result = await renderSchedulePdf({ ...payload, ...options });
+    return renderSchedule({ ...payload, ...options });
   }
-
-  savePdfBuffer(result.buffer, result.fileName, { target: options.downloadTarget });
-  return result;
 }
