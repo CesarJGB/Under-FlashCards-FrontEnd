@@ -1,10 +1,14 @@
-// FILE: backend/src/controllers/scheduleController.js
 const Schedule = require('../models/Schedule');
 const {
-  applySubjectColor,
+  ATTENDANCE_FIELDS,
+  applySharedSubjectUpdate,
+  applySubjectAttendance,
+  ensureSubjectProfiles,
   findScheduleConflict,
+  findSubjectProfile,
   isValidDaysCount,
   normalizeClassSubjectKey,
+  removeUnusedSubjectProfile,
   validateClassInput,
 } = require('../utils/scheduleUtils');
 
@@ -20,47 +24,77 @@ function sendConflictError(res, conflict) {
   });
 }
 
+function hasOwn(object, key) {
+  return Object.prototype.hasOwnProperty.call(object || {}, key);
+}
+
+function normalizeScope(value) {
+  if (value === undefined || value === null || value === 'occurrence' || value === 'day') return 'occurrence';
+  if (value === 'all' || value === 'subject') return 'all';
+  return null;
+}
+
+function trimOrDefault(value, fallback) {
+  return typeof value === 'string' && value.trim() ? value.trim() : fallback;
+}
+
+function getMetricValues(body, profile = null) {
+  return Object.fromEntries(ATTENDANCE_FIELDS.map((field) => [
+    field,
+    profile?.[field] ?? body?.[field] ?? (field === 'tardies' ? body?.partialAttendances : field === 'participations' ? body?.canceledClasses : 0),
+  ]));
+}
+
+function getAttendanceUpdate(body) {
+  const deltas = body?.attendanceDelta;
+  if (deltas !== undefined && (!deltas || typeof deltas !== 'object' || Array.isArray(deltas))) {
+    return { error: 'attendanceDelta debe ser un objeto válido.' };
+  }
+  if (deltas) {
+    for (const field of Object.keys(deltas)) {
+      if (!ATTENDANCE_FIELDS.includes(field) || !Number.isInteger(Number(deltas[field]))) {
+        return { error: `El incremento de ${field} no es válido.` };
+      }
+    }
+    return { deltas: Object.fromEntries(Object.entries(deltas).map(([field, value]) => [field, Number(value)])) };
+  }
+
+  const values = {};
+  ATTENDANCE_FIELDS.forEach((field) => {
+    if (hasOwn(body, field)) values[field] = Number(body[field]);
+  });
+  return { values: Object.keys(values).length > 0 ? values : null };
+}
+
 // =========================================================================
-// HORARIOS (Schedules)
+// HORARIOS
 // =========================================================================
 
 exports.getSchedules = async (req, res) => {
   try {
     const { userId } = req.params;
     const schedules = await Schedule.find({ userId }).sort({ createdAt: 1 });
-    return res.json(schedules.map((s) => s.serialize()));
+    return res.json(schedules.map((schedule) => schedule.serialize()));
   } catch (err) {
     console.error('[schedule:getSchedules] error:', err.message);
     return res.status(500).json({ error: 'Server error al obtener horarios.' });
   }
 };
 
-// =========================================================================
-// OBTENER UN SOLO HORARIO POR ID
-// =========================================================================
 exports.getScheduleById = async (req, res) => {
   try {
     const { id } = req.params;
-    const requestedUserId = req.headers['x-user-id']; // Seguridad: comprobar dueño
-
+    const requestedUserId = req.headers['x-user-id'];
     const schedule = await Schedule.findById(id);
 
-    if (!schedule) {
-      return res.status(404).json({ error: 'Horario no encontrado.' });
-    }
-
-    // Seguridad: verificar que el horario pertenece al usuario que hace la petición
+    if (!schedule) return res.status(404).json({ error: 'Horario no encontrado.' });
     if (schedule.userId.toString() !== requestedUserId) {
       return res.status(403).json({ error: 'No autorizado para ver este horario.' });
     }
-
     return res.json(schedule.serialize());
   } catch (err) {
     console.error('[schedule:getScheduleById] error:', err.message);
-    // Si el ID no tiene formato válido de MongoDB, Mongoose lanza un error de "Cast"
-    if (err.kind === 'ObjectId') {
-      return res.status(404).json({ error: 'Horario no encontrado.' });
-    }
+    if (err.kind === 'ObjectId') return res.status(404).json({ error: 'Horario no encontrado.' });
     return res.status(500).json({ error: 'Server error al obtener el horario.' });
   }
 };
@@ -72,16 +106,13 @@ exports.createSchedule = async (req, res) => {
     if (name !== undefined && typeof name !== 'string') return sendValidationError(res, 'El nombre del horario no es válido.');
 
     const normalizedDays = daysCount === undefined ? 5 : Number(daysCount);
-    if (!isValidDaysCount(normalizedDays)) {
-      return sendValidationError(res, 'daysCount debe ser un número entero entre 5 y 7.');
-    }
+    if (!isValidDaysCount(normalizedDays)) return sendValidationError(res, 'daysCount debe ser un número entero entre 5 y 7.');
 
     const schedule = await Schedule.create({
       userId,
       name: name?.trim() || 'Horario Principal',
       daysCount: normalizedDays,
     });
-
     return res.status(201).json(schedule.serialize());
   } catch (err) {
     console.error('[schedule:createSchedule] error:', err.message);
@@ -94,7 +125,6 @@ exports.updateSchedule = async (req, res) => {
   try {
     const { id } = req.params;
     const { name, daysCount } = req.body || {};
-
     const schedule = await Schedule.findById(id);
     if (!schedule) return res.status(404).json({ error: 'Horario no encontrado.' });
 
@@ -105,12 +135,11 @@ exports.updateSchedule = async (req, res) => {
     }
     if (daysCount !== undefined) {
       const normalizedDays = Number(daysCount);
-      if (!isValidDaysCount(normalizedDays)) {
-        return sendValidationError(res, 'daysCount debe ser un número entero entre 5 y 7.');
-      }
+      if (!isValidDaysCount(normalizedDays)) return sendValidationError(res, 'daysCount debe ser un número entero entre 5 y 7.');
       schedule.daysCount = normalizedDays;
     }
 
+    ensureSubjectProfiles(schedule);
     await schedule.save();
     return res.json(schedule.serialize());
   } catch (err) {
@@ -133,60 +162,62 @@ exports.deleteSchedule = async (req, res) => {
 };
 
 // =========================================================================
-// CLASES (dentro de un horario)
+// CLASES / OCURRENCIAS
 // =========================================================================
 
 exports.addClass = async (req, res) => {
   try {
-    const { id } = req.params; // scheduleId
-    const { subject, teacher, room, dayIndex, startTime, endTime, subjectKey, color, colorMode, tardies, participations, partialAttendances, canceledClasses } = req.body || {};
-
+    const { id } = req.params;
+    const body = req.body || {};
+    const { subject, teacher, room, dayIndex, startTime, endTime, subjectKey, color, colorMode } = body;
     const schedule = await Schedule.findById(id);
     if (!schedule) return res.status(404).json({ error: 'Horario no encontrado.' });
 
+    const profiles = ensureSubjectProfiles(schedule);
+    const normalizedSubjectKey = normalizeClassSubjectKey(subjectKey, subject);
+    const existingProfile = profiles.find((profile) => profile.key === normalizedSubjectKey) || null;
+    const resolvedSubject = existingProfile?.name || String(subject || '').trim();
+    const resolvedTeacher = existingProfile?.teacher || trimOrDefault(teacher, 'Sin profesor');
+    const resolvedRoom = existingProfile?.room || trimOrDefault(room, 'Por definir');
+    const colorOverrideRequested = hasOwn(body, 'colorMode') || hasOwn(body, 'color');
+    const occurrenceColorMode = colorOverrideRequested ? (colorMode === 'custom' ? 'custom' : 'automatic') : null;
+    const occurrenceColor = occurrenceColorMode === 'custom' ? color : null;
+
     const classPayload = {
-      subject,
-      teacher,
-      room,
+      subject: resolvedSubject,
+      teacher: resolvedTeacher,
+      room: resolvedRoom,
       dayIndex: Number(dayIndex),
       startTime,
       endTime,
-      subjectKey,
-      color: color ?? null,
-      colorMode,
-      tardies: tardies ?? partialAttendances,
-      participations: participations ?? canceledClasses,
+      subjectKey: normalizedSubjectKey,
+      color: occurrenceColor,
+      colorMode: occurrenceColorMode,
+      ...getMetricValues(body, existingProfile),
     };
     const validationError = validateClassInput(classPayload, { daysCount: schedule.daysCount });
     if (validationError) return sendValidationError(res, validationError);
 
-    const normalizedSubjectKey = normalizeClassSubjectKey(subjectKey, subject);
     const conflict = findScheduleConflict(schedule.classes, classPayload);
     if (conflict) return sendConflictError(res, conflict);
 
     schedule.classes.push({
-      subject: subject.trim(),
-      teacher: teacher?.trim() || 'Sin profesor',
-      room: room?.trim() || 'Por definir',
+      subject: resolvedSubject,
+      teacher: resolvedTeacher,
+      room: resolvedRoom,
       subjectKey: normalizedSubjectKey,
-      color: colorMode === 'automatic' ? null : (color || null),
-      colorMode: colorMode || null,
+      color: occurrenceColor,
+      colorMode: occurrenceColorMode,
       dayIndex: Number(dayIndex),
       startTime,
       endTime,
-      tardies: tardies ?? partialAttendances,
-      participations: participations ?? canceledClasses,
+      ...getMetricValues(body, existingProfile),
     });
 
-    if (colorMode !== undefined || color !== undefined) {
-      applySubjectColor(schedule, {
-        subjectKey: normalizedSubjectKey,
-        subject: subject.trim(),
-        colorMode,
-        color,
-      });
-    }
-
+    // For a new subject the first occurrence seeds the shared profile. For an
+    // existing subject its profile remains authoritative and the occurrence
+    // inherits it without changing other days.
+    ensureSubjectProfiles(schedule);
     await schedule.save();
     return res.status(201).json(schedule.serialize());
   } catch (err) {
@@ -199,49 +230,44 @@ exports.addClass = async (req, res) => {
 exports.updateClass = async (req, res) => {
   try {
     const { id, classId } = req.params;
-    const updates = { ...(req.body || {}) };
-    // Accept legacy clients during migration, but normalize every new write.
-    if (updates.tardies === undefined && updates.partialAttendances !== undefined) {
-      updates.tardies = updates.partialAttendances;
-    }
-    if (updates.participations === undefined && updates.canceledClasses !== undefined) {
-      updates.participations = updates.canceledClasses;
-    }
+    const body = { ...(req.body || {}) };
+    const scope = normalizeScope(body.scope);
+    if (!scope) return sendValidationError(res, 'El alcance de actualización no es válido.');
+    delete body.scope;
+
+    if (body.tardies === undefined && body.partialAttendances !== undefined) body.tardies = body.partialAttendances;
+    if (body.participations === undefined && body.canceledClasses !== undefined) body.participations = body.canceledClasses;
 
     const schedule = await Schedule.findById(id);
     if (!schedule) return res.status(404).json({ error: 'Horario no encontrado.' });
+    ensureSubjectProfiles(schedule);
 
     const classItem = schedule.classes.id(classId);
     if (!classItem) return res.status(404).json({ error: 'Clase no encontrada.' });
+    const originalSubjectKey = normalizeClassSubjectKey(classItem.subjectKey, classItem.subject);
 
-    const nextSubject = updates.subject !== undefined ? updates.subject : classItem.subject;
-    const nextDayIndex = updates.dayIndex !== undefined ? Number(updates.dayIndex) : classItem.dayIndex;
-    const nextStartTime = updates.startTime !== undefined ? updates.startTime : classItem.startTime;
-    const nextEndTime = updates.endTime !== undefined ? updates.endTime : classItem.endTime;
-    const nextSubjectKey = normalizeClassSubjectKey(
-      updates.subjectKey !== undefined ? updates.subjectKey : classItem.subjectKey,
-      nextSubject
-    );
+    const nextSubject = body.subject !== undefined ? body.subject : classItem.subject;
+    const nextDayIndex = body.dayIndex !== undefined ? Number(body.dayIndex) : classItem.dayIndex;
+    const nextStartTime = body.startTime !== undefined ? body.startTime : classItem.startTime;
+    const nextEndTime = body.endTime !== undefined ? body.endTime : classItem.endTime;
     const validationError = validateClassInput({
       ...classItem.toObject(),
-      ...updates,
+      ...body,
       subject: nextSubject,
       dayIndex: nextDayIndex,
       startTime: nextStartTime,
       endTime: nextEndTime,
-      subjectKey: nextSubjectKey,
-      color: updates.color !== undefined ? updates.color : classItem.color,
+      subjectKey: originalSubjectKey,
+      color: body.color !== undefined ? body.color : classItem.color,
     }, {
       daysCount: schedule.daysCount,
-      // A class can remain stored on a hidden day after reducing a schedule
-      // from seven to five days; only newly moved classes must be visible.
       requireVisibleDay: nextDayIndex < schedule.daysCount || nextDayIndex === classItem.dayIndex,
     });
     if (validationError) return sendValidationError(res, validationError);
 
     const candidate = {
       ...classItem.toObject(),
-      ...updates,
+      ...body,
       subject: nextSubject,
       dayIndex: nextDayIndex,
       startTime: nextStartTime,
@@ -250,27 +276,56 @@ exports.updateClass = async (req, res) => {
     const conflict = findScheduleConflict(schedule.classes, candidate, classId);
     if (conflict) return sendConflictError(res, conflict);
 
-    // Solo se actualizan los campos que vienen en el body (updates parciales)
-    const allowedFields = [
-      'subject', 'teacher', 'room', 'dayIndex', 'startTime', 'endTime', 'subjectKey', 'color', 'colorMode',
-      'attendances', 'absences', 'tardies', 'participations',
-    ];
-    allowedFields.forEach((field) => {
-      if (updates[field] !== undefined) classItem[field] = updates[field];
-    });
-    classItem.subjectKey = nextSubjectKey;
-    if (updates.subject !== undefined) classItem.subject = nextSubject.trim();
-    if (updates.dayIndex !== undefined) classItem.dayIndex = nextDayIndex;
-
-    if (updates.colorMode !== undefined || updates.color !== undefined || updates.subjectKey !== undefined || updates.subject !== undefined) {
-      applySubjectColor(schedule, {
-        subjectKey: nextSubjectKey,
-        subject: nextSubject,
-        colorMode: updates.colorMode,
-        color: updates.color,
+    const attendanceUpdate = getAttendanceUpdate(body);
+    if (attendanceUpdate.error) return sendValidationError(res, attendanceUpdate.error);
+    const hasAttendanceUpdate = Boolean(attendanceUpdate.deltas || attendanceUpdate.values);
+    if (hasAttendanceUpdate) {
+      const profile = applySubjectAttendance(schedule, {
+        subjectKey: originalSubjectKey,
+        deltas: attendanceUpdate.deltas || {},
+        values: attendanceUpdate.values || {},
       });
+      if (!profile) return res.status(404).json({ error: 'Materia compartida no encontrada.' });
     }
 
+    // Day and time are always occurrence-specific, regardless of scope.
+    ['dayIndex', 'startTime', 'endTime'].forEach((field) => {
+      if (hasOwn(body, field)) classItem[field] = field === 'dayIndex' ? nextDayIndex : body[field];
+    });
+
+    const metadataFields = ['subject', 'teacher', 'room', 'color', 'colorMode'];
+    const hasMetadataUpdate = metadataFields.some((field) => hasOwn(body, field));
+    if (hasMetadataUpdate) {
+      const profile = findSubjectProfile(schedule, originalSubjectKey, classItem.subject);
+      const profilePayload = {
+        subjectKey: originalSubjectKey,
+        subject: nextSubject,
+        teacher: body.teacher !== undefined ? body.teacher : profile?.teacher,
+        room: body.room !== undefined ? body.room : profile?.room,
+      };
+      if (hasOwn(body, 'colorMode')) profilePayload.colorMode = body.colorMode;
+      if (hasOwn(body, 'color')) profilePayload.color = body.color;
+
+      if (scope === 'all') {
+        // The existing key is retained when a subject is renamed. This keeps
+        // the shared identity stable and prevents a duplicate logical subject.
+        applySharedSubjectUpdate(schedule, profilePayload);
+      } else {
+        classItem.subjectKey = originalSubjectKey;
+        if (hasOwn(body, 'subject')) classItem.subject = String(nextSubject).trim();
+        if (hasOwn(body, 'teacher')) classItem.teacher = trimOrDefault(body.teacher, 'Sin profesor');
+        if (hasOwn(body, 'room')) classItem.room = trimOrDefault(body.room, 'Por definir');
+        if (hasOwn(body, 'colorMode')) {
+          classItem.colorMode = body.colorMode;
+          classItem.color = body.colorMode === 'custom' ? body.color : null;
+        } else if (hasOwn(body, 'color')) {
+          classItem.color = body.color;
+          classItem.colorMode = body.color ? 'custom' : 'automatic';
+        }
+      }
+    }
+
+    ensureSubjectProfiles(schedule);
     await schedule.save();
     return res.json(schedule.serialize());
   } catch (err) {
@@ -283,16 +338,28 @@ exports.updateClass = async (req, res) => {
 exports.deleteClass = async (req, res) => {
   try {
     const { id, classId } = req.params;
+    const scope = normalizeScope(req.body?.scope);
+    if (!scope) return sendValidationError(res, 'El alcance de eliminación no es válido.');
 
     const schedule = await Schedule.findById(id);
     if (!schedule) return res.status(404).json({ error: 'Horario no encontrado.' });
+    ensureSubjectProfiles(schedule);
 
-    schedule.classes.pull(classId);
+    const classItem = schedule.classes.id(classId);
+    if (!classItem) return res.status(404).json({ error: 'Clase no encontrada.' });
+    const subjectKey = normalizeClassSubjectKey(classItem.subjectKey, classItem.subject);
+
+    if (scope === 'all') {
+      schedule.classes = schedule.classes.filter((item) => normalizeClassSubjectKey(item.subjectKey, item.subject) !== subjectKey);
+    } else {
+      schedule.classes.pull(classId);
+    }
+    removeUnusedSubjectProfile(schedule, subjectKey);
     await schedule.save();
-
     return res.json(schedule.serialize());
   } catch (err) {
     console.error('[schedule:deleteClass] error:', err.message);
+    if (err.name === 'ValidationError') return sendValidationError(res, err.message);
     return res.status(500).json({ error: 'Server error al eliminar clase.' });
   }
 };
