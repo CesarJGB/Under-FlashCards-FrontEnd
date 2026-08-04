@@ -3,7 +3,7 @@ import { Calendar, Download, Plus, Settings2 } from 'lucide-react';
 import ActionSheet from '../common/ActionSheet';
 import PdfExportOverlay from '../PdfExportOverlay';
 import useSchedulePdfExport from '../../hooks/useSchedulePdfExport';
-import { resolveScheduleClassColor } from './calendar/scheduleUtils';
+import { getSubjectKey, resolveScheduleClassColor } from './calendar/scheduleUtils';
 import { SHORT_WEEKDAYS, useScheduleCalendar, WEEKDAYS } from './calendar/useScheduleCalendar';
 import ScheduleHeader from './calendar/ScheduleHeader';
 import DayTabs from './calendar/DayTabs';
@@ -27,6 +27,7 @@ export default function ScheduleCalendar({ userId, scheduleId, onBack, dashboard
     scheduleName,
     daysCount,
     classes,
+    subjectProfiles,
     subjectColors,
     activeDayIndex,
     setActiveDayIndex,
@@ -37,14 +38,14 @@ export default function ScheduleCalendar({ userId, scheduleId, onBack, dashboard
     setShowDayPicker,
     showClassForm,
     setShowClassForm,
-    handleCloseClassForm,
+    handleCloseClassForm: closeClassForm,
     selectedDayForForm,
     setSelectedDayForForm,
     selectedClassDetail,
     setSelectedClassDetail,
     editingClass,
     handleEditClassClick,
-    handleSaveClass,
+    handleSaveClass: saveClass,
     handleDeleteClass,
     handleUpdateAttendance,
     handleUpdateSettings,
@@ -58,8 +59,10 @@ export default function ScheduleCalendar({ userId, scheduleId, onBack, dashboard
   const [showFabSheet, setShowFabSheet] = useState(false);
   const [showExportSheet, setShowExportSheet] = useState(false);
   const [showMobileActions, setShowMobileActions] = useState(false);
+  const [pendingClassSave, setPendingClassSave] = useState(null);
+  const [classFormError, setClassFormError] = useState('');
   const [viewMode, setViewMode] = useState('day');
-  const isAnyModalOpen = showSettings || showDayPicker || showClassForm || !!selectedClassDetail || showFabSheet || showExportSheet || showMobileActions || isSwitcherOpen || pdfExport.isExporting;
+  const isAnyModalOpen = showSettings || showDayPicker || showClassForm || !!selectedClassDetail || showFabSheet || showExportSheet || showMobileActions || Boolean(pendingClassSave) || isSwitcherOpen || pdfExport.isExporting;
 
   const classesWithColors = useMemo(() => classes.map((item) => ({
     ...item,
@@ -79,6 +82,39 @@ export default function ScheduleCalendar({ userId, scheduleId, onBack, dashboard
     if (pdfExport.isExporting) return;
     setShowExportSheet(false);
     void pdfExport.exportPdf(schedule, orientation);
+  };
+
+  const handleCloseClassForm = () => {
+    setPendingClassSave(null);
+    setClassFormError('');
+    closeClassForm();
+  };
+
+  const handleClassFormSave = async (formData) => {
+    setClassFormError('');
+    const editingId = editingClass?.id || null;
+    if (editingClass && editingId) {
+      const subjectKey = editingClass.subjectKey || getSubjectKey(editingClass.subject);
+      const occurrenceCount = classes.filter((item) => (item.subjectKey || getSubjectKey(item.subject)) === subjectKey).length;
+      const sharedMetadataChanged = ['subject', 'teacher', 'room'].some((field) => (
+        String(formData[field] ?? '') !== String(editingClass[field] ?? '')
+      )) || Object.prototype.hasOwnProperty.call(formData, 'color')
+        || Object.prototype.hasOwnProperty.call(formData, 'colorMode');
+
+      if (occurrenceCount > 1 && sharedMetadataChanged) {
+        setPendingClassSave({ formData, editingId });
+        return { ok: false };
+      }
+    }
+    return saveClass(formData, editingId, 'occurrence');
+  };
+
+  const resolvePendingClassSave = async (scope) => {
+    if (!pendingClassSave) return;
+    const pending = pendingClassSave;
+    setPendingClassSave(null);
+    const result = await saveClass(pending.formData, pending.editingId, scope);
+    if (!result?.ok) setClassFormError(result?.error || 'No se pudo guardar el cambio.');
   };
 
   const fabOptions = [
@@ -169,6 +205,25 @@ export default function ScheduleCalendar({ userId, scheduleId, onBack, dashboard
       <ActionSheet open={showMobileActions} title="Acciones del horario" options={mobileActionOptions} onClose={() => setShowMobileActions(false)} compact />
       <ActionSheet open={showFabSheet} title="Añadir clase" options={fabOptions} onClose={() => setShowFabSheet(false)} compact />
       <ActionSheet open={showExportSheet} title="Exportar horario" options={exportOptions} onClose={() => setShowExportSheet(false)} compact />
+      <ActionSheet
+        open={Boolean(pendingClassSave)}
+        title="Aplicar cambios"
+        options={[
+          {
+            id: 'all',
+            label: 'Aplicar a todos los días',
+            onSelect: () => { void resolvePendingClassSave('all'); },
+          },
+          {
+            id: 'occurrence',
+            label: 'Aplicar sólo a este día',
+            onSelect: () => { void resolvePendingClassSave('occurrence'); },
+          },
+          { id: 'cancel', label: 'Cancelar' },
+        ]}
+        onClose={() => setPendingClassSave(null)}
+        compact
+      />
 
       <DayPickerModal open={showDayPicker} daysCount={daysCount} onSelectDay={(index) => { setSelectedDayForForm(index); setShowDayPicker(false); window.setTimeout(() => setShowClassForm(true), 180); }} onClose={() => setShowDayPicker(false)} />
 
@@ -176,7 +231,8 @@ export default function ScheduleCalendar({ userId, scheduleId, onBack, dashboard
         key={editingClass?.id || 'new'}
         selectedDay={selectedDayForForm}
         onClose={handleCloseClassForm}
-        onSave={(data) => handleSaveClass(data, editingClass?.id)}
+        onSave={handleClassFormSave}
+        error={classFormError}
         saving={savingClass}
         initialSubject={editingClass?.subject || ''}
         initialTeacher={editingClass?.teacher || ''}
@@ -187,9 +243,10 @@ export default function ScheduleCalendar({ userId, scheduleId, onBack, dashboard
         initialColor={editingClass?.colorMode === 'custom' ? editingClass.color : null}
         initialColorMode={editingClass?.colorMode || 'automatic'}
         existingClasses={classes}
+        subjectProfiles={subjectProfiles}
       />}
 
-      {selectedClassDetail && <ClassDetailModal selectedClass={selectedClassDetail} subjectColors={subjectColors} error={detailError} onClose={() => setSelectedClassDetail(null)} onDelete={handleDeleteClass} onUpdateAttendance={handleUpdateAttendance} onEdit={handleEditClassClick} updatingAttendance={updatingAttendance} />}
+      {selectedClassDetail && <ClassDetailModal selectedClass={selectedClassDetail} subjectColors={subjectColors} occurrenceCount={classes.filter((item) => (item.subjectKey || getSubjectKey(item.subject)) === (selectedClassDetail.subjectKey || getSubjectKey(selectedClassDetail.subject))).length} error={detailError} onClose={() => setSelectedClassDetail(null)} onDelete={handleDeleteClass} onUpdateAttendance={handleUpdateAttendance} onEdit={handleEditClassClick} updatingAttendance={updatingAttendance} />}
 
       {showSettings && <ScheduleSettingsModal scheduleName={scheduleName} daysCount={daysCount} classes={classes} onSave={handleUpdateSettings} saving={savingSettings} onClose={() => setShowSettings(false)} />}
 
