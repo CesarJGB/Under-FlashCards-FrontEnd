@@ -80,6 +80,14 @@ function getClassesDuration(classes = []) {
   }, 0);
 }
 
+function getLandscapeTypography(width) {
+  // Keep type primarily tied to the column width. A two-hour block should
+  // have more content, not an exaggerated font that changes with its height.
+  if (width < 27) return { title: 4.25, meta: 3.65, time: 3.75, lineHeight: 2.05 };
+  if (width < 34) return { title: 4.8, meta: 4.05, time: 4.05, lineHeight: 2.25 };
+  return { title: 5.55, meta: 4.45, time: 4.35, lineHeight: 2.55 };
+}
+
 function drawHeader(doc, {
   scheduleName,
   orientation,
@@ -156,11 +164,15 @@ function drawLandscapeEvent(doc, item, x, y, width, height, subjectColors) {
   const contentX = x + 2.5;
   const contentWidth = Math.max(2, width - 3.6);
   const startTime = safeTime(item.startTime);
+  const endTime = safeTime(item.endTime);
   const title = item.subject || item.title || 'Asignatura';
+  const typography = getLandscapeTypography(width);
+  const duration = formatScheduleDuration(getClassesDuration([item]));
+  const timeRange = `${startTime} - ${endTime}`;
 
   if (blockHeight < 3.4) {
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(3.7);
+    doc.setFontSize(typography.time);
     setText(doc, colors.accent);
     doc.text(startTime, contentX, y + (blockHeight / 2) + 0.7, { maxWidth: contentWidth });
     return;
@@ -168,37 +180,40 @@ function drawLandscapeEvent(doc, item, x, y, width, height, subjectColors) {
 
   if (blockHeight < 6.2) {
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(width < 30 ? 3.9 : 4.3);
+    doc.setFontSize(typography.title);
     setText(doc, INK);
-    const line = `${startTime} ${title}`;
-    doc.text(fitSingleLine(doc, line, contentWidth), contentX, y + (blockHeight / 2) + 0.75);
+    doc.text(fitSingleLine(doc, title, contentWidth), contentX, y + 2.25, { maxWidth: contentWidth });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(typography.meta);
+    setText(doc, colors.accent);
+    doc.text(fitSingleLine(doc, `${timeRange} · ${duration}`, contentWidth), contentX, y + blockHeight - 1.15, { maxWidth: contentWidth });
     return;
   }
 
-  const roomy = blockHeight >= 11;
+  const roomy = blockHeight >= 10.5;
   const titleLines = fitLines(doc, title, contentWidth, roomy ? 2 : 1);
-  const lineHeight = width < 30 ? 2.1 : 2.45;
-  const detail = [item.room, item.teacher]
+  const detail = [item.teacher, item.room]
     .filter((value) => value && !['Sin profesor', 'Por definir'].includes(value))
-    .join(' | ');
-  const contentHeight = 2.1 + (titleLines.length * lineHeight) + (roomy ? 2.5 : 0);
-  const contentTop = y + Math.max(1.1, (blockHeight - contentHeight) / 2);
+    .join(' · ');
+  let cursorY = y + 2.25;
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(width < 30 ? 3.8 : 4.5);
-  setText(doc, colors.accent);
-  doc.text(`${startTime} | ${formatScheduleDuration(getClassesDuration([item]))}`, contentX, contentTop + 1.5, { maxWidth: contentWidth });
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(width < 30 ? 4.25 : 5.2);
+  doc.setFontSize(typography.title);
   setText(doc, INK);
-  doc.text(titleLines, contentX, contentTop + 3.8, { maxWidth: contentWidth, lineHeightFactor: 0.92 });
+  doc.text(titleLines, contentX, cursorY, { maxWidth: contentWidth, lineHeightFactor: 0.9 });
+  cursorY += (titleLines.length * typography.lineHeight) + 1.1;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(typography.time);
+  setText(doc, colors.accent);
+  doc.text(fitSingleLine(doc, `${timeRange} · ${duration}`, contentWidth), contentX, cursorY, { maxWidth: contentWidth });
+  cursorY += 2.25;
 
   if (roomy && detail) {
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(width < 30 ? 3.6 : 4.4);
+    doc.setFontSize(typography.meta);
     setText(doc, MUTED);
-    doc.text(fitSingleLine(doc, detail, contentWidth), contentX, Math.min(y + blockHeight - 1.25, contentTop + 4.1 + (titleLines.length * lineHeight)));
+    doc.text(fitSingleLine(doc, detail, contentWidth), contentX, Math.min(y + blockHeight - 1.25, cursorY), { maxWidth: contentWidth });
   }
 }
 
