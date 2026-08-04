@@ -1,4 +1,4 @@
-import { useRef, useState, useMemo, useEffect } from 'react';
+import { useRef, useState, useMemo, useEffect, useLayoutEffect } from 'react';
 import { useLibraryState } from '../hooks/useLibraryState';
 import DeckInterior from './DeckInterior';
 import DeckModal from './DeckModal';
@@ -42,7 +42,7 @@ export default function LibrarySection({
   // =========================================================================
   const [sectionMode, setSectionMode] = useState('biblioteca'); // 'biblioteca' | 'general' | 'calendar'
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const immersive = sectionMode === 'calendar';
     onCalendarImmersiveChange?.(immersive);
 
