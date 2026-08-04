@@ -28,7 +28,8 @@ export default function LibrarySection({
   onInviteRequired,
   pendingNav,       
   clearPendingNav,
-  dashboardShell
+  dashboardShell,
+  onCalendarImmersiveChange,
 }) {
   
   useEffect(() => {
@@ -40,6 +41,15 @@ export default function LibrarySection({
   // 🧭 SWITCHER BIBLIOTECA / GENERAL / CALENDAR
   // =========================================================================
   const [sectionMode, setSectionMode] = useState('biblioteca'); // 'biblioteca' | 'general' | 'calendar'
+
+  useEffect(() => {
+    const immersive = sectionMode === 'calendar';
+    onCalendarImmersiveChange?.(immersive);
+
+    return () => {
+      onCalendarImmersiveChange?.(false);
+    };
+  }, [sectionMode, onCalendarImmersiveChange]);
 
   const {
     currentPath, setCurrentPath, temas, setTemas, subtemas, setSubtemas,
