@@ -1,5 +1,10 @@
 // backend/src/models/Schedule.js
 const mongoose = require('mongoose');
+
+function normalizeAttendanceCounter(value, fallback = 0) {
+  const number = Number(value);
+  return Number.isInteger(number) && number >= 0 ? number : fallback;
+}
 const { normalizeClassSubjectKey, TIME_PATTERN, timeToMinutes } = require('../utils/scheduleUtils');
 
 const subjectColorSchema = new mongoose.Schema(
@@ -41,6 +46,9 @@ const classSchema = new mongoose.Schema(
     },
     attendances: { type: Number, default: 0, min: 0, validate: Number.isInteger },
     absences: { type: Number, default: 0, min: 0, validate: Number.isInteger },
+    // Current names. No default keeps legacy documents distinguishable during migration.
+    tardies: { type: Number, min: 0, validate: Number.isInteger },
+    participations: { type: Number, min: 0, validate: Number.isInteger },
     partialAttendances: { type: Number, default: 0, min: 0, validate: Number.isInteger },
     canceledClasses: { type: Number, default: 0, min: 0, validate: Number.isInteger },
   },
@@ -72,30 +80,41 @@ scheduleSchema.methods.serialize = function () {
       name: entry.name,
       color: entry.color || null,
     })),
-    classes: this.classes.map((c) => ({
-      ...(() => {
-        const subjectKey = normalizeClassSubjectKey(c.subjectKey, c.subject);
-        const registryEntry = (this.subjectColors || []).find((entry) => entry.key === subjectKey);
-        const legacyOrCustomColor = c.colorMode === 'automatic' ? null : (c.color || null);
-        const explicitColor = registryEntry ? (registryEntry.color || null) : legacyOrCustomColor;
-        return {
-          subjectKey,
-          color: explicitColor,
-          colorMode: explicitColor ? 'custom' : 'automatic',
-        };
-      })(),
-      id: c._id,
-      subject: c.subject,
-      teacher: c.teacher,
-      room: c.room,
-      dayIndex: c.dayIndex,
-      startTime: c.startTime,
-      endTime: c.endTime,
-      attendances: c.attendances,
-      absences: c.absences,
-      partialAttendances: c.partialAttendances,
-      canceledClasses: c.canceledClasses,
-    })),
+    classes: this.classes.map((c) => {
+      const tardies = c.tardies === undefined || c.tardies === null
+        ? normalizeAttendanceCounter(c.partialAttendances)
+        : normalizeAttendanceCounter(c.tardies);
+      const participations = c.participations === undefined || c.participations === null
+        ? normalizeAttendanceCounter(c.canceledClasses)
+        : normalizeAttendanceCounter(c.participations);
+      return ({
+        ...(() => {
+          const subjectKey = normalizeClassSubjectKey(c.subjectKey, c.subject);
+          const registryEntry = (this.subjectColors || []).find((entry) => entry.key === subjectKey);
+          const legacyOrCustomColor = c.colorMode === 'automatic' ? null : (c.color || null);
+          const explicitColor = registryEntry ? (registryEntry.color || null) : legacyOrCustomColor;
+          return {
+            subjectKey,
+            color: explicitColor,
+            colorMode: explicitColor ? 'custom' : 'automatic',
+          };
+        })(),
+        id: c._id,
+        subject: c.subject,
+        teacher: c.teacher,
+        room: c.room,
+        dayIndex: c.dayIndex,
+        startTime: c.startTime,
+        endTime: c.endTime,
+        attendances: c.attendances,
+        absences: c.absences,
+        tardies,
+        participations,
+        // Legacy keys stay in API responses during the transition.
+        partialAttendances: c.partialAttendances,
+        canceledClasses: c.canceledClasses,
+      });
+    }),
     createdAt: this.createdAt,
   };
 };
