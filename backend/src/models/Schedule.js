@@ -21,6 +21,9 @@ const classSchema = new mongoose.Schema(
     subjectKey: { type: String, trim: true, default: null, maxlength: 160 },
     // null means automatic deterministic color; an explicit value is a user override.
     color: { type: String, default: null, match: /^#[0-9a-f]{3}(?:[0-9a-f]{3})?$/i },
+    // Optional for backward compatibility. Legacy documents infer custom mode
+    // from their stored color, while new writes preserve the user's intent.
+    colorMode: { type: String, enum: ['automatic', 'custom'], default: null },
     dayIndex: { type: Number, required: true, min: 0, max: 6, validate: Number.isInteger },
     startTime: { type: String, required: true, match: TIME_PATTERN },
     endTime: {
@@ -73,7 +76,8 @@ scheduleSchema.methods.serialize = function () {
       ...(() => {
         const subjectKey = normalizeClassSubjectKey(c.subjectKey, c.subject);
         const registryEntry = (this.subjectColors || []).find((entry) => entry.key === subjectKey);
-        const explicitColor = c.color || registryEntry?.color || null;
+        const legacyOrCustomColor = c.colorMode === 'automatic' ? null : (c.color || null);
+        const explicitColor = registryEntry ? (registryEntry.color || null) : legacyOrCustomColor;
         return {
           subjectKey,
           color: explicitColor,
