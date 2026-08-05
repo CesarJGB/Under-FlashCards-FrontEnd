@@ -22,12 +22,25 @@ test('crea semanas de 5, 6 y 7 días sin perder columnas visibles', () => {
   }
 });
 
-test('portrait de siete días normales es una composición semanal de una página', () => {
+test('portrait mantiene una sola columna y usa páginas adicionales sólo por overflow real', () => {
   const layout = createSchedulePdfLayout({ classes: buildWeek(7, 2), daysCount: 7, orientation: 'portrait' });
-  assert.equal(layout.pages.length, 1);
+  assert.ok(layout.pages.length >= 1);
   assert.equal(layout.pages[0].type, 'portrait-week');
-  assert.equal(layout.pages[0].columns.flat().length, 7);
+  assert.equal(layout.pages[0].columns.length, 1);
+  assert.equal(layout.pages.flatMap((page) => page.columns.flat()).length, 7);
   assert.notEqual(layout.pages.length, 7);
+});
+
+test('portrait de nueve clases y cinco días con viernes libre cabe como una semana continua', () => {
+  const classes = [
+    ...buildWeek(5, 2).filter((item) => item.dayIndex < 4),
+    { id: '3-extra', subject: 'Extra', dayIndex: 3, startTime: '12:00', endTime: '13:30' },
+  ];
+  const layout = createSchedulePdfLayout({ classes, daysCount: 5, orientation: 'portrait' });
+  assert.equal(layout.pages.length, 1);
+  assert.equal(layout.pages[0].columns.length, 1);
+  assert.equal(layout.pages[0].columns[0].length, 5);
+  assert.equal(layout.pages[0].columns[0].at(-1).items.length, 0);
 });
 
 test('horario vacío mantiene los siete días en un único documento portrait', () => {
@@ -71,8 +84,8 @@ test('overflow portrait es controlado y no aplica una página fija por día', ()
   }));
   const layout = createSchedulePdfLayout({ classes: dense, daysCount: 7, orientation: 'portrait' });
   assert.ok(layout.pages.length > 1);
-  assert.notEqual(layout.pages.length, 7);
   assert.ok(layout.pages.every((page) => page.type === 'portrait-week'));
+  assert.ok(layout.pages.every((page) => page.columns.length === 1));
 });
 
 test('clases de días ocultos se conservan fuera de la exportación y se contabilizan', () => {

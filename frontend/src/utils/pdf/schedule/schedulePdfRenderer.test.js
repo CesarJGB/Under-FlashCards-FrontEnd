@@ -18,28 +18,38 @@ test('sanitiza guiones y caracteres fuera del repertorio PDF seguro', () => {
   assert.equal(sanitizeSchedulePdfText('Química — aula 2 … 🧪'), 'Química - aula 2 ...');
 });
 
-test('render portrait de siete días produce un solo buffer PDF y no siete páginas', async () => {
+test('render portrait de siete días produce un solo buffer PDF con nombre descriptivo', async () => {
   const result = await renderSchedulePdf({
     scheduleName: 'Semestre Agosto 2026',
-    classes: sevenDaySchedule(),
+    classes: sevenDaySchedule(1),
     daysCount: 7,
     orientation: 'portrait',
   });
   assert.equal(result.singleFile, true);
   assert.equal(result.pagesProcessed, 1);
-  assert.match(result.fileName, /vertical\.pdf$/);
+  assert.match(result.fileName, /^Horario_Semestre-Agosto-2026_Compacta_\d{4}-\d{2}-\d{2}\.pdf$/);
   assert.ok(result.buffer.byteLength > 1_000);
 });
 
 test('render landscape incluye toda la semana normal en una página', async () => {
   const result = await renderSchedulePdf({
     scheduleName: 'Horario: Química / Cálculo',
-    classes: sevenDaySchedule(),
+    classes: sevenDaySchedule(1),
     daysCount: 7,
     orientation: 'landscape',
   });
   assert.equal(result.pagesProcessed, 1);
-  assert.equal(result.fileName, 'Horario Química Cálculo-horizontal.pdf');
+  assert.match(result.fileName, /^Horario_Horario-Quimica-Calculo_Cuadricula_\d{4}-\d{2}-\d{2}\.pdf$/);
+});
+
+test('schedule sin nombre usa el fallback Horario y nunca Unknown', async () => {
+  const result = await renderSchedulePdf({
+    classes: [{ subject: 'Cálculo', dayIndex: 0, startTime: '08:00', endTime: '09:00' }],
+    daysCount: 5,
+    orientation: 'portrait',
+  });
+  assert.match(result.fileName, /^Horario_Horario_Compacta_\d{4}-\d{2}-\d{2}\.pdf$/);
+  assert.doesNotMatch(result.fileName, /unknown/i);
 });
 
 test('cancela durante un render multipágina', async () => {

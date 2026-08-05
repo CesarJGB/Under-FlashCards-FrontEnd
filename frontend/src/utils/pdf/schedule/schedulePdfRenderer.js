@@ -1,4 +1,4 @@
-import { createPdfDocument, createPdfFileName, getPageMetrics } from '../document.js';
+import { createPdfDocument, createSchedulePdfFileName, getPageMetrics } from '../document.js';
 import {
   formatFreeTime,
   formatScheduleDuration,
@@ -16,6 +16,7 @@ const MUTED = { r: 100, g: 116, b: 139 };
 const GRID = { r: 226, g: 232, b: 240 };
 const SOFT = { r: 248, g: 250, b: 252 };
 const INDIGO = { r: 79, g: 70, b: 229 };
+const MIN_LANDSCAPE_EVENT_MINUTES = 45;
 
 function createAbortError() {
   const error = new Error('La exportación fue cancelada.');
@@ -83,9 +84,9 @@ function getClassesDuration(classes = []) {
 function getLandscapeTypography(width) {
   // Keep type primarily tied to the column width. A two-hour block should
   // have more content, not an exaggerated font that changes with its height.
-  if (width < 27) return { title: 4.25, meta: 3.65, time: 3.75, lineHeight: 2.05 };
-  if (width < 34) return { title: 4.8, meta: 4.05, time: 4.05, lineHeight: 2.25 };
-  return { title: 5.55, meta: 4.45, time: 4.35, lineHeight: 2.55 };
+  if (width < 27) return { title: 4.6, meta: 3.7, time: 3.75, lineHeight: 2.05 };
+  if (width < 34) return { title: 5.15, meta: 4.1, time: 4.05, lineHeight: 2.25 };
+  return { title: 5.9, meta: 4.5, time: 4.35, lineHeight: 2.55 };
 }
 
 function drawHeader(doc, {
@@ -167,49 +168,45 @@ function drawLandscapeEvent(doc, item, x, y, width, height, subjectColors) {
   const endTime = safeTime(item.endTime);
   const title = item.subject || item.title || 'Asignatura';
   const typography = getLandscapeTypography(width);
-  const duration = formatScheduleDuration(getClassesDuration([item]));
+  const durationMinutes = getClassesDuration([item]);
+  const duration = formatScheduleDuration(durationMinutes);
   const timeRange = `${startTime} - ${endTime}`;
+  const detail = durationMinutes < 60
+    ? ''
+    : durationMinutes < 120
+      ? (item.room || '')
+      : [item.teacher, item.room].filter((value) => value && !['Sin profesor', 'Por definir'].includes(value)).join(' · ');
+  const padding = Math.min(4.2, Math.max(2.1, 2.1 + ((blockHeight - 7) * 0.12)));
+  const lineHeightFactor = Math.min(1.18, Math.max(0.94, 0.94 + ((blockHeight - 7) * 0.012)));
 
-  if (blockHeight < 3.4) {
+  if (blockHeight < 4.6) {
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(typography.time);
-    setText(doc, colors.accent);
-    doc.text(startTime, contentX, y + (blockHeight / 2) + 0.7, { maxWidth: contentWidth });
-    return;
-  }
-
-  if (blockHeight < 6.2) {
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(typography.title);
+    doc.setFontSize(Math.min(typography.title, 4.4));
     setText(doc, INK);
-    doc.text(fitSingleLine(doc, title, contentWidth), contentX, y + 2.25, { maxWidth: contentWidth });
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(typography.meta);
-    setText(doc, colors.accent);
-    doc.text(fitSingleLine(doc, `${timeRange} · ${duration}`, contentWidth), contentX, y + blockHeight - 1.15, { maxWidth: contentWidth });
+    doc.text(fitSingleLine(doc, `${title} · ${startTime}`, contentWidth), contentX, y + (blockHeight / 2) + 0.8, { maxWidth: contentWidth });
     return;
   }
 
-  const roomy = blockHeight >= 10.5;
-  const titleLines = fitLines(doc, title, contentWidth, roomy ? 2 : 1);
-  const detail = [item.teacher, item.room]
-    .filter((value) => value && !['Sin profesor', 'Por definir'].includes(value))
-    .join(' · ');
-  let cursorY = y + 2.25;
+  const titleLines = fitLines(doc, title, contentWidth, blockHeight >= 11 ? 2 : 1);
+  const titleLineHeight = typography.title * 0.3528 * lineHeightFactor;
+  const detailLineHeight = typography.meta * 0.3528;
+  const rowCount = titleLines.length + 1 + (detail ? 1 : 0);
+  const contentHeight = (titleLines.length * titleLineHeight) + 1.2 + (typography.time * 0.3528) + (detail ? detailLineHeight + 0.8 : 0);
+  let cursorY = y + Math.max(padding, ((blockHeight - contentHeight) / 2) + 1.6);
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(typography.title);
   setText(doc, INK);
-  doc.text(titleLines, contentX, cursorY, { maxWidth: contentWidth, lineHeightFactor: 0.9 });
-  cursorY += (titleLines.length * typography.lineHeight) + 1.1;
+  doc.text(titleLines, contentX, cursorY, { maxWidth: contentWidth, lineHeightFactor });
+  cursorY += (titleLines.length * titleLineHeight) + Math.min(1.6, 0.9 + ((blockHeight - 7) * 0.035));
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(typography.time);
   setText(doc, colors.accent);
   doc.text(fitSingleLine(doc, `${timeRange} · ${duration}`, contentWidth), contentX, cursorY, { maxWidth: contentWidth });
-  cursorY += 2.25;
+  cursorY += (typography.time * 0.3528) + Math.min(1.3, 0.8 + ((blockHeight - 7) * 0.03));
 
-  if (roomy && detail) {
+  if (detail && rowCount > 2) {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(typography.meta);
     setText(doc, MUTED);
@@ -322,87 +319,142 @@ function drawLandscapePage(doc, page, subjectColors, header, pageCount) {
       const clippedStart = Math.max(start, page.timeRange.start);
       const clippedEnd = Math.min(end, page.timeRange.end);
       const y = gridTop + ((clippedStart - page.timeRange.start) * scale) + 0.55;
-      const height = Math.max(1, ((clippedEnd - clippedStart) * scale) - 1.1);
+      // Keep very short classes legible without changing their typography.
+      // The floor is visual only; the shared time scale still communicates
+      // the real duration everywhere else in the grid.
+      const visualDurationMinutes = Math.max(MIN_LANDSCAPE_EVENT_MINUTES, clippedEnd - clippedStart);
+      const height = Math.max(1, (visualDurationMinutes * scale) - 1.1);
       drawLandscapeEvent(doc, item, x + 1.05, y, dayWidth - 2.1, height, subjectColors);
     });
   });
 }
 
-function drawPortraitEvent(doc, item, x, y, width, height, subjectColors) {
+function drawPortraitClockIcon(doc, x, y, color = MUTED) {
+  setStroke(doc, color);
+  doc.setLineWidth(0.22);
+  doc.circle(x, y, 1.05, 'S');
+  doc.line(x, y, x, y - 0.55);
+  doc.line(x, y, x + 0.5, y + 0.3);
+}
+
+function drawPortraitPersonIcon(doc, x, y, color = MUTED) {
+  setStroke(doc, color);
+  doc.setLineWidth(0.22);
+  doc.circle(x, y - 0.65, 0.55, 'S');
+  doc.line(x - 1.05, y + 1.05, x - 0.55, y + 0.2);
+  doc.line(x + 1.05, y + 1.05, x + 0.55, y + 0.2);
+  doc.line(x - 0.55, y + 0.2, x + 0.55, y + 0.2);
+}
+
+function drawPortraitLocationIcon(doc, x, y, color = MUTED) {
+  setStroke(doc, color);
+  doc.setLineWidth(0.22);
+  doc.circle(x, y - 0.3, 0.85, 'S');
+  doc.circle(x, y - 0.3, 0.25, 'S');
+  doc.line(x - 0.62, y + 0.35, x, y + 1.25);
+  doc.line(x + 0.62, y + 0.35, x, y + 1.25);
+}
+
+function drawPortraitRail(doc, railX, startY, endY, dashed = false) {
+  setStroke(doc, { r: 203, g: 213, b: 225 });
+  doc.setLineWidth(0.3);
+  if (dashed) doc.setLineDashPattern([1, 1], 0);
+  doc.line(railX, startY, railX, endY);
+  if (dashed) doc.setLineDashPattern([], 0);
+}
+
+function drawPortraitEvent(doc, item, x, y, width, height, subjectColors, railX) {
   const event = item.event;
+  const cardX = x + 13;
+  const cardWidth = Math.max(20, width - 16);
+  const cardHeight = Math.max(4, height - 0.6);
+  const dotY = y + 5.2;
+
   if (!item.isValid) {
     setFill(doc, { r: 255, g: 251, b: 235 });
     setStroke(doc, { r: 253, g: 230, b: 138 });
-    doc.roundedRect(x, y, width, height - 0.5, 1, 1, 'FD');
+    doc.roundedRect(cardX, y + 0.2, cardWidth, cardHeight, 1.2, 1.2, 'FD');
+    setFill(doc, { r: 217, g: 119, b: 6 });
+    doc.circle(railX, dotY, 1.8, 'F');
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(5.5);
     setText(doc, { r: 180, g: 83, b: 9 });
-    doc.text(fitSingleLine(doc, `${event.subject || 'Clase'} | horario inválido`, width - 4), x + 2, y + (height / 2) + 0.8);
+    doc.text(fitSingleLine(doc, `${event.subject || 'Clase'} | horario inválido`, cardWidth - 4), cardX + 2.5, y + (height / 2) + 0.8);
     return;
   }
 
   const colors = getSchedulePdfColors(event, subjectColors);
+  setFill(doc, colors.accent);
+  doc.circle(railX, dotY, 1.8, 'F');
+  setFill(doc, { r: 255, g: 255, b: 255 });
+  doc.circle(railX, dotY, 0.55, 'F');
+
   setFill(doc, colors.surface);
   setStroke(doc, colors.border);
   doc.setLineWidth(0.22);
-  doc.roundedRect(x, y, width, height - 0.5, 1.1, 1.1, 'FD');
+  doc.roundedRect(cardX, y + 0.2, cardWidth, cardHeight, 1.1, 1.1, 'FD');
   setFill(doc, colors.accent);
-  doc.roundedRect(x, y, 1.4, height - 0.5, 0.8, 0.8, 'F');
+  doc.roundedRect(cardX, y + 0.2, 1.4, cardHeight, 0.8, 0.8, 'F');
 
-  const timeWidth = Math.min(25, width * 0.29);
-  const contentX = x + timeWidth;
-  const contentWidth = width - timeWidth - 2;
+  const contentX = cardX + 3.5;
+  const contentWidth = cardWidth - 5.5;
+  const timeLabel = `${safeTime(event.startTime)} - ${safeTime(event.endTime)} · ${formatScheduleDuration(item.durationMinutes)}`;
+  const detail = [event.teacher, event.room]
+    .filter((value) => value && !['Sin profesor', 'Por definir'].includes(value));
+  const showMeta = detail.length > 0 && height >= 12.2;
+
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(5.1);
+  doc.setFontSize(5.25);
   setText(doc, colors.accent);
-  doc.text(`${safeTime(event.startTime)} - ${safeTime(event.endTime)}`, x + 3, y + 3.6, { maxWidth: timeWidth - 4 });
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(4.5);
-  setText(doc, MUTED);
-  doc.text(formatScheduleDuration(item.durationMinutes), x + 3, y + 6.8, { maxWidth: timeWidth - 4 });
+  doc.text(fitSingleLine(doc, timeLabel, contentWidth), contentX, y + 3.7, { maxWidth: contentWidth });
 
-  const detail = [event.room, event.teacher]
-    .filter((value) => value && !['Sin profesor', 'Por definir'].includes(value))
-    .join(' | ');
-  const showDetail = Boolean(detail && height >= 10.2);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(6.5);
+  doc.setFontSize(7);
   setText(doc, INK);
   doc.text(
     fitSingleLine(doc, event.subject || event.title || 'Asignatura', contentWidth),
     contentX,
-    showDetail ? y + 3.8 : y + (height / 2) + 0.8
+    showMeta ? y + 7.2 : y + Math.min(height - 2.2, 8.5),
+    { maxWidth: contentWidth }
   );
 
-  if (showDetail) {
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(4.8);
-    setText(doc, MUTED);
-    doc.text(fitSingleLine(doc, detail, contentWidth), contentX, y + 7.2);
+  if (showMeta) {
+    const metadataY = y + height - 2.2;
+    const slotWidth = detail.length > 1 ? (contentWidth - 4) / 2 : contentWidth;
+    detail.slice(0, 2).forEach((value, index) => {
+      const slotX = contentX + (index * (slotWidth + 4));
+      const iconX = slotX + 0.9;
+      const textX = slotX + 2.7;
+      if (index === 0) drawPortraitPersonIcon(doc, iconX, metadataY - 0.5);
+      else drawPortraitLocationIcon(doc, iconX, metadataY - 0.45);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(4.35);
+      setText(doc, MUTED);
+      doc.text(fitSingleLine(doc, value, slotWidth - 3), textX, metadataY, { maxWidth: slotWidth - 3 });
+    });
   }
 }
 
-function drawPortraitGap(doc, gap, x, y, width, height) {
+function drawPortraitGap(doc, gap, railX, x, y, width, height) {
+  drawPortraitRail(doc, railX, y + 0.7, y + height - 0.7, true);
   const centerY = y + (height / 2);
-  setStroke(doc, { r: 203, g: 213, b: 225 });
-  doc.setLineWidth(0.18);
-  doc.setLineDashPattern([1, 1], 0);
-  doc.line(x, centerY, x + width, centerY);
-  doc.setLineDashPattern([], 0);
+  setFill(doc, { r: 255, g: 255, b: 255 });
+  doc.circle(railX, centerY, 2.1, 'F');
+  drawPortraitClockIcon(doc, railX, centerY, MUTED);
 
   const label = formatFreeTime(gap.durationMinutes);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(height < 4 ? 4.1 : 4.6);
-  const labelWidth = Math.min(width - 8, doc.getTextWidth(label) + 5);
-  setFill(doc, { r: 255, g: 255, b: 255 });
-  doc.roundedRect(x + ((width - labelWidth) / 2), centerY - 1.7, labelWidth, 3.4, 1.7, 1.7, 'F');
+  doc.setFontSize(height < 4.5 ? 4.25 : 4.65);
   setText(doc, MUTED);
-  doc.text(label, x + (width / 2), centerY + 0.7, { align: 'center', maxWidth: labelWidth - 2 });
+  doc.text(fitSingleLine(doc, label, width - 20), railX + 5, centerY + 1.4, { maxWidth: width - 20 });
 }
 
 function drawPortraitSection(doc, section, allDays, x, y, width, subjectColors) {
   const day = allDays.find((candidate) => candidate.dayIndex === section.dayIndex) || { classes: [] };
   const height = section.estimatedHeight;
+  const railX = x + 7;
+  const timelineTop = y + 10.5;
+
   setFill(doc, { r: 255, g: 255, b: 255 });
   setStroke(doc, GRID);
   doc.setLineWidth(0.26);
@@ -425,31 +477,47 @@ function drawPortraitSection(doc, section, allDays, x, y, width, subjectColors) 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(6);
     setText(doc, MUTED);
-    doc.text('Sin clases programadas', x + 3, y + 14.2);
+    doc.text('Sin clases programadas', x + 14, y + 14.2);
     return;
   }
 
-  let cursorY = y + 9.5;
+  const positions = [];
+  let cursorY = timelineTop;
   section.items.forEach((item) => {
-    if (item.type === 'gap') drawPortraitGap(doc, item, x + 3, cursorY, width - 6, item.estimatedHeight);
-    else drawPortraitEvent(doc, item, x + 2.5, cursorY, width - 5, item.estimatedHeight, subjectColors);
+    positions.push({ item, y: cursorY });
     cursorY += item.estimatedHeight;
+  });
+
+  positions.forEach((position, index) => {
+    const next = positions[index + 1];
+    if (!next) return;
+    if (position.item.type === 'event' && next.item.type === 'event') {
+      drawPortraitRail(doc, railX, position.y + 5.2, next.y + 5.2);
+    } else if (position.item.type === 'event' && next.item.type === 'gap') {
+      drawPortraitRail(doc, railX, position.y + 5.2, next.y + 0.7);
+      const afterGap = positions[index + 2];
+      if (afterGap?.item.type === 'event') {
+        drawPortraitRail(doc, railX, next.y + next.item.estimatedHeight - 0.7, afterGap.y + 5.2);
+      }
+    }
+  });
+
+  positions.forEach(({ item, y: itemY }) => {
+    if (item.type === 'gap') drawPortraitGap(doc, item, railX, x, itemY, width, item.estimatedHeight);
+    else drawPortraitEvent(doc, item, x, itemY, width, item.estimatedHeight, subjectColors, railX);
   });
 }
 
 function drawPortraitPage(doc, page, subjectColors, header) {
   const { metrics, top } = header;
-  const columnGap = 6;
-  const columnWidth = (metrics.contentWidth - columnGap) / 2;
+  const sections = page.sections || page.columns?.flat() || [];
+  const x = metrics.margin;
+  let y = top;
 
-  page.columns.forEach((sections, columnIndex) => {
-    const x = metrics.margin + (columnIndex * (columnWidth + columnGap));
-    let y = top;
-    sections.forEach((section, sectionIndex) => {
-      if (sectionIndex > 0) y += 4;
-      drawPortraitSection(doc, section, page.days, x, y, columnWidth, subjectColors);
-      y += section.estimatedHeight;
-    });
+  sections.forEach((section, sectionIndex) => {
+    if (sectionIndex > 0) y += 5;
+    drawPortraitSection(doc, section, page.days, x, y, metrics.contentWidth, subjectColors);
+    y += section.estimatedHeight;
   });
 }
 
@@ -466,7 +534,16 @@ export async function renderSchedulePdf({
   const safeOrientation = orientation === 'landscape' ? 'landscape' : 'portrait';
   const layout = createSchedulePdfLayout({ classes, daysCount, orientation: safeOrientation });
   const stats = getScheduleStats(layout.classes, layout.daysCount);
+  const fileName = createSchedulePdfFileName(
+    scheduleName || 'Horario',
+    safeOrientation === 'landscape' ? 'Cuadricula' : 'Compacta'
+  );
   const doc = createPdfDocument({ orientation: safeOrientation, format: 'a4', unit: 'mm' });
+  doc.setProperties?.({
+    title: fileName,
+    subject: 'Horario académico',
+    author: 'Under Flashcards',
+  });
 
   for (let index = 0; index < layout.pages.length; index += 1) {
     throwIfCancelled(signal);
@@ -496,7 +573,7 @@ export async function renderSchedulePdf({
   onProgress?.({ phase: 'saving', current: layout.pages.length, total: layout.pages.length, message: 'Preparando la descarga...' });
   return {
     buffer: doc.output('arraybuffer'),
-    fileName: createPdfFileName(scheduleName || 'Horario', safeOrientation === 'landscape' ? 'horizontal' : 'vertical'),
+    fileName,
     pagesProcessed: layout.pages.length,
     pageCount: layout.pages.length,
     singleFile: true,

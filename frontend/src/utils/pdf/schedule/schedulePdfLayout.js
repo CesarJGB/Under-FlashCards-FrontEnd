@@ -7,16 +7,30 @@ import {
 
 const LANDSCAPE_MAX_MINUTES_PER_PAGE = 16 * 60;
 const PORTRAIT_COLUMN_CAPACITY = 232;
-const PORTRAIT_COLUMNS = 2;
-const PORTRAIT_SECTION_GAP = 4;
+const PORTRAIT_SECTION_GAP = 5;
+const PORTRAIT_HEADER_HEIGHT = 10;
+const PORTRAIT_EVENT_BASE_HEIGHT = 10.5;
+const PORTRAIT_EVENT_MIN_HEIGHT = 11.5;
+const PORTRAIT_EVENT_MAX_HEIGHT = 21;
+const PORTRAIT_EVENT_MINUTE_SCALE = 0.032;
+const PORTRAIT_GAP_BASE_HEIGHT = 3.8;
+const PORTRAIT_GAP_MAX_HEIGHT = 8;
+const PORTRAIT_GAP_MINUTE_SCALE = 0.012;
 
 function getPortraitItemHeight(item) {
-  if (item.type === 'gap') return item.durationMinutes >= 15 ? 3.6 : 3;
-  if (!item.isValid) return 9.5;
-  const duration = item.durationMinutes;
-  if (duration <= 60) return 9.5;
-  if (duration <= 120) return 10.5;
-  return 11.5;
+  if (item.type === 'gap') {
+    const duration = Math.max(0, Number(item.durationMinutes) || 0);
+    return Math.min(
+      PORTRAIT_GAP_MAX_HEIGHT,
+      PORTRAIT_GAP_BASE_HEIGHT + (duration * PORTRAIT_GAP_MINUTE_SCALE)
+    );
+  }
+  if (!item.isValid) return PORTRAIT_EVENT_MIN_HEIGHT;
+  const duration = Math.max(0, Number(item.durationMinutes) || 0);
+  return Math.min(
+    PORTRAIT_EVENT_MAX_HEIGHT,
+    Math.max(PORTRAIT_EVENT_MIN_HEIGHT, PORTRAIT_EVENT_BASE_HEIGHT + (duration * PORTRAIT_EVENT_MINUTE_SCALE))
+  );
 }
 
 function createDayTimeline(day) {
@@ -38,7 +52,7 @@ function createDaySections(day) {
     }];
   }
 
-  const headerHeight = 10;
+  const headerHeight = PORTRAIT_HEADER_HEIGHT;
   const maximumItemsHeight = PORTRAIT_COLUMN_CAPACITY - headerHeight;
   const chunks = [];
   let currentItems = [];
@@ -69,41 +83,31 @@ function createDaySections(day) {
 function packPortraitPages(days) {
   const sections = days.flatMap(createDaySections);
   const pages = [];
-  const columnHeight = (column) => column.reduce((total, section, index) => (
-    total + section.estimatedHeight + (index > 0 ? PORTRAIT_SECTION_GAP : 0)
-  ), 0);
-  let cursor = 0;
+  let currentSections = [];
+  let currentHeight = 0;
 
-  while (cursor < sections.length) {
-    let best = null;
-
-    for (let take = 1; cursor + take <= sections.length; take += 1) {
-      const candidateSections = sections.slice(cursor, cursor + take);
-      let bestSplit = null;
-      const lastSplit = take === 1 ? 1 : take - 1;
-
-      for (let split = 1; split <= lastSplit; split += 1) {
-        const columns = [candidateSections.slice(0, split), candidateSections.slice(split)];
-        const heights = columns.map(columnHeight);
-        if (heights.every((height) => height <= PORTRAIT_COLUMN_CAPACITY)) {
-          const imbalance = Math.abs(heights[0] - heights[1]);
-          if (!bestSplit || imbalance < bestSplit.imbalance) {
-            bestSplit = { columns, heights, imbalance };
-          }
-        }
-      }
-
-      if (!bestSplit) break;
-      best = { take, ...bestSplit };
+  sections.forEach((section) => {
+    const sectionGap = currentSections.length > 0 ? PORTRAIT_SECTION_GAP : 0;
+    if (
+      currentSections.length > 0
+      && currentHeight + sectionGap + section.estimatedHeight > PORTRAIT_COLUMN_CAPACITY
+    ) {
+      pages.push({ type: 'portrait-week', sections: currentSections, columns: [currentSections] });
+      currentSections = [];
+      currentHeight = 0;
     }
 
-    // Every section is capped to one column, so this fallback is defensive.
-    if (!best) best = { take: 1, columns: [[sections[cursor]], []] };
-    pages.push({ type: 'portrait-week', columns: best.columns });
-    cursor += best.take;
+    currentSections.push(section);
+    currentHeight += (currentSections.length > 1 ? PORTRAIT_SECTION_GAP : 0) + section.estimatedHeight;
+  });
+
+  if (currentSections.length > 0) {
+    pages.push({ type: 'portrait-week', sections: currentSections, columns: [currentSections] });
   }
 
-  return pages.length > 0 ? pages : [{ type: 'portrait-week', columns: [[], []] }];
+  return pages.length > 0
+    ? pages
+    : [{ type: 'portrait-week', sections: [], columns: [[]] }];
 }
 
 function createLandscapeTimeRanges(classes) {
