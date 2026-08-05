@@ -54,7 +54,7 @@ test('el hook publica el contrato que consume el calendario y serializa la asist
 });
 
 
-test('el footer móvil conserva safe area, targets táctiles y la secuencia Día/Semana sin duplicar controles', async () => {
+test('el footer móvil conserva safe area, targets táctiles y concentra las acciones del horario', async () => {
   const [footer, calendar] = await Promise.all([
     source('./ScheduleMobileFooter.jsx'),
     source('../ScheduleCalendar.jsx'),
@@ -63,11 +63,16 @@ test('el footer móvil conserva safe area, targets táctiles y la secuencia Día
   assert.match(footer, /safe-area-inset-bottom/);
   assert.match(footer, /min-h-11/);
   assert.match(footer, /data-view-mode/);
-  assert.match(footer, /disabled=\{disabled \|\| isDayView\}/);
-  assert.match(footer, /disabled=\{disabled \|\| isWeekView\}/);
+  assert.match(footer, /onOpenScheduleActions/);
+  assert.match(footer, /toca para más opciones/);
+  assert.doesNotMatch(footer, /ChevronLeft|ChevronRight|onViewChange/);
+  assert.match(footer, /grid-cols-\[44px_44px_minmax\(0,1fr\)_52px\]/);
   assert.doesNotMatch(calendar, /CalendarFAB/);
   assert.match(calendar, /hidden md:block/);
   assert.match(calendar, /isSwitcherOpen/);
+  assert.match(calendar, /Opciones del horario/);
+  assert.match(calendar, /Cambiar modo/);
+  assert.match(calendar, /showModeSheet/);
 });
 
 test('la navegación global se controla con estado contextual y se limpia al salir del calendario', async () => {

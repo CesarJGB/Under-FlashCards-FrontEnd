@@ -1,5 +1,5 @@
 import { createPortal } from 'react-dom';
-import { ArrowLeft, ChevronLeft, ChevronRight, Plus, Settings2 } from 'lucide-react';
+import { ArrowLeft, ChevronDown, Plus, Settings2 } from 'lucide-react';
 
 function FooterButton({ label, onClick, disabled = false, children, className = '' }) {
   return (
@@ -21,13 +21,11 @@ export default function ScheduleMobileFooter({
   viewMode = 'day',
   onBack,
   onOpenActions,
-  onOpenSwitcher,
-  onViewChange,
+  onOpenScheduleActions,
   onAddClass,
   dashboardShell,
   disabled = false,
 }) {
-  const isDayView = viewMode === 'day';
   const isWeekView = viewMode === 'week';
 
   const footer = (
@@ -37,7 +35,7 @@ export default function ScheduleMobileFooter({
       data-testid="schedule-mobile-footer"
     >
       <div
-        className="mx-auto grid h-[4.5rem] w-full max-w-2xl grid-cols-[44px_44px_44px_minmax(0,1fr)_44px_48px] items-center gap-0.5 px-2"
+        className="mx-auto grid h-[4.5rem] w-full max-w-2xl grid-cols-[44px_44px_minmax(0,1fr)_52px] items-center gap-1 px-3"
         role="toolbar"
         aria-label="Controles del horario"
       >
@@ -49,40 +47,27 @@ export default function ScheduleMobileFooter({
           <Settings2 className="h-5 w-5" aria-hidden="true" />
         </FooterButton>
 
-        <FooterButton
-          label="Mostrar vista anterior"
-          onClick={() => onViewChange?.('day')}
-          disabled={disabled || isDayView}
-        >
-          <ChevronLeft className="h-5 w-5" aria-hidden="true" />
-        </FooterButton>
-
         <button
           type="button"
-          onClick={onOpenSwitcher}
+          onClick={onOpenScheduleActions}
           disabled={disabled}
-          aria-label={`Cambiar horario. Horario actual: ${scheduleName || 'Horario'}`}
+          aria-label={`Abrir opciones del horario. Horario actual: ${scheduleName || 'Horario'}`}
           aria-disabled={disabled}
-          className="flex min-w-0 min-h-11 flex-col items-center justify-center rounded-xl px-1 text-center transition-colors hover:bg-slate-100 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45 dark:hover:bg-slate-800 motion-reduce:transition-none"
+          className="flex min-h-11 min-w-0 flex-col items-center justify-center rounded-xl px-2 text-center transition-colors hover:bg-slate-100 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45 dark:hover:bg-slate-800 motion-reduce:transition-none"
         >
-          <span className="w-full truncate text-xs font-extrabold leading-tight text-slate-900 dark:text-white">
-            {scheduleName || 'Horario'}
+          <span className="flex w-full min-w-0 items-center justify-center gap-1">
+            <span className="truncate text-xs font-extrabold leading-tight text-slate-900 dark:text-white">
+              {scheduleName || 'Horario'}
+            </span>
+            <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden="true" />
           </span>
           <span
-            className="mt-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-tight text-slate-500 dark:text-slate-400"
+            className="mt-0.5 max-w-full truncate text-[10px] font-semibold leading-tight text-slate-500 dark:text-slate-400"
             data-view-mode={viewMode}
           >
-            {isWeekView ? 'Semana' : 'Día'}
+            {isWeekView ? 'Semana' : 'Día'} · toca para más opciones
           </span>
         </button>
-
-        <FooterButton
-          label="Mostrar vista siguiente"
-          onClick={() => onViewChange?.('week')}
-          disabled={disabled || isWeekView}
-        >
-          <ChevronRight className="h-5 w-5" aria-hidden="true" />
-        </FooterButton>
 
         <FooterButton
           label="Añadir clase"
