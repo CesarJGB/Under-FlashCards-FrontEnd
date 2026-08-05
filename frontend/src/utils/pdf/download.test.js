@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { preparePdfDownload, savePdfBuffer } from './download.js';
+import { normalizePdfDownloadFileName, preparePdfDownload, savePdfBuffer } from './download.js';
 
 function replaceGlobal(name, value) {
   const descriptor = Object.getOwnPropertyDescriptor(globalThis, name);
@@ -55,6 +55,12 @@ test('escritorio usa una sola descarga y conserva un nombre seguro', () => {
     restoreWindow();
     restoreNavigator();
   }
+});
+
+test('la descarga nunca queda sin extensión ni nombre', () => {
+  assert.equal(normalizePdfDownloadFileName('Horario_Cuadricula.pdf'), 'Horario_Cuadricula.pdf');
+  assert.equal(normalizePdfDownloadFileName('Horario_Cuadricula'), 'Horario_Cuadricula.pdf');
+  assert.equal(normalizePdfDownloadFileName(''), 'Horario.pdf');
 });
 
 test('preview iOS navega la pestaña preparada sin crear una descarga extra', () => {

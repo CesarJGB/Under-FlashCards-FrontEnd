@@ -4,6 +4,12 @@ function isIOSBrowser() {
     || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 }
 
+export function normalizePdfDownloadFileName(fileName) {
+  const candidate = String(fileName ?? '').trim();
+  if (!candidate) return 'Horario.pdf';
+  return candidate.toLowerCase().endsWith('.pdf') ? candidate : `${candidate}.pdf`;
+}
+
 /**
  * Safari/iOS blocks a popup opened after a Worker terminates because it no
  * longer considers it part of the original tap. Open a harmless target while
@@ -34,11 +40,16 @@ export function discardPreparedPdfDownload(target) {
 
 export function savePdfBuffer(buffer, fileName, { target } = {}) {
   if (!buffer) throw new Error('No se recibió contenido para el PDF.');
+  const safeFileName = normalizePdfDownloadFileName(fileName);
   const blob = new Blob([buffer], { type: 'application/pdf' });
   const url = URL.createObjectURL(blob);
 
   if (target && !target.closed) {
     try {
+      // The iOS PDF viewer receives a blob URL rather than an anchor. Giving
+      // the prepared document the same name as the PDF also prevents its
+      // share/save sheet from falling back to "Unknown".
+      if (target.document) target.document.title = safeFileName;
       target.location.href = url;
       // iOS needs the object URL alive while its PDF preview initializes.
       window.setTimeout(() => URL.revokeObjectURL(url), 120000);
@@ -50,7 +61,7 @@ export function savePdfBuffer(buffer, fileName, { target } = {}) {
 
   const link = document.createElement('a');
   link.href = url;
-  link.download = fileName;
+  link.download = safeFileName;
   link.rel = 'noopener';
   document.body.appendChild(link);
   link.click();
