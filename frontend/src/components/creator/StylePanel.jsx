@@ -1,7 +1,7 @@
 // ARCHIVO: frontend/src/components/creator/StylePanel.jsx
 import { createPortal } from 'react-dom';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { ImagePlus, Plus, Minus, Bold, Italic, Pipette, X } from 'lucide-react';
+import { ImagePlus, Plus, Minus, Bold, Italic, Palette, Pipette, X } from 'lucide-react';
 
 const VIEWPORT_MARGIN = 8;
 const PALETTE_GAP = 8;
@@ -18,7 +18,7 @@ function toColorInputValue(value) {
   return COLOR_INPUT_FALLBACK;
 }
 
-function ColorPalette({ value, swatches, onChange, onClose, anchorRef, placement = 'above', label, title }) {
+export function ColorPalette({ value, swatches, onChange, onClose, anchorRef, placement = 'above', label }) {
   const paletteRef = useRef(null);
   const colorInputRef = useRef(null);
   const [position, setPosition] = useState(null);
@@ -142,49 +142,43 @@ function ColorPalette({ value, swatches, onChange, onClose, anchorRef, placement
           onClose?.();
         }
       }}
-      className="fixed z-[120] w-[204px] max-w-[calc(100vw-1rem)] rounded-[20px] border border-slate-200/90 bg-white p-2.5 shadow-[0_18px_42px_-18px_rgba(15,23,42,0.42)] ring-1 ring-black/5 animate-[slideUp_0.12s_ease-out] dark:border-slate-700 dark:bg-slate-800 dark:ring-white/5"
+      className="fixed z-[120] grid w-[168px] max-w-[calc(100vw-1rem)] grid-cols-4 gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl animate-[slideUp_0.1s_ease-out] dark:border-slate-700 dark:bg-slate-800"
       style={{
         left: `${position?.left ?? 0}px`,
         top: `${position?.top ?? 0}px`,
         visibility: position ? 'visible' : 'hidden',
       }}
     >
-      <p className="mb-2 text-[10px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-        Color de {String(title || 'texto').toLowerCase()}
-      </p>
+      {swatches.map((color) => {
+        const isSelected = normalizedValue === color.value;
 
-      <div className="grid grid-cols-4 gap-2" role="group" aria-label="Colores disponibles">
-        {swatches.map((color) => {
-          const isSelected = normalizedValue === color.value;
-
-          return (
-            <button
-              key={color.value || 'default'}
-              type="button"
-              title={color.label}
-              aria-label={color.label}
-              aria-pressed={isSelected}
-              onClick={() => {
-                onChange(color.value);
-                onClose?.();
-              }}
-              style={color.value ? { backgroundColor: color.value } : undefined}
-              className={`relative flex h-9 w-9 min-w-0 items-center justify-center rounded-xl border transition-[box-shadow,transform,filter] duration-150 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-800 ${
-                isSelected
-                  ? 'scale-110 border-transparent ring-2 ring-slate-900 ring-offset-1 dark:ring-slate-100'
-                  : 'border-slate-200 hover:scale-105 dark:border-slate-600'
-              } ${!color.value ? 'bg-slate-100 after:absolute after:inset-0 after:flex after:items-center after:justify-center after:font-bold after:text-slate-500 after:content-["×"] dark:bg-slate-700 dark:after:text-slate-300' : ''}`}
-            >
-            </button>
-          );
-        })}
+        return (
+          <button
+            key={color.value || 'default'}
+            type="button"
+            title={color.label}
+            aria-label={color.label}
+            aria-pressed={isSelected}
+            onClick={() => {
+              onChange(color.value);
+              onClose?.();
+            }}
+            style={color.value ? { backgroundColor: color.value } : undefined}
+            className={`relative min-h-9 min-w-9 rounded-xl border transition-[box-shadow,transform,filter] duration-150 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-800 ${
+              isSelected
+                ? 'scale-110 border-transparent ring-2 ring-slate-900 ring-offset-1 dark:ring-slate-100'
+                : 'border-slate-200 hover:scale-105 dark:border-slate-600'
+            } ${!color.value ? 'bg-slate-100 after:absolute after:inset-0 after:flex after:items-center after:justify-center after:font-bold after:text-slate-500 after:content-["×"] dark:bg-slate-700 dark:after:text-slate-300' : ''}`}
+          />
+        );
+      })}
 
         <label
-          className="group relative flex h-9 w-9 cursor-pointer items-center justify-center overflow-hidden rounded-xl border border-slate-300 bg-gradient-to-tr from-amber-400 via-rose-400 to-indigo-400 shadow-sm transition-transform [@media(hover:hover)]:hover:scale-105 dark:border-slate-600"
+          className="group relative flex min-h-9 min-w-9 cursor-pointer items-center justify-center overflow-hidden rounded-xl border border-slate-300 bg-gradient-to-tr from-amber-400 via-rose-400 to-indigo-400 shadow-xs transition-transform [@media(hover:hover)]:hover:scale-105 dark:border-slate-600"
           title="Color personalizado"
           aria-label="Color personalizado"
         >
-          <Pipette className="relative z-10 h-4 w-4 text-white drop-shadow-sm transition-transform group-hover:scale-110" aria-hidden="true" />
+          <Pipette className="relative z-10 h-3.5 w-3.5 text-white drop-shadow-xs transition-transform group-hover:scale-110" aria-hidden="true" />
           <input
             ref={colorInputRef}
             type="color"
@@ -211,15 +205,20 @@ function ColorPalette({ value, swatches, onChange, onClose, anchorRef, placement
             aria-label={`Elegir ${label || 'color'}`}
           />
         </label>
-      </div>
     </div>
   );
 
   return createPortal(
     <>
-      <div
+      <button
+        type="button"
+        tabIndex={-1}
         className="fixed inset-0 z-[110] cursor-default bg-transparent"
-        onPointerDown={(event) => event.preventDefault()}
+        onPointerDown={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          onClose?.();
+        }}
         onClick={onClose}
         aria-hidden="true"
       />
@@ -247,6 +246,7 @@ export default function StylePanel({
   const aColorAnchorRef = useRef(null);
   const bgColorAnchorRef = useRef(null);
   const colorReturnFocusRef = useRef(null);
+  const focusRestoreFrameRef = useRef(null);
 
   const closeColor = () => {
     setOpenColor(null);
@@ -257,7 +257,11 @@ export default function StylePanel({
     const target = colorReturnFocusRef.current;
     colorReturnFocusRef.current = null;
     if (target && typeof window !== 'undefined') {
-      window.requestAnimationFrame(() => {
+      if (focusRestoreFrameRef.current) {
+        window.cancelAnimationFrame(focusRestoreFrameRef.current);
+      }
+      focusRestoreFrameRef.current = window.requestAnimationFrame(() => {
+        focusRestoreFrameRef.current = null;
         if (!target.isConnected || typeof target.focus !== 'function') return;
         try {
           target.focus({ preventScroll: true });
@@ -268,7 +272,8 @@ export default function StylePanel({
     }
   };
 
-  const rememberColorFocus = () => {
+  const rememberColorFocus = (event) => {
+    event?.preventDefault?.();
     if (typeof document === 'undefined') return;
     const activeElement = document.activeElement;
     colorReturnFocusRef.current = activeElement instanceof HTMLElement && activeElement !== document.body
@@ -350,12 +355,16 @@ export default function StylePanel({
                 style={styles[colorKey] ? { backgroundColor: styles[colorKey] } : {}}
                 aria-label={`Color de ${title.toLowerCase()}`}
                 aria-expanded={colorOpen}
-                className={`flex min-h-10 min-w-10 items-center justify-center rounded-lg border-2 border-slate-300 shadow-inner transition-all dark:border-slate-500 ${
+                className={`flex min-h-10 min-w-10 items-center justify-center rounded-lg border transition-all ${
                   colorOpen
                     ? 'ring-2 ring-indigo-400 ring-offset-1 dark:ring-offset-slate-800'
-                    : 'hover:shadow-sm'
-                } ${!styles[colorKey] ? 'bg-white dark:bg-slate-800' : ''}`}
-              />
+                    : ''
+                } ${styles[colorKey]
+                  ? 'border-transparent text-white shadow-xs'
+                  : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'}`}
+              >
+                <Palette className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
               {colorOpen && (
                 <ColorPalette
                   value={styles[colorKey]}
@@ -365,7 +374,6 @@ export default function StylePanel({
                   anchorRef={colorAnchorRef}
                   placement="above"
                   label={`Colores de ${title.toLowerCase()}`}
-                  title={title.replace(/^Estilo de la /i, '')}
                 />
               )}
             </div>
@@ -446,12 +454,16 @@ export default function StylePanel({
                 title="Color de fondo sólido"
                 aria-label="Color de fondo sólido"
                 aria-expanded={openColor === 'bg'}
-                className={`flex min-h-10 min-w-10 items-center justify-center rounded-lg border-2 border-slate-300 shadow-inner transition-all dark:border-slate-500 ${
+                className={`flex min-h-10 min-w-10 items-center justify-center rounded-lg border transition-all ${
                   openColor === 'bg'
                     ? 'ring-2 ring-indigo-400 ring-offset-1 dark:ring-offset-slate-800'
-                    : 'hover:shadow-sm'
-                } ${!styles.bgColor ? 'bg-white dark:bg-slate-800' : ''}`}
-              />
+                    : ''
+                } ${styles.bgColor
+                  ? 'border-transparent text-white shadow-xs'
+                  : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'}`}
+              >
+                <Palette className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
 
               {openColor === 'bg' && (
                 <ColorPalette
@@ -462,7 +474,6 @@ export default function StylePanel({
                   anchorRef={bgColorAnchorRef}
                   placement="below"
                   label="Colores de fondo"
-                  title="Fondo"
                 />
               )}
             </div>

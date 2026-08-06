@@ -12,10 +12,11 @@ import {
   Italic,
   Pencil,
   Loader2,
-  Pipette,
+  Palette,
   Plus,
   X,
 } from 'lucide-react';
+import { ColorPalette } from './StylePanel';
 
 const DEFAULT_ALIGNS = [
   { label: 'Izquierda', value: 'left', Icon: AlignLeft },
@@ -83,10 +84,9 @@ export default function ManualCardEditorModal({
   const imagePickerActiveRef = useRef(false);
   const pickerReturnTimerRef = useRef(null);
   const initialKeyboardCheckTimerRef = useRef(null);
-  const customColorInputRef = useRef(null);
-  const customColorChangedRef = useRef(false);
-  const customColorCloseTimerRef = useRef(null);
+  const colorAnchorRef = useRef(null);
   const menuReturnFocusRef = useRef(null);
+  const focusRestoreFrameRef = useRef(null);
 
   const alignOptions = Array.isArray(ALIGNS) && ALIGNS.length ? ALIGNS : DEFAULT_ALIGNS;
   const swatches = Array.isArray(SWATCHES) && SWATCHES.length ? SWATCHES : DEFAULT_SWATCHES;
@@ -148,7 +148,6 @@ export default function ManualCardEditorModal({
     const nextSide = normalizeSide(initialSide);
     setActiveSide((previousSide) => (previousSide === nextSide ? previousSide : nextSide));
     setOpenMenu(null);
-    customColorChangedRef.current = false;
     focusResumeReasonRef.current = null;
     setFocusResumeReason(null);
     keyboardWasOpenRef.current = false;
@@ -330,18 +329,11 @@ export default function ManualCardEditorModal({
 
   useEffect(() => {
     setOpenMenu(null);
-    customColorChangedRef.current = false;
     setFocusResumeReasonSafe(null);
     keyboardWasOpenRef.current = false;
     resumeRequestedRef.current = false;
     imagePickerActiveRef.current = false;
   }, [activeSide, setFocusResumeReasonSafe]);
-
-  useEffect(() => () => {
-    if (customColorCloseTimerRef.current) {
-      window.clearTimeout(customColorCloseTimerRef.current);
-    }
-  }, []);
 
   if (!open || typeof document === 'undefined') return null;
 
@@ -409,9 +401,15 @@ export default function ManualCardEditorModal({
 
   const restoreMenuFocus = () => {
     const target = menuReturnFocusRef.current;
+    menuReturnFocusRef.current = null;
     if (!target || typeof window === 'undefined') return;
 
-    window.requestAnimationFrame(() => {
+    if (focusRestoreFrameRef.current) {
+      window.cancelAnimationFrame(focusRestoreFrameRef.current);
+    }
+
+    focusRestoreFrameRef.current = window.requestAnimationFrame(() => {
+      focusRestoreFrameRef.current = null;
       if (!target.isConnected || typeof target.focus !== 'function') return;
       try {
         target.focus({ preventScroll: true });
@@ -438,7 +436,6 @@ export default function ManualCardEditorModal({
   };
 
   const toggleColorMenu = () => {
-    customColorChangedRef.current = false;
     if (openMenu === 'color') {
       closeMenu();
       return;
@@ -446,22 +443,10 @@ export default function ManualCardEditorModal({
     setOpenMenu('color');
   };
 
-  const handleCustomColorChange = (event) => {
-    customColorChangedRef.current = true;
-    updateActiveStyle('Color', event.target.value);
-  };
-
-  const handleCustomColorBlur = () => {
-    if (!customColorChangedRef.current) return;
-
-    if (customColorCloseTimerRef.current) {
-      window.clearTimeout(customColorCloseTimerRef.current);
-    }
-
-    customColorCloseTimerRef.current = window.setTimeout(() => {
-      customColorCloseTimerRef.current = null;
-      closeMenu();
-    }, 80);
+  const closeMenuFromBackdrop = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    closeMenu();
   };
 
   const switchSide = () => {
@@ -684,79 +669,36 @@ export default function ManualCardEditorModal({
                 <Italic className="h-4 w-4" />
               </button>
 
-              <div className="relative shrink-0">
+              <div ref={colorAnchorRef} className="relative shrink-0">
                 <button
                   type="button"
                   onPointerDown={rememberMenuFocus}
                   onClick={toggleColorMenu}
                   aria-label="Color del texto"
                   aria-expanded={openMenu === 'color'}
-                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border-2 border-slate-300 shadow-inner transition-all ${
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition-all ${
                     openMenu === 'color'
                       ? 'ring-2 ring-indigo-400 ring-offset-1'
-                      : 'hover:shadow-sm'
-                  } ${!activeColor ? 'bg-white' : ''}`}
+                      : ''
+                  } ${activeColor
+                    ? 'border-transparent text-white shadow-xs'
+                    : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'}`}
                   style={activeColor ? { backgroundColor: activeColor } : undefined}
                   data-testid="manual-card-editor-color"
-                />
+                >
+                  <Palette className="h-4 w-4" aria-hidden="true" />
+                </button>
 
                 {openMenu === 'color' && (
-                  <>
-                    <div
-                      className="fixed inset-0 z-[80] bg-transparent"
-                      onPointerDown={preserveToolbarFocus}
-                      onClick={closeMenu}
-                    />
-                    <div className="absolute bottom-[calc(100%+0.5rem)] right-0 z-[90] w-[196px] rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl animate-[slideUp_0.1s_ease-out]">
-                      <p className="mb-2 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
-                        Color de {activeCopy.label.toLowerCase()}
-                      </p>
-                      <div className="grid grid-cols-4 gap-2">
-                        {swatches.map((swatch) => (
-                          <button
-                            key={swatch.label + swatch.value}
-                            type="button"
-                            title={swatch.label}
-                            aria-label={swatch.label}
-                            onPointerDown={preserveToolbarFocus}
-                            onClick={() => {
-                              updateActiveStyle('Color', swatch.value);
-                              closeMenu();
-                            }}
-                            style={swatch.value ? { backgroundColor: swatch.value } : undefined}
-                            className={`relative h-9 w-9 rounded-xl border transition-all ${
-                              activeColor === swatch.value
-                                ? 'scale-110 ring-2 ring-slate-900 ring-offset-1'
-                                : 'border-slate-200 [@media(hover:hover)]:hover:scale-105'
-                            } ${!swatch.value ? 'bg-slate-100 after:absolute after:inset-0 after:flex after:items-center after:justify-center after:font-bold after:text-slate-500 after:content-["×"]' : ''}`}
-                          />
-                        ))}
-                        <label
-                          className="group relative flex h-9 w-9 cursor-pointer items-center justify-center overflow-hidden rounded-xl border border-slate-300 bg-gradient-to-tr from-amber-400 via-rose-400 to-indigo-400 shadow-sm transition-transform [@media(hover:hover)]:hover:scale-105"
-                          title="Color personalizado"
-                        >
-                          <Pipette className="relative z-10 h-4 w-4 text-white drop-shadow-sm transition-transform group-hover:scale-110" />
-                          <input
-                            ref={customColorInputRef}
-                            type="color"
-                            defaultValue={activeColor && activeColor.startsWith('#') ? activeColor : '#ffffff'}
-                            onPointerDown={() => {
-                              customColorChangedRef.current = false;
-                              if (
-                                customColorInputRef.current
-                                && customColorInputRef.current.value !== (activeColor || '#ffffff')
-                              ) {
-                                customColorInputRef.current.value = activeColor || '#ffffff';
-                              }
-                            }}
-                            onChange={handleCustomColorChange}
-                            onBlur={handleCustomColorBlur}
-                            className="absolute inset-0 z-20 h-full w-full cursor-pointer opacity-0"
-                          />
-                        </label>
-                      </div>
-                    </div>
-                  </>
+                  <ColorPalette
+                    value={activeColor}
+                    swatches={swatches}
+                    onChange={(value) => updateActiveStyle('Color', value)}
+                    onClose={closeMenu}
+                    anchorRef={colorAnchorRef}
+                    placement="above"
+                    label={`Colores de ${activeCopy.label.toLowerCase()}`}
+                  />
                 )}
               </div>
 
@@ -783,7 +725,7 @@ export default function ManualCardEditorModal({
                   <>
                     <div
                       className="fixed inset-0 z-[80] bg-transparent"
-                      onPointerDown={preserveToolbarFocus}
+                      onPointerDown={closeMenuFromBackdrop}
                       onClick={closeMenu}
                     />
                     <div className="absolute bottom-[calc(100%+0.5rem)] right-0 z-[90] w-[168px] rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl animate-[slideUp_0.1s_ease-out]">

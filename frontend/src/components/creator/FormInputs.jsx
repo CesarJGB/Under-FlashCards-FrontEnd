@@ -9,7 +9,8 @@ import {
   useRef,
   useState,
 } from 'react';
-import { Download, FileText, Layers, Pencil } from 'lucide-react';
+import { Download, FileText, Layers, Pencil, X } from 'lucide-react';
+import ActionSheet from '../common/ActionSheet';
 import ManualCardEditorModal from './ManualCardEditorModal';
 
 const PdfExtractor = lazy(() => import('./PdfExtractor'));
@@ -111,6 +112,7 @@ export default function FormInputs({
   const [manualEditorSide, setManualEditorSide] = useState(null);
   const [pdfSource, setPdfSource] = useState(null);
   const [showPdfTextEditor, setShowPdfTextEditor] = useState(false);
+  const [showBulkPromptSheet, setShowBulkPromptSheet] = useState(false);
   const aiTextRef = useRef(aiText || '');
   const autoOpenedEditingIdRef = useRef(null);
 
@@ -351,41 +353,66 @@ export default function FormInputs({
 
   if (isBulk) {
     return (
-      <div className="flex animate-[fadeIn_0.2s_ease] flex-col gap-2.5">
-        <div className="flex items-center justify-between gap-3">
-          <label htmlFor="bulk-card-text" className="flex min-w-0 items-center gap-1.5 text-xs font-bold text-slate-700">
-            <Layers className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-            <span>Pega tu texto estructurado (P: / R:):</span>
-          </label>
-          <div className="flex shrink-0 items-center gap-2">
-            <button
-              type="button"
-              onClick={downloadBulkPromptPlaceholder}
-              title="Descargar prompt"
-              aria-label="Descargar prompt para generar tarjetas por lote"
-              className="flex min-h-9 min-w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 shadow-sm transition-colors hover:bg-slate-50 hover:text-slate-800 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
-            >
-              <Download className="h-4 w-4" aria-hidden="true" />
-            </button>
-            <span className="rounded-full border border-indigo-100/60 bg-indigo-50 px-2 py-0.5 text-[10px] font-bold tabular-nums text-indigo-600">
-              {bulkStats.completePairs} {bulkStats.completePairs === 1 ? 'par listo' : 'pares listos'}
-            </span>
+      <>
+        <div className="flex animate-[fadeIn_0.2s_ease] flex-col gap-2.5">
+          <div className="flex items-center justify-between gap-3">
+            <label htmlFor="bulk-card-text" className="flex min-w-0 items-center gap-1.5 text-xs font-bold text-slate-700">
+              <Layers className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+              <span>Pega tu texto estructurado (P: / R:):</span>
+            </label>
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowBulkPromptSheet(true)}
+                title="Descarga el prompt para generar tarjetas por lote"
+                aria-label="Descargar prompt para generar tarjetas por lote"
+                className="flex min-h-9 min-w-[54px] flex-col items-center justify-center gap-0.5 rounded-lg border border-slate-200 bg-white px-1.5 py-1 text-slate-500 shadow-sm transition-colors hover:bg-slate-50 hover:text-slate-800 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+              >
+                <Download className="h-3.5 w-3.5" aria-hidden="true" />
+                <span className="text-[9px] font-bold leading-none">Prompt</span>
+              </button>
+              <span className="rounded-full border border-indigo-100/60 bg-indigo-50 px-2 py-0.5 text-[10px] font-bold tabular-nums text-indigo-600">
+                {bulkStats.completePairs} {bulkStats.completePairs === 1 ? 'par listo' : 'pares listos'}
+              </span>
+            </div>
+          </div>
+
+          <textarea
+            id="bulk-card-text"
+            value={bulkText}
+            onChange={(event) => setBulkText(event.target.value)}
+            placeholder={'P: ¿Qué día fue teóricamente ayer?\nR: 20 de junio\n\nP: ¿Cuál es el número atómico del Hidrógeno?\nR: 1'}
+            className="min-h-[170px] w-full resize-y rounded-xl border border-slate-200 bg-slate-50/40 px-3 py-2.5 font-mono text-xs leading-relaxed text-slate-800 outline-none transition-colors placeholder:text-slate-300 focus:border-slate-400 focus:bg-white focus:ring-4 focus:ring-slate-900/[0.06]"
+          />
+
+          <div className="flex items-center justify-between gap-3 text-[10px] font-medium text-slate-400">
+            <span>{bulkText.length.toLocaleString('es-MX')} caracteres</span>
+            <span>{bulkStats.lines || 0} líneas</span>
           </div>
         </div>
 
-        <textarea
-          id="bulk-card-text"
-          value={bulkText}
-          onChange={(event) => setBulkText(event.target.value)}
-          placeholder={'P: ¿Qué día fue teóricamente ayer?\nR: 20 de junio\n\nP: ¿Cuál es el número atómico del Hidrógeno?\nR: 1'}
-          className="min-h-[170px] w-full resize-y rounded-xl border border-slate-200 bg-slate-50/40 px-3 py-2.5 font-mono text-xs leading-relaxed text-slate-800 outline-none transition-colors placeholder:text-slate-300 focus:border-slate-400 focus:bg-white focus:ring-4 focus:ring-slate-900/[0.06]"
+        <ActionSheet
+          open={showBulkPromptSheet}
+          title="Prompt"
+          onClose={() => setShowBulkPromptSheet(false)}
+          compact
+          options={[
+            {
+              id: 'download-bulk-prompt',
+              icon: Download,
+              label: 'Descargar',
+              description: 'Guía para generar tarjetas a partir de tu texto.',
+              onSelect: downloadBulkPromptPlaceholder,
+            },
+            {
+              id: 'cancel-bulk-prompt',
+              icon: X,
+              label: 'Cancelar',
+              onSelect: () => {},
+            },
+          ]}
         />
-
-        <div className="flex items-center justify-between gap-3 text-[10px] font-medium text-slate-400">
-          <span>{bulkText.length.toLocaleString('es-MX')} caracteres</span>
-          <span>{bulkStats.lines || 0} líneas</span>
-        </div>
-      </div>
+      </>
     );
   }
 
