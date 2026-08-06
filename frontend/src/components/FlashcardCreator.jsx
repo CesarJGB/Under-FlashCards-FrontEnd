@@ -250,7 +250,10 @@ export default function FlashcardCreator({
   const styles = parseCardStyles(fontSize);
 
   const updateStyle = (key, value) => {
-    setFontSize(JSON.stringify({ ...styles, [key]: value }));
+    setFontSize((currentFontSize) => {
+      const currentStyles = parseCardStyles(currentFontSize);
+      return JSON.stringify({ ...currentStyles, [key]: value });
+    });
   };
 
   const handleOpenStyles = () => {
@@ -659,6 +662,5 @@ export default function FlashcardCreator({
     </form>
   );
 }
-
 
 
