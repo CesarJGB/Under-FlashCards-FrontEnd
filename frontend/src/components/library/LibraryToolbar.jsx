@@ -24,12 +24,16 @@ export default function LibraryToolbar({
   searchQuery,
   setSearchQuery,
   sortBy,
-  setSortBy
+  setSortBy,
+  sortOptions = SORT_OPTIONS,
+  defaultSort = DEFAULT_SORT,
+  searchPlaceholder = 'Buscar...',
+  className = '',
 }) {
   const [optionsOpen, setOptionsOpen] = useState(false);
-  const hasActiveFilter = sortBy !== DEFAULT_SORT;
+  const hasActiveFilter = sortBy !== defaultSort;
 
-  const sortSheetOptions = SORT_OPTIONS.map((opt) => ({
+  const sortSheetOptions = sortOptions.map((opt) => ({
     id: opt.id,
     label: opt.label,
     icon: opt.icon,
@@ -37,7 +41,7 @@ export default function LibraryToolbar({
   }));
 
   return (
-    <div className="mt-4 flex gap-2.5 items-center w-full relative">
+    <div className={`mt-4 flex gap-2.5 items-center w-full relative ${className}`}>
 
       {/* Input de Búsqueda - Estilo Premium White / Glassmorphism */}
       <div className="relative flex-1">
@@ -46,7 +50,8 @@ export default function LibraryToolbar({
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Buscar..."
+          placeholder={searchPlaceholder}
+          aria-label={searchPlaceholder}
           className="w-full h-12 pl-11 pr-4 bg-white border border-slate-200/60 rounded-[16px] text-sm font-medium text-slate-800 outline-none transition-all duration-200 placeholder:text-slate-400 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_1px_2px_rgba(0,0,0,0.02)] focus:border-slate-300 focus:shadow-[0_4px_12px_rgba(0,0,0,0.06)]"
         />
       </div>
@@ -61,6 +66,8 @@ export default function LibraryToolbar({
             : 'bg-white text-slate-500 border-slate-200/60 hover:text-slate-900 hover:border-slate-300 hover:shadow-[0_2px_4px_rgba(0,0,0,0.04)]'
         }`}
         title="Opciones de ordenamiento"
+        aria-label="Abrir opciones de ordenamiento"
+        aria-expanded={optionsOpen}
       >
         <Filter className="w-[18px] h-[18px]" />
         {hasActiveFilter && !optionsOpen && (
