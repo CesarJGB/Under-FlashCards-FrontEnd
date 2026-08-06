@@ -11,7 +11,6 @@ import {
   ImagePlus,
   Italic,
   Loader2,
-  Palette,
   Pipette,
   Plus,
   X,
@@ -72,6 +71,9 @@ export default function ManualCardEditorModal({
   const textareaRef = useRef(null);
   const imageInputRef = useRef(null);
   const selectionRef = useRef({ start: 0, end: 0 });
+  const customColorInputRef = useRef(null);
+  const customColorChangedRef = useRef(false);
+  const customColorCloseTimerRef = useRef(null);
 
   const alignOptions = Array.isArray(ALIGNS) && ALIGNS.length ? ALIGNS : DEFAULT_ALIGNS;
   const swatches = Array.isArray(SWATCHES) && SWATCHES.length ? SWATCHES : DEFAULT_SWATCHES;
@@ -124,6 +126,7 @@ export default function ManualCardEditorModal({
     const nextSide = normalizeSide(initialSide);
     setActiveSide((previousSide) => (previousSide === nextSide ? previousSide : nextSide));
     setOpenMenu(null);
+    customColorChangedRef.current = false;
     setNeedsFocusResume(false);
   }, [open, initialSide]);
 
@@ -205,8 +208,15 @@ export default function ManualCardEditorModal({
 
   useEffect(() => {
     setOpenMenu(null);
+    customColorChangedRef.current = false;
     setNeedsFocusResume(false);
   }, [activeSide]);
+
+  useEffect(() => () => {
+    if (customColorCloseTimerRef.current) {
+      window.clearTimeout(customColorCloseTimerRef.current);
+    }
+  }, []);
 
   if (!open || typeof document === 'undefined') return null;
 
@@ -261,6 +271,29 @@ export default function ManualCardEditorModal({
     event.preventDefault();
   };
 
+  const toggleColorMenu = () => {
+    customColorChangedRef.current = false;
+    setOpenMenu((previousMenu) => (previousMenu === 'color' ? null : 'color'));
+  };
+
+  const handleCustomColorChange = (event) => {
+    customColorChangedRef.current = true;
+    updateActiveStyle('Color', event.target.value);
+  };
+
+  const handleCustomColorBlur = () => {
+    if (!customColorChangedRef.current) return;
+
+    if (customColorCloseTimerRef.current) {
+      window.clearTimeout(customColorCloseTimerRef.current);
+    }
+
+    customColorCloseTimerRef.current = window.setTimeout(() => {
+      customColorCloseTimerRef.current = null;
+      setOpenMenu(null);
+    }, 80);
+  };
+
   const switchSide = () => {
     setOpenMenu(null);
     setNeedsFocusResume(false);
@@ -301,13 +334,6 @@ export default function ManualCardEditorModal({
         ? 'border-slate-900 bg-slate-900 text-white shadow-sm'
         : 'border-slate-200 bg-white text-slate-600 active:bg-slate-100 [@media(hover:hover)]:hover:bg-slate-50'
     }`;
-
-  const activeColorIconClass =
-    activeColor === '#ffffff'
-      ? 'text-slate-600'
-      : activeColor
-        ? 'text-white drop-shadow-sm'
-        : 'text-slate-600';
 
   const modal = (
     <div
@@ -483,15 +509,17 @@ export default function ManualCardEditorModal({
                 <button
                   type="button"
                   onPointerDown={preserveToolbarFocus}
-                  onClick={() => setOpenMenu((prev) => (prev === 'color' ? null : 'color'))}
+                  onClick={toggleColorMenu}
                   aria-label="Color del texto"
                   aria-expanded={openMenu === 'color'}
-                  className={controlButtonClass(Boolean(activeColor))}
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border-2 border-slate-300 shadow-inner transition-all ${
+                    openMenu === 'color'
+                      ? 'ring-2 ring-indigo-400 ring-offset-1'
+                      : 'hover:shadow-sm'
+                  } ${!activeColor ? 'bg-white' : ''}`}
                   style={activeColor ? { backgroundColor: activeColor } : undefined}
                   data-testid="manual-card-editor-color"
-                >
-                  <Palette className={`${activeColorIconClass} h-4 w-4`} />
-                </button>
+                />
 
                 {openMenu === 'color' && (
                   <>
@@ -530,10 +558,21 @@ export default function ManualCardEditorModal({
                         >
                           <Pipette className="relative z-10 h-4 w-4 text-white drop-shadow-sm transition-transform group-hover:scale-110" />
                           <input
+                            ref={customColorInputRef}
                             type="color"
-                            value={activeColor && activeColor.startsWith('#') ? activeColor : '#ffffff'}
-                            onChange={(event) => updateActiveStyle('Color', event.target.value)}
-                            className="absolute inset-0 z-0 h-full w-full cursor-pointer opacity-0"
+                            defaultValue={activeColor && activeColor.startsWith('#') ? activeColor : '#ffffff'}
+                            onPointerDown={() => {
+                              customColorChangedRef.current = false;
+                              if (
+                                customColorInputRef.current
+                                && customColorInputRef.current.value !== (activeColor || '#ffffff')
+                              ) {
+                                customColorInputRef.current.value = activeColor || '#ffffff';
+                              }
+                            }}
+                            onChange={handleCustomColorChange}
+                            onBlur={handleCustomColorBlur}
+                            className="absolute inset-0 z-20 h-full w-full cursor-pointer opacity-0"
                           />
                         </label>
                       </div>

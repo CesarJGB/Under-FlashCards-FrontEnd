@@ -1,7 +1,7 @@
 // ARCHIVO: frontend/src/components/creator/StylePanel.jsx
 import { createPortal } from 'react-dom';
-import { useLayoutEffect, useRef, useState } from 'react';
-import { ImagePlus, Plus, Minus, Bold, Italic, Palette, Pipette, X, Check, CircleOff } from 'lucide-react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { ImagePlus, Plus, Minus, Bold, Italic, Pipette, X, Check, CircleOff } from 'lucide-react';
 
 const VIEWPORT_MARGIN = 8;
 const PALETTE_GAP = 8;
@@ -25,9 +25,38 @@ function ColorPalette({ value, swatches, onChange, onClose, anchorRef, placement
   const normalizedValue = value || '';
   const colorInputValue = toColorInputValue(normalizedValue);
   const initialColorInputValue = useRef(colorInputValue);
+  const customColorChangedRef = useRef(false);
+  const customColorCloseTimerRef = useRef(null);
   const selectedSwatch = swatches.find((swatch) => swatch.value === normalizedValue);
   const currentLabel = selectedSwatch?.label || (value ? 'Personalizado' : 'Predeterminado');
   const isCustomColor = Boolean(normalizedValue) && !selectedSwatch;
+
+  useEffect(() => () => {
+    if (customColorCloseTimerRef.current) {
+      window.clearTimeout(customColorCloseTimerRef.current);
+    }
+  }, []);
+
+  const handleCustomColorChange = (event) => {
+    customColorChangedRef.current = true;
+    onChange(event.target.value);
+  };
+
+  const handleCustomColorBlur = () => {
+    // El selector nativo puede emitir varios cambios mientras se arrastran
+    // sus controles. Sólo cerramos la paleta cuando el input pierde el foco
+    // después de haber elegido un color, no en cada cambio intermedio.
+    if (!customColorChangedRef.current) return;
+
+    if (customColorCloseTimerRef.current) {
+      window.clearTimeout(customColorCloseTimerRef.current);
+    }
+
+    customColorCloseTimerRef.current = window.setTimeout(() => {
+      customColorCloseTimerRef.current = null;
+      onClose?.();
+    }, 80);
+  };
 
   useLayoutEffect(() => {
     if (typeof window === 'undefined' || typeof document === 'undefined') return undefined;
@@ -186,6 +215,7 @@ function ColorPalette({ value, swatches, onChange, onClose, anchorRef, placement
           // el selector nativo está abierto puede cerrarlo tras el primer cambio.
           defaultValue={initialColorInputValue.current}
           onPointerDown={() => {
+            customColorChangedRef.current = false;
             // Sincroniza el valor sólo justo antes de abrir el selector. Durante
             // la edición no se toca el DOM, así el selector puede emitir todos
             // sus cambios intermedios sin reiniciarse.
@@ -198,7 +228,8 @@ function ColorPalette({ value, swatches, onChange, onClose, anchorRef, placement
               colorInputRef.current.value = colorInputValue;
             }
           }}
-          onChange={(event) => onChange(event.target.value)}
+          onChange={handleCustomColorChange}
+          onBlur={handleCustomColorBlur}
           className="absolute inset-0 z-20 h-full w-full cursor-pointer opacity-0"
           aria-label={`Elegir ${label || 'color'}`}
         />
@@ -326,10 +357,12 @@ export default function StylePanel({
                 style={styles[colorKey] ? { backgroundColor: styles[colorKey] } : {}}
                 aria-label={`Color de ${title.toLowerCase()}`}
                 aria-expanded={colorOpen}
-                className={`flex min-h-10 min-w-10 items-center justify-center rounded-lg border transition-all ${styles[colorKey] ? 'border-transparent text-white shadow-xs' : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'}`}
-              >
-                <Palette className="h-3.5 w-3.5" aria-hidden="true" />
-              </button>
+                className={`flex min-h-10 min-w-10 items-center justify-center rounded-lg border-2 border-slate-300 shadow-inner transition-all dark:border-slate-500 ${
+                  colorOpen
+                    ? 'ring-2 ring-indigo-400 ring-offset-1 dark:ring-offset-slate-800'
+                    : 'hover:shadow-sm'
+                } ${!styles[colorKey] ? 'bg-white dark:bg-slate-800' : ''}`}
+              />
               {colorOpen && (
                 <ColorPalette
                   value={styles[colorKey]}
@@ -419,12 +452,12 @@ export default function StylePanel({
                 title="Color de fondo sólido"
                 aria-label="Color de fondo sólido"
                 aria-expanded={openColor === 'bg'}
-                className={`flex min-h-10 min-w-10 items-center justify-center rounded-lg border transition-all ${
-                  styles.bgColor ? 'border-transparent text-white shadow-xs' : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
-                }`}
-              >
-                <Palette className="h-3.5 w-3.5" aria-hidden="true" />
-              </button>
+                className={`flex min-h-10 min-w-10 items-center justify-center rounded-lg border-2 border-slate-300 shadow-inner transition-all dark:border-slate-500 ${
+                  openColor === 'bg'
+                    ? 'ring-2 ring-indigo-400 ring-offset-1 dark:ring-offset-slate-800'
+                    : 'hover:shadow-sm'
+                } ${!styles.bgColor ? 'bg-white dark:bg-slate-800' : ''}`}
+              />
 
               {openColor === 'bg' && (
                 <ColorPalette
