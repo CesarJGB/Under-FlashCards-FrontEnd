@@ -24,6 +24,9 @@ export default function DeckHeader({
   pdfWarnings = [],
   onCancelPdfExport,
   onHeightChange,
+  editorView = 'creator',
+  onReturnToEditor,
+  collectionBackLabel = 'Volver al modo edición',
 }) {
   const [downloadSheetOpen, setDownloadSheetOpen] = useState(false);
   const [pdfSheetOpen, setPdfSheetOpen] = useState(false);
@@ -50,9 +53,11 @@ export default function DeckHeader({
     return () => observer.disconnect();
   }, [onHeightChange]);
 
-  const isEditorMode = mode === 'edit';
+  const isCollectionView = mode === 'edit' && editorView === 'collection';
+  const isEditorMode = mode === 'edit' && !isCollectionView;
   const isReviewMode = mode === 'review';
   const nextMode = isReviewMode ? 'edit' : 'review';
+  const backLabel = isCollectionView ? collectionBackLabel : 'Volver a la biblioteca';
 
   const downloadOptions = [
     {
@@ -135,13 +140,13 @@ export default function DeckHeader({
         ref={headerRef}
         className="fixed top-0 left-0 right-0 z-50 flex min-h-[64px] w-full items-center justify-center isolate border-b border-slate-200 bg-white/95 px-4 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] backdrop-blur-xl dark:border-slate-800 dark:bg-slate-950/95"
       >
-        {isEditorMode && (
+        {(isEditorMode || isCollectionView) && (
           <div className="absolute left-4 z-20 flex items-center animate-[fadeIn_0.1s_ease]">
             <button
               type="button"
-              onClick={onBack}
-              title="Volver a la biblioteca"
-              aria-label="Volver a la biblioteca"
+              onClick={isCollectionView ? onReturnToEditor : onBack}
+              title={backLabel}
+              aria-label={backLabel}
               className="flex min-h-11 min-w-11 aspect-square cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-white p-2.5 text-slate-600 shadow-3xs transition-all hover:bg-slate-50 hover:text-slate-900 active:scale-[0.97] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
             >
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />
@@ -157,7 +162,7 @@ export default function DeckHeader({
             Modo
           </span>
           <span className="text-sm font-bold text-slate-900 dark:text-white">
-            {isReviewMode ? 'repaso' : 'edición'}
+            {isCollectionView ? 'visualización' : isReviewMode ? 'repaso' : 'edición'}
           </span>
         </div>
 

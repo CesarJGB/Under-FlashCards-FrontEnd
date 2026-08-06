@@ -1,9 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Loader2, ChevronDown, ChevronUp, Eye } from 'lucide-react'; 
 import ReviewMode from './ReviewMode';
 import DeckHeader from './DeckHeader';
 import FlashcardCreator from './FlashcardCreator';
-import FlashcardCollection from './FlashcardCollection'; 
+import CardCollectionView from './CardCollectionView';
 import FastDeleteMode from './FastDeleteMode'; 
 import SessionPlayer from './SessionPlayer'; 
 import usePdfExport from '../hooks/usePdfExport';
@@ -17,11 +16,13 @@ const HEADERLESS_MODES = ['continuous-review', 'normal-review', 'fast-delete'];
 export default function DeckInterior({ deck, userId, authToken, onBack, initialMode = 'edit', onRefreshData, onExitToStudy, onInviteRequired }) {
   const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [cardsLoaded, setCardsLoaded] = useState(false);
   const [mode, setMode] = useState(initialMode);
+  const [headerHeight, setHeaderHeight] = useState(64);
   
   const isOwner = deck.userId === userId;
   const canEdit = isOwner || deck.isDefault === true;
-  const [showGrid, setShowGrid] = useState(() => !canEdit);
+  const [editorView, setEditorView] = useState(() => canEdit ? 'creator' : 'collection');
   
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState('');
@@ -55,17 +56,40 @@ export default function DeckInterior({ deck, userId, authToken, onBack, initialM
     }
   }, [initialMode, canEdit]);
 
-  const loadCards = useCallback(async () => {
+  const loadCards = useCallback(async ({ signal } = {}) => {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch(`${BACKEND_URL}/api/flashcards/deck/${deck.id}`);
+      const res = await fetch(`${BACKEND_URL}/api/flashcards/deck/${deck.id}`, { signal });
       if (!res.ok) throw new Error('No se pudieron cargar las tarjetas.');
-      setCards(await res.json());
-    } catch (e) { setError(e.message); } finally { setLoading(false); }
+      const nextCards = await res.json();
+      if (signal?.aborted) return false;
+      setCards(nextCards);
+      setCardsLoaded(true);
+      return true;
+    } catch (e) {
+      if (e?.name !== 'AbortError') setError(e?.message || 'No se pudieron cargar las tarjetas.');
+      return false;
+    } finally {
+      if (!signal?.aborted) setLoading(false);
+    }
   }, [deck.id]);
 
-  useEffect(() => { loadCards(); }, [loadCards]);
+  useEffect(() => {
+    const controller = new AbortController();
+    setCards([]);
+    setCardsLoaded(false);
+    loadCards({ signal: controller.signal });
+    return () => controller.abort();
+  }, [loadCards]);
+
+  useEffect(() => {
+    setEditorView(canEdit ? 'creator' : 'collection');
+  }, [deck.id, canEdit]);
+
+  useEffect(() => {
+    if (mode !== 'edit' && canEdit) setEditorView('creator');
+  }, [mode, canEdit]);
 
   useEffect(() => {
     if (editingId === null) setDefaultStyles({ bgImage, textAlign, fontSize });
@@ -254,8 +278,8 @@ export default function DeckInterior({ deck, userId, authToken, onBack, initialM
     
     setContentImage(card.contentImage || '');
     setImageSide(card.imageSide || '');
+    setEditorView('creator');
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    setShowGrid(true);
   };
 
   const handleDelete = async (card) => {
@@ -282,13 +306,21 @@ export default function DeckInterior({ deck, userId, authToken, onBack, initialM
     }
   };
 
+  const deckCardCount = Number(deck.cardCount);
+  const visibleCardCount = cardsLoaded
+    ? cards.length
+    : Number.isFinite(deckCardCount)
+      ? Math.max(0, deckCardCount)
+      : cards.length;
+  const isCollectionView = mode === 'edit' && editorView === 'collection';
   const isHeaderlessMode = HEADERLESS_MODES.includes(mode);
-  const reserveFooterSpace = mode === 'edit' && canEdit;
+  const reserveFooterSpace = mode === 'edit' && canEdit && !isCollectionView;
 
   return (
     <div 
       data-testid="deck-interior" 
-      className={`w-full ${!isHeaderlessMode ? 'pt-16' : ''} ${reserveFooterSpace ? 'pb-28' : ''}`}
+      className={`w-full ${reserveFooterSpace ? 'pb-28' : ''}`}
+      style={!isHeaderlessMode ? { paddingTop: `${headerHeight}px` } : undefined}
     >
       <PdfExportOverlay
         isOpen={pdfExport.isExporting}
@@ -310,7 +342,11 @@ export default function DeckInterior({ deck, userId, authToken, onBack, initialM
           pdfError={pdfExport.error}
           pdfWarnings={pdfExport.warnings}
           onCancelPdfExport={pdfExport.cancel}
-          onImport={canEdit ? handleImportJSON : undefined} 
+          onImport={canEdit ? handleImportJSON : undefined}
+          onHeightChange={setHeaderHeight}
+          editorView={editorView}
+          onReturnToEditor={canEdit ? () => setEditorView('creator') : onBack}
+          collectionBackLabel={canEdit ? 'Volver al modo edición' : 'Volver a la biblioteca'}
         />
       )}
 
@@ -348,8 +384,16 @@ export default function DeckInterior({ deck, userId, authToken, onBack, initialM
       )}
 
       {mode === 'edit' && (
-        <>
-          {canEdit ? (
+        isCollectionView ? (
+          <CardCollectionView
+            cards={cards}
+            loading={loading}
+            error={error}
+            onRetry={() => loadCards()}
+            onEdit={canEdit ? handleEdit : undefined}
+            onDelete={canEdit ? handleDelete : undefined}
+          />
+        ) : canEdit ? (
             <FlashcardCreator
               question={question} setQuestion={setQuestion} answer={answer} setAnswer={setAnswer}
               bgImage={bgImage} setBgImage={setBgImage} textAlign={textAlign} setTextAlign={setTextAlign}
@@ -360,7 +404,13 @@ export default function DeckInterior({ deck, userId, authToken, onBack, initialM
               contentImage={contentImage} setContentImage={setContentImage}
               imageSide={imageSide} setImageSide={setImageSide}
               onFastDelete={() => setMode('fast-delete')}
-              hasCards={(deck.cardCount ?? cards.length) > 0}
+              hasCards={visibleCardCount > 0}
+              cardCount={visibleCardCount}
+              onOpenCollection={() => {
+                setShowStyles(false);
+                setEditorView('collection');
+                window.scrollTo({ top: 0, behavior: 'auto' });
+              }}
               userId={userId}
               deckId={deck.id}
               authToken={authToken}
@@ -370,61 +420,7 @@ export default function DeckInterior({ deck, userId, authToken, onBack, initialM
                 if (typeof onRefreshData === 'function') onRefreshData();
               }}
             />
-          ) : (
-            <div className="bg-blue-50/60 border border-blue-200/50 rounded-2xl p-4 flex items-center gap-3.5 text-blue-800 text-xs font-semibold shadow-3xs animate-[fadeIn_0.15s_ease] mb-2">
-              <div className="w-8 h-8 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-600 shrink-0">
-                <Eye className="w-4 h-4 stroke-[2.5]" />
-              </div>
-              <div className="flex-1">
-                <p className="text-blue-950 font-bold text-sm">Plantilla Protegida de Solo Lectura</p>
-                <p className="text-blue-600/90 font-medium mt-0.5">Estás explorando un mazo oficial configurado en modo consulta. Puedes ver y repasar todas sus tarjetas libremente, pero no se permiten modificaciones.</p>
-              </div>
-            </div>
-          )}
-          
-          <button
-            type="button"
-            onClick={() => setShowGrid(!showGrid)}
-            className="mt-8 w-full flex items-center justify-between bg-white border border-slate-200 hover:bg-slate-50 rounded-2xl px-5 py-3.5 transition-colors shadow-xs active:scale-[0.99]"
-          >
-            <div className="flex items-center gap-2.5">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                Colección de tarjetas del mazo
-              </h3>
-              
-              <span className="bg-slate-100 text-slate-700 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border border-slate-200/50 inline-flex items-center gap-1.5 h-5">
-                {loading && <Loader2 className="w-2.5 h-2.5 animate-spin text-slate-400 shrink-0" />}
-                <span>
-                  {cards.length > 0 
-                    ? `${cards.length} ${cards.length === 1 ? 'tarjeta' : 'tarjetas'}`
-                    : `${deck.cardCount ?? 0} ${deck.cardCount === 1 ? 'tarjeta' : 'tarjetas'}`
-                  }
-                </span>
-              </span>
-            </div>
-            {showGrid ? (
-              <ChevronUp className="w-4 h-4 text-slate-400" />
-            ) : (
-              <ChevronDown className="w-4 h-4 text-slate-400" />
-            )}
-          </button>
-
-          {showGrid && (
-            <div className="animate-[fadeIn_0.18s_ease] pb-6">
-              {loading ? (
-                <div className="flex items-center justify-center gap-2 text-slate-400 py-8 text-xs font-medium">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-500" /> Sincronizando colección…
-                </div>
-              ) : (
-                <FlashcardCollection 
-                  cards={cards} 
-                  onEdit={canEdit ? handleEdit : undefined} 
-                  onDelete={canEdit ? handleDelete : undefined} 
-                />
-              )}
-            </div>
-          )}
-        </>
+        ) : null
       )}
     </div>
   );

@@ -21,7 +21,7 @@ export default function FlashcardGrid({ cards, onEdit, onDelete }) {
   }
 
   return (
-    <div className="mt-4 grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div className="mt-4 grid grid-cols-2 gap-3 sm:gap-4">
       {cards.map((card) => {
         const hasBg = !!card.bgImage;
         const alignClass = ALIGN_CLASS[card.textAlign] || 'text-center';
@@ -48,20 +48,36 @@ export default function FlashcardGrid({ cards, onEdit, onDelete }) {
         const finalAStyle = { ...(st.aColor ? { color: st.aColor } : {}), ...aSizeStyle };
 
         return (
-          <div key={card.id} style={cardStyle} className="relative rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow overflow-hidden flex flex-col justify-between">
+          <article key={card.id} style={cardStyle} className="relative min-w-0 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow overflow-hidden flex flex-col justify-between dark:border-slate-700">
             {hasBg && <span className="absolute inset-0 bg-black/55" />}
 
-            <div className="relative z-10 p-4 pt-6">
+            <div className="relative z-10 min-w-0 p-3 pt-5 sm:p-4 sm:pt-6">
               <span className="absolute top-2 left-1/2 -translate-x-1/2 w-7 h-1.5 rounded-full bg-slate-400/40" />
               
-              <div className="flex justify-end gap-1 mb-1">
-                <button onClick={() => onEdit(card)} className={`p-1.5 rounded-lg transition-colors ${hasBg ? 'text-white hover:bg-white/20' : 'text-slate-500 hover:bg-slate-100'}`}>
-                  <Pencil className="w-3.5 h-3.5" />
-                </button>
-                <button onClick={() => onDelete(card)} className={`p-1.5 rounded-lg transition-colors ${hasBg ? 'text-red-300 hover:bg-white/20' : 'text-red-600 hover:bg-red-50'}`}>
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </div>
+              {(typeof onEdit === 'function' || typeof onDelete === 'function') && (
+                <div className="flex justify-end gap-1 mb-1">
+                  {typeof onEdit === 'function' && (
+                    <button
+                      type="button"
+                      onClick={() => onEdit(card)}
+                      aria-label="Editar carta"
+                      className={`flex min-h-9 min-w-9 items-center justify-center rounded-lg transition-colors ${hasBg ? 'text-white hover:bg-white/20' : 'text-slate-500 hover:bg-slate-100'}`}
+                    >
+                      <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
+                    </button>
+                  )}
+                  {typeof onDelete === 'function' && (
+                    <button
+                      type="button"
+                      onClick={() => onDelete(card)}
+                      aria-label="Eliminar carta"
+                      className={`flex min-h-9 min-w-9 items-center justify-center rounded-lg transition-colors ${hasBg ? 'text-red-300 hover:bg-white/20' : 'text-red-600 hover:bg-red-50'}`}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
+                    </button>
+                  )}
+                </div>
+              )}
 
               {/* SECCIÓN PREGUNTA */}
               <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -81,7 +97,7 @@ export default function FlashcardGrid({ cards, onEdit, onDelete }) {
                 )}
               </div>
               
-              <p style={finalQStyle} className={`mt-1 whitespace-pre-wrap ${alignClass} ${qSizeClass} ${st.qBold ? 'font-bold' : 'font-normal'} ${st.qItalic ? 'italic' : ''} ${hasBg && !st.qColor ? 'text-white' : 'text-slate-900'}`}>
+              <p style={finalQStyle} className={`mt-1 min-w-0 break-words whitespace-pre-wrap ${alignClass} ${qSizeClass} ${st.qBold ? 'font-bold' : 'font-normal'} ${st.qItalic ? 'italic' : ''} ${hasBg && !st.qColor ? 'text-white' : 'text-slate-900'}`}>
                 {card.question}
               </p>
 
@@ -105,17 +121,20 @@ export default function FlashcardGrid({ cards, onEdit, onDelete }) {
                 )}
               </div>
 
-              <p style={finalAStyle} className={`mt-1 whitespace-pre-wrap ${alignClass} ${aSizeClass} ${st.aBold ? 'font-bold' : 'font-normal'} ${st.aItalic ? 'italic' : ''} ${hasBg && !st.aColor ? 'text-white/90' : 'text-slate-700'}`}>
+              <p style={finalAStyle} className={`mt-1 min-w-0 break-words whitespace-pre-wrap ${alignClass} ${aSizeClass} ${st.aBold ? 'font-bold' : 'font-normal'} ${st.aItalic ? 'italic' : ''} ${hasBg && !st.aColor ? 'text-white/90' : 'text-slate-700'}`}>
                 {card.answer}
               </p>
             </div>
-          </div>
+          </article>
         );
       })}
 
       {/* LIGHTBOX MODAL FLOTANTE */}
       {activePreview && (
         <div 
+          role="dialog"
+          aria-modal="true"
+          aria-label={activePreview.title}
           onClick={() => setActivePreview(null)}
           className="fixed inset-0 bg-slate-950/60 backdrop-blur-md z-50 flex flex-col items-center justify-center p-4 animate-[fadeIn_0.15s_ease]"
         >
@@ -130,9 +149,10 @@ export default function FlashcardGrid({ cards, onEdit, onDelete }) {
               <button 
                 type="button" 
                 onClick={() => setActivePreview(null)}
+                aria-label="Cerrar imagen"
                 className="p-1 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-200/60 transition-colors"
               >
-                <X className="w-4 h-4" />
+                <X className="w-4 h-4" aria-hidden="true" />
               </button>
             </div>
             <div className="p-6 bg-slate-100/40 flex justify-center items-center min-h-[220px]">

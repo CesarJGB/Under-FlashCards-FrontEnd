@@ -157,7 +157,7 @@ export default function FlashcardCreator({
   question, setQuestion, answer, setAnswer, bgImage, setBgImage, textAlign, setTextAlign,
   fontSize, setFontSize, showStyles, setShowStyles, isBulk, setIsBulk, bulkText, setBulkText,
   editingId, saving, error, setError, onSubmit, onCancel, contentImage, setContentImage,
-  imageSide, setImageSide, onFastDelete, hasCards,
+  imageSide, setImageSide, onFastDelete, hasCards, onOpenCollection, cardCount = 0,
   userId, deckId, authToken, onAiSuccess, onInviteRequired, onSaveManualCard, onFooterHeightChange,
 }) {
   // La vista independiente queda desactivada en esta versión. Conservamos el
@@ -397,6 +397,11 @@ export default function FlashcardCreator({
       ? !aiText.trim()
       : (activeTab === 'bulk' ? !bulkText.trim() : (!question.trim() || !answer.trim()))
   );
+  const normalizedCardCount = Math.max(0, Number(cardCount) || 0);
+  const cardCountLabel = normalizedCardCount > 9999
+    ? new Intl.NumberFormat('es-MX', { notation: 'compact', maximumFractionDigits: 0 }).format(normalizedCardCount)
+    : normalizedCardCount.toLocaleString('es-MX');
+  const cardCountTextSize = cardCountLabel.length > 3 ? 'text-[7px]' : 'text-[9px]';
 
   return (
     <form onSubmit={handleFormSubmit} className="flex flex-col bg-slate-50 relative w-full">
@@ -516,12 +521,12 @@ export default function FlashcardCreator({
         className="fixed bottom-0 inset-x-0 z-30 bg-white border-t border-slate-200 p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] shadow-lg"
       >
         <div className="flex items-center justify-between max-w-2xl mx-auto w-full gap-2">
-          <div className="flex items-center gap-1 sm:gap-2">
+          <div className="flex min-w-0 items-center gap-0.5 sm:gap-1">
             <button
               type="button"
               onClick={handleOpenStyles}
               aria-expanded={showStyles}
-              className={`flex min-h-11 w-16 flex-col items-center justify-center gap-0.5 rounded-xl p-2 transition-colors sm:w-20 ${showStyles ? 'bg-indigo-50 text-indigo-600' : 'text-slate-600 hover:bg-slate-100'}`}
+              className={`flex min-h-11 w-14 flex-col items-center justify-center gap-0.5 rounded-xl p-2 transition-colors sm:w-20 ${showStyles ? 'bg-indigo-50 text-indigo-600' : 'text-slate-600 hover:bg-slate-100'}`}
             >
               <SlidersHorizontal className="w-5 h-5" />
               <span className="text-[10px] font-bold">Estilo</span>
@@ -533,7 +538,7 @@ export default function FlashcardCreator({
                   type="button"
                   disabled={aiSaving}
                   onClick={onFastDelete}
-                  className="flex flex-col items-center justify-center gap-0.5 p-2 rounded-xl transition-colors w-14 sm:w-16 text-slate-600 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                  className="flex min-h-11 w-12 flex-col items-center justify-center gap-0.5 rounded-xl p-2 text-slate-600 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-50 sm:w-16"
                 >
                   <Trash2 className="w-5 h-5" />
                   <span className="text-[10px] font-bold">Borrar</span>
@@ -543,10 +548,28 @@ export default function FlashcardCreator({
               <button
                 type="button"
                 onClick={onCancel}
-                className="flex flex-col items-center justify-center gap-0.5 p-2 rounded-xl transition-colors w-14 sm:w-16 text-slate-600 hover:bg-slate-100"
+                className="flex min-h-11 w-12 flex-col items-center justify-center gap-0.5 rounded-xl p-2 text-slate-600 transition-colors hover:bg-slate-100 sm:w-16"
               >
                 <X className="w-5 h-5" />
                 <span className="text-[10px] font-bold">Cancelar</span>
+              </button>
+            )}
+
+            {typeof onOpenCollection === 'function' && (
+              <button
+                type="button"
+                disabled={saving || aiSaving}
+                onClick={onOpenCollection}
+                aria-label={`Ver ${normalizedCardCount} ${normalizedCardCount === 1 ? 'carta' : 'cartas'}`}
+                className="flex min-h-11 w-12 flex-col items-center justify-center gap-0.5 rounded-xl p-2 text-slate-600 transition-colors hover:bg-slate-100 active:scale-[0.98] disabled:opacity-50 sm:w-16"
+              >
+                <span
+                  className={`flex h-5 w-5 items-center justify-center rounded-[5px] border-2 border-current font-extrabold leading-none ${cardCountTextSize}`}
+                  aria-hidden="true"
+                >
+                  {cardCountLabel}
+                </span>
+                <span className="text-[10px] font-bold">Cartas</span>
               </button>
             )}
           </div>
@@ -565,7 +588,7 @@ export default function FlashcardCreator({
             <button
               type="submit"
               disabled={submitDisabled}
-              className="flex items-center justify-center gap-2 h-12 px-6 sm:px-8 rounded-2xl text-sm font-bold transition-all active:scale-[0.98] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex-1 sm:flex-initial sm:min-w-[200px] shadow-md bg-slate-900 hover:bg-slate-800 text-white"
+              className="flex h-12 min-w-0 flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-2xl bg-slate-900 px-3 text-sm font-bold text-white shadow-md transition-all hover:bg-slate-800 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 sm:flex-initial sm:min-w-[200px] sm:gap-2 sm:px-8"
             >
               {saving || aiSaving ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -576,7 +599,10 @@ export default function FlashcardCreator({
               ) : (
                 <Plus className="w-4 h-4 shrink-0" />
               )}
-              <span className="truncate">
+              <span className="truncate sm:hidden">
+                {editingId ? 'Guardar' : activeTab === 'bulk' ? 'Crear' : 'Agregar'}
+              </span>
+              <span className="hidden truncate sm:inline">
                 {editingId ? 'Guardar' : activeTab === 'bulk' ? 'Crear Lote' : 'Agregar Tarjeta'}
               </span>
             </button>
@@ -662,5 +688,4 @@ export default function FlashcardCreator({
     </form>
   );
 }
-
 
