@@ -1,16 +1,20 @@
 // ARCHIVO: frontend/src/components/creator/StylePanel.jsx
 import { createPortal } from 'react-dom';
 import { useLayoutEffect, useRef, useState } from 'react';
-import { ImagePlus, Plus, Minus, Bold, Italic, Palette, Pipette, X } from 'lucide-react';
+import { ImagePlus, Plus, Minus, Bold, Italic, Palette, Pipette, X, Check, CircleOff } from 'lucide-react';
 
 const VIEWPORT_MARGIN = 8;
 const PALETTE_GAP = 8;
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
-function ColorPalette({ value, swatches, onChange, onClose, anchorRef, placement = 'above', label }) {
+function ColorPalette({ value, swatches, onChange, onClose, anchorRef, placement = 'above', label, title }) {
   const paletteRef = useRef(null);
   const [position, setPosition] = useState(null);
+  const normalizedValue = value || '';
+  const selectedSwatch = swatches.find((swatch) => swatch.value === normalizedValue);
+  const currentLabel = selectedSwatch?.label || (value ? 'Personalizado' : 'Predeterminado');
+  const isCustomColor = Boolean(normalizedValue) && !selectedSwatch;
 
   useLayoutEffect(() => {
     if (typeof window === 'undefined' || typeof document === 'undefined') return undefined;
@@ -90,43 +94,81 @@ function ColorPalette({ value, swatches, onChange, onClose, anchorRef, placement
     <div
       ref={paletteRef}
       data-color-palette="true"
-      className="fixed z-[120] grid w-[168px] max-w-[calc(100vw-1rem)] grid-cols-4 gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl animate-[slideUp_0.1s_ease-out] dark:border-slate-700 dark:bg-slate-800"
+      role="dialog"
+      aria-label={label}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          event.stopPropagation();
+          onClose?.();
+        }
+      }}
+      className="fixed z-[120] w-[204px] max-w-[calc(100vw-1rem)] rounded-[20px] border border-slate-200/90 bg-white p-2.5 shadow-[0_18px_42px_-18px_rgba(15,23,42,0.42)] ring-1 ring-black/5 animate-[slideUp_0.12s_ease-out] dark:border-slate-700 dark:bg-slate-800 dark:ring-white/5"
       style={{
         left: `${position?.left ?? 0}px`,
         top: `${position?.top ?? 0}px`,
         visibility: position ? 'visible' : 'hidden',
       }}
-      aria-label={label}
     >
-      {swatches.map((color) => (
-        <button
-          key={color.value}
-          type="button"
-          title={color.label}
-          aria-label={color.label}
-          aria-pressed={value === color.value}
-          onClick={() => {
-            onChange(color.value);
-            onClose?.();
-          }}
-          style={color.value ? { backgroundColor: color.value } : {}}
-          className={`relative min-h-9 min-w-9 rounded-xl border transition-all ${
-            value === color.value
-              ? 'scale-110 ring-2 ring-slate-900 ring-offset-1 dark:ring-slate-100'
-              : 'border-slate-200 hover:scale-105 dark:border-slate-600'
-          } ${!color.value ? 'bg-slate-100 after:absolute after:inset-0 after:flex after:items-center after:justify-center after:text-xs after:font-bold after:text-slate-500 after:content-["×"] dark:bg-slate-700 dark:after:text-slate-300' : ''}`}
-        />
-      ))}
+      <div className="mb-2 flex items-center justify-between gap-2 px-0.5">
+        <span className="min-w-0 truncate text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">{title}</span>
+        <span className="flex min-w-0 items-center gap-1.5 text-[10px] font-semibold text-slate-400 dark:text-slate-500">
+          <span
+            style={normalizedValue ? { backgroundColor: normalizedValue } : undefined}
+            className="h-3.5 w-3.5 shrink-0 rounded-md border border-slate-200 bg-slate-100 shadow-inner dark:border-slate-600 dark:bg-slate-700"
+            aria-hidden="true"
+          />
+          <span className="max-w-[90px] truncate">{currentLabel}</span>
+        </span>
+      </div>
 
-      <label
-        className="relative flex min-h-9 min-w-9 cursor-pointer items-center justify-center overflow-hidden rounded-xl border border-slate-300 bg-gradient-to-tr from-amber-400 via-rose-400 to-indigo-400 shadow-xs transition-transform hover:scale-105 dark:border-slate-600"
-        title="Color personalizado"
-        aria-label="Color personalizado"
-      >
-        <Pipette className="relative z-10 h-3.5 w-3.5 text-white drop-shadow-xs" aria-hidden="true" />
+      <div className="grid grid-cols-4 gap-2" role="group" aria-label="Colores disponibles">
+        {swatches.map((color) => {
+          const isSelected = normalizedValue === color.value;
+          const isLight = !color.value || color.value.toLowerCase() === '#ffffff';
+
+          return (
+            <button
+              key={color.value || 'default'}
+              type="button"
+              title={color.label}
+              aria-label={color.label}
+              aria-pressed={isSelected}
+              onClick={() => {
+                onChange(color.value);
+                onClose?.();
+              }}
+              style={color.value ? { backgroundColor: color.value } : undefined}
+              className={`relative flex aspect-square min-w-0 items-center justify-center rounded-[13px] border transition-[box-shadow,transform,filter] duration-150 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-800 ${
+                isSelected
+                  ? 'border-transparent ring-2 ring-slate-900 ring-offset-2 dark:ring-slate-100'
+                  : 'border-slate-200 hover:-translate-y-0.5 hover:shadow-md dark:border-slate-600'
+              } ${!color.value ? 'bg-slate-100 dark:bg-slate-700' : ''}`}
+            >
+              {color.value ? null : <CircleOff className="h-4 w-4 text-slate-500 dark:text-slate-300" aria-hidden="true" />}
+              {isSelected && (
+                <span className={`absolute inset-0 flex items-center justify-center rounded-[13px] ${isLight ? 'bg-slate-900/5' : 'bg-black/10'}`}>
+                  <Check className={`h-4 w-4 stroke-[3] ${isLight ? 'text-slate-700 dark:text-slate-200' : 'text-white drop-shadow-sm'}`} aria-hidden="true" />
+                </span>
+              )}
+            </button>
+          );
+        })}
+
+        <label
+          style={isCustomColor ? { backgroundColor: value } : undefined}
+          className={`relative flex aspect-square min-w-0 cursor-pointer items-center justify-center overflow-hidden rounded-[13px] border shadow-xs transition-[box-shadow,transform] duration-150 hover:-translate-y-0.5 hover:shadow-md focus-within:ring-2 focus-within:ring-indigo-400 focus-within:ring-offset-2 dark:border-slate-600 dark:focus-within:ring-offset-slate-800 ${isCustomColor ? 'border-transparent ring-2 ring-slate-900 ring-offset-2 dark:ring-slate-100' : 'border-slate-300 bg-gradient-to-tr from-amber-400 via-rose-400 to-indigo-400'}`}
+          title="Color personalizado"
+          aria-label="Color personalizado"
+        >
+          {isCustomColor ? (
+            <Check className="relative z-10 h-4 w-4 stroke-[3] text-white drop-shadow-sm" aria-hidden="true" />
+          ) : (
+            <Pipette className="relative z-10 h-4 w-4 text-white drop-shadow-sm" aria-hidden="true" />
+          )}
         <input
           type="color"
-          value={value && value.startsWith('#') ? value : '#ffffff'}
+          value={normalizedValue && normalizedValue.startsWith('#') ? normalizedValue : '#ffffff'}
           onChange={(event) => {
             onChange(event.target.value);
             onClose?.();
@@ -134,7 +176,8 @@ function ColorPalette({ value, swatches, onChange, onClose, anchorRef, placement
           className="absolute inset-0 z-0 scale-150 cursor-pointer opacity-0"
           aria-label={`Elegir ${label || 'color'}`}
         />
-      </label>
+        </label>
+      </div>
     </div>
   );
 
@@ -170,6 +213,22 @@ export default function StylePanel({
   const qColorAnchorRef = useRef(null);
   const aColorAnchorRef = useRef(null);
   const bgColorAnchorRef = useRef(null);
+
+  const closeColor = () => {
+    const activeColor = openColor;
+    setOpenColor(null);
+
+    // Mantiene el teclado/foco en el control que abrió la paleta, no en el
+    // backdrop portalizado.
+    window.requestAnimationFrame(() => {
+      const anchor = activeColor === 'question'
+        ? qColorAnchorRef.current
+        : activeColor === 'answer'
+          ? aColorAnchorRef.current
+          : bgColorAnchorRef.current;
+      anchor?.querySelector('button')?.focus();
+    });
+  };
 
   const toggleColor = (colorId) => {
     setOpenColor((current) => (current === colorId ? null : colorId));
@@ -250,10 +309,11 @@ export default function StylePanel({
                   value={styles[colorKey]}
                   swatches={SWATCHES}
                   onChange={(value) => updateStyle(colorKey, value)}
-                  onClose={() => setOpenColor(null)}
+                  onClose={closeColor}
                   anchorRef={colorAnchorRef}
                   placement="above"
                   label={`Colores de ${title.toLowerCase()}`}
+                  title={title.replace(/^Estilo de la /i, '')}
                 />
               )}
             </div>
@@ -345,10 +405,11 @@ export default function StylePanel({
                   value={styles.bgColor}
                   swatches={SWATCHES}
                   onChange={(value) => updateStyle('bgColor', value)}
-                  onClose={() => setOpenColor(null)}
+                  onClose={closeColor}
                   anchorRef={bgColorAnchorRef}
                   placement="below"
                   label="Colores de fondo"
+                  title="Fondo"
                 />
               )}
             </div>
