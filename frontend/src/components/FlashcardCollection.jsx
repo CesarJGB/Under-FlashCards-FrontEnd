@@ -80,7 +80,7 @@ export default function FlashcardCollection({
         setSortBy={setSortBy}
         sortOptions={CARD_SORT_OPTIONS}
         defaultSort="recent"
-        searchPlaceholder="Buscar pregunta o respuesta"
+        searchPlaceholder="Buscar"
         className="!mt-0"
       />
 

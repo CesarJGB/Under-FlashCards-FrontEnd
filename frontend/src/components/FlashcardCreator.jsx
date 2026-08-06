@@ -368,7 +368,6 @@ export default function FlashcardCreator({
       updateAiProgress(buildAiCompletionProgress(result, aiProgressRef.current, Number(aiNumCards) || 0));
       await onAiSuccess?.(result);
       setAiText('');
-      setIsAi(false);
       completed = true;
     } catch (submitError) {
       setError(submitError.message || 'Error de conexión con el nodo de Inteligencia Artificial.');
@@ -401,7 +400,15 @@ export default function FlashcardCreator({
   const cardCountLabel = normalizedCardCount > 9999
     ? new Intl.NumberFormat('es-MX', { notation: 'compact', maximumFractionDigits: 0 }).format(normalizedCardCount)
     : normalizedCardCount.toLocaleString('es-MX');
-  const cardCountTextSize = cardCountLabel.length > 3 ? 'text-[7px]' : 'text-[9px]';
+  const cardCountTextSize = cardCountLabel.length >= 5
+    ? 'text-[5.5px] tracking-[-0.08em]'
+    : cardCountLabel.length === 4
+      ? 'text-[6px] tracking-[-0.06em]'
+      : cardCountLabel.length === 3
+        ? 'text-[7px] tracking-[-0.04em]'
+        : cardCountLabel.length === 2
+          ? 'text-[8px]'
+          : 'text-[9px]';
 
   return (
     <form onSubmit={handleFormSubmit} className="flex flex-col bg-slate-50 relative w-full">
@@ -564,7 +571,7 @@ export default function FlashcardCreator({
                 className="flex min-h-11 w-12 flex-col items-center justify-center gap-0.5 rounded-xl p-2 text-slate-600 transition-colors hover:bg-slate-100 active:scale-[0.98] disabled:opacity-50 sm:w-16"
               >
                 <span
-                  className={`flex h-5 w-5 items-center justify-center rounded-[5px] border-2 border-current font-extrabold leading-none ${cardCountTextSize}`}
+                  className={`flex h-5 w-5 items-center justify-center rounded-[5px] border-2 border-current font-extrabold leading-none tabular-nums ${cardCountTextSize}`}
                   aria-hidden="true"
                 >
                   {cardCountLabel}
@@ -688,4 +695,3 @@ export default function FlashcardCreator({
     </form>
   );
 }
-

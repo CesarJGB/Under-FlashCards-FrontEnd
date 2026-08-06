@@ -218,7 +218,7 @@ export default function DeckInterior({ deck, userId, authToken, onBack, initialM
         if (!res.ok) throw new Error('No se pudo guardar el lote.');
         const batchData = await res.json();
         setCards((prev) => [...batchData, ...prev]);
-        resetForm(); setIsBulk(false);
+        resetForm();
         
         if (typeof onRefreshData === 'function') onRefreshData();
 

@@ -1,15 +1,111 @@
 // FILE: frontend/src/components/FlashcardGrid.jsx
 
 import { useState } from 'react';
-import { Pencil, Trash2, Layers, Image, X } from 'lucide-react';
+import { Image, Layers, MoreHorizontal, Pencil, Trash2, X } from 'lucide-react';
+import ActionSheet from './common/ActionSheet';
 
 // Importamos la función de parseo unificada y centralizada
 import { parseCardStyles } from '../lib/utils';
 
 const ALIGN_CLASS = { left: 'text-left', center: 'text-center', right: 'text-right' };
 
+function getCardPresentation(card) {
+  const hasBg = Boolean(card.bgImage);
+  const alignClass = ALIGN_CLASS[card.textAlign] || 'text-center';
+  const styles = parseCardStyles(card.fontSize);
+  const cardStyle = {
+    backgroundColor: styles.bgColor || '#ffffff',
+    ...(hasBg ? {
+      backgroundImage: `url(${card.bgImage})`,
+      backgroundPosition: 'center',
+      backgroundSize: 'cover',
+    } : {}),
+  };
+
+  return {
+    hasBg,
+    alignClass,
+    styles,
+    cardStyle,
+    questionStyle: {
+      ...(styles.qColor ? { color: styles.qColor } : {}),
+      fontSize: `${styles.qSize}px`,
+    },
+    answerStyle: {
+      ...(styles.aColor ? { color: styles.aColor } : {}),
+      fontSize: `${styles.aSize}px`,
+    },
+  };
+}
+
+function CardActionPreview({ card }) {
+  const {
+    hasBg,
+    alignClass,
+    styles,
+    cardStyle,
+    questionStyle,
+    answerStyle,
+  } = getCardPresentation(card);
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-2 shadow-inner dark:border-slate-700 dark:bg-slate-950/50">
+      <article
+        style={cardStyle}
+        className="relative min-w-0 overflow-hidden rounded-2xl border border-slate-200 shadow-sm dark:border-slate-700"
+        aria-label="Previsualización de la carta seleccionada"
+      >
+        {hasBg && <span className="absolute inset-0 bg-black/55" />}
+
+        <div className="relative z-10 min-w-0 p-4 pt-6">
+          <span className="absolute left-1/2 top-2 h-1.5 w-8 -translate-x-1/2 rounded-full bg-slate-400/40" />
+
+          <p className={`text-[9px] font-bold uppercase tracking-wide ${hasBg ? 'text-white/60' : 'text-slate-400'}`}>
+            Pregunta
+          </p>
+          <p
+            style={questionStyle}
+            className={`mt-1 line-clamp-6 min-w-0 whitespace-pre-wrap break-words ${alignClass} ${styles.qBold ? 'font-bold' : 'font-normal'} ${styles.qItalic ? 'italic' : ''} ${hasBg && !styles.qColor ? 'text-white' : 'text-slate-900'}`}
+          >
+            {card.question || 'Sin pregunta'}
+          </p>
+
+          {card.contentImage && card.imageSide === 'question' && (
+            <img
+              src={card.contentImage}
+              alt="Imagen de la pregunta"
+              className="mt-3 max-h-28 w-full rounded-xl border border-white/40 bg-white/90 object-contain p-1"
+            />
+          )}
+
+          <div className={`my-3 border-t border-dashed ${hasBg ? 'border-white/30' : 'border-slate-200'}`} />
+
+          <p className={`text-[9px] font-bold uppercase tracking-wide ${hasBg ? 'text-white/60' : 'text-slate-400'}`}>
+            Respuesta
+          </p>
+          <p
+            style={answerStyle}
+            className={`mt-1 line-clamp-5 min-w-0 whitespace-pre-wrap break-words ${alignClass} ${styles.aBold ? 'font-bold' : 'font-normal'} ${styles.aItalic ? 'italic' : ''} ${hasBg && !styles.aColor ? 'text-white/90' : 'text-slate-700'}`}
+          >
+            {card.answer || 'Sin respuesta'}
+          </p>
+
+          {card.contentImage && card.imageSide === 'answer' && (
+            <img
+              src={card.contentImage}
+              alt="Imagen de la respuesta"
+              className="mt-3 max-h-28 w-full rounded-xl border border-white/40 bg-white/90 object-contain p-1"
+            />
+          )}
+        </div>
+      </article>
+    </div>
+  );
+}
+
 export default function FlashcardGrid({ cards, onEdit, onDelete }) {
-  const [activePreview, setActivePreview] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [actionCard, setActionCard] = useState(null);
   
   if (cards.length === 0) {
     return (
@@ -23,29 +119,14 @@ export default function FlashcardGrid({ cards, onEdit, onDelete }) {
   return (
     <div className="mt-4 grid grid-cols-2 gap-3 sm:gap-4">
       {cards.map((card) => {
-        const hasBg = !!card.bgImage;
-        const alignClass = ALIGN_CLASS[card.textAlign] || 'text-center';
-        
-        // El desatascador redundante local fue removido con éxito.
-        // Ahora consumimos directamente la utilidad central en src/lib/utils.js
-        const st = parseCardStyles(card.fontSize);
-
-        const isQNum = typeof st.qSize === 'number';
-        const qSizeStyle = isQNum ? { fontSize: `${st.qSize}px` } : {};
-        const qSizeClass = isQNum ? '' : st.qSize;
-
-        const isANum = typeof st.aSize === 'number';
-        const aSizeStyle = isANum ? { fontSize: `${st.aSize}px` } : {};
-        const aSizeClass = isANum ? '' : st.aSize;
-
-        // 🚀 Fusión limpia de color sólido con el fallback blanco y la imagen si existiera
-        const cardStyle = {
-          backgroundColor: st.bgColor || '#ffffff',
-          ...(hasBg ? { backgroundImage: `url(${card.bgImage})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {})
-        };
-        
-        const finalQStyle = { ...(st.qColor ? { color: st.qColor } : {}), ...qSizeStyle };
-        const finalAStyle = { ...(st.aColor ? { color: st.aColor } : {}), ...aSizeStyle };
+        const {
+          hasBg,
+          alignClass,
+          styles,
+          cardStyle,
+          questionStyle,
+          answerStyle,
+        } = getCardPresentation(card);
 
         return (
           <article key={card.id} style={cardStyle} className="relative min-w-0 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow overflow-hidden flex flex-col justify-between dark:border-slate-700">
@@ -55,27 +136,16 @@ export default function FlashcardGrid({ cards, onEdit, onDelete }) {
               <span className="absolute top-2 left-1/2 -translate-x-1/2 w-7 h-1.5 rounded-full bg-slate-400/40" />
               
               {(typeof onEdit === 'function' || typeof onDelete === 'function') && (
-                <div className="flex justify-end gap-1 mb-1">
-                  {typeof onEdit === 'function' && (
-                    <button
-                      type="button"
-                      onClick={() => onEdit(card)}
-                      aria-label="Editar carta"
-                      className={`flex min-h-9 min-w-9 items-center justify-center rounded-lg transition-colors ${hasBg ? 'text-white hover:bg-white/20' : 'text-slate-500 hover:bg-slate-100'}`}
-                    >
-                      <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
-                    </button>
-                  )}
-                  {typeof onDelete === 'function' && (
-                    <button
-                      type="button"
-                      onClick={() => onDelete(card)}
-                      aria-label="Eliminar carta"
-                      className={`flex min-h-9 min-w-9 items-center justify-center rounded-lg transition-colors ${hasBg ? 'text-red-300 hover:bg-white/20' : 'text-red-600 hover:bg-red-50'}`}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
-                    </button>
-                  )}
+                <div className="mb-1 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setActionCard(card)}
+                    aria-label="Abrir acciones de la carta"
+                    aria-haspopup="dialog"
+                    className={`flex min-h-9 min-w-9 items-center justify-center rounded-lg transition-colors ${hasBg ? 'text-white hover:bg-white/20' : 'text-slate-500 hover:bg-slate-100'}`}
+                  >
+                    <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
+                  </button>
                 </div>
               )}
 
@@ -87,7 +157,7 @@ export default function FlashcardGrid({ cards, onEdit, onDelete }) {
                 {card.contentImage && card.imageSide === 'question' && (
                   <button 
                     type="button"
-                    onClick={() => setActivePreview({ title: 'Imagen de la Pregunta', src: card.contentImage })}
+                    onClick={() => setImagePreview({ title: 'Imagen de la Pregunta', src: card.contentImage })}
                     className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[8px] font-extrabold tracking-normal uppercase border cursor-pointer hover:scale-105 active:scale-95 transition-all ${
                       hasBg ? 'bg-white/20 text-white border-white/20 hover:bg-white/30' : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200/70'
                     }`}
@@ -97,7 +167,7 @@ export default function FlashcardGrid({ cards, onEdit, onDelete }) {
                 )}
               </div>
               
-              <p style={finalQStyle} className={`mt-1 min-w-0 break-words whitespace-pre-wrap ${alignClass} ${qSizeClass} ${st.qBold ? 'font-bold' : 'font-normal'} ${st.qItalic ? 'italic' : ''} ${hasBg && !st.qColor ? 'text-white' : 'text-slate-900'}`}>
+              <p style={questionStyle} className={`mt-1 line-clamp-3 min-w-0 break-words whitespace-pre-wrap ${alignClass} ${styles.qBold ? 'font-bold' : 'font-normal'} ${styles.qItalic ? 'italic' : ''} ${hasBg && !styles.qColor ? 'text-white' : 'text-slate-900'}`}>
                 {card.question}
               </p>
 
@@ -111,7 +181,7 @@ export default function FlashcardGrid({ cards, onEdit, onDelete }) {
                 {card.contentImage && card.imageSide === 'answer' && (
                   <button 
                     type="button"
-                    onClick={() => setActivePreview({ title: 'Imagen de la Respuesta', src: card.contentImage })}
+                    onClick={() => setImagePreview({ title: 'Imagen de la Respuesta', src: card.contentImage })}
                     className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[8px] font-extrabold tracking-normal uppercase border cursor-pointer hover:scale-105 active:scale-95 transition-all ${
                       hasBg ? 'bg-white/20 text-white border-white/20 hover:bg-white/30' : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200/70'
                     }`}
@@ -121,7 +191,7 @@ export default function FlashcardGrid({ cards, onEdit, onDelete }) {
                 )}
               </div>
 
-              <p style={finalAStyle} className={`mt-1 min-w-0 break-words whitespace-pre-wrap ${alignClass} ${aSizeClass} ${st.aBold ? 'font-bold' : 'font-normal'} ${st.aItalic ? 'italic' : ''} ${hasBg && !st.aColor ? 'text-white/90' : 'text-slate-700'}`}>
+              <p style={answerStyle} className={`mt-1 line-clamp-2 min-w-0 break-words whitespace-pre-wrap ${alignClass} ${styles.aBold ? 'font-bold' : 'font-normal'} ${styles.aItalic ? 'italic' : ''} ${hasBg && !styles.aColor ? 'text-white/90' : 'text-slate-700'}`}>
                 {card.answer}
               </p>
             </div>
@@ -129,13 +199,45 @@ export default function FlashcardGrid({ cards, onEdit, onDelete }) {
         );
       })}
 
+      {/* MENÚ DE ACCIONES DE LA CARTA */}
+      {actionCard && (
+        <ActionSheet
+          open
+          title="Vista de la carta"
+          compact
+          onClose={() => setActionCard(null)}
+          options={[
+            typeof onEdit === 'function' && {
+              id: 'edit-card',
+              icon: Pencil,
+              label: 'Editar',
+              onSelect: () => onEdit(actionCard),
+            },
+            typeof onDelete === 'function' && {
+              id: 'delete-card',
+              icon: Trash2,
+              label: 'Borrar',
+              danger: true,
+              onSelect: () => onDelete(actionCard),
+            },
+            {
+              id: 'cancel-card-actions',
+              icon: X,
+              label: 'Cancelar',
+            },
+          ].filter(Boolean)}
+        >
+          <CardActionPreview card={actionCard} />
+        </ActionSheet>
+      )}
+
       {/* LIGHTBOX MODAL FLOTANTE */}
-      {activePreview && (
+      {imagePreview && (
         <div 
           role="dialog"
           aria-modal="true"
-          aria-label={activePreview.title}
-          onClick={() => setActivePreview(null)}
+          aria-label={imagePreview.title}
+          onClick={() => setImagePreview(null)}
           className="fixed inset-0 bg-slate-950/60 backdrop-blur-md z-50 flex flex-col items-center justify-center p-4 animate-[fadeIn_0.15s_ease]"
         >
           <div 
@@ -144,11 +246,11 @@ export default function FlashcardGrid({ cards, onEdit, onDelete }) {
           >
             <div className="flex items-center justify-between px-4 py-3 bg-slate-50 border-b border-slate-200/60">
               <span className="text-xs font-bold text-slate-700 uppercase tracking-wide flex items-center gap-1.5">
-                <Image className="w-3.5 h-3.5 text-slate-400" /> {activePreview.title}
+                <Image className="w-3.5 h-3.5 text-slate-400" /> {imagePreview.title}
               </span>
               <button 
                 type="button" 
-                onClick={() => setActivePreview(null)}
+                onClick={() => setImagePreview(null)}
                 aria-label="Cerrar imagen"
                 className="p-1 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-200/60 transition-colors"
               >
@@ -157,7 +259,7 @@ export default function FlashcardGrid({ cards, onEdit, onDelete }) {
             </div>
             <div className="p-6 bg-slate-100/40 flex justify-center items-center min-h-[220px]">
               <img 
-                src={activePreview.src} 
+                src={imagePreview.src} 
                 alt="Vista ampliada" 
                 className="max-h-[70vh] w-auto object-contain rounded-xl shadow-xs border border-white bg-white p-1"
               />
