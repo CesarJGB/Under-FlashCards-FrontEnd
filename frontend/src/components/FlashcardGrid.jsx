@@ -140,17 +140,15 @@ export default function FlashcardGrid({ cards, onEdit, onDelete }) {
               <span className="absolute top-2 left-1/2 -translate-x-1/2 w-7 h-1.5 rounded-full bg-slate-400/40" />
 
               {(typeof onEdit === 'function' || typeof onDelete === 'function') && (
-                <div className="mb-0.5 flex min-h-8 justify-end">
-                  <button
-                    type="button"
-                    onClick={() => setActionCard(card)}
-                    aria-label="Abrir acciones de la carta"
-                    aria-haspopup="dialog"
-                    className={`flex min-h-9 min-w-9 items-center justify-center rounded-lg transition-colors ${hasBg ? 'text-white hover:bg-white/20' : 'text-slate-500 hover:bg-slate-100'}`}
-                  >
-                    <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setActionCard(card)}
+                  aria-label="Abrir acciones de la carta"
+                  aria-haspopup="dialog"
+                  className={`absolute right-1.5 top-1.5 z-20 flex min-h-9 min-w-9 items-center justify-center rounded-lg transition-colors ${hasBg ? 'text-white hover:bg-white/20' : 'text-slate-500 hover:bg-slate-100'}`}
+                >
+                  <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
+                </button>
               )}
 
               {/* SECCIÓN PREGUNTA */}

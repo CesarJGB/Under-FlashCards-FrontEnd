@@ -18,9 +18,9 @@ function CardGridSkeleton() {
       {Array.from({ length: 6 }, (_, index) => (
         <div
           key={index}
-          className="aspect-[0.88/1] animate-pulse rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900"
+          className="relative aspect-[0.88/1] animate-pulse rounded-2xl border border-slate-200 bg-white p-3 pt-4 shadow-sm dark:border-slate-800 dark:bg-slate-900"
         >
-          <div className="ml-auto h-7 w-7 rounded-lg bg-slate-100 dark:bg-slate-800" />
+          <div className="absolute right-2 top-2 h-7 w-7 rounded-lg bg-slate-100 dark:bg-slate-800" />
           <div className="mt-3 h-2 w-12 rounded-full bg-slate-100 dark:bg-slate-800" />
           <div className="mt-2 h-3 w-full rounded-full bg-slate-200 dark:bg-slate-700" />
           <div className="mt-2 h-3 w-3/4 rounded-full bg-slate-100 dark:bg-slate-800" />
