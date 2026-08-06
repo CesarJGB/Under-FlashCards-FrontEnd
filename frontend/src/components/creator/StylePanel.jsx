@@ -2,47 +2,154 @@
 import { useState } from 'react';
 import { ImagePlus, Plus, Minus, Bold, Italic, Palette, Pipette } from 'lucide-react';
 
-export default function StylePanel({ ALIGNS, SWATCHES, textAlign, setTextAlign, bgImage, setBgImage, styles, updateStyle, handleBgFile }) {
+function ColorPalette({ value, swatches, onChange, onClose, compact = false, placement = 'above', label }) {
+  const palette = (
+    <div
+      className={[
+        'grid grid-cols-4 gap-2 w-[168px] p-2 rounded-2xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-800',
+        compact
+          ? 'relative mt-2 self-end'
+          : placement === 'above'
+            ? 'absolute right-0 bottom-full mb-2 z-[65]'
+            : 'absolute right-0 top-full mt-2 z-[65]',
+      ].join(' ')}
+      aria-label={label}
+    >
+      {swatches.map((color) => (
+        <button
+          key={color.value}
+          type="button"
+          title={color.label}
+          aria-label={color.label}
+          aria-pressed={value === color.value}
+          onClick={() => {
+            onChange(color.value);
+            onClose?.();
+          }}
+          style={color.value ? { backgroundColor: color.value } : {}}
+          className={`relative min-h-9 min-w-9 rounded-xl border transition-all ${
+            value === color.value
+              ? 'scale-110 ring-2 ring-slate-900 ring-offset-1 dark:ring-slate-100'
+              : 'border-slate-200 hover:scale-105 dark:border-slate-600'
+          } ${!color.value ? 'bg-slate-100 after:absolute after:inset-0 after:flex after:items-center after:justify-center after:text-xs after:font-bold after:text-slate-500 after:content-["×"] dark:bg-slate-700 dark:after:text-slate-300' : ''}`}
+        />
+      ))}
+
+      <label
+        className="relative flex min-h-9 min-w-9 cursor-pointer items-center justify-center overflow-hidden rounded-xl border border-slate-300 bg-gradient-to-tr from-amber-400 via-rose-400 to-indigo-400 shadow-xs transition-transform hover:scale-105 dark:border-slate-600"
+        title="Color personalizado"
+        aria-label="Color personalizado"
+      >
+        <Pipette className="relative z-10 h-3.5 w-3.5 text-white drop-shadow-xs" aria-hidden="true" />
+        <input
+          type="color"
+          value={value && value.startsWith('#') ? value : '#ffffff'}
+          onChange={(event) => onChange(event.target.value)}
+          className="absolute inset-0 z-0 scale-150 cursor-pointer opacity-0"
+          aria-label={`Elegir ${label || 'color'}`}
+        />
+      </label>
+    </div>
+  );
+
+  if (compact) return palette;
+
+  return (
+    <>
+      <div className="fixed inset-0 z-[60]" onClick={onClose} aria-hidden="true" />
+      {palette}
+    </>
+  );
+}
+
+export default function StylePanel({
+  ALIGNS,
+  SWATCHES,
+  textAlign,
+  setTextAlign,
+  bgImage,
+  setBgImage,
+  styles,
+  updateStyle,
+  handleBgFile,
+  compact = false,
+}) {
   const [qColorOpen, setQColorOpen] = useState(false);
   const [aColorOpen, setAColorOpen] = useState(false);
-  const [bgColorOpen, setBgColorOpen] = useState(false); // Estado del selector de fondo sólida
+  const [bgColorOpen, setBgColorOpen] = useState(false);
 
   const renderStyleGroup = (title, prefix, colorOpen, setColorOpen) => {
     const sizeKey = `${prefix}Size`;
     const boldKey = `${prefix}Bold`;
     const italicKey = `${prefix}Italic`;
     const colorKey = `${prefix}Color`;
-    const currentSizeNum = styles[sizeKey];
+    const currentSizeNum = Number(styles[sizeKey]) || 16;
 
     return (
-      <div className="bg-white p-3 rounded-xl border border-slate-200/60 shadow-xs relative">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">{title}</p>
-        <div className="flex items-center justify-between gap-2 flex-wrap">
-          <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 p-0.5 rounded-lg">
-            <button type="button" onClick={() => updateStyle(sizeKey, Math.max(12, currentSizeNum - 1))} className="p-1 rounded-md hover:bg-white text-slate-600 transition-colors"><Minus className="w-3 h-3" /></button>
-            <span className="text-[11px] font-extrabold text-slate-800 min-w-[32px] text-center font-mono">{currentSizeNum}px</span>
-            <button type="button" onClick={() => updateStyle(sizeKey, Math.min(40, currentSizeNum + 1))} className="p-1 rounded-md hover:bg-white text-slate-600 transition-colors"><Plus className="w-3 h-3" /></button>
+      <div className={`relative rounded-xl border border-slate-200/60 bg-white shadow-xs dark:border-slate-700 dark:bg-slate-800 ${compact ? 'p-2.5' : 'p-3'}`}>
+        <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">{title}</p>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 p-0.5 dark:border-slate-700 dark:bg-slate-900/70">
+            <button
+              type="button"
+              onClick={() => updateStyle(sizeKey, Math.max(12, currentSizeNum - 1))}
+              className="flex min-h-9 min-w-9 items-center justify-center rounded-md text-slate-600 transition-colors hover:bg-white dark:text-slate-300 dark:hover:bg-slate-700"
+              aria-label={`Reducir tamaño de ${title.toLowerCase()}`}
+            >
+              <Minus className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+            <span className="min-w-[38px] text-center font-mono text-[11px] font-extrabold text-slate-800 dark:text-slate-100">{currentSizeNum}px</span>
+            <button
+              type="button"
+              onClick={() => updateStyle(sizeKey, Math.min(40, currentSizeNum + 1))}
+              className="flex min-h-9 min-w-9 items-center justify-center rounded-md text-slate-600 transition-colors hover:bg-white dark:text-slate-300 dark:hover:bg-slate-700"
+              aria-label={`Aumentar tamaño de ${title.toLowerCase()}`}
+            >
+              <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
           </div>
 
           <div className="flex items-center gap-1">
-            <button type="button" onClick={() => updateStyle(boldKey, !styles[boldKey])} className={`p-1.5 rounded-lg border transition-colors ${styles[boldKey] ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}><Bold className="w-3.5 h-3.5" /></button>
-            <button type="button" onClick={() => updateStyle(italicKey, !styles[italicKey])} className={`p-1.5 rounded-lg border transition-colors ${styles[italicKey] ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}><Italic className="w-3.5 h-3.5" /></button>
-            
-            <div className="relative">
-              <button type="button" onClick={() => setColorOpen(!colorOpen)} style={styles[colorKey] ? { backgroundColor: styles[colorKey] } : {}} className={`p-1.5 rounded-lg border transition-all flex items-center justify-center ${styles[colorKey] ? 'text-white border-transparent shadow-xs' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}><Palette className="w-3.5 h-3.5" /></button>
+            <button
+              type="button"
+              onClick={() => updateStyle(boldKey, !styles[boldKey])}
+              aria-label={`Negrita de ${title.toLowerCase()}`}
+              aria-pressed={Boolean(styles[boldKey])}
+              className={`flex min-h-10 min-w-10 items-center justify-center rounded-lg border transition-colors ${styles[boldKey] ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'}`}
+            >
+              <Bold className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              onClick={() => updateStyle(italicKey, !styles[italicKey])}
+              aria-label={`Cursiva de ${title.toLowerCase()}`}
+              aria-pressed={Boolean(styles[italicKey])}
+              className={`flex min-h-10 min-w-10 items-center justify-center rounded-lg border transition-colors ${styles[italicKey] ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'}`}
+            >
+              <Italic className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+
+            <div className={compact ? 'relative flex flex-col items-end' : 'relative'}>
+              <button
+                type="button"
+                onClick={() => setColorOpen(!colorOpen)}
+                style={styles[colorKey] ? { backgroundColor: styles[colorKey] } : {}}
+                aria-label={`Color de ${title.toLowerCase()}`}
+                aria-expanded={colorOpen}
+                className={`flex min-h-10 min-w-10 items-center justify-center rounded-lg border transition-all ${styles[colorKey] ? 'border-transparent text-white shadow-xs' : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'}`}
+              >
+                <Palette className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
               {colorOpen && (
-                <>
-                  <div className="fixed inset-0 z-[60]" onClick={() => setColorOpen(false)} />
-                  <div className="absolute right-0 bottom-full mb-2 bg-white border border-slate-200 p-2 rounded-2xl shadow-xl z-[65] grid grid-cols-4 gap-2 w-[168px] animate-[slideUp_0.1s_ease-out]">
-                    {SWATCHES.map((c) => (
-                      <button key={c.value} type="button" title={c.label} onClick={() => { updateStyle(colorKey, c.value); setColorOpen(false); }} style={c.value ? { backgroundColor: c.value } : {}} className={`w-8 h-8 rounded-xl border transition-all ${styles[colorKey] === c.value ? 'scale-110 ring-2 ring-slate-900 ring-offset-1' : 'border-slate-200 hover:scale-105'} ${!c.value ? 'bg-slate-100 relative after:absolute after:inset-0 after:flex after:items-center after:justify-center after:text-xs after:font-bold after:text-slate-500 after:content-["×"]' : ''}`} />
-                    ))}
-                    <label className="w-8 h-8 rounded-xl border border-slate-300 cursor-pointer overflow-hidden relative bg-gradient-to-tr from-amber-400 via-rose-400 to-indigo-400 shrink-0 hover:scale-105 transition-transform flex items-center justify-center group shadow-xs">
-                      <Pipette className="w-3.5 h-3.5 text-white drop-shadow-xs group-hover:scale-110 transition-transform relative z-10" />
-                      <input type="color" value={styles[colorKey] && styles[colorKey].startsWith('#') ? styles[colorKey] : '#ffffff'} onChange={(e) => updateStyle(colorKey, e.target.value)} className="absolute inset-0 opacity-0 cursor-pointer scale-150 z-0" />
-                    </label>
-                  </div>
-                </>
+                <ColorPalette
+                  value={styles[colorKey]}
+                  swatches={SWATCHES}
+                  onChange={(value) => updateStyle(colorKey, value)}
+                  onClose={() => setColorOpen(false)}
+                  compact={compact}
+                  placement="above"
+                  label={`Colores de ${title.toLowerCase()}`}
+                />
               )}
             </div>
           </div>
@@ -52,82 +159,70 @@ export default function StylePanel({ ALIGNS, SWATCHES, textAlign, setTextAlign, 
   };
 
   return (
-    <div className="mt-3 space-y-3 animate-[fadeIn_0.12s_ease]">
-      <div className="grid grid-cols-2 gap-3 bg-slate-100/50 p-3 rounded-xl border border-slate-200/40">
-        
-        {/* Lado Izquierdo: Alineación */}
+    <div className={`${compact ? 'mt-0' : 'mt-3'} space-y-3 animate-[fadeIn_0.12s_ease]`}>
+      <div className={`grid grid-cols-2 gap-2 rounded-xl border border-slate-200/40 bg-slate-100/50 dark:border-slate-700/60 dark:bg-slate-900/40 ${compact ? 'p-2.5' : 'p-3'}`}>
         <div className="flex flex-col items-center justify-center text-center">
-          <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1.5 w-full">Alineación</p>
-          <div className="flex gap-1 justify-center">
+          <p className="mb-1.5 w-full text-[10px] font-bold uppercase tracking-wide text-slate-400">Alineación</p>
+          <div className="flex justify-center gap-1.5">
             {ALIGNS.map(({ value, label, Icon }) => (
-              <button key={value} type="button" title={label} onClick={() => setTextAlign(value)} className={`rounded-lg p-1.5 border transition-colors ${textAlign === value ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}><Icon className="w-3.5 h-3.5" /></button>
+              <button
+                key={value}
+                type="button"
+                title={label}
+                aria-label={label}
+                aria-pressed={textAlign === value}
+                onClick={() => setTextAlign(value)}
+                className={`flex min-h-10 min-w-10 items-center justify-center rounded-lg border transition-colors ${textAlign === value ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'}`}
+              >
+                <Icon className="h-4 w-4" aria-hidden="true" />
+              </button>
             ))}
           </div>
         </div>
-        
-        {/* 🌟 Lado Derecho: Controles de Fondo Centrados con Corrección de Desplegable */}
+
         <div className="flex flex-col items-center justify-center text-center">
-          <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1.5 w-full">Fondo</p>
+          <p className="mb-1.5 w-full text-[10px] font-bold uppercase tracking-wide text-slate-400">Fondo</p>
           <div className="flex items-center justify-center gap-2">
-            <label className="inline-flex items-center gap-1.5 cursor-pointer rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 hover:bg-slate-50 shadow-xs shrink-0">
-              <ImagePlus className="w-3.5 h-3.5 text-slate-500" /> <span>Imagen</span>
+            <label className="inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs text-slate-700 shadow-xs hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">
+              <ImagePlus className="h-3.5 w-3.5 text-slate-500" aria-hidden="true" /> <span>Imagen</span>
               <input type="file" accept="image/*" onChange={handleBgFile} className="hidden" />
             </label>
-            {bgImage && <button type="button" onClick={() => setBgImage('')} className="text-xs text-red-600 hover:underline shrink-0">Quitar</button>}
+            {bgImage && <button type="button" onClick={() => setBgImage('')} className="min-h-10 shrink-0 px-1 text-xs text-red-600 hover:underline dark:text-red-400">Quitar</button>}
 
             <div className="w-[1px] h-5 bg-slate-200 mx-0.5 shrink-0" />
 
-            {/* Selector de Color de Fondo Sólido */}
-            <div className="relative">
+            <div className={compact ? 'relative flex flex-col items-end' : 'relative'}>
               <button
                 type="button"
                 onClick={() => setBgColorOpen(!bgColorOpen)}
                 style={styles.bgColor ? { backgroundColor: styles.bgColor } : {}}
-                className={`p-1.5 rounded-lg border transition-all flex items-center justify-center ${
-                  styles.bgColor ? 'text-white border-transparent shadow-xs' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
-                }`}
                 title="Color de fondo sólido"
+                aria-label="Color de fondo sólido"
+                aria-expanded={bgColorOpen}
+                className={`flex min-h-10 min-w-10 items-center justify-center rounded-lg border transition-all ${
+                  styles.bgColor ? 'border-transparent text-white shadow-xs' : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
+                }`}
               >
-                <Palette className={`w-3.5 h-3.5 ${styles.bgColor ? 'drop-shadow-xs text-white' : ''}`} />
+                <Palette className="h-3.5 w-3.5" aria-hidden="true" />
               </button>
 
               {bgColorOpen && (
-                <>
-                  <div className="fixed inset-0 z-[60]" onClick={() => setBgColorOpen(false)} />
-                  {/* 🚀 SOLUCIÓN: right-0 mt-2 orienta la caja de muestras hacia adentro de la carta */}
-                  <div className="absolute right-0 mt-2 bg-white border border-slate-200 p-2 rounded-2xl shadow-xl z-[65] grid grid-cols-4 gap-2 w-[168px] animate-[slideUp_0.1s_ease-out]">
-                    {SWATCHES.map((c) => (
-                      <button
-                        key={c.value} 
-                        type="button" 
-                        title={c.label}
-                        onClick={() => { updateStyle('bgColor', c.value); setBgColorOpen(false); }}
-                        style={c.value ? { backgroundColor: c.value } : {}}
-                        className={`w-8 h-8 rounded-xl border transition-all ${
-                          styles.bgColor === c.value ? 'scale-110 ring-2 ring-slate-900 ring-offset-1' : 'border-slate-200 hover:scale-105'
-                        } ${!c.value ? 'bg-slate-100 relative after:absolute after:inset-0 after:flex after:items-center after:justify-center after:text-xs after:font-bold after:text-slate-500 after:content-["×"]' : ''}`}
-                      />
-                    ))}
-                    
-                    <label className="w-8 h-8 rounded-xl border border-slate-300 cursor-pointer overflow-hidden relative bg-gradient-to-tr from-amber-400 via-rose-400 to-indigo-400 shrink-0 hover:scale-105 transition-transform flex items-center justify-center group shadow-xs" title="Color personalizado">
-                      <Pipette className="w-3.5 h-3.5 text-white drop-shadow-xs group-hover:scale-110 transition-transform relative z-10" />
-                      <input 
-                        type="color" 
-                        value={styles.bgColor && styles.bgColor.startsWith('#') ? styles.bgColor : '#ffffff'} 
-                        onChange={(e) => updateStyle('bgColor', e.target.value)}
-                        className="absolute inset-0 opacity-0 cursor-pointer scale-150 z-0" 
-                      />
-                    </label>
-                  </div>
-                </>
+                <ColorPalette
+                  value={styles.bgColor}
+                  swatches={SWATCHES}
+                  onChange={(value) => updateStyle('bgColor', value)}
+                  onClose={() => setBgColorOpen(false)}
+                  compact={compact}
+                  placement="below"
+                  label="Colores de fondo"
+                />
               )}
             </div>
-
           </div>
         </div>
       </div>
-      
-      <div className="grid sm:grid-cols-2 gap-3">
+
+      <div className="grid gap-2.5 sm:grid-cols-2">
         {renderStyleGroup('Estilo de la Pregunta', 'q', qColorOpen, setQColorOpen)}
         {renderStyleGroup('Estilo de la Respuesta', 'a', aColorOpen, setAColorOpen)}
       </div>
