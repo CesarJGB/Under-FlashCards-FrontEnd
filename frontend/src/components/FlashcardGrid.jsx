@@ -29,11 +29,15 @@ function getCardPresentation(card) {
     cardStyle,
     questionStyle: {
       ...(styles.qColor ? { color: styles.qColor } : {}),
-      fontSize: `${styles.qSize}px`,
+      // La colección necesita una escala compacta para conservar dos columnas
+      // legibles sin convertir cada carta en un bloque excesivamente alto.
+      fontSize: `${Math.min(styles.qSize, 18)}px`,
+      lineHeight: 1.2,
     },
     answerStyle: {
       ...(styles.aColor ? { color: styles.aColor } : {}),
-      fontSize: `${styles.aSize}px`,
+      fontSize: `${Math.min(styles.aSize, 16)}px`,
+      lineHeight: 1.25,
     },
   };
 }
@@ -129,14 +133,14 @@ export default function FlashcardGrid({ cards, onEdit, onDelete }) {
         } = getCardPresentation(card);
 
         return (
-          <article key={card.id} style={cardStyle} className="relative min-w-0 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow overflow-hidden flex flex-col justify-between dark:border-slate-700">
+          <article key={card.id} style={cardStyle} className="relative min-w-0 aspect-[0.88/1] overflow-hidden rounded-2xl border border-slate-200 shadow-sm transition-shadow hover:shadow-md dark:border-slate-700">
             {hasBg && <span className="absolute inset-0 bg-black/55" />}
 
-            <div className="relative z-10 min-w-0 p-3 pt-5 sm:p-4 sm:pt-6">
+            <div className="relative z-10 flex h-full min-w-0 flex-col p-2.5 pt-4 sm:p-3 sm:pt-5">
               <span className="absolute top-2 left-1/2 -translate-x-1/2 w-7 h-1.5 rounded-full bg-slate-400/40" />
-              
+
               {(typeof onEdit === 'function' || typeof onDelete === 'function') && (
-                <div className="mb-1 flex justify-end">
+                <div className="mb-0.5 flex min-h-8 justify-end">
                   <button
                     type="button"
                     onClick={() => setActionCard(card)}
@@ -150,7 +154,7 @@ export default function FlashcardGrid({ cards, onEdit, onDelete }) {
               )}
 
               {/* SECCIÓN PREGUNTA */}
-              <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center justify-between gap-1.5 flex-wrap">
                 <p className={`text-[9px] font-bold uppercase tracking-wide ${hasBg ? 'text-white/60' : 'text-slate-400'}`}>
                   Pregunta
                 </p>
@@ -171,10 +175,10 @@ export default function FlashcardGrid({ cards, onEdit, onDelete }) {
                 {card.question}
               </p>
 
-              <div className={`my-3 border-t border-dashed ${hasBg ? 'border-white/30' : 'border-slate-200'}`} />
+              <div className={`my-2 border-t border-dashed ${hasBg ? 'border-white/30' : 'border-slate-200'}`} />
 
               {/* SECCIÓN RESPUESTA */}
-              <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center justify-between gap-1.5 flex-wrap">
                 <p className={`text-[9px] font-bold uppercase tracking-wide ${hasBg ? 'text-white/60' : 'text-slate-400'}`}>
                   Respuesta
                 </p>
@@ -259,7 +263,7 @@ export default function FlashcardGrid({ cards, onEdit, onDelete }) {
             </div>
             <div className="p-6 bg-slate-100/40 flex justify-center items-center min-h-[220px]">
               <img 
-                src={imagePreview.src} 
+                src={imagePreview.src}
                 alt="Vista ampliada" 
                 className="max-h-[70vh] w-auto object-contain rounded-xl shadow-xs border border-white bg-white p-1"
               />
