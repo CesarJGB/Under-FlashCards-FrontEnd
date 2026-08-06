@@ -170,8 +170,10 @@ function ColorPalette({ value, swatches, onChange, onClose, anchorRef, placement
           type="color"
           value={normalizedValue && normalizedValue.startsWith('#') ? normalizedValue : '#ffffff'}
           onChange={(event) => {
+            // El selector nativo puede emitir varios cambios mientras se ajusta.
+            // La paleta permanece abierta para permitir una selección precisa;
+            // se cierra con un swatch, fuera del menú o Escape.
             onChange(event.target.value);
-            onClose?.();
           }}
           className="absolute inset-0 z-0 scale-150 cursor-pointer opacity-0"
           aria-label={`Elegir ${label || 'color'}`}
