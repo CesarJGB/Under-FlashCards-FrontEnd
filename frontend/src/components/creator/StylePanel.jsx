@@ -1,18 +1,101 @@
 // ARCHIVO: frontend/src/components/creator/StylePanel.jsx
-import { useState } from 'react';
-import { ImagePlus, Plus, Minus, Bold, Italic, Palette, Pipette } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { useLayoutEffect, useRef, useState } from 'react';
+import { ImagePlus, Plus, Minus, Bold, Italic, Palette, Pipette, X } from 'lucide-react';
 
-function ColorPalette({ value, swatches, onChange, onClose, compact = false, placement = 'above', label }) {
+const VIEWPORT_MARGIN = 8;
+const PALETTE_GAP = 8;
+
+const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+
+function ColorPalette({ value, swatches, onChange, onClose, anchorRef, placement = 'above', label }) {
+  const paletteRef = useRef(null);
+  const [position, setPosition] = useState(null);
+
+  useLayoutEffect(() => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return undefined;
+
+    let frameId = 0;
+
+    const measure = () => {
+      frameId = 0;
+
+      const anchor = anchorRef?.current;
+      const palette = paletteRef.current;
+      if (!anchor || !palette) return;
+
+      const anchorRect = anchor.getBoundingClientRect();
+      const paletteRect = palette.getBoundingClientRect();
+      const dialogRect = anchor.closest('[role="dialog"]')?.getBoundingClientRect();
+
+      const minLeft = Math.max(VIEWPORT_MARGIN, dialogRect?.left ?? VIEWPORT_MARGIN);
+      const maxRight = Math.min(window.innerWidth - VIEWPORT_MARGIN, dialogRect?.right ?? window.innerWidth - VIEWPORT_MARGIN);
+      const minTop = Math.max(VIEWPORT_MARGIN, dialogRect?.top ?? VIEWPORT_MARGIN);
+      const maxBottom = Math.min(window.innerHeight - VIEWPORT_MARGIN, dialogRect?.bottom ?? window.innerHeight - VIEWPORT_MARGIN);
+
+      const paletteWidth = Math.min(paletteRect.width, Math.max(1, maxRight - minLeft));
+      const paletteHeight = Math.min(paletteRect.height, Math.max(1, maxBottom - minTop));
+      const maxLeft = Math.max(minLeft, maxRight - paletteWidth);
+      const maxTop = Math.max(minTop, maxBottom - paletteHeight);
+
+      const left = clamp(anchorRect.right - paletteWidth, minLeft, maxLeft);
+      const preferredTop = placement === 'below'
+        ? anchorRect.bottom + PALETTE_GAP
+        : anchorRect.top - paletteHeight - PALETTE_GAP;
+      const oppositeTop = placement === 'below'
+        ? anchorRect.top - paletteHeight - PALETTE_GAP
+        : anchorRect.bottom + PALETTE_GAP;
+      const fits = (top) => top >= minTop && top + paletteHeight <= maxBottom;
+      const top = fits(preferredTop)
+        ? preferredTop
+        : fits(oppositeTop)
+          ? oppositeTop
+          : clamp(preferredTop, minTop, maxTop);
+
+      setPosition({ left: Math.round(left), top: Math.round(top) });
+    };
+
+    const updatePosition = () => {
+      if (frameId) window.cancelAnimationFrame(frameId);
+      frameId = window.requestAnimationFrame(measure);
+    };
+
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    window.visualViewport?.addEventListener('resize', updatePosition);
+    window.visualViewport?.addEventListener('scroll', updatePosition);
+    // The ActionSheet content scrolls inside its own element, so listen in capture mode.
+    document.addEventListener('scroll', updatePosition, true);
+
+    let resizeObserver;
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(updatePosition);
+      if (anchorRef?.current) resizeObserver.observe(anchorRef.current);
+      if (paletteRef.current) resizeObserver.observe(paletteRef.current);
+    }
+
+    return () => {
+      if (frameId) window.cancelAnimationFrame(frameId);
+      window.removeEventListener('resize', updatePosition);
+      window.visualViewport?.removeEventListener('resize', updatePosition);
+      window.visualViewport?.removeEventListener('scroll', updatePosition);
+      document.removeEventListener('scroll', updatePosition, true);
+      resizeObserver?.disconnect();
+    };
+  }, [anchorRef, placement]);
+
+  if (typeof document === 'undefined') return null;
+
   const palette = (
     <div
-      className={[
-        'grid grid-cols-4 gap-2 w-[168px] p-2 rounded-2xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-800',
-        compact
-          ? 'relative mt-2 self-end'
-          : placement === 'above'
-            ? 'absolute right-0 bottom-full mb-2 z-[65]'
-            : 'absolute right-0 top-full mt-2 z-[65]',
-      ].join(' ')}
+      ref={paletteRef}
+      data-color-palette="true"
+      className="fixed z-[120] grid w-[168px] max-w-[calc(100vw-1rem)] grid-cols-4 gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl animate-[slideUp_0.1s_ease-out] dark:border-slate-700 dark:bg-slate-800"
+      style={{
+        left: `${position?.left ?? 0}px`,
+        top: `${position?.top ?? 0}px`,
+        visibility: position ? 'visible' : 'hidden',
+      }}
       aria-label={label}
     >
       {swatches.map((color) => (
@@ -44,7 +127,10 @@ function ColorPalette({ value, swatches, onChange, onClose, compact = false, pla
         <input
           type="color"
           value={value && value.startsWith('#') ? value : '#ffffff'}
-          onChange={(event) => onChange(event.target.value)}
+          onChange={(event) => {
+            onChange(event.target.value);
+            onClose?.();
+          }}
           className="absolute inset-0 z-0 scale-150 cursor-pointer opacity-0"
           aria-label={`Elegir ${label || 'color'}`}
         />
@@ -52,13 +138,18 @@ function ColorPalette({ value, swatches, onChange, onClose, compact = false, pla
     </div>
   );
 
-  if (compact) return palette;
-
-  return (
+  return createPortal(
     <>
-      <div className="fixed inset-0 z-[60]" onClick={onClose} aria-hidden="true" />
+      <button
+        type="button"
+        tabIndex={-1}
+        className="fixed inset-0 z-[110] cursor-default bg-transparent"
+        onClick={onClose}
+        aria-label="Cerrar paleta de colores"
+      />
       {palette}
-    </>
+    </>,
+    document.body,
   );
 }
 
@@ -74,16 +165,30 @@ export default function StylePanel({
   handleBgFile,
   compact = false,
 }) {
-  const [qColorOpen, setQColorOpen] = useState(false);
-  const [aColorOpen, setAColorOpen] = useState(false);
-  const [bgColorOpen, setBgColorOpen] = useState(false);
+  const [openColor, setOpenColor] = useState(null);
+  const bgImageInputRef = useRef(null);
+  const qColorAnchorRef = useRef(null);
+  const aColorAnchorRef = useRef(null);
+  const bgColorAnchorRef = useRef(null);
 
-  const renderStyleGroup = (title, prefix, colorOpen, setColorOpen) => {
+  const toggleColor = (colorId) => {
+    setOpenColor((current) => (current === colorId ? null : colorId));
+  };
+
+  const openBgImagePicker = () => {
+    const input = bgImageInputRef.current;
+    if (!input) return;
+    input.value = '';
+    input.click();
+  };
+
+  const renderStyleGroup = (title, prefix, colorId, colorAnchorRef) => {
     const sizeKey = `${prefix}Size`;
     const boldKey = `${prefix}Bold`;
     const italicKey = `${prefix}Italic`;
     const colorKey = `${prefix}Color`;
     const currentSizeNum = Number(styles[sizeKey]) || 16;
+    const colorOpen = openColor === colorId;
 
     return (
       <div className={`relative rounded-xl border border-slate-200/60 bg-white shadow-xs dark:border-slate-700 dark:bg-slate-800 ${compact ? 'p-2.5' : 'p-3'}`}>
@@ -129,10 +234,10 @@ export default function StylePanel({
               <Italic className="h-3.5 w-3.5" aria-hidden="true" />
             </button>
 
-            <div className={compact ? 'relative flex flex-col items-end' : 'relative'}>
+            <div ref={colorAnchorRef} className="relative shrink-0">
               <button
                 type="button"
-                onClick={() => setColorOpen(!colorOpen)}
+                onClick={() => toggleColor(colorId)}
                 style={styles[colorKey] ? { backgroundColor: styles[colorKey] } : {}}
                 aria-label={`Color de ${title.toLowerCase()}`}
                 aria-expanded={colorOpen}
@@ -145,8 +250,8 @@ export default function StylePanel({
                   value={styles[colorKey]}
                   swatches={SWATCHES}
                   onChange={(value) => updateStyle(colorKey, value)}
-                  onClose={() => setColorOpen(false)}
-                  compact={compact}
+                  onClose={() => setOpenColor(null)}
+                  anchorRef={colorAnchorRef}
                   placement="above"
                   label={`Colores de ${title.toLowerCase()}`}
                 />
@@ -182,23 +287,52 @@ export default function StylePanel({
 
         <div className="flex flex-col items-center justify-center text-center">
           <p className="mb-1.5 w-full text-[10px] font-bold uppercase tracking-wide text-slate-400">Fondo</p>
-          <div className="flex items-center justify-center gap-2">
-            <label className="inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs text-slate-700 shadow-xs hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">
-              <ImagePlus className="h-3.5 w-3.5 text-slate-500" aria-hidden="true" /> <span>Imagen</span>
-              <input type="file" accept="image/*" onChange={handleBgFile} className="hidden" />
-            </label>
-            {bgImage && <button type="button" onClick={() => setBgImage('')} className="min-h-10 shrink-0 px-1 text-xs text-red-600 hover:underline dark:text-red-400">Quitar</button>}
+          <div className="flex min-w-0 items-center justify-center gap-2">
+            <div className="relative flex h-10 w-10 shrink-0 items-center justify-center">
+              {bgImage ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={openBgImagePicker}
+                    className="flex h-10 w-10 cursor-pointer overflow-hidden rounded-xl border border-slate-200 bg-slate-50 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 dark:border-slate-600 dark:bg-slate-800"
+                    title="Cambiar imagen de fondo"
+                    aria-label="Cambiar imagen de fondo"
+                  >
+                    <img src={bgImage} alt="Imagen de fondo" className="h-full w-full object-cover" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBgImage?.('')}
+                    aria-label="Quitar imagen de fondo"
+                    className="absolute -right-1 -top-1 z-10 flex h-4 w-4 items-center justify-center rounded-full border border-white bg-slate-700 text-white shadow-sm transition-colors active:bg-rose-600 [@media(hover:hover)]:hover:bg-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 dark:border-slate-900"
+                  >
+                    <X className="h-2.5 w-2.5" aria-hidden="true" />
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={openBgImagePicker}
+                  className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition-colors active:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:active:bg-slate-700"
+                  title="Añadir imagen de fondo"
+                  aria-label="Añadir imagen de fondo"
+                >
+                  <ImagePlus className="h-5 w-5" aria-hidden="true" />
+                </button>
+              )}
+              <input ref={bgImageInputRef} type="file" accept="image/*" onChange={handleBgFile} className="hidden" />
+            </div>
 
-            <div className="w-[1px] h-5 bg-slate-200 mx-0.5 shrink-0" />
+            <div className="h-5 w-px shrink-0 bg-slate-200 dark:bg-slate-700" />
 
-            <div className={compact ? 'relative flex flex-col items-end' : 'relative'}>
+            <div ref={bgColorAnchorRef} className="relative shrink-0">
               <button
                 type="button"
-                onClick={() => setBgColorOpen(!bgColorOpen)}
+                onClick={() => toggleColor('bg')}
                 style={styles.bgColor ? { backgroundColor: styles.bgColor } : {}}
                 title="Color de fondo sólido"
                 aria-label="Color de fondo sólido"
-                aria-expanded={bgColorOpen}
+                aria-expanded={openColor === 'bg'}
                 className={`flex min-h-10 min-w-10 items-center justify-center rounded-lg border transition-all ${
                   styles.bgColor ? 'border-transparent text-white shadow-xs' : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
                 }`}
@@ -206,13 +340,13 @@ export default function StylePanel({
                 <Palette className="h-3.5 w-3.5" aria-hidden="true" />
               </button>
 
-              {bgColorOpen && (
+              {openColor === 'bg' && (
                 <ColorPalette
                   value={styles.bgColor}
                   swatches={SWATCHES}
                   onChange={(value) => updateStyle('bgColor', value)}
-                  onClose={() => setBgColorOpen(false)}
-                  compact={compact}
+                  onClose={() => setOpenColor(null)}
+                  anchorRef={bgColorAnchorRef}
                   placement="below"
                   label="Colores de fondo"
                 />
@@ -223,8 +357,8 @@ export default function StylePanel({
       </div>
 
       <div className="grid gap-2.5 sm:grid-cols-2">
-        {renderStyleGroup('Estilo de la Pregunta', 'q', qColorOpen, setQColorOpen)}
-        {renderStyleGroup('Estilo de la Respuesta', 'a', aColorOpen, setAColorOpen)}
+        {renderStyleGroup('Estilo de la Pregunta', 'q', 'question', qColorAnchorRef)}
+        {renderStyleGroup('Estilo de la Respuesta', 'a', 'answer', aColorAnchorRef)}
       </div>
     </div>
   );
