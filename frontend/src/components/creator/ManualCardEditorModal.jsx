@@ -10,6 +10,7 @@ import {
   Check,
   ImagePlus,
   Italic,
+  Pencil,
   Loader2,
   Pipette,
   Plus,
@@ -40,6 +41,11 @@ const getSideCopy = (side) => (
 
 const normalizeSide = (side) => (side === 'answer' ? 'answer' : 'question');
 
+const isTouchDevice = () => (
+  typeof window !== 'undefined'
+  && (navigator.maxTouchPoints > 0 || 'ontouchstart' in window)
+);
+
 export default function ManualCardEditorModal({
   open,
   initialSide = 'question',
@@ -66,17 +72,28 @@ export default function ManualCardEditorModal({
   const [activeSide, setActiveSide] = useState(() => normalizeSide(initialSide));
   const [viewportFrame, setViewportFrame] = useState(null);
   const [openMenu, setOpenMenu] = useState(null); // 'color' | 'align' | null
-  const [needsFocusResume, setNeedsFocusResume] = useState(false);
+  const [focusResumeReason, setFocusResumeReason] = useState(null); // 'initial' | 'keyboard' | 'image' | null
 
   const textareaRef = useRef(null);
   const imageInputRef = useRef(null);
   const selectionRef = useRef({ start: 0, end: 0 });
+  const focusResumeReasonRef = useRef(null);
+  const keyboardWasOpenRef = useRef(false);
+  const resumeRequestedRef = useRef(false);
+  const imagePickerActiveRef = useRef(false);
+  const pickerReturnTimerRef = useRef(null);
+  const initialKeyboardCheckTimerRef = useRef(null);
   const customColorInputRef = useRef(null);
   const customColorChangedRef = useRef(false);
   const customColorCloseTimerRef = useRef(null);
 
   const alignOptions = Array.isArray(ALIGNS) && ALIGNS.length ? ALIGNS : DEFAULT_ALIGNS;
   const swatches = Array.isArray(SWATCHES) && SWATCHES.length ? SWATCHES : DEFAULT_SWATCHES;
+
+  const setFocusResumeReasonSafe = useCallback((reason) => {
+    focusResumeReasonRef.current = reason;
+    setFocusResumeReason(reason);
+  }, []);
 
   const focusTextarea = useCallback(() => {
     const textarea = textareaRef.current;
@@ -103,6 +120,7 @@ export default function ManualCardEditorModal({
     }
     const input = imageInputRef.current;
     if (!input) return;
+    imagePickerActiveRef.current = true;
     input.value = '';
     input.click();
   };
@@ -111,12 +129,15 @@ export default function ManualCardEditorModal({
     const file = event.target.files?.[0];
     if (file) {
       handleContentImageFile?.(event, activeSide);
-      setNeedsFocusResume(true);
+      imagePickerActiveRef.current = false;
+      resumeRequestedRef.current = false;
+      setFocusResumeReasonSafe('image');
     }
   };
 
   const handleResumeFocus = () => {
-    setNeedsFocusResume(false);
+    resumeRequestedRef.current = true;
+    setFocusResumeReasonSafe(null);
     focusTextarea();
   };
 
@@ -127,7 +148,12 @@ export default function ManualCardEditorModal({
     setActiveSide((previousSide) => (previousSide === nextSide ? previousSide : nextSide));
     setOpenMenu(null);
     customColorChangedRef.current = false;
-    setNeedsFocusResume(false);
+    focusResumeReasonRef.current = null;
+    setFocusResumeReason(null);
+    keyboardWasOpenRef.current = false;
+    resumeRequestedRef.current = false;
+    imagePickerActiveRef.current = false;
+    setViewportFrame(null);
   }, [open, initialSide]);
 
   useEffect(() => {
@@ -206,11 +232,109 @@ export default function ManualCardEditorModal({
     return () => window.cancelAnimationFrame(frame);
   }, [focusTextarea, open, activeSide]);
 
+  // En algunos navegadores móviles el foco programático no puede abrir el
+  // teclado al montar el modal. Esperamos a que termine la animación de
+  // apertura y mostramos la misma ayuda contextual usada tras cargar una
+  // imagen si el viewport sigue sin reducirse.
+  useEffect(() => {
+    if (!open || typeof window === 'undefined') {
+      if (initialKeyboardCheckTimerRef.current) {
+        window.clearTimeout(initialKeyboardCheckTimerRef.current);
+        initialKeyboardCheckTimerRef.current = null;
+      }
+      return undefined;
+    }
+
+    if (initialKeyboardCheckTimerRef.current) {
+      window.clearTimeout(initialKeyboardCheckTimerRef.current);
+    }
+
+    keyboardWasOpenRef.current = false;
+    resumeRequestedRef.current = false;
+    initialKeyboardCheckTimerRef.current = window.setTimeout(() => {
+      initialKeyboardCheckTimerRef.current = null;
+      if (!isTouchDevice() || imagePickerActiveRef.current || resumeRequestedRef.current) return;
+
+      const layoutHeight = Math.max(
+        window.innerHeight,
+        document.documentElement?.clientHeight || 0,
+      );
+      const visibleHeight = Math.round(window.visualViewport?.height || window.innerHeight);
+      const keyboardOpen = visibleHeight < layoutHeight - 100;
+
+      if (keyboardOpen) {
+        keyboardWasOpenRef.current = true;
+        return;
+      }
+
+      setFocusResumeReasonSafe('initial');
+    }, 450);
+
+    return () => {
+      if (initialKeyboardCheckTimerRef.current) {
+        window.clearTimeout(initialKeyboardCheckTimerRef.current);
+        initialKeyboardCheckTimerRef.current = null;
+      }
+    };
+  }, [activeSide, open, setFocusResumeReasonSafe]);
+
+  // También cubre el caso en que el usuario ya estaba escribiendo y el
+  // teclado se cierra por una acción del navegador. El selector de imágenes
+  // queda excluido para conservar el mensaje específico de imagen cargada.
+  useEffect(() => {
+    if (!open || !viewportFrame || !isTouchDevice()) return;
+
+    if (viewportFrame.keyboardOpen) {
+      keyboardWasOpenRef.current = true;
+      resumeRequestedRef.current = false;
+      if (focusResumeReasonRef.current === 'initial') {
+        setFocusResumeReasonSafe(null);
+      }
+      return;
+    }
+
+    if (
+      !keyboardWasOpenRef.current
+      || imagePickerActiveRef.current
+      || resumeRequestedRef.current
+      || focusResumeReasonRef.current
+    ) return;
+
+    setFocusResumeReasonSafe('keyboard');
+  }, [open, setFocusResumeReasonSafe, viewportFrame]);
+
+  // Cancelar el selector de archivos no dispara change en todos los
+  // navegadores. Liberamos la excepción al volver a la ventana para que una
+  // futura pérdida real del teclado vuelva a mostrar la ayuda normal.
+  useEffect(() => {
+    if (!open || typeof window === 'undefined') return undefined;
+
+    const handleWindowFocus = () => {
+      if (pickerReturnTimerRef.current) window.clearTimeout(pickerReturnTimerRef.current);
+      pickerReturnTimerRef.current = window.setTimeout(() => {
+        pickerReturnTimerRef.current = null;
+        imagePickerActiveRef.current = false;
+      }, 250);
+    };
+
+    window.addEventListener('focus', handleWindowFocus);
+    return () => {
+      window.removeEventListener('focus', handleWindowFocus);
+      if (pickerReturnTimerRef.current) {
+        window.clearTimeout(pickerReturnTimerRef.current);
+        pickerReturnTimerRef.current = null;
+      }
+    };
+  }, [open]);
+
   useEffect(() => {
     setOpenMenu(null);
     customColorChangedRef.current = false;
-    setNeedsFocusResume(false);
-  }, [activeSide]);
+    setFocusResumeReasonSafe(null);
+    keyboardWasOpenRef.current = false;
+    resumeRequestedRef.current = false;
+    imagePickerActiveRef.current = false;
+  }, [activeSide, setFocusResumeReasonSafe]);
 
   useEffect(() => () => {
     if (customColorCloseTimerRef.current) {
@@ -241,6 +365,8 @@ export default function ManualCardEditorModal({
   const reverseCopy = getSideCopy(reverseSide);
   const hasActiveImage = Boolean(contentImage && imageSide === activeSide);
   const canSave = Boolean(question.trim() && answer.trim() && !saving);
+  const needsFocusResume = Boolean(focusResumeReason);
+  const imageResume = focusResumeReason === 'image';
 
   const modalViewportStyle = viewportFrame
     ? { height: `${viewportFrame.height}px`, top: `${viewportFrame.offsetTop}px` }
@@ -296,7 +422,10 @@ export default function ManualCardEditorModal({
 
   const switchSide = () => {
     setOpenMenu(null);
-    setNeedsFocusResume(false);
+    setFocusResumeReasonSafe(null);
+    keyboardWasOpenRef.current = false;
+    resumeRequestedRef.current = false;
+    imagePickerActiveRef.current = false;
     setActiveSide((previousSide) => (previousSide === 'question' ? 'answer' : 'question'));
   };
 
@@ -309,7 +438,7 @@ export default function ManualCardEditorModal({
     if (keepEditing) {
       setActiveSide('question');
       setOpenMenu(null);
-      setNeedsFocusResume(false);
+      setFocusResumeReasonSafe(null);
       return true;
     }
 
@@ -383,17 +512,23 @@ export default function ManualCardEditorModal({
                 data-testid={`manual-card-editor-${activeSide}`}
               />
 
-              {/* OVERLAY PARA RECUPERAR EL TECLADO MÓVIL */}
+              {/* Ayuda contextual cuando el navegador no abrió el teclado. */}
               {needsFocusResume && (
                 <button
                   type="button"
                   onClick={handleResumeFocus}
                   className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-white/85 backdrop-blur-sm text-slate-700 animate-[fadeIn_0.15s_ease]"
-                  aria-label="Toca para seguir escribiendo"
+                  aria-label={imageResume ? 'Toca para seguir escribiendo' : 'Toca para comenzar a escribir'}
                 >
-                  <ImagePlus className="h-6 w-6 mb-2 text-slate-500" />
-                  <span className="text-sm font-bold">Imagen cargada</span>
-                  <span className="text-xs font-medium text-slate-500 mt-1">Toca aquí para seguir escribiendo</span>
+                  {imageResume ? (
+                    <ImagePlus className="mb-2 h-6 w-6 text-slate-500" />
+                  ) : (
+                    <Pencil className="mb-2 h-6 w-6 text-slate-500" />
+                  )}
+                  <span className="text-sm font-bold">{imageResume ? 'Imagen cargada' : 'Listo para editar'}</span>
+                  <span className="mt-1 text-xs font-medium text-slate-500">
+                    {imageResume ? 'Toca aquí para seguir escribiendo' : 'Toca aquí para comenzar a escribir'}
+                  </span>
                 </button>
               )}
             </div>
