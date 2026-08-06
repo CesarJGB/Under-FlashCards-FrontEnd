@@ -1,7 +1,7 @@
 /* FILE: frontend/src/components/FlashcardCreator.jsx */
 import { useCallback, useState, useEffect, useLayoutEffect, useRef } from 'react';
 import {
-  SlidersHorizontal, Loader2, Plus, Check, Eye, EyeOff, Trash2,
+  SlidersHorizontal, Loader2, Plus, Check, Trash2,
   AlignLeft, AlignCenter, AlignRight, Sparkles, Layers, X,
 } from 'lucide-react';
 
@@ -9,6 +9,7 @@ import ActionSheet from './common/ActionSheet';
 import ProcessingActionSheet from './common/ProcessingActionSheet';
 import FormInputs from './creator/FormInputs';
 import StylePanel from './creator/StylePanel';
+import LivePreview from './creator/LivePreview';
 import FloatingPreviewPanel, { getStoredPreviewPanelMode } from './creator/FloatingPreviewPanel';
 import './creator/magic-ai-button.css';
 
@@ -159,7 +160,10 @@ export default function FlashcardCreator({
   imageSide, setImageSide, onFastDelete, hasCards,
   userId, deckId, authToken, onAiSuccess, onInviteRequired, onSaveManualCard, onFooterHeightChange,
 }) {
-  const [showPreview, setShowPreview] = useState(() => Boolean(getJSON(PREVIEW_VISIBLE_KEY)));
+  // La vista independiente queda desactivada en esta versión. Conservamos el
+  // estado y la persistencia para poder reactivar el panel en una versión futura,
+  // pero una preferencia antigua no debe abrirlo automáticamente.
+  const [showPreview, setShowPreview] = useState(false);
   const [previewMode, setPreviewMode] = useState(() => getStoredPreviewPanelMode());
 
   // Estado para saber si el modal a pantalla completa está activo
@@ -218,6 +222,10 @@ export default function FlashcardCreator({
   }, [showPreview]);
 
   useEffect(() => {
+    if (getJSON(PREVIEW_VISIBLE_KEY)) setJSON(PREVIEW_VISIBLE_KEY, false);
+  }, []);
+
+  useEffect(() => {
     if (showPreview && previewMode === 'docked' && showStyles) setShowStyles(false);
   }, [previewMode, setShowStyles, showPreview, showStyles]);
 
@@ -240,12 +248,20 @@ export default function FlashcardCreator({
   };
 
   const styles = parseCardStyles(fontSize);
-  const previewLocksStandaloneStyles = showPreview && previewMode === 'docked';
-  const showStandaloneStylePanel = showStyles && (!showPreview || previewMode !== 'docked');
 
   const updateStyle = (key, value) => {
     setFontSize(JSON.stringify({ ...styles, [key]: value }));
   };
+
+  const handleOpenStyles = () => {
+    setShowPreview(false);
+    setShowStyles(true);
+  };
+
+  const handleManualModalStateChange = useCallback((isOpen) => {
+    setIsManualModalOpen(isOpen);
+    if (isOpen) setShowStyles(false);
+  }, [setShowStyles]);
 
   const handleBgFile = async (event) => {
     const file = event.target.files?.[0];
@@ -363,6 +379,7 @@ export default function FlashcardCreator({
     event?.preventDefault?.();
     if (activeTab === 'ai') {
       if (!aiText.trim() || aiSaving) return;
+      setShowStyles(false);
       setIsAiGenerationSheetOpen(true);
       return;
     }
@@ -465,7 +482,7 @@ export default function FlashcardCreator({
             SWATCHES={SWATCHES}
             textAlign={textAlign}
             setTextAlign={setTextAlign}
-            onModalStateChange={setIsManualModalOpen} // Comunicamos la apertura del modal al padre
+            onModalStateChange={handleManualModalStateChange}
           />
         </div>
 
@@ -488,20 +505,6 @@ export default function FlashcardCreator({
           />
         )}
 
-        {showStandaloneStylePanel && !isManualModalOpen && (
-          <StylePanel
-            ALIGNS={ALIGNS}
-            SWATCHES={SWATCHES}
-            textAlign={textAlign}
-            setTextAlign={setTextAlign}
-            bgImage={bgImage}
-            setBgImage={setBgImage}
-            styles={styles}
-            updateStyle={updateStyle}
-            handleBgFile={handleBgFile}
-          />
-        )}
-
         {error && <p className="text-xs text-red-600 font-semibold bg-red-50 border border-red-100 px-4 py-2.5 rounded-2xl">{error}</p>}
       </div>
 
@@ -513,22 +516,9 @@ export default function FlashcardCreator({
           <div className="flex items-center gap-1 sm:gap-2">
             <button
               type="button"
-              onClick={() => {
-                const nextShowPreview = !showPreview;
-                setShowPreview(nextShowPreview);
-                if (nextShowPreview && previewMode === 'docked') setShowStyles(false);
-              }}
-              className={`flex flex-col items-center justify-center gap-0.5 p-2 rounded-xl transition-colors w-14 sm:w-16 ${showPreview ? 'text-indigo-600 bg-indigo-50' : 'text-slate-600 hover:bg-slate-100'}`}
-            >
-              {showPreview ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-              <span className="text-[10px] font-bold">Vista</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => { if (!previewLocksStandaloneStyles) setShowStyles(!showStyles); }}
-              disabled={previewLocksStandaloneStyles}
-              className={`flex flex-col items-center justify-center gap-0.5 p-2 rounded-xl transition-colors w-14 sm:w-16 disabled:opacity-40 disabled:cursor-not-allowed ${showStyles ? 'text-indigo-600 bg-indigo-50' : 'text-slate-600 hover:bg-slate-100'}`}
+              onClick={handleOpenStyles}
+              aria-expanded={showStyles}
+              className={`flex min-h-11 w-16 flex-col items-center justify-center gap-0.5 rounded-xl p-2 transition-colors sm:w-20 ${showStyles ? 'bg-indigo-50 text-indigo-600' : 'text-slate-600 hover:bg-slate-100'}`}
             >
               <SlidersHorizontal className="w-5 h-5" />
               <span className="text-[10px] font-bold">Estilo</span>
@@ -592,6 +582,49 @@ export default function FlashcardCreator({
       </footer>
 
       <ActionSheet
+        open={showStyles && !isManualModalOpen}
+        title="Estilo"
+        onClose={() => setShowStyles(false)}
+        compact
+        footer={(
+          <button
+            type="button"
+            onClick={() => setShowStyles(false)}
+            className="min-h-11 w-full rounded-2xl bg-slate-900 px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-slate-800 active:scale-[0.99] dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
+          >
+            Listo
+          </button>
+        )}
+      >
+        <div className="space-y-3">
+          <LivePreview
+            question={activeTab === 'ai' ? '¿Pregunta muestra generada por la IA?' : question}
+            answer={activeTab === 'ai' ? 'Esta será la respuesta explicativa de tu tarjeta inteligente.' : answer}
+            bgImage={bgImage}
+            textAlign={textAlign}
+            styles={styles}
+            contentImage={contentImage}
+            imageSide={imageSide}
+            showControls={false}
+            previewOnly
+          />
+
+          <StylePanel
+            ALIGNS={ALIGNS}
+            SWATCHES={SWATCHES}
+            textAlign={textAlign}
+            setTextAlign={setTextAlign}
+            bgImage={bgImage}
+            setBgImage={setBgImage}
+            styles={styles}
+            updateStyle={updateStyle}
+            handleBgFile={handleBgFile}
+            compact
+          />
+        </div>
+      </ActionSheet>
+
+      <ActionSheet
         open={isAiGenerationSheetOpen}
         title="Confirmar generación"
         onClose={() => setIsAiGenerationSheetOpen(false)}
@@ -626,7 +659,6 @@ export default function FlashcardCreator({
     </form>
   );
 }
-
 
 
 
