@@ -11,8 +11,8 @@ import PdfExportOverlay from './PdfExportOverlay';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
-// Modos que corresponden a una sesión de estudio activa (SessionPlayer).
-const SESSION_MODES = ['continuous-review', 'normal-review'];
+// Modos de superficie inmersiva que no deben mostrar el DeckHeader global.
+const HEADERLESS_MODES = ['continuous-review', 'normal-review', 'fast-delete'];
 
 export default function DeckInterior({ deck, userId, authToken, onBack, initialMode = 'edit', onRefreshData, onExitToStudy, onInviteRequired }) {
   const [cards, setCards] = useState([]);
@@ -282,13 +282,13 @@ export default function DeckInterior({ deck, userId, authToken, onBack, initialM
     }
   };
 
-  const isSessionMode = SESSION_MODES.includes(mode);
+  const isHeaderlessMode = HEADERLESS_MODES.includes(mode);
   const reserveFooterSpace = mode === 'edit' && canEdit;
 
   return (
     <div 
       data-testid="deck-interior" 
-      className={`w-full ${!isSessionMode ? 'pt-16' : ''} ${reserveFooterSpace ? 'pb-28' : ''}`}
+      className={`w-full ${!isHeaderlessMode ? 'pt-16' : ''} ${reserveFooterSpace ? 'pb-28' : ''}`}
     >
       <PdfExportOverlay
         isOpen={pdfExport.isExporting}
@@ -297,7 +297,7 @@ export default function DeckInterior({ deck, userId, authToken, onBack, initialM
       />
 
       {/* HEADER FIJO SUPERIOR */}
-      {!isSessionMode && (
+      {!isHeaderlessMode && (
         <DeckHeader 
           deck={deck} 
           mode={mode} 
