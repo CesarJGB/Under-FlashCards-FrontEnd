@@ -15,11 +15,29 @@ export default function FastDeleteMode({ cards, onDelete, onClose }) {
   const [dragY, setDragY] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [swipeAction, setSwipeAction] = useState(null); // 'delete' | 'keep' | null
+  const [showSwipeHint, setShowSwipeHint] = useState(true);
   
   const touchStartY = useRef(null);
+  const dragYRef = useRef(0);
   const cardRef = useRef(null); // Ref para interceptar y anular el scroll nativo móvil
+  const actionTimeoutRef = useRef(null);
+  const actionLockRef = useRef(false);
+  const isMountedRef = useRef(true);
 
   useImmersiveScrollGuard(true, 'FastDeleteMode');
+
+  // La ayuda aparece solamente al entrar al modo y desaparece al poco tiempo.
+  // También se cierra en cuanto el usuario empieza a interactuar.
+  useEffect(() => {
+    isMountedRef.current = true;
+    const hintTimeout = window.setTimeout(() => setShowSwipeHint(false), 4200);
+
+    return () => {
+      window.clearTimeout(hintTimeout);
+      isMountedRef.current = false;
+      if (actionTimeoutRef.current) window.clearTimeout(actionTimeoutRef.current);
+    };
+  }, []);
 
   // ⌨️ ATAJOS DE TECLADO: Agiliza el filtrado drásticamente en escritorio
   useEffect(() => {
@@ -59,11 +77,11 @@ export default function FastDeleteMode({ cards, onDelete, onClose }) {
 
   if (cards.length === 0 || index >= cards.length) {
     return (
-      <div className="mt-4 text-center border border-dashed border-slate-300 rounded-2xl py-16 bg-white p-6 max-w-xl mx-auto animate-[fadeIn_0.2s_ease]">
+      <div className="mx-auto mt-4 max-w-xl rounded-2xl border border-dashed border-slate-300 bg-white p-6 py-16 text-center animate-[fadeIn_0.2s_ease] dark:border-slate-700 dark:bg-slate-900">
         <Layers className="w-10 h-10 mx-auto mb-3 text-slate-400 animate-pulse" />
-        <h4 className="font-bold text-slate-800 text-base">¡Filtro Completado!</h4>
-        <p className="text-xs text-slate-500 mt-1 max-w-xs mx-auto">Has revisado todas las tarjetas disponibles en este mazo.</p>
-        <button type="button" onClick={onClose} className="mt-5 text-xs font-bold bg-slate-900 text-white px-5 py-2.5 rounded-xl hover:bg-slate-800 transition-colors shadow-xs">
+        <h4 className="text-base font-bold text-slate-800 dark:text-slate-100">¡Filtro completado!</h4>
+        <p className="mx-auto mt-1 max-w-xs text-xs text-slate-500 dark:text-slate-400">Has revisado todas las tarjetas disponibles en este mazo.</p>
+        <button type="button" onClick={onClose} className="mt-5 rounded-xl bg-slate-900 px-5 py-2.5 text-xs font-bold text-white shadow-xs transition-colors hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100">
           Volver al Editor
         </button>
       </div>
@@ -87,23 +105,44 @@ export default function FastDeleteMode({ cards, onDelete, onClose }) {
     ...(hasBg ? { backgroundImage: `url(${card.bgImage})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {})
   };
 
+  const resetDrag = () => {
+    dragYRef.current = 0;
+    setDragY(0);
+  };
+
   // 🛠️ ANIMACIÓN E INTERACCIÓN POR BOTÓN O TECLADO
-  const triggerAction = async (action) => {
+  // El bloqueo evita dobles pulsaciones y carreras entre el gesto, el teclado
+  // y los botones mientras termina la animación de la tarjeta.
+  const triggerAction = (action) => {
+    if (actionLockRef.current || index >= cards.length) return;
+
+    actionLockRef.current = true;
+    setShowSwipeHint(false);
     setSwipeAction(action);
-    setTimeout(async () => {
-      if (action === 'delete') {
-        await onDelete(card);
-      } else {
-        setIndex((prev) => prev + 1);
+    actionTimeoutRef.current = window.setTimeout(async () => {
+      try {
+        if (action === 'delete') {
+          await onDelete(card);
+        } else if (isMountedRef.current) {
+          setIndex((prev) => prev + 1);
+        }
+      } finally {
+        actionTimeoutRef.current = null;
+        actionLockRef.current = false;
+        if (isMountedRef.current) {
+          resetDrag();
+          setSwipeAction(null);
+        }
       }
-      setDragY(0);
-      setSwipeAction(null);
-    }, 200);
+    }, 220);
   };
 
   // 📱 MANEJADORES DE GESTOS TÁCTILES (SWIPE VERTICAL)
   const onTouchStart = (e) => {
+    if (actionLockRef.current) return;
     touchStartY.current = e.changedTouches[0].clientY;
+    dragYRef.current = 0;
+    setShowSwipeHint(false);
     setIsDragging(true);
   };
 
@@ -111,19 +150,28 @@ export default function FastDeleteMode({ cards, onDelete, onClose }) {
     if (touchStartY.current == null) return;
     const currentY = e.changedTouches[0].clientY;
     const deltaY = currentY - touchStartY.current;
+    dragYRef.current = deltaY;
     setDragY(deltaY);
   };
 
   const onTouchEnd = () => {
+    if (touchStartY.current == null) return;
+    const finalDragY = dragYRef.current;
+    touchStartY.current = null;
     setIsDragging(false);
-    if (dragY < -100) {
+    if (finalDragY < -100) {
       triggerAction('delete'); // Swipe Arriba -> Eliminar
-    } else if (dragY > 100) {
+    } else if (finalDragY > 100) {
       triggerAction('keep');   // Swipe Abajo -> Conservar
     } else {
-      setDragY(0); // Reset si no cruza el umbral
+      resetDrag(); // Reset si no cruza el umbral
     }
+  };
+
+  const onTouchCancel = () => {
     touchStartY.current = null;
+    setIsDragging(false);
+    resetDrag();
   };
 
   // Cálculo de estilos dinámicos de arrastre en tiempo real
@@ -139,41 +187,60 @@ export default function FastDeleteMode({ cards, onDelete, onClose }) {
   };
 
   return (
-    <div className="mt-4 w-full max-w-xl mx-auto px-2 relative animate-[fadeIn_0.15s_ease]">
-      {/* Cabecera del sub-modo */}
-      <div className="flex items-center justify-between mb-4 bg-slate-100 border border-slate-200/60 rounded-xl px-4 py-2.5">
-        <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-          <p className="text-xs font-bold text-slate-700 uppercase tracking-wide">Borrado Rápido Activo</p>
-        </div>
-        <button type="button" onClick={onClose} className="text-xs font-semibold text-slate-500 hover:text-slate-900 inline-flex items-center gap-1 bg-white border border-slate-200 px-2.5 py-1 rounded-lg shadow-2xs transition-colors">
-          <X className="w-3.5 h-3.5" /> Salir
+    <div className="relative mx-auto mt-2 w-full max-w-xl animate-[fadeIn_0.15s_ease]">
+      {/* Acción secundaria compacta; no ocupa el espacio de las instrucciones de gesto. */}
+      <div className="mb-1 flex justify-end px-2">
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Salir del borrado rápido"
+          className="inline-flex min-h-9 items-center gap-1 rounded-xl px-2.5 text-xs font-semibold text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+        >
+          <X className="h-3.5 w-3.5" aria-hidden="true" />
+          Salir
         </button>
       </div>
 
-      {/* Indicadores flotantes de acción por Swipe */}
-      <div className="absolute inset-x-0 -top-8 flex justify-center pointer-events-none z-30 transition-opacity duration-150">
+      {/* El escenario reserva espacio arriba y abajo para que cada dirección tenga
+          una zona propia y nunca compita visualmente con la otra. */}
+      <div className="relative px-2 pb-10 pt-10">
+        {showSwipeHint && (
+          <div
+            role="status"
+            className="absolute inset-x-5 top-0 z-20 flex items-center justify-center gap-2 rounded-xl border border-indigo-100 bg-indigo-50/95 px-3 py-2 text-center text-[11px] font-semibold leading-tight text-indigo-700 shadow-sm dark:border-indigo-400/20 dark:bg-indigo-500/10 dark:text-indigo-200"
+          >
+            <ArrowUp className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            <span>Desliza arriba para borrar <span className="px-0.5 text-indigo-300 dark:text-indigo-400">·</span> abajo para conservar</span>
+            <ArrowDown className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          </div>
+        )}
+
+        {/* Indicadores de gesto: borrar arriba, conservar abajo. */}
         {dragY < -30 && (
-          <span className="bg-red-500 text-white text-[10px] font-extrabold px-3 py-1 rounded-full shadow-md uppercase tracking-wider animate-bounce inline-flex items-center gap-1">
-            <Trash2 className="w-3 h-3" /> Soltar para Eliminar
-          </span>
+          <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex justify-center">
+            <span className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-[10px] font-extrabold uppercase tracking-wider text-red-700 shadow-sm animate-bounce dark:border-red-400/30 dark:bg-red-500/15 dark:text-red-200">
+              <ArrowUp className="h-3 w-3" aria-hidden="true" /> Soltar para eliminar
+            </span>
+          </div>
         )}
         {dragY > 30 && (
-          <span className="bg-emerald-500 text-white text-[10px] font-extrabold px-3 py-1 rounded-full shadow-md uppercase tracking-wider animate-bounce inline-flex items-center gap-1">
-            <Check className="w-3 h-3" /> Soltar para Conservar
-          </span>
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 flex justify-center">
+            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[10px] font-extrabold uppercase tracking-wider text-emerald-700 shadow-sm animate-bounce dark:border-emerald-400/30 dark:bg-emerald-500/15 dark:text-emerald-200">
+              <ArrowDown className="h-3 w-3" aria-hidden="true" /> Soltar para conservar
+            </span>
+          </div>
         )}
-      </div>
 
-      {/* Contenedor del mazo interactivo */}
-      <div className="relative w-full h-[360px] sm:h-[410px] flex items-center justify-center touch-none">
+        {/* Contenedor del mazo interactivo */}
+        <div className="relative flex h-[360px] w-full items-center justify-center touch-none sm:h-[410px]">
         <div
           ref={cardRef}
           onTouchStart={onTouchStart}
           onTouchMove={onTouchMove}
           onTouchEnd={onTouchEnd}
-          style={dynamicCardStyle}
-          className="absolute w-full h-full rounded-2xl border border-slate-200 shadow-xl overflow-hidden flex flex-col justify-between p-6 sm:p-8 select-none cursor-grab active:cursor-grabbing"
+          onTouchCancel={onTouchCancel}
+          style={{ ...dynamicCardStyle, willChange: 'transform' }}
+          className="absolute flex h-full w-full select-none flex-col justify-between overflow-hidden rounded-2xl border border-slate-200 p-6 shadow-xl cursor-grab active:cursor-grabbing dark:border-slate-700 sm:p-8"
         >
           {hasBg && <span className="absolute inset-0 bg-black/55 z-0" />}
           <span className="absolute top-3 left-1/2 -translate-x-1/2 w-9 h-1.5 rounded-full bg-slate-300/50 z-10" />
@@ -206,28 +273,31 @@ export default function FastDeleteMode({ cards, onDelete, onClose }) {
             Tarjeta {index + 1} de {cards.length}
           </div>
         </div>
+        </div>
       </div>
 
-      {/* 🎮 PANEL DE MANDOS DE ESCRITORIO / ACCESOS DIRECTOS */}
-      <div className="mt-6 grid grid-cols-2 gap-3">
+      {/* 🎮 Controles alternativos: siguen disponibles para quien no use el gesto. */}
+      <div className="grid grid-cols-2 gap-3 px-2">
         <button
           type="button"
+          disabled={Boolean(swipeAction)}
           onClick={() => triggerAction('delete')}
-          className="flex flex-col sm:flex-row items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50/40 hover:bg-red-50 text-red-600 font-bold py-3 text-xs transition-all shadow-2xs active:scale-95 cursor-pointer"
+          className="flex min-h-14 cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50/40 py-3 text-xs font-bold text-red-600 shadow-2xs transition-all hover:bg-red-50 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-row dark:border-red-400/30 dark:bg-red-500/10 dark:text-red-300 dark:hover:bg-red-500/15"
         >
-          <Trash2 className="w-4 h-4 shrink-0" />
+          <Trash2 className="h-4 w-4 shrink-0" aria-hidden="true" />
           <span>Eliminar tarjeta</span>
-          <span className="hidden sm:inline bg-red-100 text-red-700 text-[9px] px-1.5 py-0.5 rounded-md border border-red-200 ml-1 font-mono"><ArrowUp className="w-2 h-2 inline" /> UP</span>
+          <span className="hidden rounded-md border border-red-200 bg-red-100 px-1.5 py-0.5 text-[9px] font-mono text-red-700 sm:inline dark:border-red-400/30 dark:bg-red-500/15 dark:text-red-200"><ArrowUp className="inline h-2 w-2" /> UP</span>
         </button>
 
         <button
           type="button"
+          disabled={Boolean(swipeAction)}
           onClick={() => triggerAction('keep')}
-          className="flex flex-col sm:flex-row items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold py-3 text-xs transition-all shadow-2xs active:scale-95 cursor-pointer"
+          className="flex min-h-14 cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white py-3 text-xs font-bold text-slate-700 shadow-2xs transition-all hover:bg-slate-50 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-row dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
         >
-          <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+          <Check className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
           <span>Conservar tarjeta</span>
-          <span className="hidden sm:inline bg-slate-100 text-slate-600 text-[9px] px-1.5 py-0.5 rounded-md border border-slate-200 ml-1 font-mono"><ArrowDown className="w-2 h-2 inline" /> DOWN</span>
+          <span className="hidden rounded-md border border-slate-200 bg-slate-100 px-1.5 py-0.5 text-[9px] font-mono text-slate-600 sm:inline dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300"><ArrowDown className="inline h-2 w-2" /> DOWN</span>
         </button>
       </div>
     </div>
