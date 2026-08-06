@@ -5,13 +5,26 @@ import { ImagePlus, Plus, Minus, Bold, Italic, Palette, Pipette, X, Check, Circl
 
 const VIEWPORT_MARGIN = 8;
 const PALETTE_GAP = 8;
+const COLOR_INPUT_FALLBACK = '#ffffff';
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
+function toColorInputValue(value) {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  if (/^#[0-9a-f]{6}$/.test(normalized)) return normalized;
+  if (/^#[0-9a-f]{3}$/.test(normalized)) {
+    return `#${normalized.slice(1).split('').map((digit) => `${digit}${digit}`).join('')}`;
+  }
+  return COLOR_INPUT_FALLBACK;
+}
+
 function ColorPalette({ value, swatches, onChange, onClose, anchorRef, placement = 'above', label, title }) {
   const paletteRef = useRef(null);
+  const colorInputRef = useRef(null);
   const [position, setPosition] = useState(null);
   const normalizedValue = value || '';
+  const colorInputValue = toColorInputValue(normalizedValue);
+  const initialColorInputValue = useRef(colorInputValue);
   const selectedSwatch = swatches.find((swatch) => swatch.value === normalizedValue);
   const currentLabel = selectedSwatch?.label || (value ? 'Personalizado' : 'Predeterminado');
   const isCustomColor = Boolean(normalizedValue) && !selectedSwatch;
@@ -167,15 +180,26 @@ function ColorPalette({ value, swatches, onChange, onClose, anchorRef, placement
             <Pipette className="relative z-10 h-4 w-4 text-white drop-shadow-sm" aria-hidden="true" />
           )}
         <input
+          ref={colorInputRef}
           type="color"
-          value={normalizedValue && normalizedValue.startsWith('#') ? normalizedValue : '#ffffff'}
-          onChange={(event) => {
-            // El selector nativo puede emitir varios cambios mientras se ajusta.
-            // La paleta permanece abierta para permitir una selección precisa;
-            // se cierra con un swatch, fuera del menú o Escape.
-            onChange(event.target.value);
+          // Debe ser no controlado: en iOS, volver a escribir `value` mientras
+          // el selector nativo está abierto puede cerrarlo tras el primer cambio.
+          defaultValue={initialColorInputValue.current}
+          onPointerDown={() => {
+            // Sincroniza el valor sólo justo antes de abrir el selector. Durante
+            // la edición no se toca el DOM, así el selector puede emitir todos
+            // sus cambios intermedios sin reiniciarse.
+            if (colorInputRef.current && colorInputRef.current.value !== colorInputValue) {
+              colorInputRef.current.value = colorInputValue;
+            }
           }}
-          className="absolute inset-0 z-0 scale-150 cursor-pointer opacity-0"
+          onFocus={() => {
+            if (colorInputRef.current && colorInputRef.current.value !== colorInputValue) {
+              colorInputRef.current.value = colorInputValue;
+            }
+          }}
+          onChange={(event) => onChange(event.target.value)}
+          className="absolute inset-0 z-20 h-full w-full cursor-pointer opacity-0"
           aria-label={`Elegir ${label || 'color'}`}
         />
         </label>
