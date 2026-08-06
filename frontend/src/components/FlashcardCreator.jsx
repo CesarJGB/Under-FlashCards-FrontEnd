@@ -256,9 +256,10 @@ export default function FlashcardCreator({
     });
   };
 
-  const handleOpenStyles = () => {
+  const handleOpenStyles = (event) => {
+    event?.preventDefault?.();
     setShowPreview(false);
-    setShowStyles(true);
+    setShowStyles((current) => !current);
   };
 
   const handleManualModalStateChange = useCallback((isOpen) => {
@@ -531,6 +532,7 @@ export default function FlashcardCreator({
           <div className="flex min-w-0 items-center gap-0.5 sm:gap-1">
             <button
               type="button"
+              onPointerDown={(event) => event.preventDefault()}
               onClick={handleOpenStyles}
               aria-expanded={showStyles}
               className={`flex min-h-11 w-14 flex-col items-center justify-center gap-0.5 rounded-xl p-2 transition-colors sm:w-20 ${showStyles ? 'bg-indigo-50 text-indigo-600' : 'text-slate-600 hover:bg-slate-100'}`}
