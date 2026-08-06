@@ -96,6 +96,7 @@ export default function FormInputs({
   const [pdfSource, setPdfSource] = useState(null);
   const [showPdfTextEditor, setShowPdfTextEditor] = useState(false);
   const aiTextRef = useRef(aiText || '');
+  const autoOpenedEditingIdRef = useRef(null);
 
   useEffect(() => {
     aiTextRef.current = aiText || '';
@@ -114,6 +115,18 @@ export default function FormInputs({
     setManualEditorSide(side);
     onModalStateChange?.(true);
   }, [onModalStateChange]);
+
+  useEffect(() => {
+    if (!editingId) {
+      autoOpenedEditingIdRef.current = null;
+      return;
+    }
+
+    if (autoOpenedEditingIdRef.current === editingId) return;
+
+    autoOpenedEditingIdRef.current = editingId;
+    openManualEditor('question');
+  }, [editingId, openManualEditor]);
 
   const handlePdfTextExtracted = useCallback((extractedText, result, source) => {
     const preview = appendPdfTextSafely(aiTextRef.current, extractedText || '');
@@ -413,4 +426,3 @@ export default function FormInputs({
     </>
   );
 }
-
