@@ -86,6 +86,7 @@ export default function ManualCardEditorModal({
   const customColorInputRef = useRef(null);
   const customColorChangedRef = useRef(false);
   const customColorCloseTimerRef = useRef(null);
+  const menuReturnFocusRef = useRef(null);
 
   const alignOptions = Array.isArray(ALIGNS) && ALIGNS.length ? ALIGNS : DEFAULT_ALIGNS;
   const swatches = Array.isArray(SWATCHES) && SWATCHES.length ? SWATCHES : DEFAULT_SWATCHES;
@@ -397,9 +398,52 @@ export default function ManualCardEditorModal({
     event.preventDefault();
   };
 
+  const rememberMenuFocus = (event) => {
+    preserveToolbarFocus(event);
+    if (typeof document === 'undefined') return;
+    const activeElement = document.activeElement;
+    menuReturnFocusRef.current = activeElement instanceof HTMLElement && activeElement !== document.body
+      ? activeElement
+      : null;
+  };
+
+  const restoreMenuFocus = () => {
+    const target = menuReturnFocusRef.current;
+    if (!target || typeof window === 'undefined') return;
+
+    window.requestAnimationFrame(() => {
+      if (!target.isConnected || typeof target.focus !== 'function') return;
+      try {
+        target.focus({ preventScroll: true });
+      } catch {
+        target.focus();
+      }
+
+      if (target === textareaRef.current) {
+        const { start, end } = selectionRef.current;
+        if (typeof start === 'number' && typeof end === 'number') {
+          try {
+            target.setSelectionRange(start, end);
+          } catch {
+            // El navegador puede rechazar la selección durante la transición.
+          }
+        }
+      }
+    });
+  };
+
+  const closeMenu = () => {
+    setOpenMenu(null);
+    restoreMenuFocus();
+  };
+
   const toggleColorMenu = () => {
     customColorChangedRef.current = false;
-    setOpenMenu((previousMenu) => (previousMenu === 'color' ? null : 'color'));
+    if (openMenu === 'color') {
+      closeMenu();
+      return;
+    }
+    setOpenMenu('color');
   };
 
   const handleCustomColorChange = (event) => {
@@ -416,7 +460,7 @@ export default function ManualCardEditorModal({
 
     customColorCloseTimerRef.current = window.setTimeout(() => {
       customColorCloseTimerRef.current = null;
-      setOpenMenu(null);
+      closeMenu();
     }, 80);
   };
 
@@ -643,7 +687,7 @@ export default function ManualCardEditorModal({
               <div className="relative shrink-0">
                 <button
                   type="button"
-                  onPointerDown={preserveToolbarFocus}
+                  onPointerDown={rememberMenuFocus}
                   onClick={toggleColorMenu}
                   aria-label="Color del texto"
                   aria-expanded={openMenu === 'color'}
@@ -661,7 +705,7 @@ export default function ManualCardEditorModal({
                     <div
                       className="fixed inset-0 z-[80] bg-transparent"
                       onPointerDown={preserveToolbarFocus}
-                      onClick={() => setOpenMenu(null)}
+                      onClick={closeMenu}
                     />
                     <div className="absolute bottom-[calc(100%+0.5rem)] right-0 z-[90] w-[196px] rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl animate-[slideUp_0.1s_ease-out]">
                       <p className="mb-2 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
@@ -677,7 +721,7 @@ export default function ManualCardEditorModal({
                             onPointerDown={preserveToolbarFocus}
                             onClick={() => {
                               updateActiveStyle('Color', swatch.value);
-                              setOpenMenu(null);
+                              closeMenu();
                             }}
                             style={swatch.value ? { backgroundColor: swatch.value } : undefined}
                             className={`relative h-9 w-9 rounded-xl border transition-all ${
@@ -719,8 +763,14 @@ export default function ManualCardEditorModal({
               <div className="relative shrink-0">
                 <button
                   type="button"
-                  onPointerDown={preserveToolbarFocus}
-                  onClick={() => setOpenMenu((prev) => (prev === 'align' ? null : 'align'))}
+                  onPointerDown={rememberMenuFocus}
+                  onClick={() => {
+                    if (openMenu === 'align') {
+                      closeMenu();
+                    } else {
+                      setOpenMenu('align');
+                    }
+                  }}
                   aria-label={`Alineación: ${currentAlignOption.label}`}
                   aria-expanded={openMenu === 'align'}
                   className={controlButtonClass(currentAlign !== 'left')}
@@ -734,7 +784,7 @@ export default function ManualCardEditorModal({
                     <div
                       className="fixed inset-0 z-[80] bg-transparent"
                       onPointerDown={preserveToolbarFocus}
-                      onClick={() => setOpenMenu(null)}
+                      onClick={closeMenu}
                     />
                     <div className="absolute bottom-[calc(100%+0.5rem)] right-0 z-[90] w-[168px] rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl animate-[slideUp_0.1s_ease-out]">
                       <p className="mb-2 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
@@ -751,7 +801,7 @@ export default function ManualCardEditorModal({
                             onPointerDown={preserveToolbarFocus}
                             onClick={() => {
                               setTextAlign?.(value);
-                              setOpenMenu(null);
+                              closeMenu();
                             }}
                             className={controlButtonClass(currentAlign === value)}
                           >

@@ -1,7 +1,7 @@
 // ARCHIVO: frontend/src/components/creator/StylePanel.jsx
 import { createPortal } from 'react-dom';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { ImagePlus, Plus, Minus, Bold, Italic, Pipette, X, Check, CircleOff } from 'lucide-react';
+import { ImagePlus, Plus, Minus, Bold, Italic, Pipette, X } from 'lucide-react';
 
 const VIEWPORT_MARGIN = 8;
 const PALETTE_GAP = 8;
@@ -27,9 +27,6 @@ function ColorPalette({ value, swatches, onChange, onClose, anchorRef, placement
   const initialColorInputValue = useRef(colorInputValue);
   const customColorChangedRef = useRef(false);
   const customColorCloseTimerRef = useRef(null);
-  const selectedSwatch = swatches.find((swatch) => swatch.value === normalizedValue);
-  const currentLabel = selectedSwatch?.label || (value ? 'Personalizado' : 'Predeterminado');
-  const isCustomColor = Boolean(normalizedValue) && !selectedSwatch;
 
   useEffect(() => () => {
     if (customColorCloseTimerRef.current) {
@@ -152,22 +149,13 @@ function ColorPalette({ value, swatches, onChange, onClose, anchorRef, placement
         visibility: position ? 'visible' : 'hidden',
       }}
     >
-      <div className="mb-2 flex items-center justify-between gap-2 px-0.5">
-        <span className="min-w-0 truncate text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">{title}</span>
-        <span className="flex min-w-0 items-center gap-1.5 text-[10px] font-semibold text-slate-400 dark:text-slate-500">
-          <span
-            style={normalizedValue ? { backgroundColor: normalizedValue } : undefined}
-            className="h-3.5 w-3.5 shrink-0 rounded-md border border-slate-200 bg-slate-100 shadow-inner dark:border-slate-600 dark:bg-slate-700"
-            aria-hidden="true"
-          />
-          <span className="max-w-[90px] truncate">{currentLabel}</span>
-        </span>
-      </div>
+      <p className="mb-2 text-[10px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+        Color de {String(title || 'texto').toLowerCase()}
+      </p>
 
       <div className="grid grid-cols-4 gap-2" role="group" aria-label="Colores disponibles">
         {swatches.map((color) => {
           const isSelected = normalizedValue === color.value;
-          const isLight = !color.value || color.value.toLowerCase() === '#ffffff';
 
           return (
             <button
@@ -181,58 +169,47 @@ function ColorPalette({ value, swatches, onChange, onClose, anchorRef, placement
                 onClose?.();
               }}
               style={color.value ? { backgroundColor: color.value } : undefined}
-              className={`relative flex aspect-square min-w-0 items-center justify-center rounded-[13px] border transition-[box-shadow,transform,filter] duration-150 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-800 ${
+              className={`relative flex h-9 w-9 min-w-0 items-center justify-center rounded-xl border transition-[box-shadow,transform,filter] duration-150 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-800 ${
                 isSelected
-                  ? 'border-transparent ring-2 ring-slate-900 ring-offset-2 dark:ring-slate-100'
-                  : 'border-slate-200 hover:-translate-y-0.5 hover:shadow-md dark:border-slate-600'
-              } ${!color.value ? 'bg-slate-100 dark:bg-slate-700' : ''}`}
+                  ? 'scale-110 border-transparent ring-2 ring-slate-900 ring-offset-1 dark:ring-slate-100'
+                  : 'border-slate-200 hover:scale-105 dark:border-slate-600'
+              } ${!color.value ? 'bg-slate-100 after:absolute after:inset-0 after:flex after:items-center after:justify-center after:font-bold after:text-slate-500 after:content-["×"] dark:bg-slate-700 dark:after:text-slate-300' : ''}`}
             >
-              {color.value ? null : <CircleOff className="h-4 w-4 text-slate-500 dark:text-slate-300" aria-hidden="true" />}
-              {isSelected && (
-                <span className={`absolute inset-0 flex items-center justify-center rounded-[13px] ${isLight ? 'bg-slate-900/5' : 'bg-black/10'}`}>
-                  <Check className={`h-4 w-4 stroke-[3] ${isLight ? 'text-slate-700 dark:text-slate-200' : 'text-white drop-shadow-sm'}`} aria-hidden="true" />
-                </span>
-              )}
             </button>
           );
         })}
 
         <label
-          style={isCustomColor ? { backgroundColor: value } : undefined}
-          className={`relative flex aspect-square min-w-0 cursor-pointer items-center justify-center overflow-hidden rounded-[13px] border shadow-xs transition-[box-shadow,transform] duration-150 hover:-translate-y-0.5 hover:shadow-md focus-within:ring-2 focus-within:ring-indigo-400 focus-within:ring-offset-2 dark:border-slate-600 dark:focus-within:ring-offset-slate-800 ${isCustomColor ? 'border-transparent ring-2 ring-slate-900 ring-offset-2 dark:ring-slate-100' : 'border-slate-300 bg-gradient-to-tr from-amber-400 via-rose-400 to-indigo-400'}`}
+          className="group relative flex h-9 w-9 cursor-pointer items-center justify-center overflow-hidden rounded-xl border border-slate-300 bg-gradient-to-tr from-amber-400 via-rose-400 to-indigo-400 shadow-sm transition-transform [@media(hover:hover)]:hover:scale-105 dark:border-slate-600"
           title="Color personalizado"
           aria-label="Color personalizado"
         >
-          {isCustomColor ? (
-            <Check className="relative z-10 h-4 w-4 stroke-[3] text-white drop-shadow-sm" aria-hidden="true" />
-          ) : (
-            <Pipette className="relative z-10 h-4 w-4 text-white drop-shadow-sm" aria-hidden="true" />
-          )}
-        <input
-          ref={colorInputRef}
-          type="color"
-          // Debe ser no controlado: en iOS, volver a escribir `value` mientras
-          // el selector nativo está abierto puede cerrarlo tras el primer cambio.
-          defaultValue={initialColorInputValue.current}
-          onPointerDown={() => {
-            customColorChangedRef.current = false;
-            // Sincroniza el valor sólo justo antes de abrir el selector. Durante
-            // la edición no se toca el DOM, así el selector puede emitir todos
-            // sus cambios intermedios sin reiniciarse.
-            if (colorInputRef.current && colorInputRef.current.value !== colorInputValue) {
-              colorInputRef.current.value = colorInputValue;
-            }
-          }}
-          onFocus={() => {
-            if (colorInputRef.current && colorInputRef.current.value !== colorInputValue) {
-              colorInputRef.current.value = colorInputValue;
-            }
-          }}
-          onChange={handleCustomColorChange}
-          onBlur={handleCustomColorBlur}
-          className="absolute inset-0 z-20 h-full w-full cursor-pointer opacity-0"
-          aria-label={`Elegir ${label || 'color'}`}
-        />
+          <Pipette className="relative z-10 h-4 w-4 text-white drop-shadow-sm transition-transform group-hover:scale-110" aria-hidden="true" />
+          <input
+            ref={colorInputRef}
+            type="color"
+            // Debe ser no controlado: en iOS, volver a escribir `value` mientras
+            // el selector nativo está abierto puede cerrarlo tras el primer cambio.
+            defaultValue={initialColorInputValue.current}
+            onPointerDown={() => {
+              customColorChangedRef.current = false;
+              // Sincroniza el valor sólo justo antes de abrir el selector. Durante
+              // la edición no se toca el DOM, así el selector puede emitir todos
+              // sus cambios intermedios sin reiniciarse.
+              if (colorInputRef.current && colorInputRef.current.value !== colorInputValue) {
+                colorInputRef.current.value = colorInputValue;
+              }
+            }}
+            onFocus={() => {
+              if (colorInputRef.current && colorInputRef.current.value !== colorInputValue) {
+                colorInputRef.current.value = colorInputValue;
+              }
+            }}
+            onChange={handleCustomColorChange}
+            onBlur={handleCustomColorBlur}
+            className="absolute inset-0 z-20 h-full w-full cursor-pointer opacity-0"
+            aria-label={`Elegir ${label || 'color'}`}
+          />
         </label>
       </div>
     </div>
@@ -240,12 +217,11 @@ function ColorPalette({ value, swatches, onChange, onClose, anchorRef, placement
 
   return createPortal(
     <>
-      <button
-        type="button"
-        tabIndex={-1}
+      <div
         className="fixed inset-0 z-[110] cursor-default bg-transparent"
+        onPointerDown={(event) => event.preventDefault()}
         onClick={onClose}
-        aria-label="Cerrar paleta de colores"
+        aria-hidden="true"
       />
       {palette}
     </>,
@@ -270,24 +246,40 @@ export default function StylePanel({
   const qColorAnchorRef = useRef(null);
   const aColorAnchorRef = useRef(null);
   const bgColorAnchorRef = useRef(null);
+  const colorReturnFocusRef = useRef(null);
 
   const closeColor = () => {
-    const activeColor = openColor;
     setOpenColor(null);
 
-    // Mantiene el teclado/foco en el control que abrió la paleta, no en el
-    // backdrop portalizado.
-    window.requestAnimationFrame(() => {
-      const anchor = activeColor === 'question'
-        ? qColorAnchorRef.current
-        : activeColor === 'answer'
-          ? aColorAnchorRef.current
-          : bgColorAnchorRef.current;
-      anchor?.querySelector('button')?.focus();
-    });
+    // El backdrop es portalizado y no debe convertirse en el nuevo elemento
+    // activo al cerrar. Conservamos el foco que existía antes de abrirlo para
+    // que una interacción móvil no oculte el teclado accidentalmente.
+    const target = colorReturnFocusRef.current;
+    colorReturnFocusRef.current = null;
+    if (target && typeof window !== 'undefined') {
+      window.requestAnimationFrame(() => {
+        if (!target.isConnected || typeof target.focus !== 'function') return;
+        try {
+          target.focus({ preventScroll: true });
+        } catch {
+          target.focus();
+        }
+      });
+    }
+  };
+
+  const rememberColorFocus = () => {
+    if (typeof document === 'undefined') return;
+    const activeElement = document.activeElement;
+    colorReturnFocusRef.current = activeElement instanceof HTMLElement && activeElement !== document.body
+      ? activeElement
+      : null;
   };
 
   const toggleColor = (colorId) => {
+    if (!colorReturnFocusRef.current && typeof document !== 'undefined') {
+      rememberColorFocus();
+    }
     setOpenColor((current) => (current === colorId ? null : colorId));
   };
 
@@ -353,6 +345,7 @@ export default function StylePanel({
             <div ref={colorAnchorRef} className="relative shrink-0">
               <button
                 type="button"
+                onPointerDown={rememberColorFocus}
                 onClick={() => toggleColor(colorId)}
                 style={styles[colorKey] ? { backgroundColor: styles[colorKey] } : {}}
                 aria-label={`Color de ${title.toLowerCase()}`}
@@ -447,6 +440,7 @@ export default function StylePanel({
             <div ref={bgColorAnchorRef} className="relative shrink-0">
               <button
                 type="button"
+                onPointerDown={rememberColorFocus}
                 onClick={() => toggleColor('bg')}
                 style={styles.bgColor ? { backgroundColor: styles.bgColor } : {}}
                 title="Color de fondo sólido"

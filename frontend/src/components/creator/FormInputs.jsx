@@ -9,7 +9,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import { FileText, Layers, Pencil } from 'lucide-react';
+import { Download, FileText, Layers, Pencil } from 'lucide-react';
 import ManualCardEditorModal from './ManualCardEditorModal';
 
 const PdfExtractor = lazy(() => import('./PdfExtractor'));
@@ -56,6 +56,22 @@ function getPdfCharacterCount(source, result, extractedText) {
   }
 
   return 0;
+}
+
+function downloadBulkPromptPlaceholder() {
+  const blob = new Blob(
+    ['Esta función está en work in progress.'],
+    { type: 'text/plain;charset=utf-8' },
+  );
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'under-flashcards-prompt-lote.txt';
+  link.rel = 'noopener';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 export default function FormInputs({
@@ -341,9 +357,20 @@ export default function FormInputs({
             <Layers className="h-3.5 w-3.5 shrink-0 text-slate-400" />
             <span>Pega tu texto estructurado (P: / R:):</span>
           </label>
-          <span className="shrink-0 rounded-full border border-indigo-100/60 bg-indigo-50 px-2 py-0.5 text-[10px] font-bold tabular-nums text-indigo-600">
-            {bulkStats.completePairs} {bulkStats.completePairs === 1 ? 'par listo' : 'pares listos'}
-          </span>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={downloadBulkPromptPlaceholder}
+              title="Descargar prompt"
+              aria-label="Descargar prompt para generar tarjetas por lote"
+              className="flex min-h-9 min-w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 shadow-sm transition-colors hover:bg-slate-50 hover:text-slate-800 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+            >
+              <Download className="h-4 w-4" aria-hidden="true" />
+            </button>
+            <span className="rounded-full border border-indigo-100/60 bg-indigo-50 px-2 py-0.5 text-[10px] font-bold tabular-nums text-indigo-600">
+              {bulkStats.completePairs} {bulkStats.completePairs === 1 ? 'par listo' : 'pares listos'}
+            </span>
+          </div>
         </div>
 
         <textarea
