@@ -196,7 +196,7 @@ export default function ScheduleCalendar({ userId, scheduleId, onBack, dashboard
   ];
 
   return (
-    <div className="relative mx-auto w-full max-w-2xl animate-[fadeIn_0.15s_ease] select-none pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-8">
+    <div className="relative mx-auto w-full max-w-2xl animate-[fadeIn_0.15s_ease] select-none pb-[calc(env(safe-area-inset-bottom)+5.5rem)] md:pb-8">
       <div className="hidden md:block">
         <ScheduleHeader onBack={onBack} scheduleName={scheduleName} onOpenSettings={() => setShowSettings(true)} onOpenScheduleActions={() => setShowScheduleNameActions(true)} onExport={() => setShowExportSheet(true)} exporting={pdfExport.isExporting} />
       </div>

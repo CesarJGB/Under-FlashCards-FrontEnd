@@ -246,7 +246,7 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
       hover:bg-white/15 dark:hover:bg-white/10 hover:scale-105 active:scale-95 transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]
       before:absolute before:inset-0 before:rounded-[1.3rem] before:pointer-events-none before:bg-[radial-gradient(80%_60%_at_50%_-5%,rgba(255,255,255,0.45)_0%,rgba(255,255,255,0.08)_35%,transparent_70%)] before:opacity-90
       after:absolute after:inset-[1px] after:rounded-[1.2rem] after:pointer-events-none after:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.18)] after:mix-blend-overlay"
-      style={{ bottom: 'calc(env(safe-area-inset-bottom) + 6rem)' }}
+      style={{ bottom: 'calc(env(safe-area-inset-bottom) + 1rem)' }}
     >
       <Plus className="relative w-7 h-7 stroke-[3] text-slate-800 dark:text-white drop-shadow-[0_1px_1px_rgba(255,255,255,0.8)] dark:drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
     </button>
@@ -267,6 +267,7 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
           }}
           dashboardShell={dashboardShell}
           onOpenSwitcher={() => setShowSwitcher(true)}
+          isSwitcherOpen={showSwitcher}
         />
 
         <ActionSheet
@@ -302,7 +303,7 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
   }
 
   return (
-    <div className="w-full max-w-2xl mx-auto pb-24 animate-[fadeIn_0.2s_ease]">
+    <div className="w-full max-w-2xl mx-auto pb-[calc(env(safe-area-inset-bottom)+6rem)] animate-[fadeIn_0.2s_ease]">
       {/* Header con Grid para centrado perfecto absoluto */}
       <header className="grid grid-cols-3 items-center mb-6 px-2 pt-4">
         {/* Columna Izquierda: Botón */}
@@ -310,11 +311,11 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
           <button
             type="button"
             onClick={onBack}
-            className="h-9 w-9 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl flex items-center justify-center text-slate-600 dark:text-slate-300 active:scale-95 transition-all cursor-pointer shadow-3xs"
+            className="min-h-11 min-w-11 touch-manipulation border border-slate-200 bg-white text-slate-600 shadow-3xs transition-all hover:bg-slate-50 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:focus-visible:ring-offset-slate-950 rounded-xl flex items-center justify-center cursor-pointer"
             title="Volver"
             aria-label="Volver a General"
           >
-            <ArrowLeft className="w-4 h-4" />
+            <ArrowLeft className="w-5 h-5" />
           </button>
         </div>
         
@@ -322,7 +323,7 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
         <h2 className="justify-self-center text-xl font-black tracking-tight text-slate-900 dark:text-white">Horarios</h2>
         
         {/* Columna Derecha: Espaciador invisible para equilibrar */}
-        <div className="justify-self-end w-9" /> {/* w-9 simula el peso del botón izquierdo */}
+        <div className="justify-self-end w-11" /> {/* w-11 simula el peso del botón izquierdo */}
       </header>
 
       {/* Estado de Error Mejorado */}

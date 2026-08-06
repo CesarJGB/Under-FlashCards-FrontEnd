@@ -9,7 +9,7 @@ function FooterButton({ label, onClick, disabled = false, children, className = 
       disabled={disabled}
       aria-label={label}
       aria-disabled={disabled}
-      className={`flex min-h-11 min-w-11 items-center justify-center rounded-xl text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 active:scale-95 disabled:cursor-not-allowed disabled:opacity-35 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white motion-reduce:transition-none ${className}`}
+      className={`flex min-h-11 min-w-11 touch-manipulation items-center justify-center rounded-xl text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed disabled:opacity-35 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white dark:focus-visible:ring-offset-slate-950 motion-reduce:transition-none ${className}`}
     >
       {children}
     </button>
@@ -30,12 +30,12 @@ export default function ScheduleMobileFooter({
 
   const footer = (
     <footer
-      className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 md:hidden"
+      className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white shadow-[0_-4px_16px_rgba(15,23,42,0.06)] dark:border-slate-800 dark:bg-slate-950 dark:shadow-[0_-4px_18px_rgba(0,0,0,0.2)] md:hidden motion-reduce:shadow-none"
       style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       data-testid="schedule-mobile-footer"
     >
       <div
-        className="mx-auto grid h-[4.5rem] w-full max-w-2xl grid-cols-[44px_44px_minmax(0,1fr)_52px] items-center gap-1 px-3"
+        className="mx-auto grid min-h-[4.5rem] w-full max-w-2xl grid-cols-[44px_44px_minmax(0,1fr)_52px] items-center gap-2 px-4"
         role="toolbar"
         aria-label="Controles del horario"
       >
@@ -53,7 +53,7 @@ export default function ScheduleMobileFooter({
           disabled={disabled}
           aria-label={`Abrir opciones del horario. Horario actual: ${scheduleName || 'Horario'}`}
           aria-disabled={disabled}
-          className="flex min-h-11 min-w-0 flex-col items-center justify-center rounded-xl px-2 text-center transition-colors hover:bg-slate-100 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45 dark:hover:bg-slate-800 motion-reduce:transition-none"
+          className="flex min-h-11 min-w-0 touch-manipulation flex-col items-center justify-center rounded-xl px-2 text-center transition-colors hover:bg-slate-100 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed disabled:opacity-45 dark:hover:bg-slate-800 dark:focus-visible:ring-offset-slate-950 motion-reduce:transition-none"
         >
           <span className="flex w-full min-w-0 items-center justify-center gap-1">
             <span className="truncate text-xs font-extrabold leading-tight text-slate-900 dark:text-white">
