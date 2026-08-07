@@ -101,6 +101,11 @@ export default function ActionSheet({
         type="button"
         onPointerDown={(event) => {
           event.preventDefault();
+          event.stopPropagation();
+        }}
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
           onClose?.();
         }}
         className="fixed inset-0 z-[90] cursor-default bg-slate-900/40 animate-[fadeIn_0.25s_ease-out]"
