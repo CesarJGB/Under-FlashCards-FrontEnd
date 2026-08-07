@@ -20,6 +20,7 @@ Este directorio es la autoridad técnica del proyecto para cualquier cambio que 
 
 | Cambio propuesto | Lecturas mínimas |
 |---|---|
+| Refactor/V2 del editor manual | `manual-editor-audit`, `manual-editor-dependency-map`, `manual-editor-conflicts`, `manual-editor-runtime-inventory` y los documentos especializados citados por cada hallazgo |
 | `ManualCardEditorModal`, altura del editor o teclado | `virtual-keyboard`, `viewport-and-safe-area`, `focus-and-input`, `fixed-sticky-overlays`, `known-browser-bugs` |
 | `ActionSheet`, diálogo, backdrop o trampa de foco | `modals-and-sheets`, `focus-and-input`, `fixed-sticky-overlays`, `touch-and-gestures` |
 | `ScheduleCalendar` o `ScheduleMobileFooter` | `viewport-and-safe-area`, `fixed-sticky-overlays`, `touch-and-gestures` |
@@ -31,6 +32,17 @@ Este directorio es la autoridad técnica del proyecto para cualquier cambio que 
 | Cualquier entrega móvil | `testing-checklist` |
 
 Los nombres anteriores remiten a archivos `.md` de este mismo directorio.
+
+## Auditorías aplicadas
+
+La auditoría estática de Fase 2 del editor manual se realizó sobre `bc541f930f7fc6e3eb055adb0cb4a232d5099b5c` el 2026-08-07:
+
+- [`manual-editor-audit.md`](manual-editor-audit.md): hallazgos, gravedad, clasificación, prioridades, límites y decisiones `KEEP`;
+- [`manual-editor-dependency-map.md`](manual-editor-dependency-map.md): ruta de render, DOM/portales, foco, pickers y scroll owners;
+- [`manual-editor-conflicts.md`](manual-editor-conflicts.md): fuentes de verdad y efectos enfrentados;
+- [`manual-editor-runtime-inventory.md`](manual-editor-runtime-inventory.md): APIs, unidades, safe-area, listeners, observers y coste de layout.
+
+Estos documentos aplican la autoridad de Fase 1 al código actual; no sustituyen la matriz ni los documentos de plataforma. Las conclusiones dependientes del dispositivo siguen requiriendo [`testing-checklist.md`](testing-checklist.md).
 
 ## Jerarquía de fuentes
 
