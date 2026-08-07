@@ -12,11 +12,10 @@ import {
   Italic,
   Pencil,
   Loader2,
-  Palette,
   Plus,
   X,
 } from 'lucide-react';
-import { ColorPalette } from './StylePanel';
+import { ColorPalette, ColorSwatchButton } from './StylePanel';
 
 const DEFAULT_ALIGNS = [
   { label: 'Izquierda', value: 'left', Icon: AlignLeft },
@@ -88,6 +87,7 @@ export default function ManualCardEditorModal({
   const openMenuRef = useRef(null);
   const menuReturnFocusRef = useRef(null);
   const focusRestoreFrameRef = useRef(null);
+  const menuKeyboardGuardTimerRef = useRef(null);
 
   const alignOptions = Array.isArray(ALIGNS) && ALIGNS.length ? ALIGNS : DEFAULT_ALIGNS;
   const swatches = Array.isArray(SWATCHES) && SWATCHES.length ? SWATCHES : DEFAULT_SWATCHES;
@@ -304,6 +304,7 @@ export default function ManualCardEditorModal({
       || imagePickerActiveRef.current
       || resumeRequestedRef.current
       || focusResumeReasonRef.current
+      || openMenuRef.current !== null
     ) return;
 
     setFocusResumeReasonSafe('keyboard');
@@ -340,6 +341,15 @@ export default function ManualCardEditorModal({
     resumeRequestedRef.current = false;
     imagePickerActiveRef.current = false;
   }, [activeSide, setFocusResumeReasonSafe, setMenuState]);
+
+  useEffect(() => () => {
+    if (menuKeyboardGuardTimerRef.current && typeof window !== 'undefined') {
+      window.clearTimeout(menuKeyboardGuardTimerRef.current);
+    }
+    if (focusRestoreFrameRef.current && typeof window !== 'undefined') {
+      window.cancelAnimationFrame(focusRestoreFrameRef.current);
+    }
+  }, []);
 
   if (!open || typeof document === 'undefined') return null;
 
@@ -442,10 +452,33 @@ export default function ManualCardEditorModal({
     });
   };
 
+  const guardKeyboardResumeAfterMenu = () => {
+    // Abrir un selector nativo puede cerrar temporalmente el teclado. Ese
+    // cambio de viewport no debe convertirse en el mensaje "Listo para
+    // editar" ni dejar el editor en un estado de falsa pérdida de foco.
+    keyboardWasOpenRef.current = false;
+    resumeRequestedRef.current = true;
+    setFocusResumeReasonSafe(null);
+
+    if (menuKeyboardGuardTimerRef.current && typeof window !== 'undefined') {
+      window.clearTimeout(menuKeyboardGuardTimerRef.current);
+    }
+
+    if (typeof window !== 'undefined') {
+      menuKeyboardGuardTimerRef.current = window.setTimeout(() => {
+        menuKeyboardGuardTimerRef.current = null;
+        resumeRequestedRef.current = false;
+      }, 450);
+    }
+  };
+
   const closeMenu = () => {
     const wasOpen = openMenuRef.current !== null;
     setMenuState(null);
-    if (wasOpen) restoreMenuFocus();
+    if (wasOpen) {
+      guardKeyboardResumeAfterMenu();
+      restoreMenuFocus();
+    }
   };
 
   const toggleColorMenu = () => {
@@ -455,6 +488,11 @@ export default function ManualCardEditorModal({
     }
     if (!menuReturnFocusRef.current) rememberMenuFocus();
     setMenuState('color');
+  };
+
+  const blockMenuBackdropPointerDown = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
   };
 
   const closeMenuFromBackdrop = (event) => {
@@ -695,12 +733,11 @@ export default function ManualCardEditorModal({
                       ? 'ring-2 ring-indigo-400 ring-offset-1'
                       : ''
                   } ${activeColor
-                    ? 'border-transparent text-white shadow-xs'
+                    ? 'border-slate-300 bg-white shadow-xs dark:border-slate-600'
                     : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'}`}
-                  style={activeColor ? { backgroundColor: activeColor } : undefined}
                   data-testid="manual-card-editor-color"
                 >
-                  <Palette className="h-4 w-4" aria-hidden="true" />
+                  <ColorSwatchButton value={activeColor} />
                 </button>
 
                 {openMenu === 'color' && (
@@ -740,7 +777,8 @@ export default function ManualCardEditorModal({
                   <>
                     <div
                       className="fixed inset-0 z-[80] bg-transparent"
-                      onPointerDown={closeMenuFromBackdrop}
+                      onPointerDown={blockMenuBackdropPointerDown}
+                      onClick={closeMenuFromBackdrop}
                     />
                     <div className="absolute bottom-[calc(100%+0.5rem)] right-0 z-[90] w-[168px] rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl animate-[slideUp_0.1s_ease-out]">
                       <p className="mb-2 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">

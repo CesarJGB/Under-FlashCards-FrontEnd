@@ -1,6 +1,7 @@
 // ARCHIVO: frontend/src/components/creator/LivePreview.jsx
-import { useState } from 'react';
-import { ImagePlus, Palette, Pipette } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { ImagePlus } from 'lucide-react';
+import { ColorPalette, ColorSwatchButton } from './StylePanel';
 
 const ALIGN_CLASS = { left: 'text-left', center: 'text-center', right: 'text-right' };
 const FLOATING_CARD_WIDTH = 320;
@@ -78,6 +79,7 @@ export default function LivePreview({
   previewOnly = false,
 }) {
   const [bgColorOpen, setBgColorOpen] = useState(false);
+  const bgColorAnchorRef = useRef(null);
 
   if (variant === 'floating') {
     const availableWidth = Math.max(120, floatingSize?.width || FLOATING_CARD_WIDTH);
@@ -155,33 +157,30 @@ export default function LivePreview({
               </label>
               {bgImage && typeof setBgImage === 'function' && <button type="button" onClick={() => setBgImage('')} className="min-h-10 shrink-0 px-1 text-xs text-red-600 hover:underline dark:text-red-400">Borrar</button>}
 
-              <div className="relative">
+              <div ref={bgColorAnchorRef} className="relative">
                 <button
                   type="button"
-                  onClick={() => setBgColorOpen(!bgColorOpen)}
-                  style={styles.bgColor ? { backgroundColor: styles.bgColor } : {}}
+                  onPointerDown={(event) => event.preventDefault()}
+                  onClick={() => setBgColorOpen((isOpen) => !isOpen)}
                   aria-label="Color de fondo sólido"
                   aria-expanded={bgColorOpen}
                   className={`flex min-h-10 min-w-10 items-center justify-center rounded-lg border transition-all ${
-                    styles.bgColor ? 'border-transparent text-white shadow-xs' : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
+                    styles.bgColor ? 'border-slate-300 bg-white shadow-xs dark:border-slate-600 dark:bg-slate-800' : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
                   }`}
                 >
-                  <Palette className="h-3.5 w-3.5" aria-hidden="true" />
+                  <ColorSwatchButton value={styles.bgColor} />
                 </button>
 
                 {bgColorOpen && (
-                  <>
-                    <div className="fixed inset-0 z-30" onClick={() => setBgColorOpen(false)} aria-hidden="true" />
-                    <div className="absolute right-0 mt-2 z-40 grid w-[168px] grid-cols-4 gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl animate-[slideUp_0.1s_ease-out] dark:border-slate-700 dark:bg-slate-800">
-                      {SWATCHES.map((c) => (
-                        <button key={c.value} type="button" title={c.label} aria-label={c.label} aria-pressed={styles.bgColor === c.value} onClick={() => { updateStyle('bgColor', c.value); setBgColorOpen(false); }} style={c.value ? { backgroundColor: c.value } : {}} className={`relative min-h-9 min-w-9 rounded-xl border transition-all ${styles.bgColor === c.value ? 'scale-110 ring-2 ring-slate-900 ring-offset-1 dark:ring-slate-100' : 'border-slate-200 hover:scale-105 dark:border-slate-600'} ${!c.value ? 'bg-slate-100 after:absolute after:inset-0 after:flex after:items-center after:justify-center after:text-xs after:font-bold after:text-slate-500 after:content-["×"] dark:bg-slate-700 dark:after:text-slate-300' : ''}`} />
-                      ))}
-                      <label className="relative flex min-h-9 min-w-9 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-xl border border-slate-300 bg-gradient-to-tr from-amber-400 via-rose-400 to-indigo-400 shadow-xs transition-transform hover:scale-105 dark:border-slate-600">
-                        <Pipette className="relative z-10 h-3.5 w-3.5 text-white drop-shadow-xs" aria-hidden="true" />
-                        <input type="color" value={styles.bgColor && styles.bgColor.startsWith('#') ? styles.bgColor : '#ffffff'} onChange={(e) => updateStyle('bgColor', e.target.value)} className="absolute inset-0 z-0 scale-150 cursor-pointer opacity-0" aria-label="Elegir color de fondo" />
-                      </label>
-                    </div>
-                  </>
+                  <ColorPalette
+                    value={styles.bgColor}
+                    swatches={SWATCHES}
+                    onChange={(value) => updateStyle('bgColor', value)}
+                    onClose={() => setBgColorOpen(false)}
+                    anchorRef={bgColorAnchorRef}
+                    placement="below"
+                    label="Colores de fondo"
+                  />
                 )}
               </div>
             </div>

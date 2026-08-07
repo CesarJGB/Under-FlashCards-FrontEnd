@@ -1,7 +1,7 @@
 // ARCHIVO: frontend/src/components/creator/StylePanel.jsx
 import { createPortal } from 'react-dom';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { ImagePlus, Plus, Minus, Bold, Italic, Palette, Pipette, X } from 'lucide-react';
+import { ImagePlus, Plus, Minus, Bold, Italic, Pipette, X } from 'lucide-react';
 
 const VIEWPORT_MARGIN = 8;
 const PALETTE_GAP = 8;
@@ -16,6 +16,25 @@ function toColorInputValue(value) {
     return `#${normalized.slice(1).split('').map((digit) => `${digit}${digit}`).join('')}`;
   }
   return COLOR_INPUT_FALLBACK;
+}
+
+export function ColorSwatchButton({ value }) {
+  const normalizedValue = typeof value === 'string' ? value.trim() : '';
+  const swatchStyle = normalizedValue
+    ? { backgroundColor: normalizedValue }
+    : { backgroundColor: '#ffffff' };
+
+  return (
+    <span
+      aria-hidden="true"
+      className="flex h-5 w-5 items-center justify-center rounded-[4px] border-2 border-slate-500/70 bg-white p-0.5 dark:border-slate-300/70 dark:bg-slate-900"
+    >
+      <span
+        className="block h-full w-full rounded-[2px] border border-black/10"
+        style={swatchStyle}
+      />
+    </span>
+  );
 }
 
 export function ColorPalette({
@@ -202,38 +221,53 @@ export function ColorPalette({
         );
       })}
 
-        <label
+        <button
+          type="button"
           className="group relative flex min-h-9 min-w-9 cursor-pointer items-center justify-center overflow-hidden rounded-xl border border-slate-300 bg-gradient-to-tr from-amber-400 via-rose-400 to-indigo-400 shadow-xs transition-transform [@media(hover:hover)]:hover:scale-105 dark:border-slate-600"
           title="Color personalizado"
           aria-label="Color personalizado"
+          onPointerDown={(event) => {
+            // No dejamos que la muestra personalizada robe el foco del
+            // textarea. El selector nativo se abre desde este botón y no
+            // desde un label/input enfocable.
+            event.preventDefault();
+            event.stopPropagation();
+            customColorChangedRef.current = false;
+            const input = colorInputRef.current;
+            if (!input) return;
+            if (input.value !== colorInputValue) input.value = colorInputValue;
+
+            try {
+              if (typeof input.showPicker === 'function') {
+                input.showPicker();
+                return;
+              }
+            } catch {
+              // Safari/iOS puede rechazar showPicker; el click conserva el
+              // fallback compatible con el selector nativo.
+            }
+            input.click();
+          }}
         >
           <Pipette className="relative z-10 h-3.5 w-3.5 text-white drop-shadow-xs transition-transform group-hover:scale-110" aria-hidden="true" />
-          <input
-            ref={colorInputRef}
-            type="color"
-            // Debe ser no controlado: en iOS, volver a escribir `value` mientras
-            // el selector nativo está abierto puede cerrarlo tras el primer cambio.
-            defaultValue={initialColorInputValue.current}
-            onPointerDown={() => {
-              customColorChangedRef.current = false;
-              // Sincroniza el valor sólo justo antes de abrir el selector. Durante
-              // la edición no se toca el DOM, así el selector puede emitir todos
-              // sus cambios intermedios sin reiniciarse.
-              if (colorInputRef.current && colorInputRef.current.value !== colorInputValue) {
-                colorInputRef.current.value = colorInputValue;
-              }
-            }}
-            onFocus={() => {
-              if (colorInputRef.current && colorInputRef.current.value !== colorInputValue) {
-                colorInputRef.current.value = colorInputValue;
-              }
-            }}
-            onChange={handleCustomColorChange}
-            onBlur={handleCustomColorBlur}
-            className="absolute inset-0 z-20 h-full w-full cursor-pointer opacity-0"
-            aria-label={`Elegir ${label || 'color'}`}
-          />
-        </label>
+        </button>
+        <input
+          ref={colorInputRef}
+          type="color"
+          // Debe ser no controlado: en iOS, volver a escribir `value` mientras
+          // el selector nativo está abierto puede cerrarlo tras el primer cambio.
+          defaultValue={initialColorInputValue.current}
+          onFocus={() => {
+            if (colorInputRef.current && colorInputRef.current.value !== colorInputValue) {
+              colorInputRef.current.value = colorInputValue;
+            }
+          }}
+          onChange={handleCustomColorChange}
+          onBlur={handleCustomColorBlur}
+          className="sr-only"
+          tabIndex={-1}
+          aria-label={`Elegir ${label || 'color'}`}
+        />
     </div>
   );
 
@@ -244,6 +278,10 @@ export function ColorPalette({
         tabIndex={-1}
         className="fixed inset-0 z-[110] cursor-default bg-transparent"
         onPointerDown={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+        }}
+        onClick={(event) => {
           event.preventDefault();
           event.stopPropagation();
           onClose?.();
@@ -405,7 +443,6 @@ export default function StylePanel({
                 type="button"
                 onPointerDown={handleColorTriggerPointerDown}
                 onClick={() => toggleColor(colorId)}
-                style={styles[colorKey] ? { backgroundColor: styles[colorKey] } : {}}
                 aria-label={`Color de ${title.toLowerCase()}`}
                 aria-expanded={colorOpen}
                 className={`flex min-h-10 min-w-10 items-center justify-center rounded-lg border transition-all ${
@@ -413,10 +450,10 @@ export default function StylePanel({
                     ? 'ring-2 ring-indigo-400 ring-offset-1 dark:ring-offset-slate-800'
                     : ''
                 } ${styles[colorKey]
-                  ? 'border-transparent text-white shadow-xs'
+                  ? 'border-slate-300 bg-white shadow-xs dark:border-slate-600 dark:bg-slate-800'
                   : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'}`}
               >
-                <Palette className="h-3.5 w-3.5" aria-hidden="true" />
+                <ColorSwatchButton value={styles[colorKey]} />
               </button>
               {colorOpen && (
                 <ColorPalette
@@ -503,7 +540,6 @@ export default function StylePanel({
                 type="button"
                 onPointerDown={handleColorTriggerPointerDown}
                 onClick={() => toggleColor('bg')}
-                style={styles.bgColor ? { backgroundColor: styles.bgColor } : {}}
                 title="Color de fondo sólido"
                 aria-label="Color de fondo sólido"
                 aria-expanded={openColor === 'bg'}
@@ -512,10 +548,10 @@ export default function StylePanel({
                     ? 'ring-2 ring-indigo-400 ring-offset-1 dark:ring-offset-slate-800'
                     : ''
                 } ${styles.bgColor
-                  ? 'border-transparent text-white shadow-xs'
+                  ? 'border-slate-300 bg-white shadow-xs dark:border-slate-600 dark:bg-slate-800'
                   : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'}`}
               >
-                <Palette className="h-3.5 w-3.5" aria-hidden="true" />
+                <ColorSwatchButton value={styles.bgColor} />
               </button>
 
               {openColor === 'bg' && (
