@@ -15,6 +15,7 @@ export default function ActionSheet({
   content,
   footer,
   closeAction,
+  preserveFocus = false,
 }) {
   const dialogRef = useRef(null);
   const id = useId();
@@ -54,13 +55,25 @@ export default function ActionSheet({
     if (!open) return undefined;
 
     const previouslyFocused = document.activeElement;
-    const focusTimer = window.setTimeout(() => dialogRef.current?.focus(), 0);
+    const focusTimer = preserveFocus
+      ? null
+      : window.setTimeout(() => dialogRef.current?.focus(), 0);
 
     return () => {
-      window.clearTimeout(focusTimer);
-      if (previouslyFocused instanceof HTMLElement) previouslyFocused.focus();
+      if (focusTimer) window.clearTimeout(focusTimer);
+      if (
+        previouslyFocused instanceof HTMLElement
+        && document.activeElement !== previouslyFocused
+        && previouslyFocused.isConnected
+      ) {
+        try {
+          previouslyFocused.focus({ preventScroll: true });
+        } catch {
+          previouslyFocused.focus();
+        }
+      }
     };
-  }, [open]);
+  }, [open, preserveFocus]);
 
   if (!open || typeof document === 'undefined') return null;
 
@@ -86,7 +99,10 @@ export default function ActionSheet({
     <>
       <button
         type="button"
-        onClick={() => onClose?.()}
+        onPointerDown={(event) => {
+          event.preventDefault();
+          onClose?.();
+        }}
         className="fixed inset-0 z-[90] cursor-default bg-slate-900/40 animate-[fadeIn_0.25s_ease-out]"
         aria-label="Cerrar acciones"
       />
