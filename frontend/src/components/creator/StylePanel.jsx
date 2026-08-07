@@ -18,7 +18,16 @@ function toColorInputValue(value) {
   return COLOR_INPUT_FALLBACK;
 }
 
-export function ColorPalette({ value, swatches, onChange, onClose, anchorRef, placement = 'above', label }) {
+export function ColorPalette({
+  value,
+  swatches,
+  onChange,
+  onClose,
+  anchorRef,
+  placement = 'above',
+  variant = 'grid',
+  label,
+}) {
   const paletteRef = useRef(null);
   const colorInputRef = useRef(null);
   const [position, setPosition] = useState(null);
@@ -71,10 +80,19 @@ export function ColorPalette({ value, swatches, onChange, onClose, anchorRef, pl
       const paletteRect = palette.getBoundingClientRect();
       const dialogRect = anchor.closest('[role="dialog"]')?.getBoundingClientRect();
 
-      const minLeft = Math.max(VIEWPORT_MARGIN, dialogRect?.left ?? VIEWPORT_MARGIN);
-      const maxRight = Math.min(window.innerWidth - VIEWPORT_MARGIN, dialogRect?.right ?? window.innerWidth - VIEWPORT_MARGIN);
-      const minTop = Math.max(VIEWPORT_MARGIN, dialogRect?.top ?? VIEWPORT_MARGIN);
-      const maxBottom = Math.min(window.innerHeight - VIEWPORT_MARGIN, dialogRect?.bottom ?? window.innerHeight - VIEWPORT_MARGIN);
+      const visualViewport = window.visualViewport;
+      const viewportLeft = Math.max(0, Math.round(visualViewport?.offsetLeft || 0));
+      const viewportTop = Math.max(0, Math.round(visualViewport?.offsetTop || 0));
+      const viewportRight = viewportLeft + Math.round(visualViewport?.width || window.innerWidth);
+      const viewportBottom = viewportTop + Math.round(visualViewport?.height || window.innerHeight);
+
+      // Fixed portals use the layout viewport, while iOS moves the visible
+      // viewport when the keyboard is open. Use the latter so the palette
+      // remains above the keyboard instead of being rendered underneath it.
+      const minLeft = Math.max(VIEWPORT_MARGIN, viewportLeft + VIEWPORT_MARGIN, dialogRect?.left ?? VIEWPORT_MARGIN);
+      const maxRight = Math.min(viewportRight - VIEWPORT_MARGIN, dialogRect?.right ?? viewportRight - VIEWPORT_MARGIN);
+      const minTop = Math.max(VIEWPORT_MARGIN, viewportTop + VIEWPORT_MARGIN, dialogRect?.top ?? VIEWPORT_MARGIN);
+      const maxBottom = Math.min(viewportBottom - VIEWPORT_MARGIN, dialogRect?.bottom ?? viewportBottom - VIEWPORT_MARGIN);
 
       const paletteWidth = Math.min(paletteRect.width, Math.max(1, maxRight - minLeft));
       const paletteHeight = Math.min(paletteRect.height, Math.max(1, maxBottom - minTop));
@@ -129,10 +147,12 @@ export function ColorPalette({ value, swatches, onChange, onClose, anchorRef, pl
 
   if (typeof document === 'undefined') return null;
 
+  const isHorizontal = variant === 'horizontal';
   const palette = (
     <div
       ref={paletteRef}
       data-color-palette="true"
+      data-color-palette-variant={variant}
       role="dialog"
       aria-label={label}
       onKeyDown={(event) => {
@@ -142,11 +162,15 @@ export function ColorPalette({ value, swatches, onChange, onClose, anchorRef, pl
           onClose?.();
         }
       }}
-      className="fixed z-[120] grid w-[168px] max-w-[calc(100vw-1rem)] grid-cols-4 gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl animate-[slideUp_0.1s_ease-out] dark:border-slate-700 dark:bg-slate-800"
+      className={`fixed z-[120] rounded-2xl border border-slate-200 bg-white p-2 shadow-xl animate-[slideUp_0.1s_ease-out] dark:border-slate-700 dark:bg-slate-800 ${isHorizontal
+        ? 'flex w-max max-w-[calc(100vw-1rem)] flex-nowrap items-center gap-2 overflow-x-auto overscroll-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+        : 'grid w-[168px] max-w-[calc(100vw-1rem)] grid-cols-4 gap-2'}`}
       style={{
         left: `${position?.left ?? 0}px`,
         top: `${position?.top ?? 0}px`,
         visibility: position ? 'visible' : 'hidden',
+        touchAction: isHorizontal ? 'pan-x' : undefined,
+        WebkitOverflowScrolling: isHorizontal ? 'touch' : undefined,
       }}
     >
       {swatches.map((color) => {
@@ -159,6 +183,11 @@ export function ColorPalette({ value, swatches, onChange, onClose, anchorRef, pl
             title={color.label}
             aria-label={color.label}
             aria-pressed={isSelected}
+            onPointerDown={(event) => {
+              // Keep the textarea focused while a swatch is selected. The
+              // click event still fires after preventDefault on pointerdown.
+              event.preventDefault();
+            }}
             onClick={() => {
               onChange(color.value);
               onClose?.();
@@ -219,7 +248,6 @@ export function ColorPalette({ value, swatches, onChange, onClose, anchorRef, pl
           event.stopPropagation();
           onClose?.();
         }}
-        onClick={onClose}
         aria-hidden="true"
       />
       {palette}
@@ -245,10 +273,13 @@ export default function StylePanel({
   const qColorAnchorRef = useRef(null);
   const aColorAnchorRef = useRef(null);
   const bgColorAnchorRef = useRef(null);
+  const openColorRef = useRef(null);
   const colorReturnFocusRef = useRef(null);
   const focusRestoreFrameRef = useRef(null);
 
   const closeColor = () => {
+    const wasOpen = openColorRef.current !== null;
+    openColorRef.current = null;
     setOpenColor(null);
 
     // El backdrop es portalizado y no debe convertirse en el nuevo elemento
@@ -256,7 +287,7 @@ export default function StylePanel({
     // que una interacción móvil no oculte el teclado accidentalmente.
     const target = colorReturnFocusRef.current;
     colorReturnFocusRef.current = null;
-    if (target && typeof window !== 'undefined') {
+    if (target && typeof window !== 'undefined' && document.activeElement !== target) {
       if (focusRestoreFrameRef.current) {
         window.cancelAnimationFrame(focusRestoreFrameRef.current);
       }
@@ -270,23 +301,45 @@ export default function StylePanel({
         }
       });
     }
+
+    return wasOpen;
   };
 
   const rememberColorFocus = (event) => {
     event?.preventDefault?.();
     if (typeof document === 'undefined') return;
+    if (colorReturnFocusRef.current) return;
     const activeElement = document.activeElement;
     colorReturnFocusRef.current = activeElement instanceof HTMLElement && activeElement !== document.body
       ? activeElement
       : null;
   };
 
-  const toggleColor = (colorId) => {
-    if (!colorReturnFocusRef.current && typeof document !== 'undefined') {
-      rememberColorFocus();
-    }
-    setOpenColor((current) => (current === colorId ? null : colorId));
+  const handleColorTriggerPointerDown = (event) => {
+    event.preventDefault();
+    if (openColorRef.current === null) rememberColorFocus();
   };
+
+  const toggleColor = (colorId) => {
+    if (openColorRef.current === colorId) {
+      closeColor();
+      return;
+    }
+
+    if (!colorReturnFocusRef.current && typeof document !== 'undefined') rememberColorFocus();
+    if (focusRestoreFrameRef.current && typeof window !== 'undefined') {
+      window.cancelAnimationFrame(focusRestoreFrameRef.current);
+      focusRestoreFrameRef.current = null;
+    }
+    openColorRef.current = colorId;
+    setOpenColor(colorId);
+  };
+
+  useEffect(() => () => {
+    if (focusRestoreFrameRef.current && typeof window !== 'undefined') {
+      window.cancelAnimationFrame(focusRestoreFrameRef.current);
+    }
+  }, []);
 
   const openBgImagePicker = () => {
     const input = bgImageInputRef.current;
@@ -350,7 +403,7 @@ export default function StylePanel({
             <div ref={colorAnchorRef} className="relative shrink-0">
               <button
                 type="button"
-                onPointerDown={rememberColorFocus}
+                onPointerDown={handleColorTriggerPointerDown}
                 onClick={() => toggleColor(colorId)}
                 style={styles[colorKey] ? { backgroundColor: styles[colorKey] } : {}}
                 aria-label={`Color de ${title.toLowerCase()}`}
@@ -448,7 +501,7 @@ export default function StylePanel({
             <div ref={bgColorAnchorRef} className="relative shrink-0">
               <button
                 type="button"
-                onPointerDown={rememberColorFocus}
+                onPointerDown={handleColorTriggerPointerDown}
                 onClick={() => toggleColor('bg')}
                 style={styles.bgColor ? { backgroundColor: styles.bgColor } : {}}
                 title="Color de fondo sólido"

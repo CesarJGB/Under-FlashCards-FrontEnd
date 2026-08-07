@@ -85,11 +85,17 @@ export default function ManualCardEditorModal({
   const pickerReturnTimerRef = useRef(null);
   const initialKeyboardCheckTimerRef = useRef(null);
   const colorAnchorRef = useRef(null);
+  const openMenuRef = useRef(null);
   const menuReturnFocusRef = useRef(null);
   const focusRestoreFrameRef = useRef(null);
 
   const alignOptions = Array.isArray(ALIGNS) && ALIGNS.length ? ALIGNS : DEFAULT_ALIGNS;
   const swatches = Array.isArray(SWATCHES) && SWATCHES.length ? SWATCHES : DEFAULT_SWATCHES;
+
+  const setMenuState = useCallback((nextMenu) => {
+    openMenuRef.current = nextMenu;
+    setOpenMenu(nextMenu);
+  }, []);
 
   const setFocusResumeReasonSafe = useCallback((reason) => {
     focusResumeReasonRef.current = reason;
@@ -147,14 +153,14 @@ export default function ManualCardEditorModal({
 
     const nextSide = normalizeSide(initialSide);
     setActiveSide((previousSide) => (previousSide === nextSide ? previousSide : nextSide));
-    setOpenMenu(null);
+    setMenuState(null);
     focusResumeReasonRef.current = null;
     setFocusResumeReason(null);
     keyboardWasOpenRef.current = false;
     resumeRequestedRef.current = false;
     imagePickerActiveRef.current = false;
     setViewportFrame(null);
-  }, [open, initialSide]);
+  }, [initialSide, open, setMenuState]);
 
   useEffect(() => {
     if (!open || typeof document === 'undefined') return undefined;
@@ -328,12 +334,12 @@ export default function ManualCardEditorModal({
   }, [open]);
 
   useEffect(() => {
-    setOpenMenu(null);
+    setMenuState(null);
     setFocusResumeReasonSafe(null);
     keyboardWasOpenRef.current = false;
     resumeRequestedRef.current = false;
     imagePickerActiveRef.current = false;
-  }, [activeSide, setFocusResumeReasonSafe]);
+  }, [activeSide, setFocusResumeReasonSafe, setMenuState]);
 
   if (!open || typeof document === 'undefined') return null;
 
@@ -387,16 +393,22 @@ export default function ManualCardEditorModal({
   };
 
   const preserveToolbarFocus = (event) => {
-    event.preventDefault();
+    event?.preventDefault?.();
   };
 
   const rememberMenuFocus = (event) => {
     preserveToolbarFocus(event);
     if (typeof document === 'undefined') return;
+    if (menuReturnFocusRef.current) return;
     const activeElement = document.activeElement;
     menuReturnFocusRef.current = activeElement instanceof HTMLElement && activeElement !== document.body
       ? activeElement
       : null;
+  };
+
+  const handleMenuTriggerPointerDown = (event) => {
+    preserveToolbarFocus(event);
+    if (openMenuRef.current === null) rememberMenuFocus();
   };
 
   const restoreMenuFocus = () => {
@@ -431,16 +443,18 @@ export default function ManualCardEditorModal({
   };
 
   const closeMenu = () => {
-    setOpenMenu(null);
-    restoreMenuFocus();
+    const wasOpen = openMenuRef.current !== null;
+    setMenuState(null);
+    if (wasOpen) restoreMenuFocus();
   };
 
   const toggleColorMenu = () => {
-    if (openMenu === 'color') {
+    if (openMenuRef.current === 'color') {
       closeMenu();
       return;
     }
-    setOpenMenu('color');
+    if (!menuReturnFocusRef.current) rememberMenuFocus();
+    setMenuState('color');
   };
 
   const closeMenuFromBackdrop = (event) => {
@@ -450,7 +464,7 @@ export default function ManualCardEditorModal({
   };
 
   const switchSide = () => {
-    setOpenMenu(null);
+    setMenuState(null);
     setFocusResumeReasonSafe(null);
     keyboardWasOpenRef.current = false;
     resumeRequestedRef.current = false;
@@ -466,7 +480,7 @@ export default function ManualCardEditorModal({
 
     if (keepEditing) {
       setActiveSide('question');
-      setOpenMenu(null);
+      setMenuState(null);
       setFocusResumeReasonSafe(null);
       return true;
     }
@@ -672,7 +686,7 @@ export default function ManualCardEditorModal({
               <div ref={colorAnchorRef} className="relative shrink-0">
                 <button
                   type="button"
-                  onPointerDown={rememberMenuFocus}
+                  onPointerDown={handleMenuTriggerPointerDown}
                   onClick={toggleColorMenu}
                   aria-label="Color del texto"
                   aria-expanded={openMenu === 'color'}
@@ -697,6 +711,7 @@ export default function ManualCardEditorModal({
                     onClose={closeMenu}
                     anchorRef={colorAnchorRef}
                     placement="above"
+                    variant="horizontal"
                     label={`Colores de ${activeCopy.label.toLowerCase()}`}
                   />
                 )}
@@ -705,12 +720,12 @@ export default function ManualCardEditorModal({
               <div className="relative shrink-0">
                 <button
                   type="button"
-                  onPointerDown={rememberMenuFocus}
+                  onPointerDown={handleMenuTriggerPointerDown}
                   onClick={() => {
-                    if (openMenu === 'align') {
+                    if (openMenuRef.current === 'align') {
                       closeMenu();
                     } else {
-                      setOpenMenu('align');
+                      setMenuState('align');
                     }
                   }}
                   aria-label={`Alineación: ${currentAlignOption.label}`}
@@ -726,7 +741,6 @@ export default function ManualCardEditorModal({
                     <div
                       className="fixed inset-0 z-[80] bg-transparent"
                       onPointerDown={closeMenuFromBackdrop}
-                      onClick={closeMenu}
                     />
                     <div className="absolute bottom-[calc(100%+0.5rem)] right-0 z-[90] w-[168px] rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl animate-[slideUp_0.1s_ease-out]">
                       <p className="mb-2 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
