@@ -59,6 +59,8 @@ Orden de lectura para implementar por cortes:
 
 La implementación debe empezar por Corte 0. Ningún corte posterior puede eliminar el sistema anterior hasta cumplir la condición de retirada declarada en el plan, y ningún resultado de emulación puede sustituir una fila `PENDING — DEVICE REQUIRED`.
 
+El resultado de la primera implementación está registrado en [`manual-editor-v2-cut-0-report.md`](manual-editor-v2-cut-0-report.md); su gate de navegador debe cerrarse antes de iniciar el Corte 1.
+
 ## Jerarquía de fuentes
 
 Se aplica este orden, salvo que una fuente de nivel superior no trate la cuestión concreta:
