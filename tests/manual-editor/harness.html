@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Manual editor characterization harness</title>
+    <style>
+      * { box-sizing: border-box; }
+      html, body, #root { height: 100%; }
+      body { margin: 0; font-family: Inter, system-ui, sans-serif; background: #e2e8f0; }
+      .harness-shell { height: 100%; overflow: hidden; display: flex; flex-direction: column; }
+      .harness-toolbar {
+        flex: 0 0 auto;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        padding: 0.75rem;
+        background: #0f172a;
+        color: white;
+      }
+      .harness-toolbar button, .harness-toolbar select {
+        min-height: 2.75rem;
+        border: 1px solid #475569;
+        border-radius: 0.75rem;
+        padding: 0.5rem 0.75rem;
+        background: white;
+        color: #0f172a;
+        font: inherit;
+        font-weight: 700;
+      }
+      .harness-toolbar output { align-self: center; font-variant-numeric: tabular-nums; }
+      .harness-app-main {
+        min-height: 0;
+        flex: 1 1 auto;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        background: #f8fafc;
+      }
+      .harness-fixture-content { min-height: 180rem; padding: 1rem; }
+      .harness-card {
+        max-width: 42rem;
+        min-height: 9rem;
+        margin: 0 auto 1rem;
+        border: 1px solid #cbd5e1;
+        border-radius: 1rem;
+        background: white;
+      }
+      .harness-status { padding: 0.75rem 1rem; color: #334155; font-size: 0.875rem; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./harness.jsx"></script>
+  </body>
+</html>
