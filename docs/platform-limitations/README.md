@@ -3,7 +3,7 @@
 Este directorio es la autoridad técnica del proyecto para cualquier cambio que dependa de un navegador móvil, del teclado en pantalla, del viewport, del foco, del scroll o de una superficie superpuesta. No describe el comportamiento deseado del producto: registra qué puede garantizar la plataforma, qué solo puede inferirse y qué debe comprobarse en hardware real.
 
 **Ámbito de la investigación:** frontend en `CesarJGB/Under-FlashCards-FrontEnd`, commit base `697d6f62f0276f444e58adaf9fbb53f2f8966e1f`.  
-**Última comprobación general:** 2026-08-07.  
+**Última comprobación general:** 2026-08-08.  
 **Regla de vigencia:** una fecha reciente aumenta la confianza, pero nunca sustituye una comprobación de soporte ni una prueba en el navegador objetivo.
 
 ## Flujo obligatorio antes de modificar móvil
@@ -20,7 +20,7 @@ Este directorio es la autoridad técnica del proyecto para cualquier cambio que 
 
 | Cambio propuesto | Lecturas mínimas |
 |---|---|
-| Refactor/V2 del editor manual | `manual-editor-audit`, `manual-editor-dependency-map`, `manual-editor-conflicts`, `manual-editor-runtime-inventory` y los documentos especializados citados por cada hallazgo |
+| Refactor/V2 del editor manual | Los cuatro documentos de auditoría de Fase 2, `manual-editor-v2-architecture`, `manual-editor-v2-state-machines`, `manual-editor-v2-migration-plan`, `manual-editor-v2-test-plan`, `manual-editor-v2-traceability` y los documentos especializados citados por cada hallazgo |
 | `ManualCardEditorModal`, altura del editor o teclado | `virtual-keyboard`, `viewport-and-safe-area`, `focus-and-input`, `fixed-sticky-overlays`, `known-browser-bugs` |
 | `ActionSheet`, diálogo, backdrop o trampa de foco | `modals-and-sheets`, `focus-and-input`, `fixed-sticky-overlays`, `touch-and-gestures` |
 | `ScheduleCalendar` o `ScheduleMobileFooter` | `viewport-and-safe-area`, `fixed-sticky-overlays`, `touch-and-gestures` |
@@ -43,6 +43,21 @@ La auditoría estática de Fase 2 del editor manual se realizó sobre `bc541f930
 - [`manual-editor-runtime-inventory.md`](manual-editor-runtime-inventory.md): APIs, unidades, safe-area, listeners, observers y coste de layout.
 
 Estos documentos aplican la autoridad de Fase 1 al código actual; no sustituyen la matriz ni los documentos de plataforma. Las conclusiones dependientes del dispositivo siguen requiriendo [`testing-checklist.md`](testing-checklist.md).
+
+## Especificación ejecutable de Fase 3
+
+La arquitectura V2 se diseñó y revalidó sobre `ba3027f0d34fa9297f4224235eef263f3d387671` el 2026-08-08. Entre ese commit y la base auditada de Fase 2 no cambió código de producción; el detalle está en el informe de drift. Esta fase es una especificación: no implementa V2 ni convierte pruebas físicas pendientes en resultados positivos.
+
+Orden de lectura para implementar por cortes:
+
+1. [`manual-editor-v2-architecture.md`](manual-editor-v2-architecture.md): arquitectura mínima, ownership, APIs, epics, fallbacks y contratos visibles.
+2. [`manual-editor-v2-state-machines.md`](manual-editor-v2-state-machines.md): transiciones exactas de apertura, lado, menús, pickers, rotación, Back/Escape y desmontaje.
+3. [`manual-editor-v2-migration-plan.md`](manual-editor-v2-migration-plan.md): seis cortes reversibles, convivencia, rollback y condición de retirada.
+4. [`manual-editor-v2-test-plan.md`](manual-editor-v2-test-plan.md): pruebas deterministas, Playwright y matriz física con evidencia obligatoria.
+5. [`manual-editor-v2-traceability.md`](manual-editor-v2-traceability.md): cobertura de todos los P0/P1 y conservación de `KEEP-001` a `KEEP-013`.
+6. [`manual-editor-v2-drift-report.md`](manual-editor-v2-drift-report.md): commit actual, comparación y revalidación de los archivos críticos.
+
+La implementación debe empezar por Corte 0. Ningún corte posterior puede eliminar el sistema anterior hasta cumplir la condición de retirada declarada en el plan, y ningún resultado de emulación puede sustituir una fila `PENDING — DEVICE REQUIRED`.
 
 ## Jerarquía de fuentes
 
