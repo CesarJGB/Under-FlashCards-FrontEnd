@@ -7,46 +7,19 @@ import {
 import {
   createEditorLayerState,
   editorLayerReducer,
-} from './editorLayerStack.js';
-
-const SENTINEL_KEY = '__underFlashManualEditor';
-const FOCUSABLE_SELECTOR = [
-  'button:not([disabled])',
-  '[href]',
-  'input:not([disabled]):not([type="hidden"])',
-  'select:not([disabled])',
-  'textarea:not([disabled])',
-  '[tabindex]:not([tabindex="-1"])',
-].join(',');
+} from '../../common/overlays/layerStack.js';
+import {
+  createOverlayHistoryController,
+  focusConnectedTarget,
+  getFocusableElements,
+  getSharedOverlayEventCoordinator,
+  isOverlayHistoryState,
+} from '../../common/overlays/overlayRegistry.js';
 
 let instanceCounter = 0;
 const activeRuntimeInstances = new Map();
 
-const isPlainObject = (value) => (
-  value !== null && typeof value === 'object' && !Array.isArray(value)
-);
-
-export function createEditorHistoryState(previousState, token) {
-  return {
-    ...(isPlainObject(previousState) ? previousState : {}),
-    [SENTINEL_KEY]: { token, previousState },
-  };
-}
-
-export function isEditorHistoryState(state, token) {
-  return Boolean(state?.[SENTINEL_KEY]?.token === token);
-}
-
-export function focusConnectedTarget(target) {
-  if (!target || target.isConnected !== true || typeof target.focus !== 'function') return false;
-  if (target.closest?.('[inert]')) return false;
-  try {
-    target.focus({ preventScroll: true });
-  } catch {
-    target.focus();
-  }
-  return true;
-}
+export { focusConnectedTarget, isOverlayHistoryState as isEditorHistoryState };
 
 export function handleEditorLayerKeyDown(event, dismissTop) {
   if (event?.key !== 'Escape') return false;
@@ -64,78 +37,15 @@ export function createEditorHistoryController({
   dismissTop,
   onDismissRoot,
 }) {
-  let alive = true;
-  let armed = false;
-  let closing = false;
-  let previousState;
-
-  const currentUrl = () => locationLike?.href;
-  const arm = (stateToPreserve) => {
-    if (!alive || !historyLike?.pushState) return false;
-    previousState = stateToPreserve;
-    historyLike.pushState(createEditorHistoryState(stateToPreserve, token), '', currentUrl());
-    armed = true;
-    return true;
-  };
-
-  const start = () => {
-    if (armed || !alive) return false;
-    return arm(historyLike?.state);
-  };
-
-  const handlePopState = (event = {}) => {
-    if (!alive || closing) return false;
-    armed = false;
-    if (getTopId?.()) {
-      dismissTop?.('back');
-      arm(event.state);
-      return true;
-    }
-    closing = true;
-    onDismissRoot?.('back');
-    return true;
-  };
-
-  const requestRootDismiss = (reason = 'programmatic') => {
-    if (!alive || closing) return false;
-    closing = true;
-    if (armed && typeof historyLike?.back === 'function') {
-      armed = false;
-      historyLike.back();
-    }
-    // The close path cannot depend on a host delivering popstate. The guarded
-    // popstate handler makes a later delivery a no-op.
-    onDismissRoot?.(reason);
-    return true;
-  };
-
-  const cleanup = ({ pagehide = false } = {}) => {
-    if (!alive) return;
-    alive = false;
-    if (
-      !pagehide
-      && armed
-      && historyLike?.replaceState
-      && isEditorHistoryState(historyLike.state, token)
-    ) {
-      historyLike.replaceState(previousState, '', currentUrl());
-    }
-    armed = false;
-  };
-
-  return {
-    start,
-    handlePopState,
-    requestRootDismiss,
-    cleanup,
-    isArmed: () => armed,
-    isClosing: () => closing,
-  };
+  return createOverlayHistoryController({
+    historyLike,
+    locationLike,
+    token,
+    getDepth: () => (getTopId?.() ? 1 : 0),
+    dismissTop,
+    onDismissRoot,
+  });
 }
-
-const getFocusable = (scope) => (
-  scope?.querySelectorAll ? [...scope.querySelectorAll(FOCUSABLE_SELECTOR)] : []
-).filter((node) => node.isConnected && !node.closest?.('[inert]'));
 
 export function getEditorLayerRuntimeSnapshot() {
   const values = [...activeRuntimeInstances.values()];
@@ -280,10 +190,29 @@ export function useEditorLayerStack({
         && layer?.focusPolicy === 'move-focus'
         && !node.contains(document.activeElement)
       ) {
-        focusConnectedTarget(getFocusable(node)[0]);
+        focusConnectedTarget(getFocusableElements(node)[0]);
       }
     },
   }), []);
+
+  const removeLayer = useCallback((id, token, reason = 'unmount', { invoke = true } = {}) => {
+    const layer = stateRef.current.layers.find((candidate) => candidate.id === id);
+    if (!layer || (token && layer.token !== token)) return false;
+    const entry = registryRef.current.get(id);
+    const next = dispatch({ type: 'REMOVE_LAYER', id, token: layer.token });
+    if (next.layers.some((candidate) => candidate.id === id)) return false;
+    registryRef.current.delete(id);
+    if (invoke) entry?.onDismiss?.(reason, layer.token);
+    return true;
+  }, [dispatch]);
+
+  const removeOwnerLayers = useCallback((ownerId, reason = 'host-unmount') => {
+    const owned = stateRef.current.layers
+      .filter((layer) => layer.ownerId === ownerId)
+      .reverse();
+    owned.forEach((layer) => removeLayer(layer.id, layer.token, reason, { invoke: false }));
+    return owned.length;
+  }, [removeLayer]);
 
   useEffect(() => {
     if (!active || typeof document === 'undefined' || typeof window === 'undefined') return undefined;
@@ -322,7 +251,7 @@ export function useEditorLayerStack({
       const scope = top?.focusPolicy === 'move-focus'
         ? entry?.element
         : dialogRef?.current;
-      const focusable = getFocusable(scope);
+      const focusable = getFocusableElements(scope);
       if (!focusable.length) {
         event.preventDefault();
         return;
@@ -341,17 +270,16 @@ export function useEditorLayerStack({
         focusConnectedTarget(last);
       }
     };
-    const handlePopState = (event) => historyController.handlePopState(event);
-    const handlePageHide = () => historyController.cleanup({ pagehide: true });
-    document.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('popstate', handlePopState);
-    window.addEventListener('pagehide', handlePageHide);
-    runtime.listeners = 3;
+    const releaseCoordinator = getSharedOverlayEventCoordinator().registerHost({
+      id: runtimeToken,
+      handleKeyDown,
+      handlePopState: (event) => historyController.handlePopState(event),
+      handlePageHide: () => historyController.cleanup({ pagehide: true }),
+    });
+    runtime.listeners = 0;
 
     return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('popstate', handlePopState);
-      window.removeEventListener('pagehide', handlePageHide);
+      releaseCoordinator();
       runtime.listeners = 0;
       historyController.cleanup();
       historyControllerRef.current = null;
@@ -369,6 +297,8 @@ export function useEditorLayerStack({
     toggleLayer,
     dismissTop,
     dismissLayer,
+    removeLayer,
+    removeOwnerLayers,
     isTop,
     getLayerProps,
   };

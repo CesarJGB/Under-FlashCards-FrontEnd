@@ -3,7 +3,7 @@ import test from 'node:test';
 import {
   createEditorLayerState,
   editorLayerReducer,
-} from './editorLayerStack.js';
+} from '../../common/overlays/layerStack.js';
 import {
   createEditorHistoryController,
   focusConnectedTarget,
