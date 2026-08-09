@@ -149,7 +149,7 @@
       "type": "object",
       "propertyNames": { "$ref": "#/$defs/token" },
       "additionalProperties": {
-        "enum": ["open", "closed", "opening", "closing", "unknown", "unavailable", "settling", "stable"]
+        "enum": ["open", "closed", "opening", "closing", "unknown", "unavailable", "settling", "stable", "locked", "unlocked", "inert", "interactive", "scoped", "missing"]
       }
     },
     "error": {

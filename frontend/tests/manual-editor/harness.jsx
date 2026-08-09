@@ -17,6 +17,8 @@ import {
   observeManualEditorHarnessEvents,
   readManualEditorDiagnosticSnapshot,
 } from '../../src/components/creator/manual-editor/manualEditorDiagnostics';
+import { getEditorLayerRuntimeSnapshot } from '../../src/components/creator/manual-editor/useEditorLayerStack';
+import { getScrollLeaseSnapshot } from '../../src/lib/scrollLock';
 
 const MOCK_IMAGE = 'data:image/svg+xml;charset=utf-8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22160%22 height=%22120%22 viewBox=%220 0 160 120%22%3E%3Crect width=%22160%22 height=%22120%22 rx=%2218%22 fill=%22%23e2e8f0%22/%3E%3Ccircle cx=%2250%22 cy=%2244%22 r=%2214%22 fill=%22%2394a3b8%22/%3E%3Cpath d=%22M20 100 66 58l24 22 18-16 32 36Z%22 fill=%22%2364758b%22/%3E%3C/svg%3E';
 const LONG_TEXT = Array.from({ length: 36 }, (_, index) => (
@@ -286,6 +288,9 @@ function Harness() {
   const [, forceRender] = useState(0);
   const renderCountRef = useRef(0);
   const renderCountOutputRef = useRef(null);
+  const questionTriggerRef = useRef(null);
+  const answerTriggerRef = useRef(null);
+  const returnSideRef = useRef('question');
 
   const updateStyle = useCallback((key, value) => {
     setStyles((current) => ({ ...current, [key]: value }));
@@ -294,6 +299,7 @@ function Harness() {
   const applyFixture = useCallback((name, side = 'question', shouldOpen = false) => {
     const fixture = cloneFixture(name);
     const normalizedSide = side === 'answer' ? 'answer' : 'question';
+    returnSideRef.current = normalizedSide;
     setFixtureName(FIXTURES[name] ? name : 'distinct');
     setQuestion(fixture.question);
     setAnswer(fixture.answer);
@@ -313,12 +319,26 @@ function Harness() {
 
   const openEditor = useCallback((side = 'question') => {
     const normalizedSide = side === 'answer' ? 'answer' : 'question';
+    returnSideRef.current = normalizedSide;
     const sideAlignment = FIXTURES[fixtureName]?.alignBySide?.[normalizedSide];
     if (sideAlignment) setTextAlign(sideAlignment);
     setInitialSide(normalizedSide);
     setOpen(true);
     diagnostics.record('state:opening', { state: { modal: 'opening' } });
   }, [fixtureName]);
+
+  const resolveReturnFocus = useCallback(() => {
+    const preferred = returnSideRef.current === 'answer'
+      ? answerTriggerRef.current
+      : questionTriggerRef.current;
+    return preferred?.isConnected
+      ? preferred
+      : questionTriggerRef.current?.isConnected
+        ? questionTriggerRef.current
+        : answerTriggerRef.current?.isConnected
+          ? answerTriggerRef.current
+          : null;
+  }, []);
 
   const closeEditor = useCallback(() => {
     setOpen(false);
@@ -356,6 +376,40 @@ function Harness() {
       getDiagnostics: () => diagnostics.read(),
       resetDiagnostics: () => diagnostics.reset(),
       getListenerSnapshot: () => listenerProbe.snapshot(),
+      getLayerSnapshot() {
+        const modal = document.querySelector('[data-testid="manual-card-editor-modal"]');
+        return {
+          topId: modal?.dataset.editorLayerTop || null,
+          count: Number(modal?.dataset.editorLayerCount || 0),
+          ids: [...document.querySelectorAll('[data-editor-layer-id]')]
+            .map((node) => node.dataset.editorLayerId),
+        };
+      },
+      getOwnershipSnapshot() {
+        return {
+          layers: getEditorLayerRuntimeSnapshot(),
+          scroll: getScrollLeaseSnapshot(),
+        };
+      },
+      getModalRuntimeSnapshot() {
+        const appScrollRoot = document.querySelector('[data-app-scroll-root]');
+        const inertRoot = document.getElementById('root');
+        const overlayRoot = document.querySelector('[data-editor-overlay-root="true"]');
+        const palette = document.querySelector('[data-color-palette="true"]');
+        const active = document.activeElement;
+        return {
+          inert: Boolean(inertRoot?.inert || inertRoot?.hasAttribute('inert')),
+          scrollOffsets: {
+            app: { x: appScrollRoot?.scrollLeft || 0, y: appScrollRoot?.scrollTop || 0 },
+          },
+          portalTarget: palette
+            ? palette.parentElement === overlayRoot
+            : Boolean(overlayRoot),
+          activeElement: active && active !== document.body
+            ? { tag: active.tagName.toLowerCase(), testId: active.dataset?.testid || '' }
+            : null,
+        };
+      },
       captureSnapshot,
       setGeometrySample: syntheticGeometry.apply,
       emitGeometryEvents: syntheticGeometry.emit,
@@ -489,8 +543,8 @@ function Harness() {
         >
           {Object.keys(FIXTURES).map((name) => <option key={name} value={name}>{name}</option>)}
         </select>
-        <button type="button" onClick={() => openEditor('question')} data-testid="harness-open-question">Abrir pregunta</button>
-        <button type="button" onClick={() => openEditor('answer')} data-testid="harness-open-answer">Abrir respuesta</button>
+        <button ref={questionTriggerRef} type="button" onClick={() => openEditor('question')} data-testid="harness-open-question">Abrir pregunta</button>
+        <button ref={answerTriggerRef} type="button" onClick={() => openEditor('answer')} data-testid="harness-open-answer">Abrir respuesta</button>
         <button type="button" onClick={() => setSheetOpen(true)} data-testid="harness-open-sheet">Abrir sheet</button>
         <button type="button" onClick={() => forceRender((value) => value + 1)} data-testid="harness-force-render">Render externo</button>
         <output>renders: <span ref={renderCountOutputRef} data-testid="harness-render-count">0</span></output>
@@ -528,6 +582,7 @@ function Harness() {
           updateStyle={updateStyle}
           textAlign={textAlign}
           setTextAlign={setTextAlign}
+          resolveReturnFocus={resolveReturnFocus}
         />
       </Profiler>
 

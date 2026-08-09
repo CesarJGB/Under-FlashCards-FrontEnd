@@ -219,6 +219,101 @@ test('PW-CHAR-003 / EDITOR-AS-001 — Escape cierra la superficie actual sin bac
   await attachDiagnostics(page, testInfo, 'PW-CHAR-003');
 });
 
+test('PW-ESC-001 — Escape closes exactly the top editor layer', async ({ page }) => {
+  await openHarness(page);
+  await chooseAndOpen(page, 'distinct', 'question');
+  await page.getByTestId('manual-card-editor-color').click();
+  await expect(page.locator('[data-color-palette="true"]')).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.__manualEditorHarness.getLayerSnapshot()))
+    .toMatchObject({ topId: 'manual-editor-color', count: 1 });
+
+  await page.keyboard.press('Escape');
+  await expect(page.locator('[data-color-palette="true"]')).toHaveCount(0);
+  await expect(page.getByTestId('manual-card-editor-modal')).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.__manualEditorHarness.getLayerSnapshot()))
+    .toMatchObject({ topId: null, count: 0 });
+
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('manual-card-editor-modal')).toHaveCount(0);
+});
+
+test('PW-BACK-001 — Back closes a child, rearms once, then closes the root', async ({ page }) => {
+  await openHarness(page);
+  await chooseAndOpen(page, 'distinct', 'question');
+  await page.getByTestId('manual-card-editor-align').click();
+  await expect(page.locator('[data-editor-align-popover="true"]')).toBeVisible();
+
+  await page.goBack();
+  await expect(page.locator('[data-editor-align-popover="true"]')).toHaveCount(0);
+  await expect(page.getByTestId('manual-card-editor-modal')).toBeVisible();
+  await expect.poll(() => page.evaluate(() => (
+    window.__manualEditorHarness.getOwnershipSnapshot().layers.sentinels
+  ))).toBe(1);
+
+  await page.goBack();
+  await expect(page.getByTestId('manual-card-editor-modal')).toHaveCount(0);
+});
+
+test('PW-SCROLL-001 — app scroll is leased while editor and internal scroll remain usable', async ({ page }) => {
+  await openHarness(page);
+  const appScrollRoot = page.getByTestId('harness-app-scroll-root');
+  await appScrollRoot.evaluate((node) => { node.scrollTop = 240; });
+  const before = await appScrollRoot.evaluate((node) => node.scrollTop);
+  await chooseAndOpen(page, 'long', 'question');
+
+  await expect.poll(() => page.evaluate(() => window.__manualEditorHarness.getModalRuntimeSnapshot().inert))
+    .toBe(true);
+  await expect(appScrollRoot).toHaveCSS('overflow-y', 'hidden');
+  const textarea = page.getByTestId('manual-card-editor-question');
+  const internal = await textarea.evaluate((node) => {
+    node.scrollTop = node.scrollHeight;
+    return { top: node.scrollTop, scrollable: node.scrollHeight > node.clientHeight };
+  });
+  expect(internal.scrollable).toBe(true);
+  expect(internal.top).toBeGreaterThan(0);
+
+  await closeThroughHarness(page);
+  await expect.poll(() => appScrollRoot.evaluate((node) => node.scrollTop)).toBe(before);
+  expect(await page.evaluate(() => window.__manualEditorHarness.getModalRuntimeSnapshot().inert)).toBe(false);
+});
+
+test('PW-A11Y-001 — scoped portal, inert shell and focus containment are observable', async ({ page }) => {
+  await openHarness(page);
+  await chooseAndOpen(page, 'distinct', 'question');
+  await page.getByTestId('manual-card-editor-color').focus();
+  await page.getByTestId('manual-card-editor-color').press('Enter');
+  const palette = page.locator('[data-color-palette="true"]');
+  await expect(palette).toBeVisible();
+  await expect(palette).not.toHaveAttribute('aria-modal', 'true');
+  await expect(page.getByTestId('manual-editor-color-backdrop')).toHaveAttribute('tabindex', '-1');
+  expect(await page.evaluate(() => window.__manualEditorHarness.getModalRuntimeSnapshot().portalTarget)).toBe(true);
+
+  for (let index = 0; index < 8; index += 1) await page.keyboard.press('Tab');
+  expect(await page.evaluate(() => document.activeElement?.closest('[data-testid="harness-toolbar"]') !== null)).toBe(false);
+  await page.keyboard.press('Escape');
+  await expect(palette).toHaveCount(0);
+});
+
+test('PW-LIFE-001 — 20 cycles and open-layer unmount leave zero runtime resources', async ({ page }) => {
+  await openHarness(page);
+  for (let cycle = 0; cycle < 20; cycle += 1) {
+    await page.evaluate(() => window.__manualEditorHarness.open('question'));
+    await expect(page.getByTestId('manual-card-editor-modal')).toBeVisible();
+    await page.evaluate(() => window.__manualEditorHarness.close());
+    await expect(page.getByTestId('manual-card-editor-modal')).toHaveCount(0);
+  }
+  await page.evaluate(() => window.__manualEditorHarness.open('question'));
+  await page.getByTestId('manual-card-editor-color').click();
+  await page.evaluate(() => window.__manualEditorHarness.close());
+  await expect(page.getByTestId('manual-card-editor-modal')).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => window.__manualEditorHarness.getOwnershipSnapshot()))
+    .toEqual({
+      layers: { instances: 0, listeners: 0, registrySize: 0, sentinels: 0, owners: [] },
+      scroll: { scrollRoots: 0, inertRoots: 0, ownerCount: 0, owners: [] },
+    });
+  expect(await page.locator('[data-editor-overlay-root="true"]').count()).toBe(0);
+});
+
 test('fixtures de error, guardado, imagen y alineación por lado son montables', async ({ page }) => {
   await openHarness(page);
   await chooseAndOpen(page, 'error', 'question');
@@ -479,20 +574,19 @@ test('PW-VIS-001 — visual-edge solo aparece con geometría estable, escala 1 y
   await attachDiagnostics(page, testInfo, 'PW-VIS-001');
 });
 
-test('FIXME EDITOR-OVERLAY-002 / EDITOR-COLOR-005 — Escape salta la paleta sin foco', async ({ page }, testInfo) => {
+test('PW-ESC-001 regression — Escape without palette focus still closes only the palette', async ({ page }, testInfo) => {
   await openHarness(page);
   await chooseAndOpen(page, 'distinct', 'question');
   await page.getByTestId('manual-card-editor-question').focus();
   await page.getByTestId('manual-card-editor-color').click();
   await expect(page.locator('[data-color-palette="true"]')).toBeVisible();
   await page.keyboard.press('Escape');
-  const modalClosed = await page.getByTestId('manual-card-editor-modal').count() === 0;
   await attachDiagnostics(page, testInfo, 'EDITOR-OVERLAY-002');
-  test.fixme(modalClosed, 'EDITOR-OVERLAY-002 / EDITOR-COLOR-005: Escape lo recibe el listener global del modal y desmonta también la hija.');
+  await expect(page.locator('[data-color-palette="true"]')).toHaveCount(0);
   await expect(page.getByTestId('manual-card-editor-modal')).toBeVisible();
 });
 
-test('FIXME EDITOR-FOCUS-003 — Shift+Tab puede entrar al App simulado', async ({ page }, testInfo) => {
+test('PW-A11Y-001 regression — Shift+Tab cannot enter the simulated App shell', async ({ page }, testInfo) => {
   await openHarness(page);
   await chooseAndOpen(page, 'distinct', 'question');
   await page.getByTestId('manual-card-editor-question').focus();
@@ -501,6 +595,5 @@ test('FIXME EDITOR-FOCUS-003 — Shift+Tab puede entrar al App simulado', async 
     document.activeElement?.closest?.('[data-testid="harness-toolbar"]') !== null
   ));
   await attachDiagnostics(page, testInfo, 'EDITOR-FOCUS-003');
-  test.fixme(escapedToHarness, 'EDITOR-FOCUS-003: el modal actual no vuelve inert ni contiene el foco del App shell.');
   expect(escapedToHarness).toBe(false);
 });

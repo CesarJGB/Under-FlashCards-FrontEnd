@@ -168,7 +168,9 @@ test('Corte 1 protects semantic pickers, per-side selection and non-blocking res
   assert.doesNotMatch(`${modal}\n${hook}`, /selectionRef|activePickerTransactionRef|guardKeyboardResumeAfterMenu|menuKeyboardGuardTimerRef|pickerReturnTimerRef/);
   assert.doesNotMatch(stylePanel, /customColorChangedRef|customColorCloseTimerRef|committedTransactionRef/);
   assert.doesNotMatch(`${modal}\n${stylePanel}`, /setTimeout\([^)]*(?:80|250)|(?:80|250)\s*\)/);
-  assert.doesNotMatch(`${modal}\n${hook}`, /autoFocus|requestAnimationFrame/);
+  assert.doesNotMatch(`${modal}\n${hook}`, /autoFocus/);
+  assert.doesNotMatch(hook, /requestAnimationFrame/);
+  assert.doesNotMatch(modal, /requestAnimationFrame[\s\S]{0,240}focus\s*\(/);
   assert.doesNotMatch(`${modal}\n${hook}\n${session}`, /useKeyboardHeight/);
 
   const resumeIndex = modal.indexOf('data-testid="manual-card-editor-resume"');
@@ -217,6 +219,49 @@ test('Corte 2 safe-area ownership and horizontal overflow contracts are explicit
   assert.match(modal, /overflow-x-hidden overflow-y-auto/);
   assert.match(modal, /footer[\s\S]*overflow-x-hidden/);
   assert.match(modal, /source === 'visual-viewport'[\s\S]*visual\.scale === 1[\s\S]*occlusion\.bottom > 0/);
+});
+
+test('Corte 2 entry sanitation keeps the first surface out of the 1x1 sentinel', async () => {
+  const [modal, geometry, overlayRoot] = await Promise.all([
+    readFrontendFile('src/components/creator/ManualCardEditorModal.jsx'),
+    readFrontendFile('src/components/creator/manual-editor/editorGeometry.js'),
+    readFrontendFile('src/components/creator/manual-editor/EditorOverlayRoot.jsx'),
+  ]);
+  assert.match(geometry, /needsInitialEditorGeometryFallback/);
+  assert.match(modal, /needsInitialEditorGeometryFallback\(editorGeometry\)[\s\S]*width: '100%'[\s\S]*height: '100dvh'/);
+  assert.match(overlayRoot, /needsInitialEditorGeometryFallback\(geometry\)/);
+  assert.match(overlayRoot, /width: '100%'[\s\S]*height: '100dvh'/);
+});
+
+test('UT-ARCH-001 / Corte 3 has one scoped stack, scroll lease and history owner', async () => {
+  const [modal, stylePanel, layerHook, layerReducer, overlayScope, scrollLock, app, deck, actionSheet] = await Promise.all([
+    readFrontendFile('src/components/creator/ManualCardEditorModal.jsx'),
+    readFrontendFile('src/components/creator/StylePanel.jsx'),
+    readFrontendFile('src/components/creator/manual-editor/useEditorLayerStack.js'),
+    readFrontendFile('src/components/creator/manual-editor/editorLayerStack.js'),
+    readFrontendFile('src/components/common/OverlayScope.jsx'),
+    readFrontendFile('src/lib/scrollLock.js'),
+    readFrontendFile('src/App.jsx'),
+    readFrontendFile('src/components/DeckInterior.jsx'),
+    readFrontendFile('src/components/common/ActionSheet.jsx'),
+  ]);
+  const editorRuntime = `${modal}\n${stylePanel}\n${layerHook}\n${layerReducer}\n${overlayScope}\n${scrollLock}`;
+  assert.match(modal, /<OverlayScope/);
+  assert.match(modal, /<EditorOverlayRoot/);
+  assert.match(stylePanel, /<OverlayPortal/);
+  assert.doesNotMatch(stylePanel, /createPortal|z-\[110\]|z-\[120\]/);
+  assert.doesNotMatch(modal, /z-\[80\]|z-\[90\]|document\.body\.style\.overflow|addEventListener\(['"]keydown/);
+  assert.match(layerHook, /document\.addEventListener\('keydown'/);
+  assert.equal((layerHook.match(/addEventListener\('keydown'/g) || []).length, 1);
+  assert.equal((layerHook.match(/addEventListener\('popstate'/g) || []).length, 1);
+  assert.match(layerReducer, /OPEN_LAYER/);
+  assert.doesNotMatch(layerReducer, /callback|HTMLElement|document\.|window\.|geometry|question|answer/);
+  assert.match(scrollLock, /acquireScrollLease/);
+  assert.match(scrollLock, /useScrollLease/);
+  assert.match(app, /data-app-scroll-root/);
+  assert.doesNotMatch(deck.slice(deck.indexOf('const handleEdit'), deck.indexOf('const handleDelete')), /window\.scrollTo/);
+  assert.doesNotMatch(editorRuntime, /touchmove|scrollIntoView\s*\(|navigator\.(?:userAgent|platform)|interactive-widget/);
+  assert.match(actionSheet, /export default function ActionSheet/);
 });
 
 test('KEEP-011 and KEEP-012 remain unchanged in production contracts', async () => {
