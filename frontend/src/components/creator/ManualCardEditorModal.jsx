@@ -26,6 +26,7 @@ import { ColorPalette, ColorSwatchButton } from './StylePanel';
 import { OverlayPortal, OverlayScope } from '../common/OverlayScope';
 import { useScrollLease } from '../../lib/scrollLock';
 import EditorOverlayRoot from './manual-editor/EditorOverlayRoot';
+import { handleFocusPreservingPress } from './manual-editor/editorActivation';
 import { needsInitialEditorGeometryFallback } from './manual-editor/editorGeometry';
 import useEditorLayerStack from './manual-editor/useEditorLayerStack';
 import useManualEditorSession from './manual-editor/useManualEditorSession';
@@ -365,13 +366,7 @@ export default function ManualCardEditorModal({
     updateStyle?.(`${activePrefix}${suffix}`, value);
   };
 
-  const preserveToolbarFocus = (event) => {
-    event?.preventDefault?.();
-  };
-
-  const handleMenuTriggerPointerDown = (event) => {
-    preserveToolbarFocus(event);
-  };
+  const preserveToolbarFocus = (event) => event?.preventDefault?.();
 
   const closeColorMenu = (reason = 'selection') => (
     layerStack.dismissLayer(COLOR_LAYER_ID, colorLayerToken, reason)
@@ -380,27 +375,31 @@ export default function ManualCardEditorModal({
     layerStack.dismissLayer(ALIGN_LAYER_ID, alignLayerToken, reason)
   );
 
-  const toggleEditorLayer = (event, id, returnTarget) => {
-    const wasOpen = layerStack.isTop(id);
+  const toggleEditorLayer = (activation, id, returnTarget) => {
     layerStack.toggleLayer({
       id,
       ownerId: 'manual-editor-toolbar',
       kind: 'popover',
-      focusPolicy: event.detail === 0 ? 'move-focus' : 'pointer-preserve',
+      focusPolicy: activation === 'pointer' ? 'pointer-preserve' : 'move-focus',
       returnTarget,
       replaceOwner: true,
     });
-    if (wasOpen) {
-      editorSession.attemptFocus({
-        side: activeSide,
-        reason: 'menu-toggle-close',
-      });
-    }
   };
 
   const switchSide = () => {
     if (layerStack.topId) layerStack.dismissTop('side-switch');
-    editorSession.switchSide(reverseSide, { focusWithinGesture: true });
+    editorSession.switchSide(reverseSide);
+  };
+
+  const handleSidePress = (event) => {
+    handleFocusPreservingPress(event, switchSide);
+  };
+
+  const handleMenuPress = (event, id) => {
+    const returnTarget = event.currentTarget;
+    handleFocusPreservingPress(event, (activation) => {
+      toggleEditorLayer(activation, id, returnTarget);
+    });
   };
 
   const saveCard = async (keepEditing) => {
@@ -542,8 +541,8 @@ export default function ManualCardEditorModal({
           <div className="relative z-10 mx-auto flex w-full max-w-2xl gap-2 border-b border-slate-100 bg-white px-3 py-2 sm:px-4">
             <button
               type="button"
-              onPointerDown={preserveToolbarFocus}
-              onClick={switchSide}
+              onPointerDown={handleSidePress}
+              onClick={handleSidePress}
               className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 shadow-sm transition-colors active:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 sm:text-sm"
               data-testid="manual-card-editor-switch-side"
             >
@@ -641,12 +640,8 @@ export default function ManualCardEditorModal({
               <div ref={colorAnchorRef} className="relative shrink-0">
                 <button
                   type="button"
-                  onPointerDown={handleMenuTriggerPointerDown}
-                  onClick={(event) => toggleEditorLayer(
-                    event,
-                    COLOR_LAYER_ID,
-                    event.currentTarget,
-                  )}
+                  onPointerDown={(event) => handleMenuPress(event, COLOR_LAYER_ID)}
+                  onClick={(event) => handleMenuPress(event, COLOR_LAYER_ID)}
                   aria-label="Color del texto"
                   aria-expanded={openMenu === 'color'}
                   className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition-all ${
@@ -691,12 +686,8 @@ export default function ManualCardEditorModal({
               <div ref={alignAnchorRef} className="relative shrink-0">
                 <button
                   type="button"
-                  onPointerDown={handleMenuTriggerPointerDown}
-                  onClick={(event) => toggleEditorLayer(
-                    event,
-                    ALIGN_LAYER_ID,
-                    event.currentTarget,
-                  )}
+                  onPointerDown={(event) => handleMenuPress(event, ALIGN_LAYER_ID)}
+                  onClick={(event) => handleMenuPress(event, ALIGN_LAYER_ID)}
                   aria-label={`Alineación: ${currentAlignOption.label}`}
                   aria-expanded={openMenu === 'align'}
                   className={controlButtonClass(currentAlign !== 'left')}

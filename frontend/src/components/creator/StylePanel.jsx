@@ -3,6 +3,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { ImagePlus, Plus, Minus, Bold, Italic, Pipette, X } from 'lucide-react';
 import { OverlayPortal, useOverlayScope } from '../common/OverlayScope';
 import { requestColorPickerFromClick } from './manual-editor/manualEditorSession';
+import { handleFocusPreservingPress } from './manual-editor/editorActivation';
 
 const VIEWPORT_MARGIN = 8;
 const PALETTE_GAP = 8;
@@ -255,6 +256,30 @@ export function ColorPalette({
   if (typeof document === 'undefined') return null;
 
   const isHorizontal = variant === 'horizontal';
+  const requestCustomColor = (event) => {
+    handleFocusPreservingPress(event, () => {
+      // Pointer activation runs before focus can leave the textarea. Keyboard
+      // and assistive activation still reaches this path through click.
+      const transactionId = onPickerRequest?.('color')
+        ?? (localTransactionCounterRef.current + 1);
+      if (!onPickerRequest) localTransactionCounterRef.current = transactionId;
+      activeCustomTransactionRef.current = transactionId;
+      const input = colorInputRef.current;
+      if (!input) {
+        activeCustomTransactionRef.current = null;
+        onPickerReturnUnknown?.(transactionId);
+        return;
+      }
+      if (input.value !== colorInputValue) input.value = colorInputValue;
+      const result = requestColorPickerFromClick(input);
+      if (result.requested) onPickerExternal?.(transactionId, result.method);
+      else {
+        activeCustomTransactionRef.current = null;
+        onPickerReturnUnknown?.(transactionId);
+      }
+    });
+  };
+
   return (
     <OverlayPortal
       ref={paletteRef}
@@ -318,26 +343,8 @@ export function ColorPalette({
           className="group relative flex min-h-9 min-w-9 cursor-pointer items-center justify-center overflow-hidden rounded-xl border border-slate-300 bg-gradient-to-tr from-amber-400 via-rose-400 to-indigo-400 shadow-xs transition-transform [@media(hover:hover)]:hover:scale-105 dark:border-slate-600"
           title="Color personalizado"
           aria-label="Color personalizado"
-          onClick={() => {
-            // This semantic click covers touch, mouse, keyboard and assistive
-            // activation while preserving the transient user activation.
-            const transactionId = onPickerRequest?.('color')
-              ?? (localTransactionCounterRef.current + 1);
-            if (!onPickerRequest) localTransactionCounterRef.current = transactionId;
-            activeCustomTransactionRef.current = transactionId;
-            const input = colorInputRef.current;
-            if (!input) {
-              onPickerReturnUnknown?.(transactionId);
-              return;
-            }
-            if (input.value !== colorInputValue) input.value = colorInputValue;
-            const result = requestColorPickerFromClick(input);
-            if (result.requested) onPickerExternal?.(transactionId, result.method);
-            else {
-              activeCustomTransactionRef.current = null;
-              onPickerReturnUnknown?.(transactionId);
-            }
-          }}
+          onPointerDown={requestCustomColor}
+          onClick={requestCustomColor}
         >
           <Pipette className="relative z-10 h-3.5 w-3.5 text-white drop-shadow-xs transition-transform group-hover:scale-110" aria-hidden="true" />
         </button>
