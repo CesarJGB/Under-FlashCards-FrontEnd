@@ -262,18 +262,21 @@ test('UT-ARCH-001 / Corte 3 has one scoped stack, scroll lease and history owner
   assert.match(actionSheet, /export default function ActionSheet/);
 });
 
-test('Corte 4 graduates ActionSheet to the common top-only authority', async () => {
-  const [actionSheet, registry, reducer, legacyPath, overlayScope, stylePanel, creator] = await Promise.all([
+test('Corte 5 leaves one common layer-stack implementation and removes the orphan footer measurement', async () => {
+  const [actionSheet, registry, reducer, layerHook, overlayScope, stylePanel, creator] = await Promise.all([
     readFrontendFile('src/components/common/ActionSheet.jsx'),
     readFrontendFile('src/components/common/overlays/overlayRegistry.js'),
     readFrontendFile('src/components/common/overlays/layerStack.js'),
-    readFrontendFile('src/components/creator/manual-editor/editorLayerStack.js'),
+    readFrontendFile('src/components/creator/manual-editor/useEditorLayerStack.js'),
     readFrontendFile('src/components/common/OverlayScope.jsx'),
     readFrontendFile('src/components/creator/StylePanel.jsx'),
     readFrontendFile('src/components/FlashcardCreator.jsx'),
   ]);
-  assert.match(legacyPath, /export \{ createEditorLayerState, editorLayerReducer \} from '..\/..\/common\/overlays\/layerStack\.js'/);
-  assert.doesNotMatch(legacyPath, /case ['"]OPEN_LAYER|function editorLayerReducer/);
+  const productionOverlayRuntime = `${actionSheet}\n${registry}\n${reducer}\n${layerHook}\n${overlayScope}\n${stylePanel}\n${creator}`;
+  assert.match(layerHook, /from '..\/..\/common\/overlays\/layerStack\.js'/);
+  assert.match(registry, /from '.\/layerStack\.js'/);
+  assert.match(reducer, /export function editorLayerReducer/);
+  assert.doesNotMatch(productionOverlayRuntime, /manual-editor\/editorLayerStack/);
   assert.doesNotMatch(`${actionSheet}\n${creator}`, /preserveFocus/);
   assert.doesNotMatch(actionSheet, /useBodyScrollLock|setTimeout\s*\(|addEventListener\(['"]keydown/);
   assert.match(actionSheet, /useLayoutEffect/);
@@ -290,6 +293,8 @@ test('Corte 4 graduates ActionSheet to the common top-only authority', async () 
   assert.match(overlayScope, /hostLayerId/);
   assert.match(stylePanel, /overlayScope\.layerStack\.toggleLayer/);
   assert.match(stylePanel, /layerId=\{overlayScope\?\.layerStack/);
+  assert.doesNotMatch(creator, /onFooterHeightChange|footerRef|ResizeObserver|ref=\{footerRef\}/);
+  assert.match(creator, /aiProgressRef/);
 });
 
 test('KEEP-011 and KEEP-012 remain unchanged in production contracts', async () => {
