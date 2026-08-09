@@ -1,5 +1,5 @@
 /* FILE: frontend/src/components/FlashcardCreator.jsx */
-import { useCallback, useState, useEffect, useLayoutEffect, useRef } from 'react';
+import { useCallback, useState, useEffect, useRef } from 'react';
 import {
   SlidersHorizontal, Loader2, Plus, Check, Trash2,
   AlignLeft, AlignCenter, AlignRight, Sparkles, Layers, X,
@@ -158,7 +158,7 @@ export default function FlashcardCreator({
   fontSize, setFontSize, showStyles, setShowStyles, isBulk, setIsBulk, bulkText, setBulkText,
   editingId, saving, error, setError, onSubmit, onCancel, contentImage, setContentImage,
   imageSide, setImageSide, onFastDelete, hasCards, onOpenCollection, cardCount = 0,
-  userId, deckId, authToken, onAiSuccess, onInviteRequired, onSaveManualCard, onFooterHeightChange,
+  userId, deckId, authToken, onAiSuccess, onInviteRequired, onSaveManualCard,
 }) {
   // La vista independiente queda desactivada en esta versión. Conservamos el
   // estado y la persistencia para poder reactivar el panel en una versión futura,
@@ -179,8 +179,6 @@ export default function FlashcardCreator({
 
   const aiProgressRef = useRef(null);
 
-  const footerRef = useRef(null);
-
   const activeTab = editingId ? 'single' : (isAi ? 'ai' : (isBulk ? 'bulk' : 'single'));
 
 
@@ -193,29 +191,6 @@ export default function FlashcardCreator({
       return nextValue;
     });
   }, []);
-
-  // Medidor de altura del footer: Se PAUSA si el modal manual está abierto
-  useLayoutEffect(() => {
-    if (isManualModalOpen) return; // Evita recalcular y re-renderizar en segundo plano al desplegar el teclado
-
-    const footer = footerRef.current;
-    if (!footer || typeof onFooterHeightChange !== 'function') return;
-
-    const updateHeight = () => {
-      onFooterHeightChange(Math.ceil(footer.getBoundingClientRect().height));
-    };
-
-    updateHeight();
-
-    if (typeof ResizeObserver === 'undefined') {
-      window.addEventListener('resize', updateHeight);
-      return () => window.removeEventListener('resize', updateHeight);
-    }
-
-    const observer = new ResizeObserver(updateHeight);
-    observer.observe(footer);
-    return () => observer.disconnect();
-  }, [onFooterHeightChange, isManualModalOpen]);
 
   useEffect(() => {
     setJSON(PREVIEW_VISIBLE_KEY, showPreview);
@@ -525,7 +500,6 @@ export default function FlashcardCreator({
       </div>
 
       <footer
-        ref={footerRef}
         className="fixed bottom-0 inset-x-0 z-30 bg-white border-t border-slate-200 p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] shadow-lg"
       >
         <div className="flex items-center justify-between max-w-2xl mx-auto w-full gap-2">
