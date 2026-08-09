@@ -122,7 +122,7 @@ Cada spec corre con `prefers-reduced-motion: reduce` y normal cuando la animaci�
 | `PW-SIDE-001` | Rango Q/A | Escribir valores; seleccionar rangos distintos con DOM API; alternar 3 veces. | Rango correcto por lado, con clamp al cambiar valor. |
 | `PW-MENU-001` | Toggle/preset | Abrir color; pulsar mismo botón; abrir de nuevo; preset; backdrop; alineación. | Una transición por gesto; preset no activa picker; ninguna reapertura. |
 | `PW-PICK-001` | Activación color | Spy/stub `showPicker`; activar con click, Enter y Space; probar ausencia/rechazo. | Handler semántico; fallback una vez; pointerdown solo no abre. |
-| `PW-PICK-002` | Imagen commit/cancel/unknown | `setInputFiles`; disparar cancel soportado y return signal fake. | Solo archivo cambia imagen; otros no; CTA no bloquea textarea. |
+| `PW-PICK-002` | Imagen commit/cancel/unknown | `setInputFiles`; disparar cancel soportado y return signal fake. | Solo archivo cambia imagen; commit muestra `Imagen cargada` dentro de la textarea y la baja; cancel/unknown no destruyen contenido. |
 | `PW-GEO-001` | Small viewport/orientation | Inyectar muestras; 390×844→844×390→390×844; offsetLeft/scale. | Epoch y frame correctos; footer/text area accesibles; no keyboard flag. |
 | `PW-GEO-002` | Snapshot idéntico | Emitir 100 resize/scroll con misma muestra y leer render counter. | Sin 100 renders; máximo transición necesaria. |
 | `PW-ESC-001` | Escape por stack | Editor→color→Escape→Escape. Repetir con sheet fixture. | Primero hija, después root; no doble close. |

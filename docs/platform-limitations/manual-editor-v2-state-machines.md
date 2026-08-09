@@ -54,16 +54,17 @@ sequenceDiagram
 | cerrado | `OPEN(side)` | opening | Capturar trigger/fallback; crear selecciones vacías por lado. |
 | opening | textarea montado | opening | Intentar foco una vez en layout effect. |
 | opening | `FOCUS_OBSERVED` | editing | Restaurar rango válido; no concluir OSK. |
-| opening | `FOCUS_FAILED` | interrupted | Mostrar resume action fuera del textarea. |
+| opening | `FOCUS_FAILED` | interrupted | Mostrar la acción contextual dentro de la caja del textarea y bajar el bloque de edición. |
 | opening/editing | `GEOMETRY_SAMPLE` | igual | Solo layout; nunca cambia sesión a “teclado”. |
 | cualquier abierto | primer `INPUT_OBSERVED` | editing | Retirar ayuda inicial. |
 
 ### Resultado observable
 
 - Si aparece OSK, la geometría puede cambiar y la surface se recompone.
-- Si no aparece, el textarea sigue visible/tocable. Si ni siquiera obtuvo foco, aparece `Continuar escribiendo`.
-- Si el textarea tiene foco DOM pero no OSK, tocar directamente el campo es el gesto explícito; no se reintenta desde timer.
-- Con teclado físico, el campo acepta entrada y ningún overlay lo cubre.
+- Si no aparece, la caja del textarea sigue visible y muestra una acción contextual para comenzar a escribir; el bloque baja para conservar el patrón móvil validado por producto.
+- Después de confirmar una imagen se muestra `Imagen cargada / Toca aquí para seguir escribiendo`, aunque el DOM todavía declare foco: el file picker puede cerrar el OSK sin emitir una señal fiable.
+- La acción contextual es el gesto explícito de reanudación; no se reintenta desde timer ni se infiere el OSK.
+- Con teclado físico, `beforeinput/input` retira la ayuda y conserva el contenido aunque la superficie contextual esté visible.
 
 ### Fallback de geometría
 

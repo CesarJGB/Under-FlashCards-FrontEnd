@@ -593,11 +593,11 @@ Todos los módulos declaran explícitamente lo que **no** poseen en sus contrato
 
 ## 12. Contratos visibles de UI
 
-1. **Apertura sin OSK:** si el textarea no obtiene foco, aparece un botón compacto “Continuar escribiendo” fuera de su caja. Si obtiene foco pero el OSK no aparece, el propio textarea sigue siendo una acción táctil. Nunca hay overlay `absolute inset-0`.
-2. **Teclado físico:** el resume hint no intercepta selección, caret ni teclas y desaparece tras `beforeinput/input` o gesto de reanudación.
+1. **Apertura sin OSK:** si el textarea no obtiene foco, su caja muestra una acción contextual `absolute inset-0` y el bloque de edición baja mediante el layout flex. El tap en esa superficie realiza un único intento de foco.
+2. **Teclado físico:** la superficie contextual no mueve el foco por sí sola; `beforeinput/input` retira la ayuda y el gesto de reanudación conserva el rango.
 3. **Preset:** aplica una vez, cierra una capa y no despacha eventos de picker.
-4. **Color custom iOS:** se acepta cierre de OSK; contenido/rango permanecen y al volver se ofrece reanudación. No hay mensaje que prometa “mantener teclado”.
-5. **Toggle:** `pointerdown` puede preservar foco solo para menú DOM; `click` ejecuta una única transición `TOGGLE_LAYER`. Pulsar el mismo trigger cierra y no reabre.
+4. **Color custom iOS:** se acepta cierre de OSK; contenido/rango permanecen y al volver se ofrece reanudación. La transacción usa un snapshot inmediato para que `input/change` del picker no validen contra el render previo.
+5. **Toggle:** `pointerdown` puede preservar foco solo para menú DOM; `click` ejecuta una única transición `TOGGLE_LAYER`. Pulsar el mismo trigger cierra, no reabre y vuelve a asegurar foco dentro del mismo gesto.
 6. **Footer:** permanece dentro del frame flex. En fallback no se fija contra una altura inventada; el sistema puede exigir ocultar IME para acceder, sin pérdida de datos.
 7. **Landscape:** top, left, right y bottom respetan `env(safe-area-inset-*, 0px)` según ownership.
 8. **Scroll:** App main queda congelado; editor main, textarea, contenido de ActionSheet y paleta horizontal conservan scroll.

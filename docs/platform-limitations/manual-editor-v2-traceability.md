@@ -51,7 +51,7 @@ Los riesgos se expresan como `A` (alto), `M` (medio) o `B` (bajo). Un ID puede t
 | ID | Epic | Decisión arquitectónica | Responsable | Corte | Prueba de cobertura | Código antiguo que se retirará | Riesgo | Estado |
 |---|---|---|---|---|---|---|---|---|
 | `EDITOR-KB-002` | D | Una sola secuencia de snapshot + reducer; CTA derivado de intención/retorno, no de detectores. | GEO + SES | 1–2, retiro 5 | `UT-SES-005`, `UT-GEO-002`, `UT-LIFE-001` | segundo detector a `450 ms`, `keyboardWasOpenRef`, historia paralela | A | Cubierto |
-| `EDITOR-KB-003` | B | CTA compacto no bloqueante; tap directo en textarea también es gesto de reanudación; no inferir teclado físico. | SES + UI modal | 1 | `UT-SES-005`, `PW-OPEN-001`, `DEV-IOS-005`, `DEV-AND-HW-001` | overlay que cubre el textarea en equipo touch | A | Cubierto |
+| `EDITOR-KB-003` | B | Superficie contextual dentro del textarea y bloque desplazado abajo por decisión de producto; tap explícito reanuda sin inferir teclado físico. | SES + UI modal | 1 + corrección posterior a Corte 5 | `UT-SES-005`, contratos estáticos, `PW-OPEN-001`, `DEV-IOS-005`, `DEV-AND-HW-001` | CTA separado que no reproducía la UX validada | A | Cubierto |
 | `EDITOR-VV-002` | A | Snapshot completo usa `width`, `height`, ambos offsets y `scale`. | GEO | 2 | `UT-GEO-005`, `PW-GEO-001`, `DEV-CUTOUT-001` | estado parcial `height/top` | M | Cubierto |
 | `EDITOR-VV-003` | A | Coalescer rAF y comparación semántica evitan publicar muestras iguales. | GEO | 2 | `UT-GEO-002`, `PW-LIFE-001` | `setState` por cada evento VV | M | Cubierto |
 | `EDITOR-VV-004` | A | Sin VV se usa layout viewport + scroll interno, con oclusión `unknown`; nunca se bloquea la edición. | GEO + CSS | 2 | `UT-GEO-001`, `DEV-WV-002` | degradación implícita/altura supuesta | A | Cubierto |
@@ -89,7 +89,7 @@ No forman parte de la tabla obligatoria P0/P1, pero tampoco se pierden:
 | `KEEP-006` | Footer dentro de superficie medida | Sigue en el layout/scroll del editor y participa en el cálculo CSS; no se fija contra altura ficticia. | 2; `PW-VIS-001`, `DEV-IOS-001` |
 | `KEEP-007` | Scroll interno y overscroll acotado | El contenido, textarea, ActionSheet y paleta horizontal continúan como scrollers permitidos. | 3–4; `PW-SCROLL-001`, `DEV-AS-001` |
 | `KEEP-008` | Lock de scroll con propietarios | Se evoluciona el `Set`/API compatible a leases por nodo; el último owner restaura. | 3; `UT-SCR-001/003` |
-| `KEEP-009` | Reanudación mediante gesto explícito | CTA compacto y tap del textarea disparan una única intención de foco; no prometen OSK. | 1; `UT-SES-005`, `PW-OPEN-001` |
+| `KEEP-009` | Reanudación mediante gesto explícito | La superficie contextual de la textarea dispara una única intención de foco, muestra el estado específico tras imagen y no promete detectar OSK. | 1 + corrección posterior a Corte 5; `UT-SES-005`, `UT-PICK-003`, `PW-OPEN-001` |
 | `KEEP-010` | Presets DOM preservan foco | El preset aplica en DOM, conserva rango cuando válido y no inicia una transacción nativa. | 1; `UT-SES-004`, `PW-MENU-001` |
 | `KEEP-011` | Sin hacks destructivos | No hay zoom desactivado, blur forzado, scroll global forzado, UA sniffing ni touchmove global. | 0/5; `UT-ARCH-001`, revisión estática |
 | `KEEP-012` | `viewport-fit=cover` y 16 px táctiles | `index.html`/`index.css` no cambian salvo necesidad demostrada; los nuevos controles heredan tamaño accesible. | 2; `PW-VIS-001`, `DEV-CUTOUT-001` |

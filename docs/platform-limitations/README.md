@@ -71,6 +71,8 @@ El Corte 5 se ejecutó sobre el `HEAD` efectivo de `origin/main` `9a775679b88246
 
 La implementación y migración de código de los Cortes 0–5 queda terminada en el alcance estático/determinista documentado. Esto no equivale a certificación de plataformas: no se ejecutaron Playwright ni pruebas físicas. `G5` queda **`BLOCKED — DEVICE REQUIRED`**; Safari iOS, Android, WebView, OSK, picker nativo, cutouts y Back físico no se declaran `PASS` sin evidencia real.
 
+Después del Corte 5 se aplicó una corrección de regresiones observadas en uso real: se restauró la superficie contextual dentro de la textarea y su desplazamiento inferior, se aseguró foco durante cambio rápido de lado y cierre por el mismo trigger, y se hizo inmediata la autoridad de transacciones para que el color personalizado no lea estado obsoleto. Véase [`manual-editor-v2-post-cut-5-regression-fix.md`](manual-editor-v2-post-cut-5-regression-fix.md). Esta corrección no cambia el estado de certificación física de `G5`.
+
 ## Jerarquía de fuentes
 
 Se aplica este orden, salvo que una fuente de nivel superior no trate la cuestión concreta:
