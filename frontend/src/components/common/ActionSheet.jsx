@@ -34,6 +34,7 @@ export default function ActionSheet({
   content,
   footer,
   closeAction,
+  portalTarget: portalTargetOverride,
 }) {
   const parentScope = useOverlayScope();
   const sharedRegistryRef = useRef(null);
@@ -94,10 +95,10 @@ export default function ActionSheet({
       focusPolicy: 'move-focus',
       returnTarget: returnTargetRef.current,
       replaceOwner: false,
-      onDismiss() {
+      onDismiss(reason) {
         if (closedRef.current) return;
         closedRef.current = true;
-        onCloseRef.current?.();
+        onCloseRef.current?.(reason);
       },
     });
     layerTokenRef.current = token;
@@ -169,7 +170,7 @@ export default function ActionSheet({
 
   if (!open || typeof document === 'undefined') return null;
 
-  const portalTarget = parentScope?.portalTarget || document.body;
+  const portalTarget = portalTargetOverride || parentScope?.portalTarget || document.body;
   if (!portalTarget) return null;
   const actionOptions = Array.isArray(options) ? options : [];
   const isSelectable = selectedId !== undefined;

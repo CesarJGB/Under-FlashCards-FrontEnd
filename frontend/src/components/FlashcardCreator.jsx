@@ -255,9 +255,14 @@ export default function FlashcardCreator({
     reader.readAsDataURL(file);
   };
 
-  const handleContentImageFile = async (event, side) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  const handleContentImageFile = async (source, side) => {
+    const file = typeof File !== 'undefined' && source instanceof File
+      ? source
+      : source?.target?.files?.[0];
+    if (!file) {
+      if (contentImage && (side === 'question' || side === 'answer')) setImageSide(side);
+      return;
+    }
     setError('');
     try {
       const reader = new FileReader();
@@ -284,7 +289,7 @@ export default function FlashcardCreator({
     } catch {
       setError('Error al procesar la imagen.');
     }
-    event.target.value = '';
+    if (source?.target) source.target.value = '';
   };
 
   const submitManualCard = useCallback(() => {

@@ -130,19 +130,21 @@ test('KEEP-001, KEEP-005, KEEP-006, KEEP-007 and KEEP-009 remain observable', as
   assert.match(modal, /Toca aquí para seguir escribiendo/);
 });
 
-test('KEEP-002 and KEEP-003 use a direct, accessible and uncontrolled native color input', async () => {
-  const stylePanel = await readFrontendFile('src/components/creator/StylePanel.jsx');
-  const customControlStart = stylePanel.indexOf('data-custom-color-control="true"');
-  const customControlEnd = stylePanel.indexOf('</label>', customControlStart);
-  const customControl = stylePanel.slice(customControlStart, customControlEnd);
-  assert.ok(customControlStart >= 0 && customControlEnd > customControlStart);
+test('custom color uses an accessible app sheet and no native color picker path', async () => {
+  const [stylePanel, customSheet] = await Promise.all([
+    readFrontendFile('src/components/creator/StylePanel.jsx'),
+    readFrontendFile('src/components/creator/manual-editor/CustomColorActionSheet.jsx'),
+  ]);
   assert.match(stylePanel, /data-custom-color-control="true"/);
-  assert.match(stylePanel, /data-native-color-input="true"/);
-  assert.match(stylePanel, /className="absolute inset-0 h-full w-full cursor-pointer opacity-0"/);
   assert.match(stylePanel, /aria-label="Color personalizado"/);
-  assert.match(stylePanel, /type="color"[\s\S]*?defaultValue=\{initialColorInputValue\.current\}/);
-  assert.doesNotMatch(stylePanel, /type="color"[\s\S]{0,240}?value=\{/);
-  assert.doesNotMatch(customControl, /showPicker\s*\(|\.click\s*\(\)/);
+  assert.match(stylePanel, /onCustomColorRequest/);
+  assert.match(customSheet, /data-custom-color-sheet="true"/);
+  assert.match(customSheet, /label="Tono"/);
+  assert.match(customSheet, /label="Saturación"/);
+  assert.match(customSheet, /label="Luminosidad"/);
+  assert.match(customSheet, /data-testid="custom-color-apply"/);
+  assert.match(customSheet, /data-testid="custom-color-cancel"/);
+  assert.doesNotMatch(`${stylePanel}\n${customSheet}`, /type="color"|showPicker\s*\(/);
 });
 
 test('Corte 1 protects semantic pickers, per-side selection and contextual resume UI', async () => {
@@ -153,13 +155,7 @@ test('Corte 1 protects semantic pickers, per-side selection and contextual resum
     readFrontendFile('src/components/creator/manual-editor/useManualEditorSession.js'),
   ]);
 
-  const customControlStart = stylePanel.indexOf('data-custom-color-control="true"');
-  const customControlEnd = stylePanel.indexOf('</label>', customControlStart);
-  const customControl = stylePanel.slice(customControlStart, customControlEnd);
-  assert.ok(customControlStart >= 0 && customControlEnd > customControlStart);
-  assert.match(customControl, /type="color"/);
-  assert.match(customControl, /onClick=\{handleNativeColorClick\}/);
-  assert.match(customControl, /onPointerDown=\{handleNativeColorPointerDown\}/);
+  assert.match(stylePanel, /onClick=\{\(\) => onCustomColorRequest\?\.\(normalizedValue\)\}/);
 
   assert.match(session, /question:\s*createSideSelection/);
   assert.match(session, /answer:\s*createSideSelection/);
@@ -183,17 +179,22 @@ test('Corte 1 protects semantic pickers, per-side selection and contextual resum
   assert.match(modal, /Imagen cargada/);
   assert.match(modal, /onBeforeInput=\{editorSession\.observeInput\}/);
 
-  const presetBlock = stylePanel.slice(stylePanel.indexOf('swatches.map'), customControlStart);
+  const presetBlock = stylePanel.slice(
+    stylePanel.indexOf('swatches.map'),
+    stylePanel.indexOf('data-custom-color-control="true"'),
+  );
   assert.doesNotMatch(presetBlock, /onPickerRequest|PICKER_REQUESTED/);
 });
 
-test('post-Corte 5 regressions keep focus and native picker transactions inside the trusted gesture', async () => {
-  const [modal, stylePanel, session, hook, activation] = await Promise.all([
+test('post-Corte 5 focus invariants remain and new color/image sheets avoid programmatic pickers', async () => {
+  const [modal, stylePanel, session, hook, activation, colorSheet, imageSheet] = await Promise.all([
     readFrontendFile('src/components/creator/ManualCardEditorModal.jsx'),
     readFrontendFile('src/components/creator/StylePanel.jsx'),
     readFrontendFile('src/components/creator/manual-editor/manualEditorSession.js'),
     readFrontendFile('src/components/creator/manual-editor/useManualEditorSession.js'),
     readFrontendFile('src/components/creator/manual-editor/editorActivation.js'),
+    readFrontendFile('src/components/creator/manual-editor/CustomColorActionSheet.jsx'),
+    readFrontendFile('src/components/creator/manual-editor/ImageActionSheet.jsx'),
   ]);
 
   assert.match(modal, /ref=\{sideTriggerRef\}[\s\S]*\{\.\.\.sidePress\}/);
@@ -205,7 +206,14 @@ test('post-Corte 5 regressions keep focus and native picker transactions inside 
   assert.match(hook, /const alreadyFocused[\s\S]*document\.activeElement === textarea/);
   assert.match(hook, /current\.picker\.transactionId !== transactionId/);
   assert.match(session, /imagePickerCommitted[\s\S]*reason: imagePickerCommitted \? 'image-picker-returned'/);
-  assert.match(stylePanel, /data-native-color-input="true"[\s\S]{0,500}?onPointerDown=\{handleNativeColorPointerDown\}[\s\S]*onClick=\{handleNativeColorClick\}/);
+  assert.match(modal, /onCustomColorRequest=\{openCustomColorSheet\}/);
+  assert.match(modal, /<ImageActionSheet/);
+  assert.match(imageSheet, /data-native-image-input="true"/);
+  assert.match(imageSheet, /className="absolute inset-0 h-full w-full cursor-pointer opacity-0"/);
+  assert.match(imageSheet, /URL\.createObjectURL/);
+  assert.match(imageSheet, /URL\.revokeObjectURL/);
+  assert.doesNotMatch(`${stylePanel}\n${colorSheet}`, /type="color"|showPicker\s*\(|colorInputRef/);
+  assert.doesNotMatch(`${modal}\n${imageSheet}`, /input\.click\s*\(/);
 });
 
 test('UT-ARCH-001 / Corte 2 has one geometry authority and no keyboard heuristics', async () => {

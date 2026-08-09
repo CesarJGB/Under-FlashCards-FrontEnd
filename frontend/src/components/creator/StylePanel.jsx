@@ -2,21 +2,11 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { ImagePlus, Plus, Minus, Bold, Italic, Pipette, X } from 'lucide-react';
 import { OverlayPortal, useOverlayScope } from '../common/OverlayScope';
+import CustomColorActionSheet from './manual-editor/CustomColorActionSheet';
 
 const VIEWPORT_MARGIN = 8;
 const PALETTE_GAP = 8;
-const COLOR_INPUT_FALLBACK = '#ffffff';
-
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
-
-function toColorInputValue(value) {
-  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
-  if (/^#[0-9a-f]{6}$/.test(normalized)) return normalized;
-  if (/^#[0-9a-f]{3}$/.test(normalized)) {
-    return `#${normalized.slice(1).split('').map((digit) => `${digit}${digit}`).join('')}`;
-  }
-  return COLOR_INPUT_FALLBACK;
-}
 
 export function ColorSwatchButton({ value }) {
   const normalizedValue = typeof value === 'string' ? value.trim() : '';
@@ -47,11 +37,7 @@ export function ColorPalette({
   variant = 'grid',
   label,
   onPresetSelect,
-  onPickerRequest,
-  onPickerExternal,
-  onPickerInput,
-  onPickerCommit,
-  onPickerCancel,
+  onCustomColorRequest,
   editorGeometry,
   editorBoundsRef,
   layerId,
@@ -59,14 +45,8 @@ export function ColorPalette({
   const overlayScope = useOverlayScope();
   const sharedGeometry = editorGeometry || overlayScope?.geometry;
   const paletteRef = useRef(null);
-  const colorInputRef = useRef(null);
   const [position, setPosition] = useState(null);
   const normalizedValue = value || '';
-  const colorInputValue = toColorInputValue(normalizedValue);
-  const initialColorInputValue = useRef(colorInputValue);
-  const localTransactionCounterRef = useRef(0);
-  const activeCustomTransactionRef = useRef(null);
-  const pointerTransactionPendingRef = useRef(false);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
   const hasSharedGeometry = Boolean(
@@ -74,45 +54,6 @@ export function ColorPalette({
     && sharedGeometry.visual
     && sharedGeometry.layout
   );
-
-  useEffect(() => {
-    const input = colorInputRef.current;
-    if (!input) return undefined;
-
-    const handleInput = (event) => {
-      const transactionId = activeCustomTransactionRef.current;
-      if (transactionId == null) return;
-      onPickerInput?.(transactionId, event.target.value);
-    };
-
-    const handleChange = (event) => {
-      const transactionId = activeCustomTransactionRef.current;
-      if (transactionId == null) return;
-      const accepted = onPickerCommit?.(transactionId, event.target.value);
-      if (accepted === false) return;
-      pointerTransactionPendingRef.current = false;
-      activeCustomTransactionRef.current = null;
-      onChange(event.target.value);
-      onClose?.();
-    };
-
-    const handleCancel = () => {
-      const transactionId = activeCustomTransactionRef.current;
-      if (transactionId == null) return;
-      onPickerCancel?.(transactionId);
-      pointerTransactionPendingRef.current = false;
-      activeCustomTransactionRef.current = null;
-    };
-
-    input.addEventListener('input', handleInput);
-    input.addEventListener('change', handleChange);
-    input.addEventListener('cancel', handleCancel);
-    return () => {
-      input.removeEventListener('input', handleInput);
-      input.removeEventListener('change', handleChange);
-      input.removeEventListener('cancel', handleCancel);
-    };
-  }, [onChange, onClose, onPickerCancel, onPickerCommit, onPickerInput]);
 
   useLayoutEffect(() => {
     if (typeof window === 'undefined' || typeof document === 'undefined') return undefined;
@@ -260,35 +201,6 @@ export function ColorPalette({
   if (typeof document === 'undefined') return null;
 
   const isHorizontal = variant === 'horizontal';
-  const beginCustomColorTransaction = () => {
-    const transactionId = onPickerRequest?.('color')
-      ?? (localTransactionCounterRef.current + 1);
-    if (!onPickerRequest) localTransactionCounterRef.current = transactionId;
-    activeCustomTransactionRef.current = transactionId;
-    const input = colorInputRef.current;
-    if (input && input.value !== colorInputValue) input.value = colorInputValue;
-    return transactionId;
-  };
-  const handleNativeColorPointerDown = (event) => {
-    if (event.isPrimary === false || (typeof event.button === 'number' && event.button !== 0)) return;
-    pointerTransactionPendingRef.current = true;
-    beginCustomColorTransaction();
-  };
-  const handleNativeColorClick = () => {
-    const transactionId = pointerTransactionPendingRef.current
-      ? activeCustomTransactionRef.current
-      : beginCustomColorTransaction();
-    pointerTransactionPendingRef.current = false;
-    if (transactionId != null) onPickerExternal?.(transactionId, 'native-control');
-  };
-  const handleNativeColorPointerCancel = () => {
-    pointerTransactionPendingRef.current = false;
-    const transactionId = activeCustomTransactionRef.current;
-    if (transactionId == null) return;
-    onPickerCancel?.(transactionId);
-    activeCustomTransactionRef.current = null;
-  };
-
   return (
     <OverlayPortal
       ref={paletteRef}
@@ -347,27 +259,17 @@ export function ColorPalette({
         );
       })}
 
-        <label
+        <button
+          type="button"
           className="group relative flex min-h-9 min-w-9 cursor-pointer items-center justify-center overflow-hidden rounded-xl border border-slate-300 bg-gradient-to-tr from-amber-400 via-rose-400 to-indigo-400 shadow-xs transition-transform has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-indigo-400 has-[:focus-visible]:ring-offset-2 [@media(hover:hover)]:hover:scale-105 dark:border-slate-600 dark:has-[:focus-visible]:ring-offset-slate-800"
           title="Color personalizado"
+          aria-label="Color personalizado"
+          onClick={() => onCustomColorRequest?.(normalizedValue)}
           data-custom-color-control="true"
+          data-testid="manual-editor-custom-color"
         >
           <Pipette className="pointer-events-none relative z-10 h-3.5 w-3.5 text-white drop-shadow-xs transition-transform group-hover:scale-110" aria-hidden="true" />
-          <input
-            ref={colorInputRef}
-            type="color"
-            // El control nativo recibe directamente el gesto. Sigue sin ser
-            // controlado para que React no reescriba su valor durante el picker.
-            defaultValue={initialColorInputValue.current}
-            aria-label="Color personalizado"
-            data-native-color-input="true"
-            data-testid="manual-editor-native-color-input"
-            onPointerDown={handleNativeColorPointerDown}
-            onPointerCancel={handleNativeColorPointerCancel}
-            onClick={handleNativeColorClick}
-            className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-          />
-        </label>
+        </button>
     </OverlayPortal>
   );
 }
@@ -391,6 +293,7 @@ export default function StylePanel({
     layerOwnerIdRef.current = `style-panel-${reactId.replace(/[^a-zA-Z0-9_-]/g, '')}`;
   }
   const [openColor, setOpenColor] = useState(null);
+  const [customColor, setCustomColor] = useState(null);
   const bgImageInputRef = useRef(null);
   const qColorAnchorRef = useRef(null);
   const aColorAnchorRef = useRef(null);
@@ -595,6 +498,10 @@ export default function StylePanel({
                   value={styles[colorKey]}
                   swatches={SWATCHES}
                   onChange={(value) => updateStyle(colorKey, value)}
+                  onCustomColorRequest={(originalColor) => {
+                    setCustomColor({ key: colorKey, originalColor, label: title.toLowerCase() });
+                    closeColor('custom-color');
+                  }}
                   onClose={closeColor}
                   anchorRef={colorAnchorRef}
                   placement="above"
@@ -695,6 +602,10 @@ export default function StylePanel({
                   value={styles.bgColor}
                   swatches={SWATCHES}
                   onChange={(value) => updateStyle('bgColor', value)}
+                  onCustomColorRequest={(originalColor) => {
+                    setCustomColor({ key: 'bgColor', originalColor, label: 'el fondo' });
+                    closeColor('custom-color');
+                  }}
                   onClose={closeColor}
                   anchorRef={bgColorAnchorRef}
                   placement="below"
@@ -711,6 +622,20 @@ export default function StylePanel({
         {renderStyleGroup('Estilo de la Pregunta', 'q', 'question', qColorAnchorRef)}
         {renderStyleGroup('Estilo de la Respuesta', 'a', 'answer', aColorAnchorRef)}
       </div>
+      {customColor && (
+        <CustomColorActionSheet
+          key={`${customColor.key}-${customColor.originalColor}`}
+          open
+          originalColor={customColor.originalColor}
+          fallbackColor={customColor.key === 'bgColor' ? '#ffffff' : '#0f172a'}
+          targetLabel={customColor.label}
+          onApply={(value) => {
+            updateStyle(customColor.key, value);
+            setCustomColor(null);
+          }}
+          onClose={() => setCustomColor(null)}
+        />
+      )}
     </div>
   );
 }

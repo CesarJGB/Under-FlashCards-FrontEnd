@@ -136,8 +136,21 @@ const INTERACTION_EVENT_TYPES = Object.freeze([
   'focusout',
   'input',
   'change',
+  'cancel',
 ]);
 const interactionTrace = [];
+const workflowTrace = [];
+const workflowNodeIds = new WeakMap();
+let workflowNodeSequence = 0;
+
+const getWorkflowNodeId = (node) => {
+  if (!node || typeof node !== 'object') return null;
+  if (!workflowNodeIds.has(node)) {
+    workflowNodeSequence += 1;
+    workflowNodeIds.set(node, `workflow-node-${workflowNodeSequence}`);
+  }
+  return workflowNodeIds.get(node);
+};
 
 const describeInteractionTarget = (target) => ({
   tag: target?.tagName?.toLowerCase?.() || '',
@@ -156,6 +169,11 @@ const recordInteractionEvent = (phase) => (event) => {
     pointerType: event.pointerType || '',
     isPrimary: event.isPrimary !== false,
     isTrusted: event.isTrusted,
+    nodeId: getWorkflowNodeId(event.target),
+    isConnected: event.target?.isConnected === true,
+    value: event.target?.matches?.('[data-custom-color-sheet] input')
+      ? event.target.value
+      : undefined,
   });
   if (interactionTrace.length > 4000) interactionTrace.splice(0, interactionTrace.length - 4000);
 };
@@ -167,6 +185,30 @@ INTERACTION_EVENT_TYPES.forEach((type) => {
   document.addEventListener(type, bubbleInteractionEvent);
 });
 
+const workflowObserver = new MutationObserver((records) => {
+  records.forEach((record) => {
+    for (const [operation, nodes] of [['mounted', record.addedNodes], ['unmounted', record.removedNodes]]) {
+      nodes.forEach((node) => {
+        if (!(node instanceof Element)) return;
+        const candidates = [
+          ...(node.matches('[data-custom-color-sheet], [data-image-sheet], [data-native-image-input="true"]') ? [node] : []),
+          ...node.querySelectorAll('[data-custom-color-sheet], [data-image-sheet], [data-native-image-input="true"]'),
+        ];
+        candidates.forEach((candidate) => workflowTrace.push({
+          type: `node:${operation}`,
+          nodeId: getWorkflowNodeId(candidate),
+          testId: candidate.dataset.testid || '',
+          customColor: candidate.matches('[data-custom-color-sheet]'),
+          imageSheet: candidate.matches('[data-image-sheet]'),
+          nativeImageInput: candidate.matches('[data-native-image-input="true"]'),
+          isConnected: candidate.isConnected,
+        }));
+      });
+    }
+  });
+});
+workflowObserver.observe(document.documentElement, { childList: true, subtree: true });
+
 function installPickerStubs() {
   const prototype = window.HTMLInputElement.prototype;
   const nativeClick = prototype.click;
@@ -177,6 +219,10 @@ function installPickerStubs() {
     colorDirectClicks: 0,
     colorTrustedDirectClicks: 0,
     imageRequests: 0,
+    imageDirectClicks: 0,
+    imageTrustedDirectClicks: 0,
+    objectUrlsCreated: 0,
+    objectUrlsRevoked: 0,
   };
 
   const observeDirectColorClick = (event) => {
@@ -187,6 +233,25 @@ function installPickerStubs() {
     event.preventDefault();
   };
   document.addEventListener('click', observeDirectColorClick, true);
+
+  const observeDirectImageClick = (event) => {
+    if (!event.target?.matches?.('input[type="file"][data-native-image-input="true"]')) return;
+    state.imageDirectClicks += 1;
+    if (event.isTrusted) state.imageTrustedDirectClicks += 1;
+    diagnostics.record('picker:image:direct-click');
+    event.preventDefault();
+  };
+  document.addEventListener('click', observeDirectImageClick, true);
+
+  const nativeCreateObjectURL = URL.createObjectURL;
+  const nativeRevokeObjectURL = URL.revokeObjectURL;
+  URL.createObjectURL = () => {
+    state.objectUrlsCreated += 1;
+    return `blob:manual-editor-${state.objectUrlsCreated}`;
+  };
+  URL.revokeObjectURL = () => {
+    state.objectUrlsRevoked += 1;
+  };
 
   Object.defineProperty(prototype, 'showPicker', {
     configurable: true,
@@ -226,10 +291,17 @@ function installPickerStubs() {
       state.colorDirectClicks = 0;
       state.colorTrustedDirectClicks = 0;
       state.imageRequests = 0;
+      state.imageDirectClicks = 0;
+      state.imageTrustedDirectClicks = 0;
+      state.objectUrlsCreated = 0;
+      state.objectUrlsRevoked = 0;
     },
     restore() {
       document.removeEventListener('click', observeDirectColorClick, true);
+      document.removeEventListener('click', observeDirectImageClick, true);
       prototype.click = nativeClick;
+      URL.createObjectURL = nativeCreateObjectURL;
+      URL.revokeObjectURL = nativeRevokeObjectURL;
       if (originalShowPickerDescriptor) {
         Object.defineProperty(prototype, 'showPicker', originalShowPickerDescriptor);
       } else {
@@ -364,6 +436,7 @@ function Harness() {
   const renderCountRef = useRef(0);
   const renderCountOutputRef = useRef(null);
   const styleUpdateCountsRef = useRef(new Map());
+  const imageUpdateCountsRef = useRef({ apply: 0, remove: 0 });
   const questionTriggerRef = useRef(null);
   const answerTriggerRef = useRef(null);
   const returnSideRef = useRef('question');
@@ -469,8 +542,12 @@ function Harness() {
       resetDiagnostics: () => diagnostics.reset(),
       getInteractionTrace: () => structuredClone(interactionTrace),
       resetInteractionTrace: () => { interactionTrace.length = 0; },
+      getWorkflowTrace: () => structuredClone(workflowTrace),
+      resetWorkflowTrace: () => { workflowTrace.length = 0; },
       getStyleUpdateCounts: () => Object.fromEntries(styleUpdateCountsRef.current),
       resetStyleUpdateCounts: () => styleUpdateCountsRef.current.clear(),
+      getImageUpdateCounts: () => ({ ...imageUpdateCountsRef.current }),
+      resetImageUpdateCounts: () => { imageUpdateCountsRef.current = { apply: 0, remove: 0 }; },
       getListenerSnapshot: () => listenerProbe.snapshot(),
       getLayerSnapshot() {
         const modal = document.querySelector('[data-testid="manual-card-editor-modal"]');
@@ -548,34 +625,8 @@ function Harness() {
         textarea.dispatchEvent(new Event('select', { bubbles: true }));
         return true;
       },
-      commitCustomColor(color = '#123456') {
-        const input = document.querySelector('[data-color-palette="true"] input[type="color"]');
-        if (!input) return false;
-        input.value = color;
-        input.dispatchEvent(new Event('change', { bubbles: true }));
-        diagnostics.record('picker:color:commit');
-        return true;
-      },
-      inputCustomColor(color = '#123456') {
-        const input = document.querySelector('[data-color-palette="true"] input[type="color"]');
-        if (!input) return false;
-        input.value = color;
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-        diagnostics.record('picker:color:input');
-        return true;
-      },
-      cancelCustomColor() {
-        const input = document.querySelector('[data-color-palette="true"] input[type="color"]');
-        input?.dispatchEvent(new Event('cancel'));
-        diagnostics.record('picker:color:cancel-stub');
-        return Boolean(input);
-      },
-      returnCustomColorUnknown() {
-        window.dispatchEvent(new Event('focus'));
-        diagnostics.record('picker:color:return-unknown-stub');
-      },
       commitImage() {
-        const input = document.querySelector('[data-testid="manual-card-editor-modal"] input[type="file"]');
+        const input = document.querySelector('[data-native-image-input="true"]');
         if (!input) return false;
         const file = new File([new Uint8Array([137, 80, 78, 71])], 'synthetic-fixture.png', { type: 'image/png' });
         Object.defineProperty(input, 'files', { configurable: true, value: [file] });
@@ -584,7 +635,7 @@ function Harness() {
         return true;
       },
       cancelImage() {
-        const input = document.querySelector('[data-testid="manual-card-editor-modal"] input[type="file"]');
+        const input = document.querySelector('[data-native-image-input="true"]');
         input?.dispatchEvent(new Event('cancel'));
         diagnostics.record('picker:image:cancel-stub');
         return Boolean(input);
@@ -634,7 +685,8 @@ function Harness() {
     diagnostics.record('render', { renderCount: renderCountRef.current });
   }, []);
 
-  const handleContentImageFile = useCallback((_event, side) => {
+  const handleContentImageFile = useCallback((_source, side) => {
+    imageUpdateCountsRef.current.apply += 1;
     setContentImage(MOCK_IMAGE);
     setImageSide(side === 'answer' ? 'answer' : 'question');
   }, []);
@@ -686,6 +738,7 @@ function Harness() {
           imageSide={imageSide}
           handleContentImageFile={handleContentImageFile}
           removeContentImage={() => {
+            imageUpdateCountsRef.current.remove += 1;
             setContentImage('');
             setImageSide('');
           }}
@@ -781,6 +834,7 @@ window.addEventListener('pagehide', () => {
     document.removeEventListener(type, bubbleInteractionEvent);
   });
   stopObservingHarness();
+  workflowObserver.disconnect();
   pickerStubs.restore();
   syntheticGeometry.restore();
   listenerProbe.restore();

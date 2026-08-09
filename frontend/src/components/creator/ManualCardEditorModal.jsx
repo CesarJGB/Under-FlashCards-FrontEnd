@@ -1,7 +1,6 @@
 import { createPortal } from 'react-dom';
 import {
   useCallback,
-  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -20,7 +19,6 @@ import {
   Loader2,
   Pencil,
   Plus,
-  X,
 } from 'lucide-react';
 import { ColorPalette, ColorSwatchButton } from './StylePanel';
 import { OverlayPortal, OverlayScope } from '../common/OverlayScope';
@@ -31,6 +29,8 @@ import { needsInitialEditorGeometryFallback } from './manual-editor/editorGeomet
 import useEditorLayerStack from './manual-editor/useEditorLayerStack';
 import useManualEditorSession from './manual-editor/useManualEditorSession';
 import useEditorGeometry from './manual-editor/useEditorGeometry';
+import CustomColorActionSheet from './manual-editor/CustomColorActionSheet';
+import ImageActionSheet from './manual-editor/ImageActionSheet';
 
 const DEFAULT_ALIGNS = [
   { label: 'Izquierda', value: 'left', Icon: AlignLeft },
@@ -199,13 +199,14 @@ export default function ManualCardEditorModal({
   const editorMainRef = useRef(null);
   const overlayRootRef = useRef(null);
   const [overlayRootElement, setOverlayRootElement] = useState(null);
-  const imageInputRef = useRef(null);
-  const imageTransactionIdRef = useRef(null);
   const colorAnchorRef = useRef(null);
   const alignAnchorRef = useRef(null);
   const sideTriggerRef = useRef(null);
   const colorTriggerRef = useRef(null);
   const alignTriggerRef = useRef(null);
+  const sheetSequenceRef = useRef(0);
+  const [customColorSheet, setCustomColorSheet] = useState(null);
+  const [imageSheet, setImageSheet] = useState(null);
   const scrollOwnerRef = useRef(`manual-editor-scroll-${Math.random().toString(36).slice(2)}`);
 
   const editorSession = useManualEditorSession({
@@ -258,53 +259,6 @@ export default function ManualCardEditorModal({
 
   const alignOptions = Array.isArray(ALIGNS) && ALIGNS.length ? ALIGNS : DEFAULT_ALIGNS;
   const swatches = Array.isArray(SWATCHES) && SWATCHES.length ? SWATCHES : DEFAULT_SWATCHES;
-
-  const openImagePicker = () => {
-    const input = imageInputRef.current;
-    if (!input) return;
-    const transactionId = editorSession.beginPicker('image');
-    imageTransactionIdRef.current = transactionId;
-    input.value = '';
-    try {
-      input.click();
-      editorSession.markPickerExternal(transactionId);
-    } catch {
-      editorSession.signalPickerReturn(transactionId);
-    }
-  };
-
-  const handleImageInputChange = (event) => {
-    const file = event.target.files?.[0];
-    const transactionId = imageTransactionIdRef.current;
-    if (!file || transactionId == null) return;
-    if (editorSession.commitPicker(transactionId, { type: file.type, size: file.size })) {
-      handleContentImageFile?.(
-        event,
-        editorSession.state.picker.side || activeSide,
-      );
-      imageTransactionIdRef.current = null;
-    }
-  };
-
-  useLayoutEffect(() => {
-    if (!open) return;
-    imageTransactionIdRef.current = null;
-  }, [initialSide, open]);
-
-  useEffect(() => {
-    const input = imageInputRef.current;
-    if (!open || !input) return undefined;
-    const handleCancel = () => {
-      const transactionId = imageTransactionIdRef.current;
-      if (transactionId == null) return;
-      editorSession.cancelPicker(transactionId);
-      imageTransactionIdRef.current = null;
-    };
-    input.addEventListener('cancel', handleCancel);
-    return () => {
-      input.removeEventListener('cancel', handleCancel);
-    };
-  }, [editorSession.cancelPicker, open]);
 
   const toggleEditorLayerFromPress = (activation, id, returnTarget) => {
     layerStack.toggleLayer({
@@ -412,6 +366,28 @@ export default function ManualCardEditorModal({
     layerStack.dismissLayer(ALIGN_LAYER_ID, alignLayerToken, reason)
   );
 
+  const openCustomColorSheet = () => {
+    sheetSequenceRef.current += 1;
+    setCustomColorSheet({
+      id: sheetSequenceRef.current,
+      side: activeSide,
+      styleKey: activeColorKey,
+      originalColor: activeColor,
+      label: activeCopy.label.toLowerCase(),
+    });
+    closeColorMenu('custom-color');
+  };
+
+  const openImageSheet = () => {
+    sheetSequenceRef.current += 1;
+    setImageSheet({
+      id: sheetSequenceRef.current,
+      initialSide: activeSide,
+      originalImage: contentImage || '',
+      originalSide: imageSide || '',
+    });
+  };
+
   const saveCard = async (keepEditing) => {
     if (!canSave) return false;
 
@@ -475,7 +451,7 @@ export default function ManualCardEditorModal({
         ownsModality
         modalContentRef={editorSurfaceRef}
       >
-      <div
+        <div
         ref={editorSurfaceRef}
         className="fixed z-10 flex min-h-0 max-w-full flex-col overflow-hidden bg-white"
         style={editorSurfaceStyle}
@@ -576,36 +552,24 @@ export default function ManualCardEditorModal({
           <div className="relative z-10 mx-auto grid min-h-16 w-full max-w-2xl grid-cols-[2.5rem_minmax(0,1fr)_auto] items-center gap-2 bg-white px-3 sm:grid-cols-[3rem_minmax(0,1fr)_auto] sm:px-4">
             <div className="relative flex h-10 w-10 shrink-0 items-center justify-center">
               {hasActiveImage ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={openImagePicker}
-                    className="flex h-10 w-10 cursor-pointer overflow-hidden rounded-xl border border-slate-200 bg-slate-50 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
-                    title={`Cambiar imagen de ${activeCopy.label.toLowerCase()}`}
-                    aria-label={`Cambiar imagen de ${activeCopy.label.toLowerCase()}`}
-                    data-testid="manual-card-editor-image-control"
-                  >
-                    <img
-                      src={contentImage}
-                      alt={`Imagen de ${activeCopy.label.toLowerCase()}`}
-                      className="h-full w-full object-cover"
-                    />
-                  </button>
-                  <button
-                    type="button"
-                    onPointerDown={preserveToolbarFocus}
-                    onClick={removeContentImage}
-                    aria-label="Eliminar imagen adjunta"
-                    data-testid="manual-card-editor-remove-image"
-                    className="absolute -right-1 -top-1 z-10 flex h-4 w-4 items-center justify-center rounded-full border border-white bg-slate-700 text-white shadow-sm transition-colors active:bg-rose-600 [@media(hover:hover)]:hover:bg-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300"
-                  >
-                    <X className="h-2.5 w-2.5" />
-                  </button>
-                </>
+                <button
+                  type="button"
+                  onClick={openImageSheet}
+                  className="flex h-10 w-10 cursor-pointer overflow-hidden rounded-xl border border-slate-200 bg-slate-50 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
+                  title={`Cambiar imagen de ${activeCopy.label.toLowerCase()}`}
+                  aria-label={`Cambiar imagen de ${activeCopy.label.toLowerCase()}`}
+                  data-testid="manual-card-editor-image-control"
+                >
+                  <img
+                    src={contentImage}
+                    alt={`Imagen de ${activeCopy.label.toLowerCase()}`}
+                    className="h-full w-full object-cover"
+                  />
+                </button>
               ) : (
                 <button
                   type="button"
-                  onClick={openImagePicker}
+                  onClick={openImageSheet}
                   className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition-colors active:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
                   title={`Añadir imagen a ${activeCopy.label.toLowerCase()}`}
                   aria-label={`Añadir imagen a ${activeCopy.label.toLowerCase()}`}
@@ -671,15 +635,11 @@ export default function ManualCardEditorModal({
                     value={activeColor}
                     swatches={swatches}
                     onChange={(value) => updateActiveStyle('Color', value)}
+                    onCustomColorRequest={openCustomColorSheet}
                     onPresetSelect={(value) => {
                       editorSession.captureSelection(activeSide);
                       updateActiveStyle('Color', value);
                     }}
-                    onPickerRequest={() => editorSession.beginPicker('color')}
-                    onPickerExternal={editorSession.markPickerExternal}
-                    onPickerInput={editorSession.updatePickerDraft}
-                    onPickerCommit={editorSession.commitPicker}
-                    onPickerCancel={editorSession.cancelPicker}
                     onClose={closeColorMenu}
                     anchorRef={colorAnchorRef}
                     editorGeometry={editorGeometry}
@@ -734,19 +694,57 @@ export default function ManualCardEditorModal({
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
               <span>Listo</span>
             </button>
-
-            <input
-              ref={imageInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleImageInputChange}
-              className="sr-only"
-              tabIndex={-1}
-            />
           </div>
         </footer>
         <EditorOverlayRoot ref={setOverlayRoot} geometry={editorGeometry} />
       </div>
+
+      {customColorSheet && (
+        <CustomColorActionSheet
+          key={customColorSheet.id}
+          open
+          originalColor={customColorSheet.originalColor}
+          fallbackColor="#0f172a"
+          targetLabel={customColorSheet.label}
+          portalTarget={document.body}
+          onApply={(value) => {
+            updateStyle?.(customColorSheet.styleKey, value);
+            setCustomColorSheet(null);
+          }}
+          onClose={() => setCustomColorSheet(null)}
+        />
+      )}
+
+      {imageSheet && (
+        <ImageActionSheet
+          key={imageSheet.id}
+          open
+          initialSide={imageSheet.initialSide}
+          originalImage={imageSheet.originalImage}
+          originalSide={imageSheet.originalSide}
+          question={question}
+          answer={answer}
+          styles={styles}
+          textAlign={currentAlign}
+          portalTarget={document.body}
+          beginPicker={editorSession.beginPicker}
+          markPickerExternal={editorSession.markPickerExternal}
+          updatePickerDraft={editorSession.updatePickerDraft}
+          commitPicker={editorSession.commitPicker}
+          cancelPicker={editorSession.cancelPicker}
+          onApply={({ file, side, removed }) => {
+            if (removed) {
+              if (imageSheet.originalImage) removeContentImage?.();
+            } else if (file) {
+              handleContentImageFile?.(file, side);
+            } else if (imageSheet.originalImage && side !== imageSheet.originalSide) {
+              handleContentImageFile?.(null, side);
+            }
+            setImageSheet(null);
+          }}
+          onClose={() => setImageSheet(null)}
+        />
+      )}
       </OverlayScope>
     </div>
   );

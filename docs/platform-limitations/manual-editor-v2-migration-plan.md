@@ -170,7 +170,7 @@ Revertir adaptador por picker de forma independiente. El reducer y tests pueden 
 
 ### Salida exacta
 
-Pregunta y respuesta tienen selección propia; timers 80/250 y guardia general 450 ya no deciden el flujo. Tras reproducir la regresión posterior al Corte 5, los controles sensibles al foco usan activación única en `pointerdown`, un `touchstart` nativo no pasivo y acotado evita la transferencia táctil de foco, y teclado/AT conserva click semántico. El color custom lo abre directamente el `input[type=color]` superpuesto, sin `showPicker()`/`click()` programáticos.
+Pregunta y respuesta tienen selección propia; timers 80/250 y guardia general 450 ya no deciden el flujo. Tras reproducir la regresión posterior al Corte 5, los controles sensibles al foco usan activación única en `pointerdown`, un `touchstart` nativo no pasivo y acotado evita la transferencia táctil de foco, y teclado/AT conserva click semántico. La revisión física posterior sustituyó el `input[type=color]` por un ActionSheet propio HSL/HEX: captura destino y color originales, mantiene un borrador local y solo muta el estilo al pulsar Aplicar.
 
 ## 5. Corte 2 — Geometría y safe area
 

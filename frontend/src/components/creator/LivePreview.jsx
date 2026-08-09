@@ -2,6 +2,7 @@
 import { useRef, useState } from 'react';
 import { ImagePlus } from 'lucide-react';
 import { ColorPalette, ColorSwatchButton } from './StylePanel';
+import CustomColorActionSheet from './manual-editor/CustomColorActionSheet';
 
 const ALIGN_CLASS = { left: 'text-left', center: 'text-center', right: 'text-right' };
 const FLOATING_CARD_WIDTH = 320;
@@ -79,6 +80,7 @@ export default function LivePreview({
   previewOnly = false,
 }) {
   const [bgColorOpen, setBgColorOpen] = useState(false);
+  const [customBgColor, setCustomBgColor] = useState(null);
   const bgColorAnchorRef = useRef(null);
 
   if (variant === 'floating') {
@@ -176,6 +178,10 @@ export default function LivePreview({
                     value={styles.bgColor}
                     swatches={SWATCHES}
                     onChange={(value) => updateStyle('bgColor', value)}
+                    onCustomColorRequest={(originalColor) => {
+                      setCustomBgColor(originalColor);
+                      setBgColorOpen(false);
+                    }}
                     onClose={() => setBgColorOpen(false)}
                     anchorRef={bgColorAnchorRef}
                     placement="below"
@@ -188,6 +194,21 @@ export default function LivePreview({
 
         </div>
       </div>
+      )}
+
+      {customBgColor !== null && (
+        <CustomColorActionSheet
+          key={customBgColor || 'default-background'}
+          open
+          originalColor={customBgColor}
+          fallbackColor="#ffffff"
+          targetLabel="el fondo"
+          onApply={(value) => {
+            updateStyle('bgColor', value);
+            setCustomBgColor(null);
+          }}
+          onClose={() => setCustomBgColor(null)}
+        />
       )}
     </div>
   );

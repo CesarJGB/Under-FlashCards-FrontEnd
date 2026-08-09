@@ -172,50 +172,52 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
   participant U as Usuario
-  participant I as input color nativo
-  participant S as InputSession
-  participant N as UA/SO
-  U->>I: gesto directo sobre el input transparente
-  I->>S: PICKER_REQUESTED(color, id)
-  I->>N: UI nativa posible
-  N-->>I: input/change, cancel o nada
-  I-->>S: commit/cancel/return signal con id
+  participant P as Paleta
+  participant A as ActionSheet de color
+  participant D as Estado de tarjeta
+  U->>P: click Color personalizado
+  P->>A: abrir con color y lado congelados
+  U->>A: 0..N cambios H/S/L/HEX
+  Note over A: solo cambia el borrador local
+  alt Aplicar
+    A->>D: updateStyle(sideKey, color) una vez
+  else Cancelar/backdrop/Escape/Back
+    A-->>D: sin mutación
+  end
 ```
 
 ### Activación
 
-- El input nativo cubre el área visual y es el elemento devuelto por hit-testing.
-- `pointerdown` crea la transacción; el click posterior solo marca la salida a UI nativa. Un click semántico crea la transacción si no había una pendiente.
-- No se llama `showPicker()` ni `input.click()` para color; si el UA no abre UI, la paleta permanece operable.
+- El control es un botón semántico. En WebKit móvil su `pointerdown` no se cancela: cancelar ese evento suprime el click táctil que debe abrir el sheet.
+- El primer click cierra solo la paleta y abre el ActionSheet en la misma pila top-only.
+- No existe picker nativo de color ni ruta `showPicker()`/`input.click()`.
 
 ### Submáquina
 
 ```mermaid
 stateDiagram-v2
-  Idle --> Requested: PICKER_REQUESTED
-  Requested --> External: request accepted/unknown
-  External --> Committed: change
-  External --> Cancelled: cancel si existe
-  External --> ReturnedUnknown: focus/visibility signal
-  ReturnedUnknown --> Committed: change tardío
-  ReturnedUnknown --> Idle: cierre o resume explícito
-  Committed --> Idle: close one layer
-  Cancelled --> Idle: volver a paleta
+  Idle --> Drafting: OPEN(original, side)
+  Drafting --> Drafting: slider/hex válido
+  Drafting --> Invalid: hex inválido
+  Invalid --> Drafting: hex válido
+  Drafting --> Committed: Aplicar
+  Drafting --> Cancelled: Cancelar/backdrop/Escape/Back
+  Invalid --> Cancelled: Cancelar/backdrop/Escape/Back
+  Committed --> Idle: cerrar top
+  Cancelled --> Idle: cerrar top
 ```
 
-### `input` y `change`
+### Borrador y commit
 
-- `input` puede actualizar un draft/preview idempotente y marcar `changed`.
-- `change` confirma el último valor y cierra exactamente la paleta.
-- Si solo hubo `input`, el valor puede conservarse al cerrar manualmente; `blur` no fuerza cierre.
-- Eventos repetidos con el mismo valor/transaction ID no duplican commit.
+- `input` de sliders y hex actualiza únicamente estado local y preview; 50 movimientos no mutan `qColor/aColor`.
+- Aplicar normaliza a `#rrggbb` y realiza exactamente una actualización sobre la clave capturada al abrir.
+- Un hex parcial o inválido muestra error local, no aplica y no cierra.
 
-### Cancelación o retorno desconocido
+### Cancelación
 
-- `cancel`, cuando exista, no cambia el color y vuelve a la paleta.
-- `window.focus`/`visibilitychange` solo producen `returned-unknown`.
-- En unknown, paleta, contenido y controles siguen operables; el usuario puede elegir preset, cerrar o reanudar.
-- Posible cierre del OSK es aceptado. El CTA usa un gesto posterior.
+- Cancelar, backdrop, Escape y Back descartan el mismo borrador y cierran únicamente el sheet superior.
+- El color original no necesita restauración porque el modelo nunca se mutó durante la edición.
+- El posible cierre del OSK al mover foco al ActionSheet es aceptado; la acción nunca queda sin una transición visual.
 
 ## F. Abrir selector de imagen
 
@@ -227,15 +229,15 @@ sequenceDiagram
   participant I as input file
   participant N as UA/SO
   U->>T: click imagen
-  T->>S: captura rango + PICKER_REQUESTED
-  T->>I: value="" + click()
+  T->>S: abrir ActionSheet con imagen/lado originales
+  U->>I: gesto directo en Seleccionar imagen
   I->>N: picker nativo
   alt archivo
     N-->>I: change(files)
-    I->>S: PICKER_COMMITTED(id)
+    I->>S: preview local; sheet permanece abierto
   else cancel soportado
     N-->>I: cancel
-    I->>S: PICKER_CANCELLED(id)
+    I->>S: conservar borrador y sheet
   else retorno sin evento
     N-->>S: RETURN_SIGNAL(id)
   end
@@ -245,12 +247,12 @@ sequenceDiagram
 
 | Resultado | Contenido | Sesión |
 |---|---|---|
-| Archivo válido | Handler externo actualiza imagen/lado. | `committed` → resume available. |
+| Archivo válido | Preview mediante URL temporal; modelo intacto hasta Aplicar. | Draft de picker; sheet abierto. |
 | Cancel | Sin cambio. | `cancelled` → editing/interrupted según foco observado. |
 | Unknown | Sin supuesto. | `returned-unknown`; resume action disponible, sin timer. |
 | Evento tardío de transacción vieja | Sin cambio. | Ignorado por ID. |
 
-No se guarda tarjeta, cierra modal ni limpia selección por `window.focus`.
+Aplicar confirma archivo/destino/eliminación una sola vez. Cancelar no cambia el modelo. Cada URL temporal se revoca al reemplazar archivo, cancelar o desmontar. No se guarda tarjeta, cierra modal ni limpia selección por `window.focus`.
 
 ## G. Rotar con el editor abierto
 

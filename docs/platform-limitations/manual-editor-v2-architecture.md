@@ -202,7 +202,7 @@ Política inferior:
 - Foco DOM, selección y OSK son hechos distintos.
 - Solo una llamada inmediata intenta foco inicial.
 - Preset/alineación nunca inicia ni altera una transacción nativa.
-- Color custom es un `input[type=color]` real, no controlado y transparente sobre el control visual; recibe directamente el gesto sin `showPicker()`/`input.click()` programáticos. Imagen conserva su click nativo.
+- Color custom abre un `ActionSheet` propio con borrador HSL/HEX; no existe `input[type=color]`, `showPicker()` ni `input.click()` para ese flujo. La imagen abre primero otro `ActionSheet` y el `input[type=file]` real recibe directamente el gesto posterior de “Seleccionar imagen”.
 - Toda transacción tiene `id`; eventos viejos se ignoran.
 - La superficie contextual de reanudación puede cubrir visualmente la caja del textarea por decisión de producto; no mueve foco por sí sola y `beforeinput/input` la retira.
 
@@ -228,7 +228,7 @@ Política inferior:
 - Enter/Space, lector de pantalla y tap abren color custom por la ruta semántica.
 - Cambiar de lado tres veces conserva cada rango válido y nunca aplica el rango del otro.
 - Elegir preset cierra solo la paleta y no crea resume hint por picker.
-- Elegir/cancelar color o imagen conserva contenido; iOS puede cerrar OSK y ofrece reanudación.
+- Aplicar color o imagen confirma una vez; cancelar, backdrop, Escape o Back descartan el borrador. iOS puede cerrar el OSK y la reanudación sigue siendo explícita.
 - Teclado físico puede escribir aunque el resume hint esté visible.
 
 ### Archivos y retiro
@@ -609,8 +609,8 @@ Todos los módulos declaran explícitamente lo que **no** poseen en sus contrato
 |---|---|---|---|
 | Preset/alineación | Puede `preventDefault` para preservar textarea; no cambia estado. | Aplica + dismiss top. | Pointer conserva; teclado/AT usa foco visible. |
 | Trigger de menú DOM | `preventDefault` + `TOGGLE_LAYER`; el click posterior se ignora. | Solo teclado/AT (`detail === 0`) ejecuta `TOGGLE_LAYER`. | Pointer conserva textarea; teclado/AT usa foco visible. |
-| Color custom | El `pointerdown` del input nativo crea la transacción; el mismo input recibe el gesto. | Click semántico crea la transacción si no existía y marca UI externa. | El input tiene nombre accesible y foco visible; la UI nativa puede cerrar OSK. |
-| Imagen | Captura rango, no afirma conservar OSK. | Resetea input y ejecuta `click()`. | UA controla transición. |
+| Color custom | No muta; el botón semántico permite completar el gesto. | Cierra la paleta y abre el ActionSheet con lado/color congelados. | El sheet mueve foco de forma explícita; el OSK puede cerrar. |
+| Imagen | El botón principal no abre UI nativa. | Abre el ActionSheet; solo el file input real dentro de “Seleccionar imagen” invoca al UA. | UA controla la transición del picker; el sheet permanece al volver. |
 | Backdrop | Previene acción del fondo. | `DISMISS_TOP`. | No es tabbable ni recibe retorno. |
 | Resume | Sin lógica. | Un intento de foco + rango válido desde gesto. | Resultado DOM observado; OSK desconocido. |
 

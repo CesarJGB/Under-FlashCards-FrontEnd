@@ -187,35 +187,30 @@ test('PW-CHAR-002 / PW-MENU-001 / EDITOR-COLOR-004 — menús DOM, presets y stu
   await expect(textarea).toHaveCSS('text-align', 'center');
 
   await page.evaluate(() => {
-    window.__manualEditorHarness.resetPickerState();
+    window.__manualEditorHarness.resetStyleUpdateCounts();
   });
   await colorTrigger.click();
-  await page.getByLabel('Color personalizado').click();
-  await expect.poll(() => page.evaluate(() => window.__manualEditorHarness.getPickerState()))
-    .toMatchObject({ colorDirectClicks: 1, colorRequests: 0, colorFallbackClicks: 0 });
-  expect(await page.evaluate(() => window.__manualEditorHarness.commitCustomColor('#7c3aed'))).toBe(true);
+  await page.getByRole('button', { name: 'Color personalizado' }).click();
+  const customColorSheet = page.getByRole('dialog', { name: 'Color personalizado' });
+  await expect(customColorSheet).toBeVisible();
+  await expect(page.locator('input[type="color"]')).toHaveCount(0);
+  await customColorSheet.getByTestId('custom-color-hex').fill('#7c3aed');
+  await customColorSheet.getByTestId('custom-color-apply').click();
   await expect(page.locator('[data-color-palette="true"]')).toHaveCount(0);
+  await expect(customColorSheet).toHaveCount(0);
+  expect(await page.evaluate(() => window.__manualEditorHarness.getStyleUpdateCounts().qColor)).toBe(1);
 
   await colorTrigger.click();
-  await page.getByLabel('Color personalizado').click();
-  const customInput = page.locator('[data-color-palette="true"] input[type="color"]');
-  await customInput.evaluate((node) => { node.value = '#13579b'; });
-  await page.evaluate(() => window.__manualEditorHarness.forceRender());
-  await expect(customInput).toHaveValue('#13579b');
-  await page.evaluate(() => window.__manualEditorHarness.cancelCustomColor());
-  await expect(page.locator('[data-color-palette="true"]')).toBeVisible();
-  await closePaletteByBackdrop(page);
+  await page.getByRole('button', { name: 'Color personalizado' }).click();
+  await page.getByTestId('custom-color-cancel').click();
+  await expect(page.getByRole('dialog', { name: 'Color personalizado' })).toHaveCount(0);
 
   const imageControl = page.getByTestId('manual-card-editor-image-control');
+  await page.evaluate(() => window.__manualEditorHarness.resetPickerState());
   await imageControl.click();
-  expect(await page.evaluate(() => window.__manualEditorHarness.getPickerState().imageRequests)).toBe(1);
-  expect(await page.evaluate(() => window.__manualEditorHarness.cancelImage())).toBe(true);
-  await expect.poll(() => page.evaluate(() => window.__manualEditorHarness.getPublicState().pickerStatus)).toBe('cancelled');
-  await expect(page.getByTestId('manual-card-editor-modal')).toBeVisible();
-  await imageControl.click();
-  expect(await page.evaluate(() => window.__manualEditorHarness.commitImage())).toBe(true);
-  await expect.poll(() => page.evaluate(() => window.__manualEditorHarness.getPublicState().pickerStatus)).toBe('committed');
-  await expect(page.getByTestId('manual-card-editor-image-control').locator('img')).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Imagen de la tarjeta' })).toBeVisible();
+  expect(await page.evaluate(() => window.__manualEditorHarness.getPickerState().imageRequests)).toBe(0);
+  await page.getByTestId('image-sheet-cancel').click();
 
   await attachDiagnostics(page, testInfo, 'PW-CHAR-002');
 });
@@ -320,6 +315,19 @@ test('PW-LIFE-001 — 20 cycles and open-layer unmount leave zero runtime resour
   await page.getByTestId('manual-card-editor-color').click();
   await page.evaluate(() => window.__manualEditorHarness.close());
   await expect(page.getByTestId('manual-card-editor-modal')).toHaveCount(0);
+
+  await page.evaluate(() => window.__manualEditorHarness.open('question'));
+  await page.getByTestId('manual-card-editor-color').click();
+  await page.getByRole('button', { name: 'Color personalizado' }).click();
+  await expect(page.getByRole('dialog', { name: 'Color personalizado' })).toBeVisible();
+  await page.evaluate(() => window.__manualEditorHarness.close());
+  await expect(page.getByRole('dialog', { name: 'Color personalizado' })).toHaveCount(0);
+
+  await page.evaluate(() => window.__manualEditorHarness.open('question'));
+  await page.getByTestId('manual-card-editor-image-control').click();
+  await expect(page.getByRole('dialog', { name: 'Imagen de la tarjeta' })).toBeVisible();
+  await page.evaluate(() => window.__manualEditorHarness.close());
+  await expect(page.getByRole('dialog', { name: 'Imagen de la tarjeta' })).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => window.__manualEditorHarness.getOwnershipSnapshot()))
     .toEqual({
       layers: { instances: 0, listeners: 0, registrySize: 0, sentinels: 0, owners: [] },
@@ -452,9 +460,9 @@ test('PW-OPEN-001 / KEEP-009 — la ayuda baja el área editable y permite reanu
   await expect(textarea).toBeFocused();
 });
 
-test.skip('PENDING — DEVICE REQUIRED EDITOR-COLOR-002 / DEV-IOS-002 / DEV-AND-001 — picker nativo, OSK y selección', async () => {
-  // Un stub demuestra el contrato de llamada, pero no el retorno real desde el picker,
-  // el OSK ni la selección en iOS/Android. Esa evidencia solo es válida en dispositivo.
+test.skip('PENDING — DEVICE REQUIRED DEV-IOS-002 / DEV-AND-001 — OSK, file picker y transición física', async () => {
+  // Los contratos DOM son automatizables, pero el OSK, el retorno real del file picker
+  // y la transición visual del sistema solo se pueden validar en un dispositivo físico.
 });
 
 test('PW-PICK-001 / EDITOR-COLOR-001 — pointer, Enter y Space ejecutan un toggle cada uno', async ({ page }, testInfo) => {
@@ -606,7 +614,7 @@ test('PW-TOUCH-003 — un click compatible detail=0 no repite el pointerdown', a
   await attachInteractionTrace(page, testInfo, 'PW-TOUCH-003');
 });
 
-test('PW-PICK-003 — color personalizado recibe el gesto nativo directo y resuelve una transacción', async ({ page }, testInfo) => {
+test('PW-COLOR-APP-001 — primer toque abre un borrador estable y Aplicar confirma una vez', async ({ page }, testInfo) => {
   await openHarness(page, { touch: true });
   await chooseAndOpen(page, 'distinct', 'question');
   const textarea = page.getByTestId('manual-card-editor-question');
@@ -614,58 +622,86 @@ test('PW-PICK-003 — color personalizado recibe el gesto nativo directo y resue
   await textarea.focus();
   await activateLikeMobile(colorTrigger, testInfo);
   await expect(page.locator('[data-color-palette="true"]')).toBeVisible();
-  const nativeInput = page.locator('[data-color-palette="true"] input[type="color"]');
-  await expect(nativeInput).toHaveCount(1);
   await page.evaluate(() => {
-    window.__manualEditorHarness.resetPickerState();
     window.__manualEditorHarness.resetStyleUpdateCounts();
     window.__manualEditorHarness.resetInteractionTrace();
+    window.__manualEditorHarness.resetWorkflowTrace();
   });
+  await activateLikeMobile(page.getByRole('button', { name: 'Color personalizado' }), testInfo);
+  const sheet = page.getByRole('dialog', { name: 'Color personalizado' });
+  await expect(sheet).toBeVisible();
+  await expect(page.locator('[data-color-palette="true"]')).toHaveCount(0);
+  await expect(page.locator('input[type="color"]')).toHaveCount(0);
 
-  const directHit = await nativeInput.evaluate((input) => {
-    const rect = input.getBoundingClientRect();
-    const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
-    return {
-      inputIsHit: hit === input,
-      hitTag: hit?.tagName || '',
-      hitTestId: hit?.dataset?.testid || '',
-      height: rect.height,
-      width: rect.width,
-    };
+  const hue = sheet.getByRole('slider', { name: 'Tono' });
+  const sheetNodeId = await sheet.locator('[data-custom-color-sheet="true"]').evaluate((node) => {
+    window.__customColorNodeForTest = node;
+    return node.dataset.originalColor;
   });
-  expect(directHit).toMatchObject({ inputIsHit: true, hitTag: 'INPUT' });
-  expect(directHit.width).toBeGreaterThanOrEqual(30);
-  expect(directHit.height).toBeGreaterThanOrEqual(30);
-  await activateLikeMobile(nativeInput, testInfo);
-  await expect.poll(() => page.evaluate(() => window.__manualEditorHarness.getPickerState()))
-    .toMatchObject({
-      colorDirectClicks: 1,
-      colorTrustedDirectClicks: 1,
-      colorRequests: 0,
-      colorFallbackClicks: 0,
-    });
+  expect(sheetNodeId).toBe('#0f172a');
+  for (let movement = 0; movement < 50; movement += 1) {
+    await hue.fill(String((movement * 7) % 360));
+  }
+  await expect(sheet).toBeVisible();
+  expect(await page.evaluate(() => window.__customColorNodeForTest?.isConnected)).toBe(true);
+  expect(await page.evaluate(() => window.__manualEditorHarness.getStyleUpdateCounts().qColor || 0)).toBe(0);
+  await expect(textarea).toHaveCSS('color', 'rgb(15, 23, 42)');
 
-  expect(await page.evaluate(() => window.__manualEditorHarness.inputCustomColor('#13579b'))).toBe(true);
-  expect(await page.evaluate(() => window.__manualEditorHarness.commitCustomColor('#13579b'))).toBe(true);
+  const hex = sheet.getByTestId('custom-color-hex');
+  await hex.fill('#13579b');
+  await expect(sheet.getByTestId('custom-color-preview')).toHaveCSS('background-color', 'rgb(19, 87, 155)');
+  await sheet.getByTestId('custom-color-apply').click();
+  await expect(sheet).toHaveCount(0);
   await expect(page.locator('[data-color-palette="true"]')).toHaveCount(0);
   await expect(textarea).toHaveCSS('color', 'rgb(19, 87, 155)');
   expect(await page.evaluate(() => window.__manualEditorHarness.getStyleUpdateCounts().qColor)).toBe(1);
+  const workflow = await page.evaluate(() => window.__manualEditorHarness.getWorkflowTrace());
+  expect(workflow.filter((event) => event.type === 'node:mounted' && event.customColor)).toHaveLength(1);
+  expect(workflow.filter((event) => event.type === 'node:unmounted' && event.customColor)).toHaveLength(1);
+  await attachInteractionTrace(page, testInfo, 'PW-COLOR-APP-001');
+});
 
-  await activateLikeMobile(colorTrigger, testInfo);
-  const colorBeforeCancel = await textarea.evaluate((node) => getComputedStyle(node).color);
-  await activateLikeMobile(page.locator('[data-color-palette="true"] input[type="color"]'), testInfo);
-  await page.evaluate(() => {
-    window.__manualEditorHarness.resetStyleUpdateCounts();
-    window.__manualEditorHarness.cancelCustomColor();
-  });
-  await expect(page.locator('[data-color-palette="true"]')).toHaveCount(1);
-  await expect(textarea).toHaveCSS('color', colorBeforeCancel);
-  expect(await page.evaluate(() => window.__manualEditorHarness.getStyleUpdateCounts().qColor || 0)).toBe(0);
+test('PW-COLOR-APP-002 — cancelar, cierre superior, hex inválido y destino congelado no mutan otro lado', async ({ page }) => {
+  await openHarness(page);
+  await chooseAndOpen(page, 'distinct', 'question');
+  const openCustom = async () => {
+    await page.getByTestId('manual-card-editor-color').click();
+    await page.getByRole('button', { name: 'Color personalizado' }).click();
+    await expect(page.getByRole('dialog', { name: 'Color personalizado' })).toBeVisible();
+  };
+  const original = await page.getByTestId('manual-card-editor-question').evaluate((node) => getComputedStyle(node).color);
 
-  expect(await page.evaluate(() => window.__manualEditorHarness.commitCustomColor('#abcdef'))).toBe(true);
-  await expect(textarea).toHaveCSS('color', colorBeforeCancel);
-  expect(await page.evaluate(() => window.__manualEditorHarness.getStyleUpdateCounts().qColor || 0)).toBe(0);
-  await attachInteractionTrace(page, testInfo, 'PW-PICK-003');
+  await openCustom();
+  await page.getByTestId('custom-color-hex').fill('#abcdef');
+  await page.getByTestId('custom-color-cancel').click();
+  await expect(page.getByTestId('manual-card-editor-question')).toHaveCSS('color', original);
+
+  await openCustom();
+  await page.getByTestId('custom-color-hex').fill('#12');
+  await page.getByTestId('custom-color-apply').click();
+  await expect(page.getByRole('alert')).toContainText('hexadecimal válido');
+  await expect(page.getByRole('dialog', { name: 'Color personalizado' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog', { name: 'Color personalizado' })).toHaveCount(0);
+  await expect(page.getByTestId('manual-card-editor-modal')).toBeVisible();
+
+  await openCustom();
+  await page.locator('[data-action-sheet-backdrop="true"]').click({ position: { x: 5, y: 5 } });
+  await expect(page.getByRole('dialog', { name: 'Color personalizado' })).toHaveCount(0);
+  await expect(page.getByTestId('manual-card-editor-question')).toHaveCSS('color', original);
+
+  await openCustom();
+  await page.getByTestId('custom-color-hex').fill('#2468ac');
+  await expect(page.locator('[data-custom-color-sheet="true"]')).toHaveAttribute('data-target-label', 'pregunta');
+  await page.getByTestId('custom-color-apply').click();
+  expect(await page.evaluate(() => window.__manualEditorHarness.getStyleUpdateCounts())).toMatchObject({ qColor: 1 });
+  expect(await page.evaluate(() => window.__manualEditorHarness.getStyleUpdateCounts().aColor || 0)).toBe(0);
+
+  await page.getByTestId('manual-card-editor-color').click();
+  await page.getByRole('button', { name: 'Color personalizado' }).click();
+  await page.goBack();
+  await expect(page.getByRole('dialog', { name: 'Color personalizado' })).toHaveCount(0);
+  await expect(page.getByTestId('manual-card-editor-modal')).toBeVisible();
 });
 
 test('PW-SIDE-001 — tres alternancias restauran rangos independientes', async ({ page }) => {
@@ -690,23 +726,105 @@ test('PW-SIDE-001 — tres alternancias restauran rangos independientes', async 
   }))).toEqual({ start: 5, end: 17, direction: 'backward' });
 });
 
-test('PW-PICK-002 — imagen distingue cancel, returned-unknown y commit', async ({ page }) => {
+test('PW-IMAGE-APP-001 — el sheet conserva borrador y preview hasta Aplicar', async ({ page }) => {
   await openHarness(page);
   await chooseAndOpen(page, 'distinct', 'answer');
   const imageControl = page.getByTestId('manual-card-editor-image-control');
-
+  await page.evaluate(() => {
+    window.__manualEditorHarness.resetPickerState();
+    window.__manualEditorHarness.resetImageUpdateCounts();
+    window.__manualEditorHarness.resetWorkflowTrace();
+  });
   await imageControl.click();
-  expect(await page.evaluate(() => window.__manualEditorHarness.cancelImage())).toBe(true);
-  await expect.poll(() => page.evaluate(() => window.__manualEditorHarness.getPublicState().pickerStatus)).toBe('cancelled');
+  const sheet = page.getByRole('dialog', { name: 'Imagen de la tarjeta' });
+  await expect(sheet).toBeVisible();
+  await expect(sheet.locator('[data-image-sheet="true"]')).toHaveAttribute('data-draft-side', 'answer');
+  expect(await page.evaluate(() => window.__manualEditorHarness.getPickerState().imageRequests)).toBe(0);
+  await sheet.getByTestId('image-sheet-side-question').click();
+  expect(await page.evaluate(() => window.__manualEditorHarness.getImageUpdateCounts())).toEqual({ apply: 0, remove: 0 });
 
-  await imageControl.click();
-  await page.evaluate(() => window.__manualEditorHarness.returnImageUnknown());
-  await expect.poll(() => page.evaluate(() => window.__manualEditorHarness.getPublicState().pickerStatus)).toBe('returned-unknown');
-  await expect(page.getByTestId('manual-card-editor-modal')).toBeVisible();
+  const input = sheet.getByTestId('image-sheet-file-input');
+  const directHit = await input.evaluate((node) => {
+    const rect = node.getBoundingClientRect();
+    return document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2) === node;
+  });
+  expect(directHit).toBe(true);
+  await input.click();
+  await expect.poll(() => page.evaluate(() => window.__manualEditorHarness.getPickerState()))
+    .toMatchObject({ imageDirectClicks: 1, imageTrustedDirectClicks: 1, imageRequests: 0 });
+  await input.dispatchEvent('cancel');
+  await expect(sheet).toBeVisible();
+  await input.setInputFiles({
+    name: 'draft-one.svg',
+    mimeType: 'image/svg+xml',
+    buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"/>'),
+  });
+  await expect(sheet.locator('img[src^="blob:manual-editor-"]')).toHaveCount(1);
+  expect(await page.evaluate(() => window.__manualEditorHarness.getImageUpdateCounts())).toEqual({ apply: 0, remove: 0 });
+  await expect(page.getByTestId('manual-card-editor-image-control').locator('img')).toHaveCount(0);
 
-  await imageControl.click();
-  expect(await page.evaluate(() => window.__manualEditorHarness.commitImage())).toBe(true);
+  await input.setInputFiles({
+    name: 'draft-two.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from([137, 80, 78, 71]),
+  });
+  await expect.poll(() => page.evaluate(() => window.__manualEditorHarness.getPickerState()))
+    .toMatchObject({ objectUrlsCreated: 2, objectUrlsRevoked: 1 });
+  await sheet.getByTestId('image-sheet-apply').click();
+  await expect(sheet).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => window.__manualEditorHarness.getPublicState().pickerStatus)).toBe('committed');
+  expect(await page.evaluate(() => window.__manualEditorHarness.getImageUpdateCounts())).toEqual({ apply: 1, remove: 0 });
+  await expect.poll(() => page.evaluate(() => window.__manualEditorHarness.getPickerState().objectUrlsRevoked)).toBe(2);
+  await page.getByTestId('manual-card-editor-switch-side').click();
+  await expect(page.getByTestId('manual-card-editor-image-control').locator('img')).toBeVisible();
+});
+
+test('PW-IMAGE-APP-002 — cancelación, picker cancelado y eliminación respetan el original', async ({ page }) => {
+  await openHarness(page);
+  await chooseAndOpen(page, 'image', 'question');
+  const openSheet = async () => {
+    await page.getByTestId('manual-card-editor-image-control').click();
+    await expect(page.getByRole('dialog', { name: 'Imagen de la tarjeta' })).toBeVisible();
+  };
+
+  await page.evaluate(() => window.__manualEditorHarness.resetImageUpdateCounts());
+  await openSheet();
+  await page.getByTestId('image-sheet-side-answer').click();
+  await page.getByTestId('image-sheet-remove').click();
+  await page.getByTestId('image-sheet-cancel').click();
+  expect(await page.evaluate(() => window.__manualEditorHarness.getImageUpdateCounts())).toEqual({ apply: 0, remove: 0 });
+  await expect(page.getByTestId('manual-card-editor-image-control').locator('img')).toBeVisible();
+
+  await openSheet();
+  const input = page.getByTestId('image-sheet-file-input');
+  await input.dispatchEvent('pointerdown', { pointerType: 'touch', isPrimary: true, button: 0 });
+  await input.dispatchEvent('click', { detail: 1 });
+  await input.dispatchEvent('cancel');
+  await expect(page.getByRole('dialog', { name: 'Imagen de la tarjeta' })).toBeVisible();
+  await expect(page.getByTestId('image-sheet-remove')).toBeVisible();
+  await page.getByTestId('image-sheet-cancel').click();
+
+  await openSheet();
+  await page.getByTestId('image-sheet-remove').click();
+  await page.getByTestId('image-sheet-apply').click();
+  expect(await page.evaluate(() => window.__manualEditorHarness.getImageUpdateCounts())).toEqual({ apply: 0, remove: 1 });
+  await expect(page.getByTestId('manual-card-editor-image-control').locator('img')).toHaveCount(0);
+  await expect(page.locator('[data-action-sheet-layer], [data-action-sheet-backdrop="true"]')).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => window.__manualEditorHarness.getLayerSnapshot()))
+    .toMatchObject({ topId: null, count: 0 });
+});
+
+test('PW-IMAGE-APP-003 — mover la imagen existente confirma solo el destino elegido', async ({ page }) => {
+  await openHarness(page);
+  await chooseAndOpen(page, 'image', 'question');
+  await page.evaluate(() => window.__manualEditorHarness.resetImageUpdateCounts());
+  await page.getByTestId('manual-card-editor-image-control').click();
+  await page.getByTestId('image-sheet-side-answer').click();
+  expect(await page.evaluate(() => window.__manualEditorHarness.getImageUpdateCounts())).toEqual({ apply: 0, remove: 0 });
+  await page.getByTestId('image-sheet-apply').click();
+  expect(await page.evaluate(() => window.__manualEditorHarness.getImageUpdateCounts())).toEqual({ apply: 1, remove: 0 });
+  await expect(page.getByTestId('manual-card-editor-image-control').locator('img')).toHaveCount(0);
+  await page.getByTestId('manual-card-editor-switch-side').click();
   await expect(page.getByTestId('manual-card-editor-image-control').locator('img')).toBeVisible();
 });
 
