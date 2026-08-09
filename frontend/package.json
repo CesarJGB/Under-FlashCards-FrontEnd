@@ -11,7 +11,7 @@
     "test:pdf-extraction": "node --test src/components/creator/pdf/pdfExtractionEngine.test.js",
     "test:schedule": "node --test src/components/library/calendar/scheduleUtils.test.js src/components/library/calendar/scheduleTimeline.test.js src/components/library/calendar/scheduleUiContracts.test.js src/components/library/calendar/attendanceUtils.test.js src/utils/pdf/schedule/schedulePdfLayout.test.js src/utils/pdf/schedule/schedulePdfRenderer.test.js src/utils/pdf/workerClient.test.js src/utils/pdf/download.test.js src/utils/pdf/index.test.js",
     "test:manual-editor:harness": "vite --config tests/manual-editor/vite.harness.config.js --host 127.0.0.1 --port 4174 --strictPort",
-    "test:manual-editor:unit": "node --test src/components/creator/manual-editor/manualEditorSession.test.js src/components/creator/manual-editor/editorGeometry.test.js src/components/creator/manual-editor/editorLayerStack.test.js src/components/common/overlays/overlayRegistry.test.js tests/manual-editor/manual-editor-contracts.test.js",
+    "test:manual-editor:unit": "node --test src/components/creator/manual-editor/manualEditorSession.test.js src/components/creator/manual-editor/editorGeometry.test.js src/components/creator/manual-editor/editorLayerStack.test.js src/components/creator/manual-editor/editorActivation.test.js src/components/common/overlays/overlayRegistry.test.js tests/manual-editor/manual-editor-contracts.test.js",
     "test:manual-editor": "playwright test tests/manual-editor/manual-editor-current.spec.js",
     "test:manual-editor:chromium": "playwright test tests/manual-editor/manual-editor-current.spec.js --project=chromium",
     "test:manual-editor:all": "npm run test:manual-editor:unit && npm run test:manual-editor",
