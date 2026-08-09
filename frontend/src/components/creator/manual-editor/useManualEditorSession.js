@@ -181,8 +181,10 @@ export default function useManualEditorSession({
       return false;
     }
 
-    let focusCallCompleted = false;
-    try {
+    const alreadyFocused = typeof document !== 'undefined'
+      && document.activeElement === textarea;
+    let focusCallCompleted = alreadyFocused;
+    if (!alreadyFocused) try {
       textarea.focus({ preventScroll: true });
       focusCallCompleted = true;
     } catch {
@@ -244,20 +246,12 @@ export default function useManualEditorSession({
     });
   }, []);
 
-  const switchSide = useCallback((nextSide, { focusWithinGesture = false } = {}) => {
+  const switchSide = useCallback((nextSide) => {
     const currentSide = stateRef.current.activeSide;
     const normalizedNextSide = normalizeSide(nextSide);
     captureSelection(currentSide);
-    const next = dispatch({ type: 'SIDE_REQUESTED', side: normalizedNextSide });
-    if (focusWithinGesture && next.activeSide === normalizedNextSide) {
-      handledFocusRequestRef.current = next.focusRequestId;
-      attemptFocus({
-        side: normalizedNextSide,
-        reason: 'side-switch-gesture',
-        requestId: next.focusRequestId,
-      });
-    }
-  }, [attemptFocus, captureSelection, dispatch]);
+    dispatch({ type: 'SIDE_REQUESTED', side: normalizedNextSide });
+  }, [captureSelection, dispatch]);
 
   const startComposition = useCallback((side = stateRef.current.activeSide) => {
     dispatch({ type: 'COMPOSITION_STARTED', side: normalizeSide(side) });

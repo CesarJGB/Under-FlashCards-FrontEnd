@@ -452,8 +452,8 @@ export function manualEditorSessionReducer(state, event) {
 }
 
 /**
- * Must be called directly from the semantic click handler that owns user
- * activation. It intentionally performs no scheduling.
+ * Must be called directly from the pointer or semantic click handler that owns
+ * user activation. It intentionally performs no scheduling.
  */
 export function requestColorPickerFromClick(input) {
   if (!input) return { requested: false, method: 'none' };

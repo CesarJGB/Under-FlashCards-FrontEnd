@@ -298,7 +298,7 @@ test('UT-PICK-003 — image commit, cancel and unknown preserve side and selecti
   assert.equal(unknown.picker.status, 'returned-unknown');
 });
 
-test('UT-PICK-004 — semantic click uses showPicker or one immediate click fallback', () => {
+test('UT-PICK-004 — trusted activation uses showPicker or one immediate click fallback', () => {
   let pickerCalls = 0;
   let clickCalls = 0;
   const success = requestColorPickerFromClick({
