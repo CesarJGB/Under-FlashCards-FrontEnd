@@ -1,5 +1,5 @@
 import { createPortal } from 'react-dom';
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   AlignCenter,
   AlignLeft,
@@ -10,12 +10,12 @@ import {
   Check,
   ImagePlus,
   Italic,
-  Pencil,
   Loader2,
   Plus,
   X,
 } from 'lucide-react';
 import { ColorPalette, ColorSwatchButton } from './StylePanel';
+import useManualEditorSession from './manual-editor/useManualEditorSession';
 
 const DEFAULT_ALIGNS = [
   { label: 'Izquierda', value: 'left', Icon: AlignLeft },
@@ -37,13 +37,6 @@ const getSideCopy = (side) => (
   side === 'answer'
     ? { label: 'Respuesta', placeholder: 'Escribe la respuesta…' }
     : { label: 'Pregunta', placeholder: 'Escribe la pregunta…' }
-);
-
-const normalizeSide = (side) => (side === 'answer' ? 'answer' : 'question');
-
-const isTouchDevice = () => (
-  typeof window !== 'undefined'
-  && (navigator.maxTouchPoints > 0 || 'ontouchstart' in window)
 );
 
 export default function ManualCardEditorModal({
@@ -69,98 +62,59 @@ export default function ManualCardEditorModal({
   textAlign = 'left',
   setTextAlign,
 }) {
-  const [activeSide, setActiveSide] = useState(() => normalizeSide(initialSide));
   const [viewportFrame, setViewportFrame] = useState(null);
   const [openMenu, setOpenMenu] = useState(null); // 'color' | 'align' | null
-  const [focusResumeReason, setFocusResumeReason] = useState(null); // 'initial' | 'keyboard' | 'image' | null
 
   const textareaRef = useRef(null);
   const imageInputRef = useRef(null);
-  const selectionRef = useRef({ start: 0, end: 0 });
-  const focusResumeReasonRef = useRef(null);
-  const keyboardWasOpenRef = useRef(false);
-  const resumeRequestedRef = useRef(false);
-  const imagePickerActiveRef = useRef(false);
-  const pickerReturnTimerRef = useRef(null);
-  const initialKeyboardCheckTimerRef = useRef(null);
+  const imageTransactionIdRef = useRef(null);
   const colorAnchorRef = useRef(null);
-  const openMenuRef = useRef(null);
-  const menuReturnFocusRef = useRef(null);
-  const focusRestoreFrameRef = useRef(null);
-  const menuKeyboardGuardTimerRef = useRef(null);
+
+  const editorSession = useManualEditorSession({
+    open,
+    initialSide,
+    question,
+    answer,
+    textareaRef,
+  });
+  const activeSide = editorSession.activeSide;
 
   const alignOptions = Array.isArray(ALIGNS) && ALIGNS.length ? ALIGNS : DEFAULT_ALIGNS;
   const swatches = Array.isArray(SWATCHES) && SWATCHES.length ? SWATCHES : DEFAULT_SWATCHES;
 
-  const setMenuState = useCallback((nextMenu) => {
-    openMenuRef.current = nextMenu;
-    setOpenMenu(nextMenu);
-  }, []);
-
-  const setFocusResumeReasonSafe = useCallback((reason) => {
-    focusResumeReasonRef.current = reason;
-    setFocusResumeReason(reason);
-  }, []);
-
-  const focusTextarea = useCallback(() => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-
-    try {
-      textarea.focus({ preventScroll: true });
-      const { start, end } = selectionRef.current;
-      if (typeof start === 'number' && typeof end === 'number') {
-        textarea.setSelectionRange(start, end);
-      }
-    } catch {
-      textarea.focus();
-    }
-  }, []);
-
   const openImagePicker = () => {
-    const textarea = textareaRef.current;
-    if (textarea) {
-      selectionRef.current = {
-        start: textarea.selectionStart,
-        end: textarea.selectionEnd,
-      };
-    }
     const input = imageInputRef.current;
     if (!input) return;
-    imagePickerActiveRef.current = true;
+    const transactionId = editorSession.beginPicker('image');
+    imageTransactionIdRef.current = transactionId;
     input.value = '';
-    input.click();
+    try {
+      input.click();
+      editorSession.markPickerExternal(transactionId);
+    } catch {
+      editorSession.signalPickerReturn(transactionId);
+    }
   };
 
   const handleImageInputChange = (event) => {
     const file = event.target.files?.[0];
-    if (file) {
-      handleContentImageFile?.(event, activeSide);
-      imagePickerActiveRef.current = false;
-      resumeRequestedRef.current = false;
-      setFocusResumeReasonSafe('image');
+    const transactionId = imageTransactionIdRef.current;
+    if (!file || transactionId == null) return;
+    if (editorSession.commitPicker(transactionId, { type: file.type, size: file.size })) {
+      handleContentImageFile?.(
+        event,
+        editorSession.state.picker.side || activeSide,
+      );
+      imageTransactionIdRef.current = null;
     }
-  };
-
-  const handleResumeFocus = () => {
-    resumeRequestedRef.current = true;
-    setFocusResumeReasonSafe(null);
-    focusTextarea();
   };
 
   useLayoutEffect(() => {
     if (!open) return;
-
-    const nextSide = normalizeSide(initialSide);
-    setActiveSide((previousSide) => (previousSide === nextSide ? previousSide : nextSide));
-    setMenuState(null);
-    focusResumeReasonRef.current = null;
-    setFocusResumeReason(null);
-    keyboardWasOpenRef.current = false;
-    resumeRequestedRef.current = false;
-    imagePickerActiveRef.current = false;
+    setOpenMenu(null);
+    imageTransactionIdRef.current = null;
     setViewportFrame(null);
-  }, [initialSide, open, setMenuState]);
+  }, [initialSide, open]);
 
   useEffect(() => {
     if (!open || typeof document === 'undefined') return undefined;
@@ -183,6 +137,8 @@ export default function ManualCardEditorModal({
     };
   }, [onClose, open]);
 
+  // @remove-in-cut-2: legacy geometry remains a layout-only compatibility
+  // adapter. It does not own focus, selection, resume or picker state.
   useLayoutEffect(() => {
     if (!open || typeof window === 'undefined') return undefined;
 
@@ -226,130 +182,20 @@ export default function ManualCardEditorModal({
     };
   }, [open]);
 
-  // Enfoque inicial al montar o cambiar de lado
-  useLayoutEffect(() => {
-    if (!open || typeof window === 'undefined') return undefined;
-
-    focusTextarea();
-    const frame = window.requestAnimationFrame(() => {
-      if (document.activeElement !== textareaRef.current) focusTextarea();
-    });
-
-    return () => window.cancelAnimationFrame(frame);
-  }, [focusTextarea, open, activeSide]);
-
-  // En algunos navegadores móviles el foco programático no puede abrir el
-  // teclado al montar el modal. Esperamos a que termine la animación de
-  // apertura y mostramos la misma ayuda contextual usada tras cargar una
-  // imagen si el viewport sigue sin reducirse.
   useEffect(() => {
-    if (!open || typeof window === 'undefined') {
-      if (initialKeyboardCheckTimerRef.current) {
-        window.clearTimeout(initialKeyboardCheckTimerRef.current);
-        initialKeyboardCheckTimerRef.current = null;
-      }
-      return undefined;
-    }
-
-    if (initialKeyboardCheckTimerRef.current) {
-      window.clearTimeout(initialKeyboardCheckTimerRef.current);
-    }
-
-    keyboardWasOpenRef.current = false;
-    resumeRequestedRef.current = false;
-    initialKeyboardCheckTimerRef.current = window.setTimeout(() => {
-      initialKeyboardCheckTimerRef.current = null;
-      if (!isTouchDevice() || imagePickerActiveRef.current || resumeRequestedRef.current) return;
-
-      const layoutHeight = Math.max(
-        window.innerHeight,
-        document.documentElement?.clientHeight || 0,
-      );
-      const visibleHeight = Math.round(window.visualViewport?.height || window.innerHeight);
-      const keyboardOpen = visibleHeight < layoutHeight - 100;
-
-      if (keyboardOpen) {
-        keyboardWasOpenRef.current = true;
-        return;
-      }
-
-      setFocusResumeReasonSafe('initial');
-    }, 450);
-
+    const input = imageInputRef.current;
+    if (!open || !input) return undefined;
+    const handleCancel = () => {
+      const transactionId = imageTransactionIdRef.current;
+      if (transactionId == null) return;
+      editorSession.cancelPicker(transactionId);
+      imageTransactionIdRef.current = null;
+    };
+    input.addEventListener('cancel', handleCancel);
     return () => {
-      if (initialKeyboardCheckTimerRef.current) {
-        window.clearTimeout(initialKeyboardCheckTimerRef.current);
-        initialKeyboardCheckTimerRef.current = null;
-      }
+      input.removeEventListener('cancel', handleCancel);
     };
-  }, [activeSide, open, setFocusResumeReasonSafe]);
-
-  // También cubre el caso en que el usuario ya estaba escribiendo y el
-  // teclado se cierra por una acción del navegador. El selector de imágenes
-  // queda excluido para conservar el mensaje específico de imagen cargada.
-  useEffect(() => {
-    if (!open || !viewportFrame || !isTouchDevice()) return;
-
-    if (viewportFrame.keyboardOpen) {
-      keyboardWasOpenRef.current = true;
-      resumeRequestedRef.current = false;
-      if (focusResumeReasonRef.current === 'initial') {
-        setFocusResumeReasonSafe(null);
-      }
-      return;
-    }
-
-    if (
-      !keyboardWasOpenRef.current
-      || imagePickerActiveRef.current
-      || resumeRequestedRef.current
-      || focusResumeReasonRef.current
-      || openMenuRef.current !== null
-    ) return;
-
-    setFocusResumeReasonSafe('keyboard');
-  }, [open, setFocusResumeReasonSafe, viewportFrame]);
-
-  // Cancelar el selector de archivos no dispara change en todos los
-  // navegadores. Liberamos la excepción al volver a la ventana para que una
-  // futura pérdida real del teclado vuelva a mostrar la ayuda normal.
-  useEffect(() => {
-    if (!open || typeof window === 'undefined') return undefined;
-
-    const handleWindowFocus = () => {
-      if (pickerReturnTimerRef.current) window.clearTimeout(pickerReturnTimerRef.current);
-      pickerReturnTimerRef.current = window.setTimeout(() => {
-        pickerReturnTimerRef.current = null;
-        imagePickerActiveRef.current = false;
-      }, 250);
-    };
-
-    window.addEventListener('focus', handleWindowFocus);
-    return () => {
-      window.removeEventListener('focus', handleWindowFocus);
-      if (pickerReturnTimerRef.current) {
-        window.clearTimeout(pickerReturnTimerRef.current);
-        pickerReturnTimerRef.current = null;
-      }
-    };
-  }, [open]);
-
-  useEffect(() => {
-    setMenuState(null);
-    setFocusResumeReasonSafe(null);
-    keyboardWasOpenRef.current = false;
-    resumeRequestedRef.current = false;
-    imagePickerActiveRef.current = false;
-  }, [activeSide, setFocusResumeReasonSafe, setMenuState]);
-
-  useEffect(() => () => {
-    if (menuKeyboardGuardTimerRef.current && typeof window !== 'undefined') {
-      window.clearTimeout(menuKeyboardGuardTimerRef.current);
-    }
-    if (focusRestoreFrameRef.current && typeof window !== 'undefined') {
-      window.cancelAnimationFrame(focusRestoreFrameRef.current);
-    }
-  }, []);
+  }, [editorSession.cancelPicker, open]);
 
   if (!open || typeof document === 'undefined') return null;
 
@@ -374,14 +220,15 @@ export default function ManualCardEditorModal({
   const reverseCopy = getSideCopy(reverseSide);
   const hasActiveImage = Boolean(contentImage && imageSide === activeSide);
   const canSave = Boolean(question.trim() && answer.trim() && !saving);
-  const needsFocusResume = Boolean(focusResumeReason);
-  const imageResume = focusResumeReason === 'image';
+  const needsFocusResume = editorSession.state.resume.available;
 
   const modalViewportStyle = viewportFrame
     ? { height: `${viewportFrame.height}px`, top: `${viewportFrame.offsetTop}px` }
     : { height: '100dvh', top: 0 };
 
   const footerSafeAreaStyle = {
+    // @remove-in-cut-2: the legacy geometry flag remains isolated to the
+    // existing visual compatibility rule and never enters InputSession.
     paddingBottom: viewportFrame?.keyboardOpen ? '0px' : 'env(safe-area-inset-bottom)',
   };
 
@@ -393,9 +240,10 @@ export default function ManualCardEditorModal({
     textAlign: currentAlign,
   };
 
-  const updateActiveValue = (value) => {
+  const updateActiveValue = (value, textarea) => {
     if (activeSide === 'answer') setAnswer(value);
     else setQuestion(value);
+    editorSession.updateValue(activeSide, value, textarea);
   };
 
   const updateActiveStyle = (suffix, value) => {
@@ -406,88 +254,16 @@ export default function ManualCardEditorModal({
     event?.preventDefault?.();
   };
 
-  const rememberMenuFocus = (event) => {
-    preserveToolbarFocus(event);
-    if (typeof document === 'undefined') return;
-    if (menuReturnFocusRef.current) return;
-    const activeElement = document.activeElement;
-    menuReturnFocusRef.current = activeElement instanceof HTMLElement && activeElement !== document.body
-      ? activeElement
-      : null;
-  };
-
   const handleMenuTriggerPointerDown = (event) => {
     preserveToolbarFocus(event);
-    if (openMenuRef.current === null) rememberMenuFocus();
-  };
-
-  const restoreMenuFocus = () => {
-    const target = menuReturnFocusRef.current;
-    menuReturnFocusRef.current = null;
-    if (!target || typeof window === 'undefined') return;
-
-    if (focusRestoreFrameRef.current) {
-      window.cancelAnimationFrame(focusRestoreFrameRef.current);
-    }
-
-    focusRestoreFrameRef.current = window.requestAnimationFrame(() => {
-      focusRestoreFrameRef.current = null;
-      if (!target.isConnected || typeof target.focus !== 'function') return;
-      try {
-        target.focus({ preventScroll: true });
-      } catch {
-        target.focus();
-      }
-
-      if (target === textareaRef.current) {
-        const { start, end } = selectionRef.current;
-        if (typeof start === 'number' && typeof end === 'number') {
-          try {
-            target.setSelectionRange(start, end);
-          } catch {
-            // El navegador puede rechazar la selección durante la transición.
-          }
-        }
-      }
-    });
-  };
-
-  const guardKeyboardResumeAfterMenu = () => {
-    // Abrir un selector nativo puede cerrar temporalmente el teclado. Ese
-    // cambio de viewport no debe convertirse en el mensaje "Listo para
-    // editar" ni dejar el editor en un estado de falsa pérdida de foco.
-    keyboardWasOpenRef.current = false;
-    resumeRequestedRef.current = true;
-    setFocusResumeReasonSafe(null);
-
-    if (menuKeyboardGuardTimerRef.current && typeof window !== 'undefined') {
-      window.clearTimeout(menuKeyboardGuardTimerRef.current);
-    }
-
-    if (typeof window !== 'undefined') {
-      menuKeyboardGuardTimerRef.current = window.setTimeout(() => {
-        menuKeyboardGuardTimerRef.current = null;
-        resumeRequestedRef.current = false;
-      }, 450);
-    }
   };
 
   const closeMenu = () => {
-    const wasOpen = openMenuRef.current !== null;
-    setMenuState(null);
-    if (wasOpen) {
-      guardKeyboardResumeAfterMenu();
-      restoreMenuFocus();
-    }
+    setOpenMenu(null);
   };
 
   const toggleColorMenu = () => {
-    if (openMenuRef.current === 'color') {
-      closeMenu();
-      return;
-    }
-    if (!menuReturnFocusRef.current) rememberMenuFocus();
-    setMenuState('color');
+    setOpenMenu((currentMenu) => (currentMenu === 'color' ? null : 'color'));
   };
 
   const blockMenuBackdropPointerDown = (event) => {
@@ -502,12 +278,8 @@ export default function ManualCardEditorModal({
   };
 
   const switchSide = () => {
-    setMenuState(null);
-    setFocusResumeReasonSafe(null);
-    keyboardWasOpenRef.current = false;
-    resumeRequestedRef.current = false;
-    imagePickerActiveRef.current = false;
-    setActiveSide((previousSide) => (previousSide === 'question' ? 'answer' : 'question'));
+    setOpenMenu(null);
+    editorSession.switchSide(reverseSide);
   };
 
   const saveCard = async (keepEditing) => {
@@ -517,9 +289,8 @@ export default function ManualCardEditorModal({
     if (wasSaved === false) return false;
 
     if (keepEditing) {
-      setActiveSide('question');
-      setMenuState(null);
-      setFocusResumeReasonSafe(null);
+      setOpenMenu(null);
+      if (activeSide !== 'question') editorSession.switchSide('question');
       return true;
     }
 
@@ -552,6 +323,8 @@ export default function ManualCardEditorModal({
       aria-modal="true"
       aria-label={`Editar ${activeCopy.label.toLowerCase()} de la tarjeta`}
       data-keyboard-open={viewportFrame?.keyboardOpen ? 'true' : 'false'}
+      data-active-side={activeSide}
+      data-picker-status={editorSession.state.picker.status}
       data-testid="manual-card-editor-modal"
     >
       <div
@@ -562,57 +335,47 @@ export default function ManualCardEditorModal({
           className="relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain bg-[#f7f8fc] px-4 py-3 sm:px-6 sm:py-5"
           onClick={(event) => {
             if (event.target === event.currentTarget) {
-              focusTextarea();
+              editorSession.resolveResumeFromGesture();
             }
           }}
         >
-          {/* 🚀 CAMBIO: flex-1 y justify-end para empujar el texto hacia abajo cuando needsFocusResume es true */}
-          <div className={`mx-auto flex w-full max-w-2xl flex-col gap-3 ${needsFocusResume ? 'flex-1 justify-end pb-4' : ''}`}>
+          <div className="mx-auto flex w-full max-w-2xl flex-col gap-3">
             <div className="relative h-[clamp(8rem,20dvh,10rem)] shrink-0 overflow-hidden rounded-[1.5rem] border-2 border-slate-500/80 bg-white shadow-[0_18px_45px_-36px_rgba(15,23,42,0.55)] focus-within:border-slate-700 focus-within:ring-4 focus-within:ring-slate-900/[0.06]">
               <textarea
                 ref={textareaRef}
                 value={activeValue}
                 onChange={(event) => {
-                  updateActiveValue(event.target.value);
-                  selectionRef.current = {
-                    start: event.target.selectionStart,
-                    end: event.target.selectionEnd,
-                  };
+                  updateActiveValue(event.target.value, event.target);
+                  editorSession.observeInput();
                 }}
-                onSelect={(event) => {
-                  selectionRef.current = {
-                    start: event.target.selectionStart,
-                    end: event.target.selectionEnd,
-                  };
-                }}
+                onSelect={() => editorSession.captureSelection(activeSide)}
+                onFocus={() => editorSession.observeFocus(activeSide)}
+                onBlur={() => editorSession.observeBlur(activeSide)}
+                onBeforeInput={editorSession.observeInput}
+                onInput={editorSession.observeInput}
+                onCompositionStart={() => editorSession.startComposition(activeSide)}
+                onCompositionEnd={(event) => editorSession.endComposition(activeSide, event.currentTarget)}
                 placeholder={activeCopy.placeholder}
                 aria-label={activeCopy.label}
-                autoFocus
                 style={activeTextareaStyle}
                 className="h-full min-h-0 w-full resize-none bg-transparent px-4 py-3 text-base leading-7 outline-none placeholder:font-medium placeholder:text-slate-300 sm:px-5 sm:py-4 sm:text-lg sm:leading-8"
                 data-testid={`manual-card-editor-${activeSide}`}
               />
+            </div>
 
-              {/* Ayuda contextual cuando el navegador no abrió el teclado. */}
-              {needsFocusResume && (
+            {needsFocusResume && (
+              <div className="flex justify-end" aria-live="polite">
                 <button
                   type="button"
-                  onClick={handleResumeFocus}
-                  className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-white/85 backdrop-blur-sm text-slate-700 animate-[fadeIn_0.15s_ease]"
-                  aria-label={imageResume ? 'Toca para seguir escribiendo' : 'Toca para comenzar a escribir'}
+                  onClick={editorSession.resolveResumeFromGesture}
+                  className="inline-flex min-h-9 items-center justify-center rounded-full border border-slate-200 bg-white px-3 text-xs font-bold text-slate-600 shadow-sm transition-colors active:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                  aria-label="Toca para continuar"
+                  data-testid="manual-card-editor-resume"
                 >
-                  {imageResume ? (
-                    <ImagePlus className="mb-2 h-6 w-6 text-slate-500" />
-                  ) : (
-                    <Pencil className="mb-2 h-6 w-6 text-slate-500" />
-                  )}
-                  <span className="text-sm font-bold">{imageResume ? 'Imagen cargada' : 'Listo para editar'}</span>
-                  <span className="mt-1 text-xs font-medium text-slate-500">
-                    {imageResume ? 'Toca aquí para seguir escribiendo' : 'Toca aquí para comenzar a escribir'}
-                  </span>
+                  Continuar escribiendo
                 </button>
-              )}
-            </div>
+              </div>
+            )}
 
             {error && (
               <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">
@@ -657,7 +420,6 @@ export default function ManualCardEditorModal({
                 <>
                   <button
                     type="button"
-                    onPointerDown={preserveToolbarFocus}
                     onClick={openImagePicker}
                     className="flex h-10 w-10 cursor-pointer overflow-hidden rounded-xl border border-slate-200 bg-slate-50 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
                     title={`Cambiar imagen de ${activeCopy.label.toLowerCase()}`}
@@ -684,7 +446,6 @@ export default function ManualCardEditorModal({
               ) : (
                 <button
                   type="button"
-                  onPointerDown={preserveToolbarFocus}
                   onClick={openImagePicker}
                   className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition-colors active:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
                   title={`Añadir imagen a ${activeCopy.label.toLowerCase()}`}
@@ -700,7 +461,10 @@ export default function ManualCardEditorModal({
               <button
                 type="button"
                 onPointerDown={preserveToolbarFocus}
-                onClick={() => updateActiveStyle('Bold', !activeBold)}
+                onClick={() => {
+                  editorSession.captureSelection(activeSide);
+                  updateActiveStyle('Bold', !activeBold);
+                }}
                 aria-label={`${activeBold ? 'Desactivar' : 'Activar'} negritas`}
                 aria-pressed={activeBold}
                 className={controlButtonClass(activeBold)}
@@ -712,7 +476,10 @@ export default function ManualCardEditorModal({
               <button
                 type="button"
                 onPointerDown={preserveToolbarFocus}
-                onClick={() => updateActiveStyle('Italic', !activeItalic)}
+                onClick={() => {
+                  editorSession.captureSelection(activeSide);
+                  updateActiveStyle('Italic', !activeItalic);
+                }}
                 aria-label={`${activeItalic ? 'Desactivar' : 'Activar'} cursivas`}
                 aria-pressed={activeItalic}
                 className={controlButtonClass(activeItalic)}
@@ -745,6 +512,16 @@ export default function ManualCardEditorModal({
                     value={activeColor}
                     swatches={swatches}
                     onChange={(value) => updateActiveStyle('Color', value)}
+                    onPresetSelect={(value) => {
+                      editorSession.captureSelection(activeSide);
+                      updateActiveStyle('Color', value);
+                    }}
+                    onPickerRequest={() => editorSession.beginPicker('color')}
+                    onPickerExternal={editorSession.markPickerExternal}
+                    onPickerInput={editorSession.updatePickerDraft}
+                    onPickerCommit={editorSession.commitPicker}
+                    onPickerCancel={editorSession.cancelPicker}
+                    onPickerReturnUnknown={editorSession.signalPickerReturn}
                     onClose={closeMenu}
                     anchorRef={colorAnchorRef}
                     placement="above"
@@ -758,13 +535,9 @@ export default function ManualCardEditorModal({
                 <button
                   type="button"
                   onPointerDown={handleMenuTriggerPointerDown}
-                  onClick={() => {
-                    if (openMenuRef.current === 'align') {
-                      closeMenu();
-                    } else {
-                      setMenuState('align');
-                    }
-                  }}
+                  onClick={() => setOpenMenu((currentMenu) => (
+                    currentMenu === 'align' ? null : 'align'
+                  ))}
                   aria-label={`Alineación: ${currentAlignOption.label}`}
                   aria-expanded={openMenu === 'align'}
                   className={controlButtonClass(currentAlign !== 'left')}
@@ -794,6 +567,7 @@ export default function ManualCardEditorModal({
                             aria-pressed={currentAlign === value}
                             onPointerDown={preserveToolbarFocus}
                             onClick={() => {
+                              editorSession.captureSelection(activeSide);
                               setTextAlign?.(value);
                               closeMenu();
                             }}

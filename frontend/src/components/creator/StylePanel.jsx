@@ -2,6 +2,7 @@
 import { createPortal } from 'react-dom';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ImagePlus, Plus, Minus, Bold, Italic, Pipette, X } from 'lucide-react';
+import { requestColorPickerFromClick } from './manual-editor/manualEditorSession';
 
 const VIEWPORT_MARGIN = 8;
 const PALETTE_GAP = 8;
@@ -46,6 +47,13 @@ export function ColorPalette({
   placement = 'above',
   variant = 'grid',
   label,
+  onPresetSelect,
+  onPickerRequest,
+  onPickerExternal,
+  onPickerInput,
+  onPickerCommit,
+  onPickerCancel,
+  onPickerReturnUnknown,
 }) {
   const paletteRef = useRef(null);
   const colorInputRef = useRef(null);
@@ -53,35 +61,45 @@ export function ColorPalette({
   const normalizedValue = value || '';
   const colorInputValue = toColorInputValue(normalizedValue);
   const initialColorInputValue = useRef(colorInputValue);
-  const customColorChangedRef = useRef(false);
-  const customColorCloseTimerRef = useRef(null);
+  const localTransactionCounterRef = useRef(0);
+  const activeCustomTransactionRef = useRef(null);
 
-  useEffect(() => () => {
-    if (customColorCloseTimerRef.current) {
-      window.clearTimeout(customColorCloseTimerRef.current);
-    }
-  }, []);
+  useEffect(() => {
+    const input = colorInputRef.current;
+    if (!input) return undefined;
 
-  const handleCustomColorChange = (event) => {
-    customColorChangedRef.current = true;
-    onChange(event.target.value);
-  };
+    const handleInput = (event) => {
+      const transactionId = activeCustomTransactionRef.current;
+      if (transactionId == null) return;
+      onPickerInput?.(transactionId, event.target.value);
+    };
 
-  const handleCustomColorBlur = () => {
-    // El selector nativo puede emitir varios cambios mientras se arrastran
-    // sus controles. Sólo cerramos la paleta cuando el input pierde el foco
-    // después de haber elegido un color, no en cada cambio intermedio.
-    if (!customColorChangedRef.current) return;
-
-    if (customColorCloseTimerRef.current) {
-      window.clearTimeout(customColorCloseTimerRef.current);
-    }
-
-    customColorCloseTimerRef.current = window.setTimeout(() => {
-      customColorCloseTimerRef.current = null;
+    const handleChange = (event) => {
+      const transactionId = activeCustomTransactionRef.current;
+      if (transactionId == null) return;
+      const accepted = onPickerCommit?.(transactionId, event.target.value);
+      if (accepted === false) return;
+      activeCustomTransactionRef.current = null;
+      onChange(event.target.value);
       onClose?.();
-    }, 80);
-  };
+    };
+
+    const handleCancel = () => {
+      const transactionId = activeCustomTransactionRef.current;
+      if (transactionId == null) return;
+      onPickerCancel?.(transactionId);
+      activeCustomTransactionRef.current = null;
+    };
+
+    input.addEventListener('input', handleInput);
+    input.addEventListener('change', handleChange);
+    input.addEventListener('cancel', handleCancel);
+    return () => {
+      input.removeEventListener('input', handleInput);
+      input.removeEventListener('change', handleChange);
+      input.removeEventListener('cancel', handleCancel);
+    };
+  }, [onChange, onClose, onPickerCancel, onPickerCommit, onPickerInput]);
 
   useLayoutEffect(() => {
     if (typeof window === 'undefined' || typeof document === 'undefined') return undefined;
@@ -208,7 +226,7 @@ export function ColorPalette({
               event.preventDefault();
             }}
             onClick={() => {
-              onChange(color.value);
+              (onPresetSelect || onChange)(color.value);
               onClose?.();
             }}
             style={color.value ? { backgroundColor: color.value } : undefined}
@@ -226,27 +244,22 @@ export function ColorPalette({
           className="group relative flex min-h-9 min-w-9 cursor-pointer items-center justify-center overflow-hidden rounded-xl border border-slate-300 bg-gradient-to-tr from-amber-400 via-rose-400 to-indigo-400 shadow-xs transition-transform [@media(hover:hover)]:hover:scale-105 dark:border-slate-600"
           title="Color personalizado"
           aria-label="Color personalizado"
-          onPointerDown={(event) => {
-            // No dejamos que la muestra personalizada robe el foco del
-            // textarea. El selector nativo se abre desde este botón y no
-            // desde un label/input enfocable.
-            event.preventDefault();
-            event.stopPropagation();
-            customColorChangedRef.current = false;
+          onClick={() => {
+            // This semantic click covers touch, mouse, keyboard and assistive
+            // activation while preserving the transient user activation.
+            const transactionId = onPickerRequest?.('color')
+              ?? (localTransactionCounterRef.current + 1);
+            if (!onPickerRequest) localTransactionCounterRef.current = transactionId;
+            activeCustomTransactionRef.current = transactionId;
             const input = colorInputRef.current;
-            if (!input) return;
-            if (input.value !== colorInputValue) input.value = colorInputValue;
-
-            try {
-              if (typeof input.showPicker === 'function') {
-                input.showPicker();
-                return;
-              }
-            } catch {
-              // Safari/iOS puede rechazar showPicker; el click conserva el
-              // fallback compatible con el selector nativo.
+            if (!input) {
+              onPickerReturnUnknown?.(transactionId);
+              return;
             }
-            input.click();
+            if (input.value !== colorInputValue) input.value = colorInputValue;
+            const result = requestColorPickerFromClick(input);
+            if (result.requested) onPickerExternal?.(transactionId, result.method);
+            else onPickerReturnUnknown?.(transactionId);
           }}
         >
           <Pipette className="relative z-10 h-3.5 w-3.5 text-white drop-shadow-xs transition-transform group-hover:scale-110" aria-hidden="true" />
@@ -257,13 +270,6 @@ export function ColorPalette({
           // Debe ser no controlado: en iOS, volver a escribir `value` mientras
           // el selector nativo está abierto puede cerrarlo tras el primer cambio.
           defaultValue={initialColorInputValue.current}
-          onFocus={() => {
-            if (colorInputRef.current && colorInputRef.current.value !== colorInputValue) {
-              colorInputRef.current.value = colorInputValue;
-            }
-          }}
-          onChange={handleCustomColorChange}
-          onBlur={handleCustomColorBlur}
           className="sr-only"
           tabIndex={-1}
           aria-label={`Elegir ${label || 'color'}`}
