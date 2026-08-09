@@ -624,7 +624,6 @@ export default function FlashcardCreator({
         title="Estilo"
         onClose={() => setShowStyles(false)}
         compact
-        preserveFocus
         footer={(
           <button
             type="button"
