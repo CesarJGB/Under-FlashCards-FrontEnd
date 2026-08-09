@@ -130,17 +130,19 @@ test('KEEP-001, KEEP-005, KEEP-006, KEEP-007 and KEEP-009 remain observable', as
   assert.match(modal, /Toca aquí para seguir escribiendo/);
 });
 
-test('KEEP-002 and KEEP-003 retain picker detection, fallback and an uncontrolled color input', async () => {
-  const [stylePanel, session] = await Promise.all([
-    readFrontendFile('src/components/creator/StylePanel.jsx'),
-    readFrontendFile('src/components/creator/manual-editor/manualEditorSession.js'),
-  ]);
-  assert.match(session, /typeof input\.showPicker === 'function'/);
-  assert.match(session, /input\.showPicker\(\)/);
-  assert.match(session, /catch\s*\{/);
-  assert.match(session, /input\.click\(\)/);
+test('KEEP-002 and KEEP-003 use a direct, accessible and uncontrolled native color input', async () => {
+  const stylePanel = await readFrontendFile('src/components/creator/StylePanel.jsx');
+  const customControlStart = stylePanel.indexOf('data-custom-color-control="true"');
+  const customControlEnd = stylePanel.indexOf('</label>', customControlStart);
+  const customControl = stylePanel.slice(customControlStart, customControlEnd);
+  assert.ok(customControlStart >= 0 && customControlEnd > customControlStart);
+  assert.match(stylePanel, /data-custom-color-control="true"/);
+  assert.match(stylePanel, /data-native-color-input="true"/);
+  assert.match(stylePanel, /className="absolute inset-0 h-full w-full cursor-pointer opacity-0"/);
+  assert.match(stylePanel, /aria-label="Color personalizado"/);
   assert.match(stylePanel, /type="color"[\s\S]*?defaultValue=\{initialColorInputValue\.current\}/);
   assert.doesNotMatch(stylePanel, /type="color"[\s\S]{0,240}?value=\{/);
+  assert.doesNotMatch(customControl, /showPicker\s*\(|\.click\s*\(\)/);
 });
 
 test('Corte 1 protects semantic pickers, per-side selection and contextual resume UI', async () => {
@@ -151,13 +153,13 @@ test('Corte 1 protects semantic pickers, per-side selection and contextual resum
     readFrontendFile('src/components/creator/manual-editor/useManualEditorSession.js'),
   ]);
 
-  const customButtonStart = stylePanel.indexOf('title="Color personalizado"');
-  const customButtonEnd = stylePanel.indexOf('</button>', customButtonStart);
-  const customButton = stylePanel.slice(customButtonStart, customButtonEnd);
-  assert.ok(customButtonStart >= 0 && customButtonEnd > customButtonStart);
-  assert.match(customButton, /onClick=/);
-  assert.match(customButton, /onPointerDown=/);
-  assert.match(stylePanel, /requestCustomColor[\s\S]*requestColorPickerFromClick\(input\)/);
+  const customControlStart = stylePanel.indexOf('data-custom-color-control="true"');
+  const customControlEnd = stylePanel.indexOf('</label>', customControlStart);
+  const customControl = stylePanel.slice(customControlStart, customControlEnd);
+  assert.ok(customControlStart >= 0 && customControlEnd > customControlStart);
+  assert.match(customControl, /type="color"/);
+  assert.match(customControl, /onClick=\{handleNativeColorClick\}/);
+  assert.match(customControl, /onPointerDown=\{handleNativeColorPointerDown\}/);
 
   assert.match(session, /question:\s*createSideSelection/);
   assert.match(session, /answer:\s*createSideSelection/);
@@ -181,26 +183,29 @@ test('Corte 1 protects semantic pickers, per-side selection and contextual resum
   assert.match(modal, /Imagen cargada/);
   assert.match(modal, /onBeforeInput=\{editorSession\.observeInput\}/);
 
-  const presetBlock = stylePanel.slice(stylePanel.indexOf('swatches.map'), customButtonStart);
+  const presetBlock = stylePanel.slice(stylePanel.indexOf('swatches.map'), customControlStart);
   assert.doesNotMatch(presetBlock, /onPickerRequest|PICKER_REQUESTED/);
 });
 
 test('post-Corte 5 regressions keep focus and native picker transactions inside the trusted gesture', async () => {
-  const [modal, stylePanel, session, hook] = await Promise.all([
+  const [modal, stylePanel, session, hook, activation] = await Promise.all([
     readFrontendFile('src/components/creator/ManualCardEditorModal.jsx'),
     readFrontendFile('src/components/creator/StylePanel.jsx'),
     readFrontendFile('src/components/creator/manual-editor/manualEditorSession.js'),
     readFrontendFile('src/components/creator/manual-editor/useManualEditorSession.js'),
+    readFrontendFile('src/components/creator/manual-editor/editorActivation.js'),
   ]);
 
-  assert.match(modal, /onPointerDown=\{handleSidePress\}[\s\S]*onClick=\{handleSidePress\}/);
-  assert.match(modal, /handleMenuPress\(event, COLOR_LAYER_ID\)/);
-  assert.match(modal, /handleMenuPress\(event, ALIGN_LAYER_ID\)/);
+  assert.match(modal, /ref=\{sideTriggerRef\}[\s\S]*\{\.\.\.sidePress\}/);
+  assert.match(modal, /ref=\{colorTriggerRef\}[\s\S]*\{\.\.\.colorMenuPress\}/);
+  assert.match(modal, /ref=\{alignTriggerRef\}[\s\S]*\{\.\.\.alignMenuPress\}/);
+  assert.match(activation, /addEventListener\('touchstart',[\s\S]*passive: false/);
+  assert.match(activation, /ignoreNextClick/);
   assert.match(hook, /stateRef\.current = next[\s\S]*reactDispatch\(event\)/);
   assert.match(hook, /const alreadyFocused[\s\S]*document\.activeElement === textarea/);
   assert.match(hook, /current\.picker\.transactionId !== transactionId/);
   assert.match(session, /imagePickerCommitted[\s\S]*reason: imagePickerCommitted \? 'image-picker-returned'/);
-  assert.match(stylePanel, /title="Color personalizado"[\s\S]{0,500}?onPointerDown=\{requestCustomColor\}[\s\S]*onClick=\{requestCustomColor\}/);
+  assert.match(stylePanel, /data-native-color-input="true"[\s\S]{0,500}?onPointerDown=\{handleNativeColorPointerDown\}[\s\S]*onClick=\{handleNativeColorClick\}/);
 });
 
 test('UT-ARCH-001 / Corte 2 has one geometry authority and no keyboard heuristics', async () => {

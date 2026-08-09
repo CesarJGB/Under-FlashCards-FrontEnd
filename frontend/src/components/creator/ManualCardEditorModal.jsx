@@ -26,7 +26,7 @@ import { ColorPalette, ColorSwatchButton } from './StylePanel';
 import { OverlayPortal, OverlayScope } from '../common/OverlayScope';
 import { useScrollLease } from '../../lib/scrollLock';
 import EditorOverlayRoot from './manual-editor/EditorOverlayRoot';
-import { handleFocusPreservingPress } from './manual-editor/editorActivation';
+import { useFocusPreservingPress } from './manual-editor/editorActivation';
 import { needsInitialEditorGeometryFallback } from './manual-editor/editorGeometry';
 import useEditorLayerStack from './manual-editor/useEditorLayerStack';
 import useManualEditorSession from './manual-editor/useManualEditorSession';
@@ -59,6 +59,7 @@ const ALIGN_LAYER_ID = 'manual-editor-align';
 
 function AlignmentPopover({
   anchorRef,
+  editorBoundsRef,
   geometry,
   layerStack,
   options,
@@ -86,16 +87,28 @@ function AlignmentPopover({
       const gap = 8;
       const minLeft = geometry.visual.left + margin;
       const maxRight = geometry.visual.left + geometry.visual.width - margin;
-      const minTop = geometry.visual.top + margin;
-      const maxBottom = geometry.visual.top + geometry.visual.height - margin;
+      const editorBounds = editorBoundsRef?.current?.getBoundingClientRect?.();
+      const minTop = Math.max(
+        geometry.visual.top + margin,
+        editorBounds ? editorBounds.top + margin : geometry.visual.top + margin,
+      );
+      const maxBottom = Math.min(
+        geometry.visual.top + geometry.visual.height - margin,
+        editorBounds
+          ? editorBounds.bottom - margin
+          : geometry.visual.top + geometry.visual.height - margin,
+      );
       const width = Math.min(168, Math.max(1, maxRight - minLeft));
       const height = Math.min(popoverRect.height, Math.max(1, maxBottom - minTop));
       const left = Math.min(Math.max(anchorRect.right - width, minLeft), maxRight - width);
       const above = anchorRect.top - height - gap;
       const below = anchorRect.bottom + gap;
-      const top = above >= minTop
+      const fits = (top) => top >= minTop && top + height <= maxBottom;
+      const top = fits(above)
         ? above
-        : Math.min(Math.max(below, minTop), maxBottom - height);
+        : fits(below)
+          ? below
+          : Math.min(Math.max(above, minTop), maxBottom - height);
       const next = { left, top, width, maxHeight: Math.max(1, maxBottom - minTop) };
       setPosition((current) => (
         current
@@ -114,7 +127,7 @@ function AlignmentPopover({
       if (frameId) window.cancelAnimationFrame(frameId);
       observer?.disconnect();
     };
-  }, [anchorRef, geometry.epoch, geometry.revision, layerStack]);
+  }, [anchorRef, editorBoundsRef, geometry.epoch, geometry.revision, layerStack]);
 
   return (
     <OverlayPortal
@@ -190,6 +203,9 @@ export default function ManualCardEditorModal({
   const imageTransactionIdRef = useRef(null);
   const colorAnchorRef = useRef(null);
   const alignAnchorRef = useRef(null);
+  const sideTriggerRef = useRef(null);
+  const colorTriggerRef = useRef(null);
+  const alignTriggerRef = useRef(null);
   const scrollOwnerRef = useRef(`manual-editor-scroll-${Math.random().toString(36).slice(2)}`);
 
   const editorSession = useManualEditorSession({
@@ -290,6 +306,27 @@ export default function ManualCardEditorModal({
     };
   }, [editorSession.cancelPicker, open]);
 
+  const toggleEditorLayerFromPress = (activation, id, returnTarget) => {
+    layerStack.toggleLayer({
+      id,
+      ownerId: 'manual-editor-toolbar',
+      kind: 'popover',
+      focusPolicy: activation === 'pointer' ? 'pointer-preserve' : 'move-focus',
+      returnTarget,
+      replaceOwner: true,
+    });
+  };
+  const sidePress = useFocusPreservingPress(sideTriggerRef, () => {
+    if (layerStack.topId) layerStack.dismissTop('side-switch');
+    editorSession.switchSide(editorSession.activeSide === 'question' ? 'answer' : 'question');
+  }, open);
+  const colorMenuPress = useFocusPreservingPress(colorTriggerRef, (activation) => {
+    toggleEditorLayerFromPress(activation, COLOR_LAYER_ID, colorTriggerRef.current);
+  }, open);
+  const alignMenuPress = useFocusPreservingPress(alignTriggerRef, (activation) => {
+    toggleEditorLayerFromPress(activation, ALIGN_LAYER_ID, alignTriggerRef.current);
+  }, open);
+
   if (!open || typeof document === 'undefined') return null;
 
   const activeCopy = getSideCopy(activeSide);
@@ -374,33 +411,6 @@ export default function ManualCardEditorModal({
   const closeAlignMenu = (reason = 'selection') => (
     layerStack.dismissLayer(ALIGN_LAYER_ID, alignLayerToken, reason)
   );
-
-  const toggleEditorLayer = (activation, id, returnTarget) => {
-    layerStack.toggleLayer({
-      id,
-      ownerId: 'manual-editor-toolbar',
-      kind: 'popover',
-      focusPolicy: activation === 'pointer' ? 'pointer-preserve' : 'move-focus',
-      returnTarget,
-      replaceOwner: true,
-    });
-  };
-
-  const switchSide = () => {
-    if (layerStack.topId) layerStack.dismissTop('side-switch');
-    editorSession.switchSide(reverseSide);
-  };
-
-  const handleSidePress = (event) => {
-    handleFocusPreservingPress(event, switchSide);
-  };
-
-  const handleMenuPress = (event, id) => {
-    const returnTarget = event.currentTarget;
-    handleFocusPreservingPress(event, (activation) => {
-      toggleEditorLayer(activation, id, returnTarget);
-    });
-  };
 
   const saveCard = async (keepEditing) => {
     if (!canSave) return false;
@@ -535,14 +545,14 @@ export default function ManualCardEditorModal({
         </main>
 
         <footer
-          className="relative z-20 min-w-0 max-w-full shrink-0 overflow-x-hidden border-t border-slate-200/80 bg-white shadow-[0_-12px_35px_-28px_rgba(15,23,42,0.65)]"
+          className="relative z-30 min-w-0 max-w-full shrink-0 overflow-x-hidden border-t border-slate-200/80 bg-white shadow-[0_-12px_35px_-28px_rgba(15,23,42,0.65)]"
           style={footerSafeAreaStyle}
         >
           <div className="relative z-10 mx-auto flex w-full max-w-2xl gap-2 border-b border-slate-100 bg-white px-3 py-2 sm:px-4">
             <button
+              ref={sideTriggerRef}
               type="button"
-              onPointerDown={handleSidePress}
-              onClick={handleSidePress}
+              {...sidePress}
               className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 shadow-sm transition-colors active:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 sm:text-sm"
               data-testid="manual-card-editor-switch-side"
             >
@@ -639,9 +649,9 @@ export default function ManualCardEditorModal({
 
               <div ref={colorAnchorRef} className="relative shrink-0">
                 <button
+                  ref={colorTriggerRef}
                   type="button"
-                  onPointerDown={(event) => handleMenuPress(event, COLOR_LAYER_ID)}
-                  onClick={(event) => handleMenuPress(event, COLOR_LAYER_ID)}
+                  {...colorMenuPress}
                   aria-label="Color del texto"
                   aria-expanded={openMenu === 'color'}
                   className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition-all ${
@@ -670,7 +680,6 @@ export default function ManualCardEditorModal({
                     onPickerInput={editorSession.updatePickerDraft}
                     onPickerCommit={editorSession.commitPicker}
                     onPickerCancel={editorSession.cancelPicker}
-                    onPickerReturnUnknown={editorSession.signalPickerReturn}
                     onClose={closeColorMenu}
                     anchorRef={colorAnchorRef}
                     editorGeometry={editorGeometry}
@@ -685,9 +694,9 @@ export default function ManualCardEditorModal({
 
               <div ref={alignAnchorRef} className="relative shrink-0">
                 <button
+                  ref={alignTriggerRef}
                   type="button"
-                  onPointerDown={(event) => handleMenuPress(event, ALIGN_LAYER_ID)}
-                  onClick={(event) => handleMenuPress(event, ALIGN_LAYER_ID)}
+                  {...alignMenuPress}
                   aria-label={`Alineación: ${currentAlignOption.label}`}
                   aria-expanded={openMenu === 'align'}
                   className={controlButtonClass(currentAlign !== 'left')}
@@ -699,6 +708,7 @@ export default function ManualCardEditorModal({
                 {openMenu === 'align' && (
                   <AlignmentPopover
                     anchorRef={alignAnchorRef}
+                    editorBoundsRef={editorMainRef}
                     geometry={editorGeometry}
                     layerStack={layerStack}
                     options={alignOptions}
@@ -735,8 +745,8 @@ export default function ManualCardEditorModal({
             />
           </div>
         </footer>
+        <EditorOverlayRoot ref={setOverlayRoot} geometry={editorGeometry} />
       </div>
-      <EditorOverlayRoot ref={setOverlayRoot} geometry={editorGeometry} />
       </OverlayScope>
     </div>
   );

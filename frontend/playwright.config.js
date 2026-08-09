@@ -30,11 +30,19 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      use: { browserName: 'chromium', viewport: { width: 390, height: 844 } },
+      use: {
+        browserName: 'chromium',
+        viewport: { width: 390, height: 844 },
+        hasTouch: true,
+      },
     },
     {
       name: 'webkit',
-      use: { browserName: 'webkit', viewport: { width: 393, height: 852 } },
+      use: {
+        browserName: 'webkit',
+        viewport: { width: 393, height: 852 },
+        hasTouch: true,
+      },
     },
     {
       name: 'firefox',

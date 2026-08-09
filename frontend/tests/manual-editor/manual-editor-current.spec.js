@@ -61,9 +61,30 @@ async function closePaletteByBackdrop(page) {
   await expect(page.locator('[data-color-palette="true"]')).toHaveCount(0);
 }
 
+async function activateLikeMobile(locator, testInfo) {
+  if (testInfo.project.name === 'firefox') await locator.click();
+  else await locator.tap();
+}
+
+async function readSelection(locator) {
+  return locator.evaluate((node) => ({
+    start: node.selectionStart,
+    end: node.selectionEnd,
+    direction: node.selectionDirection,
+  }));
+}
+
+async function attachInteractionTrace(page, testInfo, label) {
+  const trace = await page.evaluate(() => window.__manualEditorHarness.getInteractionTrace());
+  await testInfo.attach(`${label}-interaction-events.json`, {
+    body: JSON.stringify(trace, null, 2),
+    contentType: 'application/json',
+  });
+  return trace;
+}
+
 test('PW-CHAR-001 / EDITOR-SCROLL-001 / EDITOR-STATE-001 — apertura, selección, scroll y 20 ciclos', async ({ page }, testInfo) => {
   await openHarness(page);
-  const baselineListeners = await page.evaluate(() => window.__manualEditorHarness.getListenerSnapshot());
   const appScrollRoot = page.getByTestId('harness-app-scroll-root');
   await appScrollRoot.evaluate((node) => { node.scrollTop = 240; });
   await expect.poll(() => appScrollRoot.evaluate((node) => node.scrollTop)).toBeGreaterThan(0);
@@ -124,6 +145,10 @@ test('PW-CHAR-001 / EDITOR-SCROLL-001 / EDITOR-STATE-001 — apertura, selecció
   expect(scrollContract.footerSharesSurface).toBe(true);
   await closeThroughHarness(page);
 
+  // React instala listeners delegados la primera vez que encuentra un target
+  // de portal. Comparamos ciclos posteriores contra esa línea base caliente.
+  const baselineListeners = await page.evaluate(() => window.__manualEditorHarness.getListenerSnapshot());
+
   for (let cycle = 0; cycle < 20; cycle += 1) {
     await page.evaluate(() => window.__manualEditorHarness.open('question'));
     await expect(page.getByTestId('manual-card-editor-modal')).toBeVisible();
@@ -163,33 +188,22 @@ test('PW-CHAR-002 / PW-MENU-001 / EDITOR-COLOR-004 — menús DOM, presets y stu
 
   await page.evaluate(() => {
     window.__manualEditorHarness.resetPickerState();
-    window.__manualEditorHarness.configureColorPicker('success');
   });
   await colorTrigger.click();
-  await page.getByRole('button', { name: 'Color personalizado' }).click();
-  await expect.poll(() => page.evaluate(() => window.__manualEditorHarness.getPickerState().colorRequests)).toBe(1);
+  await page.getByLabel('Color personalizado').click();
+  await expect.poll(() => page.evaluate(() => window.__manualEditorHarness.getPickerState()))
+    .toMatchObject({ colorDirectClicks: 1, colorRequests: 0, colorFallbackClicks: 0 });
   expect(await page.evaluate(() => window.__manualEditorHarness.commitCustomColor('#7c3aed'))).toBe(true);
   await expect(page.locator('[data-color-palette="true"]')).toHaveCount(0);
 
   await colorTrigger.click();
-  await page.getByRole('button', { name: 'Color personalizado' }).click();
+  await page.getByLabel('Color personalizado').click();
   const customInput = page.locator('[data-color-palette="true"] input[type="color"]');
   await customInput.evaluate((node) => { node.value = '#13579b'; });
   await page.evaluate(() => window.__manualEditorHarness.forceRender());
   await expect(customInput).toHaveValue('#13579b');
   await page.evaluate(() => window.__manualEditorHarness.cancelCustomColor());
   await expect(page.locator('[data-color-palette="true"]')).toBeVisible();
-  await closePaletteByBackdrop(page);
-
-  await page.evaluate(() => {
-    window.__manualEditorHarness.resetPickerState();
-    window.__manualEditorHarness.configureColorPicker('throw');
-  });
-  await colorTrigger.click();
-  await page.getByRole('button', { name: 'Color personalizado' }).click();
-  const fallbackState = await page.evaluate(() => window.__manualEditorHarness.getPickerState());
-  expect(fallbackState.colorRequests).toBe(1);
-  expect(fallbackState.colorFallbackClicks).toBe(1);
   await closePaletteByBackdrop(page);
 
   const imageControl = page.getByTestId('manual-card-editor-image-control');
@@ -285,7 +299,7 @@ test('PW-A11Y-001 — scoped portal, inert shell and focus containment are obser
   const palette = page.locator('[data-color-palette="true"]');
   await expect(palette).toBeVisible();
   await expect(palette).not.toHaveAttribute('aria-modal', 'true');
-  await expect(page.getByTestId('manual-editor-color-backdrop')).toHaveAttribute('tabindex', '-1');
+  await expect(page.getByTestId('manual-editor-color-backdrop')).not.toHaveAttribute('tabindex', /.+/);
   expect(await page.evaluate(() => window.__manualEditorHarness.getModalRuntimeSnapshot().portalTarget)).toBe(true);
 
   for (let index = 0; index < 8; index += 1) await page.keyboard.press('Tab');
@@ -424,8 +438,12 @@ test('PW-OPEN-001 / KEEP-009 — la ayuda baja el área editable y permite reanu
   ]);
   expect(textareaBox).not.toBeNull();
   expect(resumeBox).not.toBeNull();
-  expect(resumeBox.y).toBeGreaterThanOrEqual(textareaBox.y + textareaBox.height);
-  await textarea.click();
+  expect(Math.abs(resumeBox.x - textareaBox.x)).toBeLessThanOrEqual(4);
+  expect(Math.abs(resumeBox.y - textareaBox.y)).toBeLessThanOrEqual(4);
+  expect(Math.abs(resumeBox.width - textareaBox.width)).toBeLessThanOrEqual(4);
+  expect(Math.abs(resumeBox.height - textareaBox.height)).toBeLessThanOrEqual(4);
+  await resume.click();
+  await expect(textarea).toBeFocused();
   await textarea.fill('El helper no bloqueó la edición física.');
   await expect(resume).toHaveCount(0);
   await page.getByTestId('manual-card-editor-done').focus();
@@ -439,39 +457,215 @@ test.skip('PENDING — DEVICE REQUIRED EDITOR-COLOR-002 / DEV-IOS-002 / DEV-AND-
   // el OSK ni la selección en iOS/Android. Esa evidencia solo es válida en dispositivo.
 });
 
-test('PW-PICK-001 / EDITOR-COLOR-001 — pointerdown, Enter, Space y click activan custom una vez', async ({ page }, testInfo) => {
+test('PW-PICK-001 / EDITOR-COLOR-001 — pointer, Enter y Space ejecutan un toggle cada uno', async ({ page }, testInfo) => {
   await openHarness(page);
   await chooseAndOpen(page, 'distinct', 'question');
-  await page.evaluate(() => {
-    window.__manualEditorHarness.resetPickerState();
-    window.__manualEditorHarness.configureColorPicker('success');
-  });
-  await page.getByTestId('manual-card-editor-color').click();
-  const custom = page.getByRole('button', { name: 'Color personalizado' });
-  await custom.dispatchEvent('pointerdown');
-  expect(await page.evaluate(() => window.__manualEditorHarness.getPickerState().colorRequests)).toBe(1);
-  await custom.focus();
-  await custom.press('Enter');
-  await custom.press('Space');
-  await custom.click();
-  expect(await page.evaluate(() => window.__manualEditorHarness.getPickerState().colorRequests)).toBe(4);
+  const color = page.getByTestId('manual-card-editor-color');
+  const palette = page.locator('[data-color-palette="true"]');
 
-  await page.evaluate(() => {
-    window.__manualEditorHarness.resetPickerState();
-    window.__manualEditorHarness.configureColorPicker('absent');
-  });
-  await custom.click();
-  expect(await page.evaluate(() => window.__manualEditorHarness.getPickerState().colorFallbackClicks)).toBe(1);
+  await color.click();
+  await expect(palette).toHaveCount(1);
+  await color.click();
+  await expect(palette).toHaveCount(0);
 
-  await page.evaluate(() => {
-    window.__manualEditorHarness.resetPickerState();
-    window.__manualEditorHarness.configureColorPicker('throw');
-  });
-  await custom.click();
-  const fallback = await page.evaluate(() => window.__manualEditorHarness.getPickerState());
-  expect(fallback.colorRequests).toBe(1);
-  expect(fallback.colorFallbackClicks).toBe(1);
+  await color.focus();
+  await color.press('Enter');
+  await expect(palette).toHaveCount(1);
+  await color.press('Space');
+  await expect(palette).toHaveCount(0);
+
+  const switchSide = page.getByTestId('manual-card-editor-switch-side');
+  await switchSide.focus();
+  await switchSide.press('Enter');
+  await expect(page.getByTestId('manual-card-editor-answer')).toBeVisible();
+  await switchSide.press('Space');
+  await expect(page.getByTestId('manual-card-editor-question')).toBeVisible();
   await attachDiagnostics(page, testInfo, 'EDITOR-COLOR-001');
+});
+
+test('PW-TOUCH-001 — 20 cambios rápidos conservan foco DOM y selecciones por lado', async ({ page }, testInfo) => {
+  await openHarness(page, { touch: true });
+  await chooseAndOpen(page, 'distinct', 'question');
+  let textarea = page.getByTestId('manual-card-editor-question');
+  await textarea.fill('Pregunta con selección independiente para veinte cambios rápidos.');
+  await page.evaluate(() => window.__manualEditorHarness.setSelection(3, 18, 'forward'));
+  const questionSelection = await readSelection(textarea);
+
+  const switchSide = page.getByTestId('manual-card-editor-switch-side');
+  await activateLikeMobile(switchSide, testInfo);
+  textarea = page.getByTestId('manual-card-editor-answer');
+  await textarea.fill('Respuesta con otra selección independiente.');
+  await page.evaluate(() => window.__manualEditorHarness.setSelection(5, 22, 'backward'));
+  const answerSelection = await readSelection(textarea);
+  await page.evaluate(() => window.__manualEditorHarness.resetInteractionTrace());
+
+  for (let cycle = 0; cycle < 20; cycle += 1) {
+    await activateLikeMobile(switchSide, testInfo);
+    const expectedSide = cycle % 2 === 0 ? 'question' : 'answer';
+    textarea = page.getByTestId(`manual-card-editor-${expectedSide}`);
+    await expect(textarea).toBeFocused();
+    await expect.poll(() => readSelection(textarea)).toEqual(
+      expectedSide === 'question' ? questionSelection : answerSelection,
+    );
+  }
+
+  const trace = await attachInteractionTrace(page, testInfo, 'PW-TOUCH-001');
+  expect(trace.some((event) => (
+    event.type === 'focus'
+    && event.target.testId === 'manual-card-editor-switch-side'
+  ))).toBe(false);
+  expect(trace.some((event) => (
+    event.type === 'blur'
+    && event.target.tag === 'textarea'
+  ))).toBe(false);
+});
+
+test('PW-TOUCH-002 — color y alineación hacen un toggle por gesto sin enfocar el trigger', async ({ page }, testInfo) => {
+  await openHarness(page, { touch: true });
+  await chooseAndOpen(page, 'distinct', 'question');
+  const textarea = page.getByTestId('manual-card-editor-question');
+  await textarea.fill('Texto enfocado durante toggles repetidos.');
+
+  const cases = [
+    {
+      trigger: page.getByTestId('manual-card-editor-color'),
+      layer: page.locator('[data-color-palette="true"]'),
+      testId: 'manual-card-editor-color',
+    },
+    {
+      trigger: page.getByTestId('manual-card-editor-align'),
+      layer: page.locator('[data-editor-align-popover="true"]'),
+      testId: 'manual-card-editor-align',
+    },
+  ];
+
+  for (const current of cases) {
+    await textarea.focus();
+    await page.evaluate(() => window.__manualEditorHarness.resetInteractionTrace());
+    for (let cycle = 0; cycle < 20; cycle += 1) {
+      await activateLikeMobile(current.trigger, testInfo);
+      if (cycle === 0) {
+        await attachInteractionTrace(page, testInfo, `PW-TOUCH-002-${current.testId}-first-gesture`);
+      }
+      await expect(current.layer).toHaveCount(cycle % 2 === 0 ? 1 : 0);
+      await expect(textarea).toBeFocused();
+    }
+    const trace = await page.evaluate(() => window.__manualEditorHarness.getInteractionTrace());
+    expect(trace.filter((event) => (
+      event.phase === 'capture'
+      && event.type === 'focus'
+      && event.target.testId === current.testId
+    ))).toHaveLength(0);
+    if (testInfo.project.name !== 'firefox') {
+      expect(trace.some((event) => (
+        event.phase === 'bubble'
+        && event.type === 'touchstart'
+        && event.defaultPrevented
+      ))).toBe(true);
+    }
+  }
+
+  await activateLikeMobile(cases[0].trigger, testInfo);
+  await expect(cases[0].layer).toHaveCount(1);
+  await activateLikeMobile(cases[1].trigger, testInfo);
+  await expect(cases[0].layer).toHaveCount(0);
+  await expect(cases[1].layer).toHaveCount(1);
+  await expect.poll(() => page.evaluate(() => window.__manualEditorHarness.getLayerSnapshot()))
+    .toMatchObject({ topId: 'manual-editor-align', count: 1 });
+  await expect(textarea).toBeFocused();
+  await activateLikeMobile(cases[1].trigger, testInfo);
+  await expect.poll(() => page.evaluate(() => window.__manualEditorHarness.getLayerSnapshot()))
+    .toMatchObject({ topId: null, count: 0 });
+  await expect(page.locator('[data-color-palette="true"], [data-editor-align-popover="true"]'))
+    .toHaveCount(0);
+  await expect(page.locator('[data-testid$="-backdrop"]')).toHaveCount(0);
+  await attachInteractionTrace(page, testInfo, 'PW-TOUCH-002');
+});
+
+test('PW-TOUCH-003 — un click compatible detail=0 no repite el pointerdown', async ({ page }, testInfo) => {
+  await openHarness(page, { touch: true });
+  await chooseAndOpen(page, 'distinct', 'question');
+  const textarea = page.getByTestId('manual-card-editor-question');
+  await textarea.focus();
+  const color = page.getByTestId('manual-card-editor-color');
+  await page.evaluate(() => window.__manualEditorHarness.resetInteractionTrace());
+  await color.dispatchEvent('pointerdown', {
+    pointerType: 'touch',
+    isPrimary: true,
+    button: 0,
+  });
+  await color.dispatchEvent('pointerup', {
+    pointerType: 'touch',
+    isPrimary: true,
+    button: 0,
+  });
+  await color.dispatchEvent('click', { detail: 0 });
+  await attachInteractionTrace(page, testInfo, 'PW-TOUCH-003-before-assertion');
+  await expect(page.locator('[data-color-palette="true"]')).toHaveCount(1);
+  await expect(textarea).toBeFocused();
+  await attachInteractionTrace(page, testInfo, 'PW-TOUCH-003');
+});
+
+test('PW-PICK-003 — color personalizado recibe el gesto nativo directo y resuelve una transacción', async ({ page }, testInfo) => {
+  await openHarness(page, { touch: true });
+  await chooseAndOpen(page, 'distinct', 'question');
+  const textarea = page.getByTestId('manual-card-editor-question');
+  const colorTrigger = page.getByTestId('manual-card-editor-color');
+  await textarea.focus();
+  await activateLikeMobile(colorTrigger, testInfo);
+  await expect(page.locator('[data-color-palette="true"]')).toBeVisible();
+  const nativeInput = page.locator('[data-color-palette="true"] input[type="color"]');
+  await expect(nativeInput).toHaveCount(1);
+  await page.evaluate(() => {
+    window.__manualEditorHarness.resetPickerState();
+    window.__manualEditorHarness.resetStyleUpdateCounts();
+    window.__manualEditorHarness.resetInteractionTrace();
+  });
+
+  const directHit = await nativeInput.evaluate((input) => {
+    const rect = input.getBoundingClientRect();
+    const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+    return {
+      inputIsHit: hit === input,
+      hitTag: hit?.tagName || '',
+      hitTestId: hit?.dataset?.testid || '',
+      height: rect.height,
+      width: rect.width,
+    };
+  });
+  expect(directHit).toMatchObject({ inputIsHit: true, hitTag: 'INPUT' });
+  expect(directHit.width).toBeGreaterThanOrEqual(30);
+  expect(directHit.height).toBeGreaterThanOrEqual(30);
+  await activateLikeMobile(nativeInput, testInfo);
+  await expect.poll(() => page.evaluate(() => window.__manualEditorHarness.getPickerState()))
+    .toMatchObject({
+      colorDirectClicks: 1,
+      colorTrustedDirectClicks: 1,
+      colorRequests: 0,
+      colorFallbackClicks: 0,
+    });
+
+  expect(await page.evaluate(() => window.__manualEditorHarness.inputCustomColor('#13579b'))).toBe(true);
+  expect(await page.evaluate(() => window.__manualEditorHarness.commitCustomColor('#13579b'))).toBe(true);
+  await expect(page.locator('[data-color-palette="true"]')).toHaveCount(0);
+  await expect(textarea).toHaveCSS('color', 'rgb(19, 87, 155)');
+  expect(await page.evaluate(() => window.__manualEditorHarness.getStyleUpdateCounts().qColor)).toBe(1);
+
+  await activateLikeMobile(colorTrigger, testInfo);
+  const colorBeforeCancel = await textarea.evaluate((node) => getComputedStyle(node).color);
+  await activateLikeMobile(page.locator('[data-color-palette="true"] input[type="color"]'), testInfo);
+  await page.evaluate(() => {
+    window.__manualEditorHarness.resetStyleUpdateCounts();
+    window.__manualEditorHarness.cancelCustomColor();
+  });
+  await expect(page.locator('[data-color-palette="true"]')).toHaveCount(1);
+  await expect(textarea).toHaveCSS('color', colorBeforeCancel);
+  expect(await page.evaluate(() => window.__manualEditorHarness.getStyleUpdateCounts().qColor || 0)).toBe(0);
+
+  expect(await page.evaluate(() => window.__manualEditorHarness.commitCustomColor('#abcdef'))).toBe(true);
+  await expect(textarea).toHaveCSS('color', colorBeforeCancel);
+  expect(await page.evaluate(() => window.__manualEditorHarness.getStyleUpdateCounts().qColor || 0)).toBe(0);
+  await attachInteractionTrace(page, testInfo, 'PW-PICK-003');
 });
 
 test('PW-SIDE-001 — tres alternancias restauran rangos independientes', async ({ page }) => {

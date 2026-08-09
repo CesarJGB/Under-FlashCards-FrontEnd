@@ -2,8 +2,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { ImagePlus, Plus, Minus, Bold, Italic, Pipette, X } from 'lucide-react';
 import { OverlayPortal, useOverlayScope } from '../common/OverlayScope';
-import { requestColorPickerFromClick } from './manual-editor/manualEditorSession';
-import { handleFocusPreservingPress } from './manual-editor/editorActivation';
 
 const VIEWPORT_MARGIN = 8;
 const PALETTE_GAP = 8;
@@ -54,7 +52,6 @@ export function ColorPalette({
   onPickerInput,
   onPickerCommit,
   onPickerCancel,
-  onPickerReturnUnknown,
   editorGeometry,
   editorBoundsRef,
   layerId,
@@ -69,6 +66,7 @@ export function ColorPalette({
   const initialColorInputValue = useRef(colorInputValue);
   const localTransactionCounterRef = useRef(0);
   const activeCustomTransactionRef = useRef(null);
+  const pointerTransactionPendingRef = useRef(false);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
   const hasSharedGeometry = Boolean(
@@ -92,6 +90,7 @@ export function ColorPalette({
       if (transactionId == null) return;
       const accepted = onPickerCommit?.(transactionId, event.target.value);
       if (accepted === false) return;
+      pointerTransactionPendingRef.current = false;
       activeCustomTransactionRef.current = null;
       onChange(event.target.value);
       onClose?.();
@@ -101,6 +100,7 @@ export function ColorPalette({
       const transactionId = activeCustomTransactionRef.current;
       if (transactionId == null) return;
       onPickerCancel?.(transactionId);
+      pointerTransactionPendingRef.current = false;
       activeCustomTransactionRef.current = null;
     };
 
@@ -166,11 +166,15 @@ export function ColorPalette({
       );
       const minTop = Math.max(
         viewportTop + VIEWPORT_MARGIN,
-        dialogRect?.top ?? viewportTop + VIEWPORT_MARGIN,
+        editorBounds
+          ? editorBounds.top + VIEWPORT_MARGIN
+          : (dialogRect?.top ?? viewportTop + VIEWPORT_MARGIN),
       );
       const maxBottom = Math.min(
         viewportBottom - VIEWPORT_MARGIN,
-        dialogRect?.bottom ?? viewportBottom - VIEWPORT_MARGIN,
+        editorBounds
+          ? editorBounds.bottom - VIEWPORT_MARGIN
+          : (dialogRect?.bottom ?? viewportBottom - VIEWPORT_MARGIN),
       );
 
       const paletteWidth = Math.min(paletteRect.width, Math.max(1, maxRight - minLeft));
@@ -256,28 +260,33 @@ export function ColorPalette({
   if (typeof document === 'undefined') return null;
 
   const isHorizontal = variant === 'horizontal';
-  const requestCustomColor = (event) => {
-    handleFocusPreservingPress(event, () => {
-      // Pointer activation runs before focus can leave the textarea. Keyboard
-      // and assistive activation still reaches this path through click.
-      const transactionId = onPickerRequest?.('color')
-        ?? (localTransactionCounterRef.current + 1);
-      if (!onPickerRequest) localTransactionCounterRef.current = transactionId;
-      activeCustomTransactionRef.current = transactionId;
-      const input = colorInputRef.current;
-      if (!input) {
-        activeCustomTransactionRef.current = null;
-        onPickerReturnUnknown?.(transactionId);
-        return;
-      }
-      if (input.value !== colorInputValue) input.value = colorInputValue;
-      const result = requestColorPickerFromClick(input);
-      if (result.requested) onPickerExternal?.(transactionId, result.method);
-      else {
-        activeCustomTransactionRef.current = null;
-        onPickerReturnUnknown?.(transactionId);
-      }
-    });
+  const beginCustomColorTransaction = () => {
+    const transactionId = onPickerRequest?.('color')
+      ?? (localTransactionCounterRef.current + 1);
+    if (!onPickerRequest) localTransactionCounterRef.current = transactionId;
+    activeCustomTransactionRef.current = transactionId;
+    const input = colorInputRef.current;
+    if (input && input.value !== colorInputValue) input.value = colorInputValue;
+    return transactionId;
+  };
+  const handleNativeColorPointerDown = (event) => {
+    if (event.isPrimary === false || (typeof event.button === 'number' && event.button !== 0)) return;
+    pointerTransactionPendingRef.current = true;
+    beginCustomColorTransaction();
+  };
+  const handleNativeColorClick = () => {
+    const transactionId = pointerTransactionPendingRef.current
+      ? activeCustomTransactionRef.current
+      : beginCustomColorTransaction();
+    pointerTransactionPendingRef.current = false;
+    if (transactionId != null) onPickerExternal?.(transactionId, 'native-control');
+  };
+  const handleNativeColorPointerCancel = () => {
+    pointerTransactionPendingRef.current = false;
+    const transactionId = activeCustomTransactionRef.current;
+    if (transactionId == null) return;
+    onPickerCancel?.(transactionId);
+    activeCustomTransactionRef.current = null;
   };
 
   return (
@@ -338,26 +347,27 @@ export function ColorPalette({
         );
       })}
 
-        <button
-          type="button"
-          className="group relative flex min-h-9 min-w-9 cursor-pointer items-center justify-center overflow-hidden rounded-xl border border-slate-300 bg-gradient-to-tr from-amber-400 via-rose-400 to-indigo-400 shadow-xs transition-transform [@media(hover:hover)]:hover:scale-105 dark:border-slate-600"
+        <label
+          className="group relative flex min-h-9 min-w-9 cursor-pointer items-center justify-center overflow-hidden rounded-xl border border-slate-300 bg-gradient-to-tr from-amber-400 via-rose-400 to-indigo-400 shadow-xs transition-transform has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-indigo-400 has-[:focus-visible]:ring-offset-2 [@media(hover:hover)]:hover:scale-105 dark:border-slate-600 dark:has-[:focus-visible]:ring-offset-slate-800"
           title="Color personalizado"
-          aria-label="Color personalizado"
-          onPointerDown={requestCustomColor}
-          onClick={requestCustomColor}
+          data-custom-color-control="true"
         >
-          <Pipette className="relative z-10 h-3.5 w-3.5 text-white drop-shadow-xs transition-transform group-hover:scale-110" aria-hidden="true" />
-        </button>
-        <input
-          ref={colorInputRef}
-          type="color"
-          // Debe ser no controlado: en iOS, volver a escribir `value` mientras
-          // el selector nativo está abierto puede cerrarlo tras el primer cambio.
-          defaultValue={initialColorInputValue.current}
-          className="sr-only"
-          tabIndex={-1}
-          aria-label={`Elegir ${label || 'color'}`}
-        />
+          <Pipette className="pointer-events-none relative z-10 h-3.5 w-3.5 text-white drop-shadow-xs transition-transform group-hover:scale-110" aria-hidden="true" />
+          <input
+            ref={colorInputRef}
+            type="color"
+            // El control nativo recibe directamente el gesto. Sigue sin ser
+            // controlado para que React no reescriba su valor durante el picker.
+            defaultValue={initialColorInputValue.current}
+            aria-label="Color personalizado"
+            data-native-color-input="true"
+            data-testid="manual-editor-native-color-input"
+            onPointerDown={handleNativeColorPointerDown}
+            onPointerCancel={handleNativeColorPointerCancel}
+            onClick={handleNativeColorClick}
+            className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+          />
+        </label>
     </OverlayPortal>
   );
 }
@@ -483,20 +493,25 @@ export default function StylePanel({
     setOpenColor(colorId);
   };
 
-  useEffect(() => () => {
-    mountedRef.current = false;
-    const scopedLayer = scopedLayerRef.current;
-    scopedLayerRef.current = null;
-    if (scopedLayer) {
-      overlayScope?.layerStack?.removeLayer?.(
-        scopedLayer.id,
-        scopedLayer.token,
-        'unmount',
-      );
-    }
-    if (focusRestoreFrameRef.current && typeof window !== 'undefined') {
-      window.cancelAnimationFrame(focusRestoreFrameRef.current);
-    }
+  useEffect(() => {
+    // StrictMode ejecuta setup/cleanup dos veces en desarrollo. Restablecer la
+    // marca evita que un dismiss posterior deje la paleta renderizada.
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      const scopedLayer = scopedLayerRef.current;
+      scopedLayerRef.current = null;
+      if (scopedLayer) {
+        overlayScope?.layerStack?.removeLayer?.(
+          scopedLayer.id,
+          scopedLayer.token,
+          'unmount',
+        );
+      }
+      if (focusRestoreFrameRef.current && typeof window !== 'undefined') {
+        window.cancelAnimationFrame(focusRestoreFrameRef.current);
+      }
+    };
   }, [overlayScope?.layerStack]);
 
   const openBgImagePicker = () => {

@@ -5,7 +5,6 @@ import {
   clampSelection,
   createManualEditorSession,
   manualEditorSessionReducer,
-  requestColorPickerFromClick,
 } from './manualEditorSession.js';
 
 const reduce = (state, ...events) => events.reduce(manualEditorSessionReducer, state);
@@ -296,33 +295,4 @@ test('UT-PICK-003 — image commit, cancel and unknown preserve side and selecti
   });
   assert.equal(cancelled.picker.status, 'cancelled');
   assert.equal(unknown.picker.status, 'returned-unknown');
-});
-
-test('UT-PICK-004 — trusted activation uses showPicker or one immediate click fallback', () => {
-  let pickerCalls = 0;
-  let clickCalls = 0;
-  const success = requestColorPickerFromClick({
-    showPicker() { pickerCalls += 1; },
-    click() { clickCalls += 1; },
-  });
-  assert.deepEqual(success, { requested: true, method: 'showPicker' });
-  assert.equal(pickerCalls, 1);
-  assert.equal(clickCalls, 0);
-
-  const absent = requestColorPickerFromClick({
-    click() { clickCalls += 1; },
-  });
-  assert.deepEqual(absent, { requested: true, method: 'click' });
-  assert.equal(clickCalls, 1);
-
-  const throwing = requestColorPickerFromClick({
-    showPicker() {
-      pickerCalls += 1;
-      throw new DOMException('not allowed', 'NotAllowedError');
-    },
-    click() { clickCalls += 1; },
-  });
-  assert.deepEqual(throwing, { requested: true, method: 'click' });
-  assert.equal(pickerCalls, 2);
-  assert.equal(clickCalls, 2);
 });

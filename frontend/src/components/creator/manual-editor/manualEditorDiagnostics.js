@@ -435,14 +435,20 @@ export function installManualEditorListenerProbe(windowLike = window) {
 
   return {
     snapshot() {
+      // React conserva listeners delegados/no delegados en containers y nodos
+      // ya desconectados. No son recursos vivos del editor y contarlos simula
+      // una fuga en cada montaje de textarea/portal.
+      const activeRegistrations = registrations.filter(({ target }) => (
+        !(target instanceof windowLike.Node) || target.isConnected
+      ));
       const byType = {};
-      registrations.forEach(({ type }) => {
+      activeRegistrations.forEach(({ type }) => {
         const safeType = asSafeToken(type);
         if (safeType) byType[safeType] = (byType[safeType] || 0) + 1;
       });
       if (activeResizeObservers.size) byType.ResizeObserver = activeResizeObservers.size;
       return {
-        total: registrations.length + activeResizeObservers.size,
+        total: activeRegistrations.length + activeResizeObservers.size,
         byType,
       };
     },

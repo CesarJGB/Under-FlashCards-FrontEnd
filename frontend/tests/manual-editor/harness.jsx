@@ -123,16 +123,70 @@ const diagnostics = createManualEditorDiagnostics();
 const listenerProbe = installManualEditorListenerProbe(window);
 const stopObservingHarness = observeManualEditorHarnessEvents(diagnostics, window);
 
+const INTERACTION_EVENT_TYPES = Object.freeze([
+  'touchstart',
+  'pointerdown',
+  'mousedown',
+  'pointerup',
+  'touchend',
+  'click',
+  'focus',
+  'focusin',
+  'blur',
+  'focusout',
+  'input',
+  'change',
+]);
+const interactionTrace = [];
+
+const describeInteractionTarget = (target) => ({
+  tag: target?.tagName?.toLowerCase?.() || '',
+  testId: target?.dataset?.testid || '',
+  type: target?.type || '',
+});
+
+const recordInteractionEvent = (phase) => (event) => {
+  interactionTrace.push({
+    type: event.type,
+    phase,
+    target: describeInteractionTarget(event.target),
+    activeElement: describeInteractionTarget(document.activeElement),
+    defaultPrevented: event.defaultPrevented,
+    detail: Number(event.detail || 0),
+    pointerType: event.pointerType || '',
+    isPrimary: event.isPrimary !== false,
+    isTrusted: event.isTrusted,
+  });
+  if (interactionTrace.length > 4000) interactionTrace.splice(0, interactionTrace.length - 4000);
+};
+
+const captureInteractionEvent = recordInteractionEvent('capture');
+const bubbleInteractionEvent = recordInteractionEvent('bubble');
+INTERACTION_EVENT_TYPES.forEach((type) => {
+  document.addEventListener(type, captureInteractionEvent, true);
+  document.addEventListener(type, bubbleInteractionEvent);
+});
+
 function installPickerStubs() {
   const prototype = window.HTMLInputElement.prototype;
   const nativeClick = prototype.click;
   const originalShowPickerDescriptor = Object.getOwnPropertyDescriptor(prototype, 'showPicker');
   const state = {
-    colorMode: 'success',
     colorRequests: 0,
     colorFallbackClicks: 0,
+    colorDirectClicks: 0,
+    colorTrustedDirectClicks: 0,
     imageRequests: 0,
   };
+
+  const observeDirectColorClick = (event) => {
+    if (!event.target?.matches?.('input[type="color"][data-native-color-input="true"]')) return;
+    state.colorDirectClicks += 1;
+    if (event.isTrusted) state.colorTrustedDirectClicks += 1;
+    diagnostics.record('picker:color:direct-click');
+    event.preventDefault();
+  };
+  document.addEventListener('click', observeDirectColorClick, true);
 
   Object.defineProperty(prototype, 'showPicker', {
     configurable: true,
@@ -141,13 +195,9 @@ function installPickerStubs() {
         return originalShowPickerDescriptor?.get?.call(this)
           ?? originalShowPickerDescriptor?.value;
       }
-      if (state.colorMode === 'absent') return undefined;
       return function showPickerHarnessStub() {
         state.colorRequests += 1;
         diagnostics.record('picker:color:show-picker');
-        if (state.colorMode === 'throw') {
-          throw new DOMException('Harness rejection', 'NotAllowedError');
-        }
       };
     },
   });
@@ -167,18 +217,18 @@ function installPickerStubs() {
   };
 
   return {
-    configureColor(mode) {
-      state.colorMode = ['success', 'throw', 'absent'].includes(mode) ? mode : 'success';
-    },
     read() {
       return { ...state };
     },
     reset() {
       state.colorRequests = 0;
       state.colorFallbackClicks = 0;
+      state.colorDirectClicks = 0;
+      state.colorTrustedDirectClicks = 0;
       state.imageRequests = 0;
     },
     restore() {
+      document.removeEventListener('click', observeDirectColorClick, true);
       prototype.click = nativeClick;
       if (originalShowPickerDescriptor) {
         Object.defineProperty(prototype, 'showPicker', originalShowPickerDescriptor);
@@ -313,11 +363,13 @@ function Harness() {
   const [, forceRender] = useState(0);
   const renderCountRef = useRef(0);
   const renderCountOutputRef = useRef(null);
+  const styleUpdateCountsRef = useRef(new Map());
   const questionTriggerRef = useRef(null);
   const answerTriggerRef = useRef(null);
   const returnSideRef = useRef('question');
 
   const updateStyle = useCallback((key, value) => {
+    styleUpdateCountsRef.current.set(key, (styleUpdateCountsRef.current.get(key) || 0) + 1);
     setStyles((current) => ({ ...current, [key]: value }));
   }, []);
 
@@ -415,6 +467,10 @@ function Harness() {
       getRenderCount: () => renderCountRef.current,
       getDiagnostics: () => diagnostics.read(),
       resetDiagnostics: () => diagnostics.reset(),
+      getInteractionTrace: () => structuredClone(interactionTrace),
+      resetInteractionTrace: () => { interactionTrace.length = 0; },
+      getStyleUpdateCounts: () => Object.fromEntries(styleUpdateCountsRef.current),
+      resetStyleUpdateCounts: () => styleUpdateCountsRef.current.clear(),
       getListenerSnapshot: () => listenerProbe.snapshot(),
       getLayerSnapshot() {
         const modal = document.querySelector('[data-testid="manual-card-editor-modal"]');
@@ -482,7 +538,6 @@ function Harness() {
       getOverflowSnapshot() {
         return captureSnapshot()?.overflow || null;
       },
-      configureColorPicker: pickerStubs.configureColor,
       getPickerState: pickerStubs.read,
       resetPickerState: pickerStubs.reset,
       setSelection(start, end, direction = 'none') {
@@ -496,11 +551,17 @@ function Harness() {
       commitCustomColor(color = '#123456') {
         const input = document.querySelector('[data-color-palette="true"] input[type="color"]');
         if (!input) return false;
-        input.focus();
         input.value = color;
         input.dispatchEvent(new Event('change', { bubbles: true }));
-        input.blur();
         diagnostics.record('picker:color:commit');
+        return true;
+      },
+      inputCustomColor(color = '#123456') {
+        const input = document.querySelector('[data-color-palette="true"] input[type="color"]');
+        if (!input) return false;
+        input.value = color;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        diagnostics.record('picker:color:input');
         return true;
       },
       cancelCustomColor() {
@@ -715,6 +776,10 @@ root.render(
 );
 
 window.addEventListener('pagehide', () => {
+  INTERACTION_EVENT_TYPES.forEach((type) => {
+    document.removeEventListener(type, captureInteractionEvent, true);
+    document.removeEventListener(type, bubbleInteractionEvent);
+  });
   stopObservingHarness();
   pickerStubs.restore();
   syntheticGeometry.restore();

@@ -450,27 +450,3 @@ export function manualEditorSessionReducer(state, event) {
       return state;
   }
 }
-
-/**
- * Must be called directly from the pointer or semantic click handler that owns
- * user activation. It intentionally performs no scheduling.
- */
-export function requestColorPickerFromClick(input) {
-  if (!input) return { requested: false, method: 'none' };
-
-  if (typeof input.showPicker === 'function') {
-    try {
-      input.showPicker();
-      return { requested: true, method: 'showPicker' };
-    } catch {
-      // Fall through to the standard click path in the same call stack.
-    }
-  }
-
-  try {
-    input.click();
-    return { requested: true, method: 'click' };
-  } catch {
-    return { requested: false, method: 'none' };
-  }
-}

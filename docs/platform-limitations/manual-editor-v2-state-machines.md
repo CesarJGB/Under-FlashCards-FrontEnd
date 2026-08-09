@@ -20,7 +20,7 @@
 ## 2. Invariantes de eventos
 
 1. Cada gesto de UI despacha como máximo una transición de capa.
-2. Para controles que deben conservar la textarea, el puntero ejecuta una sola transición en `pointerdown` con `preventDefault`; su click de compatibilidad se ignora.
+2. Para controles que deben conservar la textarea, el puntero ejecuta una sola transición en `pointerdown` con `preventDefault`; `touchstart` se cancela mediante un listener nativo no pasivo limitado al trigger y su click de compatibilidad se ignora.
 3. Teclado y tecnología asistiva ejecutan la misma acción mediante `click` semántico (`detail === 0`); el picker nunca se difiere.
 4. Todo evento de picker lleva `transactionId`.
 5. `blur`, `window.focus`, `visibilitychange` y un timeout nunca significan commit/cancel por sí solos.
@@ -172,16 +172,11 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
   participant U as Usuario
-  participant B as Botón custom
+  participant I as input color nativo
   participant S as InputSession
-  participant I as input color
   participant N as UA/SO
-  U->>B: pointerdown primario o click semántico
-  B->>S: PICKER_REQUESTED(color, id)
-  B->>I: showPicker() si existe
-  alt ausente o rechaza
-    B->>I: click() en el mismo gesto
-  end
+  U->>I: gesto directo sobre el input transparente
+  I->>S: PICKER_REQUESTED(color, id)
   I->>N: UI nativa posible
   N-->>I: input/change, cancel o nada
   I-->>S: commit/cancel/return signal con id
@@ -189,11 +184,9 @@ sequenceDiagram
 
 ### Activación
 
-- Tap/mouse abre desde `pointerdown` primario con `preventDefault`, antes de que el botón pueda robar foco.
-- El click de compatibilidad del puntero es no-op; Enter/Space y activación asistiva usan `click` con `detail === 0`.
-- `showPicker` se detecta por capacidad y se llama dentro del handler.
-- Si lanza, `input.click()` se ejecuta antes de salir del mismo handler.
-- Si ningún camino abre UI, la paleta permanece operable; no se muestra un error fatal.
+- El input nativo cubre el área visual y es el elemento devuelto por hit-testing.
+- `pointerdown` crea la transacción; el click posterior solo marca la salida a UI nativa. Un click semántico crea la transacción si no había una pendiente.
+- No se llama `showPicker()` ni `input.click()` para color; si el UA no abre UI, la paleta permanece operable.
 
 ### Submáquina
 

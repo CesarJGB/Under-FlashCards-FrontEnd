@@ -68,7 +68,7 @@ Safari iPhone/iPad, Chrome Android, Samsung Internet y WebView host real. Se reg
 | `UT-PICK-001` | Color request/commit | Crear transaction 1; external; input/change; repetir change. | Un commit, changed=true, evento repetido no-op y retorno a idle controlado. |
 | `UT-PICK-002` | Cancel/unknown | Transaction 2; return signal; cancel o resolve manual; enviar evento de transaction 1. | Unknown no muta color; cancel no muta; evento viejo ignorado. |
 | `UT-PICK-003` | Imagen | Request con side/rango; commit file metadata, cancel y unknown en casos separados. | Solo commit llama integración externa; todos preservan sesión/rango y ofrecen retorno apropiado. |
-| `UT-PICK-004` | Fallback de capacidad | Stub `showPicker` ausente, exitoso y lanzando; spy de `click`. | Ausente/rechazo llama click una vez en handler; éxito no duplica; ningún timeout/rAF. |
+| `UT-ACT-001/003` | Activación única y touch Safari | Enviar `pointerdown` + click compatible y `pointerdown` + `touchstart/touchend`. | Una acción; `pointerdown` y `touchstart` se cancelan; el click compatible no repite. |
 
 ### Capas, foco y Back
 
@@ -121,7 +121,10 @@ Cada spec corre con `prefers-reduced-motion: reduce` y normal cuando la animaci�
 | `PW-OPEN-001` | Abrir/cerrar estable | Click trigger Q; comprobar dialog, textarea, resume UI; cerrar; repetir 20 veces. | Una modal, contenido intacto, retorno lógico, cero owners/listeners acumulados. |
 | `PW-SIDE-001` | Rango Q/A | Escribir valores; seleccionar rangos distintos con DOM API; alternar 3 veces. | Rango correcto por lado, con clamp al cambiar valor. |
 | `PW-MENU-001` | Toggle/preset | Abrir color; pulsar mismo botón; abrir de nuevo; preset; backdrop; alineación. | Una transición por gesto; preset no activa picker; ninguna reapertura. |
-| `PW-PICK-001` | Activación color | Spy/stub `showPicker`; activar con pointerdown primario, Enter, Space y click AT; probar ausencia/rechazo. | Una solicitud por activación; click de compatibilidad no duplica; fallback una vez. |
+| `PW-PICK-001` | Activación de controles | Activar triggers con puntero, Enter y Space. | Una transición por activación; teclado/AT conservan semántica y foco visible. |
+| `PW-TOUCH-001` | Cambio rápido de lado | Escribir, guardar rangos distintos y tocar Q/A 20 veces con traza DOM. | Textarea sigue activa; sin `blur → focus trigger`; cada lado conserva su selección. |
+| `PW-TOUCH-002/003` | Toggle táctil de menús | Abrir/cerrar color y alineación 20 veces; reemplazar color por alineación; inyectar click compatible `detail=0`. | Una transición por gesto; trigger no toma foco; cero capas/backdrops huérfanos. |
+| `PW-PICK-003` | Input color nativo directo | Verificar hit-test del input superpuesto; gesto directo; `input/change`, cancel y evento stale. | Input real recibe el gesto; cero llamadas programáticas; commit único; cancel/stale no mutan. |
 | `PW-PICK-002` | Imagen commit/cancel/unknown | `setInputFiles`; disparar cancel soportado y return signal fake. | Solo archivo cambia imagen; commit muestra `Imagen cargada` dentro de la textarea y la baja; cancel/unknown no destruyen contenido. |
 | `PW-GEO-001` | Small viewport/orientation | Inyectar muestras; 390×844→844×390→390×844; offsetLeft/scale. | Epoch y frame correctos; footer/text area accesibles; no keyboard flag. |
 | `PW-GEO-002` | Snapshot idéntico | Emitir 100 resize/scroll con misma muestra y leer render counter. | Sin 100 renders; máximo transición necesaria. |

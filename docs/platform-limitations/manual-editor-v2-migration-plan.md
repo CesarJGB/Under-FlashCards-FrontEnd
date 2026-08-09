@@ -124,8 +124,8 @@ Introducir `manualEditorSessionReducer`, selección por lado y transacciones col
 2. Conectar selección question/answer y revisión.
 3. Separar foco de `setSelectionRange`.
 4. Hacer que preset/alineación solo actualicen estilo + close.
-5. Mover custom color de `onPointerDown` a `onClick`.
-6. Conectar feature detection/fallback y transaction ID.
+5. Crear la transacción antes del resultado del color nativo.
+6. Superponer el `input[type=color]` real para que reciba el gesto directamente; no añadir apertura programática.
 7. Migrar file input a commit/cancel/unknown sin timer.
 8. Sustituir overlay de CTA por acción compacta no bloqueante.
 
@@ -170,7 +170,7 @@ Revertir adaptador por picker de forma independiente. El reducer y tests pueden 
 
 ### Salida exacta
 
-Pregunta y respuesta tienen selección propia; timers 80/250 y guardia general 450 ya no deciden el flujo. Tras evidencia física posterior al Corte 5, los controles sensibles al foco usan una activación única: puntero en `pointerdown` primario y teclado/AT en click semántico, suprimiendo el click de compatibilidad.
+Pregunta y respuesta tienen selección propia; timers 80/250 y guardia general 450 ya no deciden el flujo. Tras reproducir la regresión posterior al Corte 5, los controles sensibles al foco usan activación única en `pointerdown`, un `touchstart` nativo no pasivo y acotado evita la transferencia táctil de foco, y teclado/AT conserva click semántico. El color custom lo abre directamente el `input[type=color]` superpuesto, sin `showPicker()`/`click()` programáticos.
 
 ## 5. Corte 2 — Geometría y safe area
 
@@ -438,7 +438,7 @@ La eliminación estática/determinista del Corte 5 quedó implementada sobre `or
 - API legacy de `scrollLock.js`: Login, Processing sheets, BottomSheet, calendarios e immersive guard siguen usándola salvo auditoría separada.
 - `useModalAccessibility.js`: otros modales lo consumen.
 - `-webkit-fill-available` global.
-- portales, textarea, fallback `click()`, input color no controlado, scroll interno o safe-area.
+- portales, textarea, click nativo del file input, input color no controlado, scroll interno o safe-area.
 
 ### Pruebas previas
 
