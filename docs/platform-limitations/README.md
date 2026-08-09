@@ -63,6 +63,8 @@ El resultado de la primera implementación está registrado en [`manual-editor-v
 
 El Corte 2 sustituyó la geometría heredada por un snapshot observable único para surface, footer y paleta manual, con ownership de safe area por borde. Su implementación, comandos reales y estado `G2 OPEN/BLOCKED` están en [`manual-editor-v2-cut-2-report.md`](manual-editor-v2-cut-2-report.md). La ausencia de binarios Playwright y las pruebas físicas pendientes impiden tratar este corte como certificación móvil o autorización automática del Corte 3.
 
+El Corte 3 añadió overlays scoped dentro del diálogo, pila top-only, modalidad/foco, lease del scroller real y sentinel coordinado de Back. También saneó el fallback visible inicial y el jitter subpíxel del Corte 2. La implementación y resultados exactos están en [`manual-editor-v2-cut-3-report.md`](manual-editor-v2-cut-3-report.md). Playwright continúa `BLOCKED`, las pruebas físicas siguen `PENDING — DEVICE REQUIRED` y `G3 OPEN/BLOCKED`; no se autoriza iniciar el Corte 4 ni migrar `ActionSheet`.
+
 ## Jerarquía de fuentes
 
 Se aplica este orden, salvo que una fuente de nivel superior no trate la cuestión concreta:
