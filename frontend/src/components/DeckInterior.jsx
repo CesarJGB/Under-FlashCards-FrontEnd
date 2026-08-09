@@ -279,7 +279,6 @@ export default function DeckInterior({ deck, userId, authToken, onBack, initialM
     setContentImage(card.contentImage || '');
     setImageSide(card.imageSide || '');
     setEditorView('creator');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleDelete = async (card) => {
