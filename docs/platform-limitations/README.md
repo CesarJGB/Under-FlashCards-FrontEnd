@@ -65,6 +65,8 @@ El Corte 2 sustituyó la geometría heredada por un snapshot observable único p
 
 El Corte 3 añadió overlays scoped dentro del diálogo, pila top-only, modalidad/foco, lease del scroller real y sentinel coordinado de Back. También saneó el fallback visible inicial y el jitter subpíxel del Corte 2. La implementación y resultados exactos están en [`manual-editor-v2-cut-3-report.md`](manual-editor-v2-cut-3-report.md). Playwright continúa `BLOCKED`, las pruebas físicas siguen `PENDING — DEVICE REQUIRED` y `G3 OPEN/BLOCKED`; no se autoriza iniciar el Corte 4 ni migrar `ActionSheet`.
 
+El Corte 4 se implementó mediante autorización excepcional sobre `be8be8a071b0e5e1bf172d41cafb78d60c6d5be0`: graduó el reducer a `common/overlays`, migró `ActionSheet` a una autoridad top-only común, retiró `preserveFocus` y portó `ColorPalette` dentro del scope del sheet. El detalle, clases de callers y resultados exactos están en [`manual-editor-v2-cut-4-report.md`](manual-editor-v2-cut-4-report.md). Las pruebas deterministas, build, calendario y PDF pasan; Playwright continúa `BLOCKED` por ausencia de ejecutables, las pruebas físicas siguen `PENDING — DEVICE REQUIRED` y `G4 OPEN/BLOCKED`. No se autoriza iniciar el Corte 5.
+
 ## Jerarquía de fuentes
 
 Se aplica este orden, salvo que una fuente de nivel superior no trate la cuestión concreta:
