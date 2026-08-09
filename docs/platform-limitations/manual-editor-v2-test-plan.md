@@ -1,8 +1,8 @@
 # Plan de pruebas V2 del editor manual
 
-**Estado general:** diseño de pruebas; V2 no existe todavía.  
-**Automatizadas:** `PENDING — IMPLEMENTATION REQUIRED`.  
-**Físicas:** `PENDING — DEVICE REQUIRED`.  
+**Estado general:** implementación/migración de código V2 completada en los Cortes 0–5; la certificación de navegador y dispositivo sigue pendiente.
+**Automatizadas:** suite determinista implementada; el resultado de la ejecución del Corte 5 está en [`manual-editor-v2-cut-5-report.md`](manual-editor-v2-cut-5-report.md).
+**Físicas:** `PENDING — DEVICE REQUIRED`.
 Ninguna fila de dispositivo se considera PASS por emulación, inspección estática o documentación.
 
 ## 1. Política de resultados

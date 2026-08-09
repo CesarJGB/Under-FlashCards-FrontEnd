@@ -415,6 +415,10 @@ Las 33 instancias pasan el contract test o están representadas por una clase eq
 
 Eliminar únicamente contratos ya sin consumidores y cerrar la documentación.
 
+### Estado de ejecución
+
+La eliminación estática/determinista del Corte 5 quedó implementada sobre `origin/main` `9a775679b882469ab7c998b5d4233a6087af56cf`. La única implementación del reducer de capas es `components/common/overlays/layerStack.js`; el adaptador local y la medición huérfana del footer ya no forman parte del código. Este estado de código no cierra la certificación móvil: `G5` permanece **`BLOCKED — DEVICE REQUIRED`** hasta disponer de resultados físicos reales.
+
 ### Candidatos
 
 - booleano/atributo `keyboardOpen`;

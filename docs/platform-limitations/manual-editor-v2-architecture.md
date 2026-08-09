@@ -282,9 +282,9 @@ Política inferior:
 
 ### Archivos y retiro
 
-- Nuevos: `manual-editor/editorLayerStack.js`, `manual-editor/useEditorLayerStack.js`, `manual-editor/EditorOverlayRoot.jsx` y `common/OverlayScope.jsx` scoped.
+- Nuevos/graduados: `common/overlays/layerStack.js`, `common/overlays/overlayRegistry.js`, `manual-editor/useEditorLayerStack.js`, `manual-editor/EditorOverlayRoot.jsx` y `common/OverlayScope.jsx` scoped.
 - Modificados: `ManualCardEditorModal.jsx`, `StylePanel.jsx`, `FormInputs.jsx`, `App.jsx`, `DeckInterior.jsx` y `scrollLock.js`.
-- Corte 4 modifica `ActionSheet.jsx` y `FlashcardCreator.jsx`; el reducer de capas solo se gradúa a `common/overlays` después de pasar el editor.
+- Corte 4 modifica `ActionSheet.jsx` y `FlashcardCreator.jsx`; Corte 5 elimina el re-export temporal del reducer local y deja `common/overlays` como autoridad única.
 - Retirar: z-index globales 80/90/110/120 del editor, listener Escape por componente, lock inline del modal, backdrop enfocable del sheet y `preserveFocus`.
 - Riesgo: muy alto en componente compartido. Rollback separado: editor local no depende de migrar todos los ActionSheet.
 
@@ -470,7 +470,7 @@ export function useManualEditorSession({
 
 El hook puede conservar refs de DOM, callback actual, transaction counter y último valor **observado para detectar una transición que sí se despacha**. No puede cambiar estado lógico solo mediante ref.
 
-### 11.5 `editorLayerStack.js`
+### 11.5 `common/overlays/layerStack.js`
 
 **Responsabilidad única:** reducir orden y metadata serializable de capas DOM.
 
@@ -563,7 +563,7 @@ Internamente usa owners por nodo, guarda una sola vez estilos, `scrollTop/scroll
 
 El API visual (`open`, `title`, `options`, `footer`, `onClose`) permanece. Cambios de contrato:
 
-- se elimina `preserveFocus`; solo existe en un caller;
+- `preserveFocus` ya no forma parte del contrato ni tiene callers;
 - backdrop deja de ser botón/tab stop;
 - cada sheet registra capa y solo el top maneja Escape/Back/foco;
 - `OverlayScope` incluye ColorPalette descendiente;
@@ -583,11 +583,11 @@ Esta tabla completa los contratos anteriores y evita convertir una ausencia de V
 | `useEditorGeometry.js` | Invalidaciones VV/window; publica un snapshot por transición semántica. | Se activa con modal, registra tres listeners, coalesce rAF; cleanup cancela frame y listeners. | Se suscribe solo a `window.resize` y publica fallback. | Hook local de `ManualCardEditorModal`; snapshot pasa por props a surface/footer/`EditorOverlayRoot`; ActionSheet adopta sampler en Corte 4. | Nuevo; `PW-GEO-001/002`, `PW-LIFE-001`; sustituye effects/listeners geométricos directos. |
 | `manualEditorSession.js` | Eventos de sesión, selección, composición, foco y picker; publica estado serializable. | Puro; `CLOSE` invalida transaction ID y vuelve a estado inicial. | No consume geometría; comportamiento idéntico. | Sin React; solo hook adaptador y tests. | Nuevo; `UT-SES-*`, `UT-PICK-*`; sustituye refs de historia, selección única y timers de certeza. |
 | `useManualEditorSession.js` | Recibe props/DOM events; publica estado y comandos imperativos tipados. | Activo mientras modal abierto; al cerrar captura lo válido, invalida callbacks/transaction y no deja timer/listener global. | No depende de VV; resume y selección funcionan igual. | Lo consume `ManualCardEditorModal`; `StylePanel` y `FlashcardCreator` reciben callbacks/estado, no el hook. | Nuevo; `PW-OPEN/SIDE/PICK`; sustituye effects de foco/picker del modal y adaptador de imagen por `window.focus`. |
-| `editorLayerStack.js` | `OPEN_LAYER`, `TOGGLE_LAYER`, `DISMISS_TOP`, `REMOVE_LAYER`, `RESET`; publica lista/top serializable. | Puro; `RESET` vacía el estado. | No consume geometría. | Sin React; solo `useEditorLayerStack` y tests. | Nuevo; `UT-LAY-001`–`004`; sustituye booleans/listeners de menú como autoridad. |
+| `common/overlays/layerStack.js` | `OPEN_LAYER`, `TOGGLE_LAYER`, `DISMISS_TOP`, `REMOVE_LAYER`, `RESET`; publica lista/top serializable. | Puro; `RESET` vacía el estado. | No consume geometría. | Sin React; lo consumen `useEditorLayerStack`, `overlayRegistry` y sus tests. | Graduado en Corte 4 y único en Corte 5; `UT-LAY-001`–`004`; sustituye booleans/listeners de menú como autoridad. |
 | `useEditorLayerStack.js` | Eventos DOM Escape/backdrop/popstate y comandos de UI; publica API/top/props. | Un keydown, un popstate y un sentinel máximo; cleanup retira listeners/registry, consume sentinel y valida return target. | El orden/cierre no cambia; placement recibe bounds fallback de GEO. | Lo consume el modal; API via `OverlayScope` llega a ColorPalette/alineación/ActionSheet migrado. | Nuevo; `UT-LAY-005/006`, `PW-ESC/BACK/LIFE`; sustituye Escape, retorno y z-index dispersos. |
 | `EditorOverlayRoot.jsx` / `OverlayScope.jsx` | Reciben target, layer API y bounds; publican target/API scoped por Context. | Root existe solo con el diálogo; desmontaje retira nodo y no restaura foco por sí mismo. | Usa bounds `layout-fallback` y CSS conservador. | Componentes React: modal host; consumidores `StylePanel`/`ColorPalette`, alineación y ActionSheet del editor. | Nuevos; portal/bounds en `PW-MENU/A11Y/VIS`; sustituyen portales directos huérfanos, no el concepto de portal. |
 | `scrollLock.js` evolucionado | `acquire/release` por owner/nodo; publica solo diagnósticos/count en test/dev. | Primera adquisición guarda; cada release idempotente; la última restaura estilos, scroll e inert originales. | Independiente de VV. | Utilidad compartida + `useScrollLease`; editor y ActionSheet V2 usan leases; callers antiguos usan API compatible. | Modificado; `UT-SCR-*`, `PW-SCROLL`; sustituye lock inline, no elimina el owner-set existente. |
-| `ActionSheet.jsx` adaptado | Recibe API pública actual y scope opcional; registra/retira una layer; publica UI/close callback una vez. | Al abrir adquiere layer/lease; cleanup los libera y valida foco; sin timer 0. | Bounds layout + scroll interno; no usa `dvh` como OSK. | Componente compartido: 33 instancias/15 archivos; `FlashcardCreator` deja `preserveFocus`. | Modificado en Corte 4; `UT-AS-*`, `PW-AS-*`, `DEV-AS-001`; sustituye trap/portal/body lock privados. |
+| `ActionSheet.jsx` adaptado | Recibe API pública actual y scope opcional; registra/retira una layer; publica UI/close callback una vez. | Al abrir adquiere layer/lease; cleanup los libera y valida foco; sin timer 0. | Bounds layout + scroll interno; no usa `dvh` como OSK. | Componente compartido: 33 instancias/15 archivos; no conserva `preserveFocus`. | Modificado en Corte 4; `UT-AS-*`, `PW-AS-*`, `DEV-AS-001`; sustituye trap/portal/body lock privados. |
 
 Todos los módulos declaran explícitamente lo que **no** poseen en sus contratos o en la tabla de autoridades de §4. Ninguno recibe contenido textual en diagnósticos y ninguno crea un Context global.
 
@@ -623,7 +623,8 @@ Todos los módulos declaran explícitamente lo que **no** poseen en sus contrato
 - `frontend/src/components/creator/manual-editor/useEditorGeometry.js`
 - `frontend/src/components/creator/manual-editor/manualEditorSession.js`
 - `frontend/src/components/creator/manual-editor/useManualEditorSession.js`
-- `frontend/src/components/creator/manual-editor/editorLayerStack.js`
+- `frontend/src/components/common/overlays/layerStack.js`
+- `frontend/src/components/common/overlays/overlayRegistry.js`
 - `frontend/src/components/creator/manual-editor/useEditorLayerStack.js`
 - `frontend/src/components/creator/manual-editor/EditorOverlayRoot.jsx`
 - `frontend/src/components/common/OverlayScope.jsx`

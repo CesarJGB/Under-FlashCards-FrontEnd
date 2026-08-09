@@ -4,6 +4,9 @@
 **Código revalidado para este diseño:** `ba3027f0d34fa9297f4224235eef263f3d387671`.  
 **Resultado de drift:** ningún archivo de producción revalidado cambió; véase [`manual-editor-v2-drift-report.md`](manual-editor-v2-drift-report.md).
 
+**Corte 5:** código revalidado sobre `origin/main` `9a775679b882469ab7c998b5d4233a6087af56cf`. La implementación/migración estática de V2 queda terminada; la certificación física y de UA/IME permanece pendiente.
+**G5:** **`BLOCKED — DEVICE REQUIRED`**. No se asigna `PASS` a Safari iOS, Android, WebView, OSK, picker nativo, cutouts ni Back físico sin resultados físicos reales.
+
 Esta matriz es normativa para la implementación. “Cubierto” significa que existe una decisión, un corte y una prueba diseñada; **no** significa que el código exista ni que la prueba haya pasado. Los estados de ejecución están en [`manual-editor-v2-test-plan.md`](manual-editor-v2-test-plan.md).
 
 ## 1. Leyenda
@@ -72,7 +75,7 @@ No forman parte de la tabla obligatoria P0/P1, pero tampoco se pierden:
 
 - `EDITOR-COLOR-007` y `EDITOR-PERF-001`: el coalescer/posicionador puede reducirlos; su optimización final requiere perfil y queda para estabilización.
 - `EDITOR-NAV-001`: el contrato de Back queda diseñado en el Epic C y se prueba desde Corte 3 aunque la auditoría lo clasificó P2.
-- `EDITOR-DEAD-001`: `onFooterHeightChange`/`ResizeObserver` solo se elimina en Corte 5 tras confirmar cero callers.
+- `EDITOR-DEAD-001`: se confirmó que `onFooterHeightChange` no tenía callers y se retiró en Corte 5 junto con `footerRef`, `ResizeObserver` y su fallback de `resize`.
 
 ## 4. Conservación de `KEEP-001` a `KEEP-013`
 
@@ -104,4 +107,10 @@ Un corte no puede integrarse si:
 4. añade una segunda fuente de verdad durante la coexistencia sin adaptador y fecha/condición de retirada;
 5. amplía un módulo compartido antes de pasar el gate del editor aislado.
 
-Al finalizar Corte 5, una búsqueda estática debe demostrar ausencia en el editor de `keyboardOpen`, umbral `100`, baseline máximo, `guardKeyboardResumeAfterMenu`, timers `80/250/450` usados como certeza, lock inline y `useKeyboardHeight`. Las ocurrencias documentales y los tiempos puramente visuales no cuentan como fallo si están clasificados explícitamente.
+Al finalizar Corte 5, la búsqueda estática confirmó ausencia en el editor de `keyboardOpen`, umbral `100`, baseline máximo, `guardKeyboardResumeAfterMenu`, timers `80/250/450` usados como certeza, lock inline y `useKeyboardHeight`; el hook compartido permanece con sus consumidores externos. Las ocurrencias documentales y los tiempos puramente visuales no cuentan como fallo si están clasificados explícitamente.
+
+## 6. Cierre del Corte 5
+
+- **Código/migración:** terminado para el alcance V2; no queda el adaptador del reducer y `common/overlays/layerStack.js` es la única implementación real.
+- **Contratos conservados:** `useKeyboardHeight.js` externo, API heredada de `scrollLock.js`, `useModalAccessibility`, textarea y selección, `showPicker`/fallback `click`, input color no controlado, portales, scroll interno, safe areas, `-webkit-fill-available`, leases, tokens, inert, sentinel y registro global.
+- **Certificación:** no terminada. `G5` es **`BLOCKED — DEVICE REQUIRED`** hasta ejecutar evidencia en hardware/UA/IME real; ningún resultado físico se infiere de build, node:test, inspección estática o emulación.
