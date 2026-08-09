@@ -125,7 +125,14 @@ test('UT-LAY-006 — stale layer tokens and events are no-ops', () => {
 });
 
 const createElement = ({ overflow = '', overscrollBehavior = '', top = 0, left = 0 } = {}) => ({
-  style: { overflow, overscrollBehavior },
+  style: {
+    overflow,
+    overflowX: '',
+    overflowY: '',
+    overscrollBehavior,
+    overscrollBehaviorX: '',
+    overscrollBehaviorY: '',
+  },
   scrollTop: top,
   scrollLeft: left,
   attributes: new Map(),
@@ -161,7 +168,14 @@ test('UT-SCR-002 — final release restores exact styles, offsets and inert attr
   scrollRoot.scrollTop = 0;
   scrollRoot.scrollLeft = 0;
   release();
-  assert.deepEqual(scrollRoot.style, { overflow: 'clip', overscrollBehavior: 'contain' });
+  assert.deepEqual(scrollRoot.style, {
+    overflow: 'clip',
+    overflowX: '',
+    overflowY: '',
+    overscrollBehavior: 'contain',
+    overscrollBehaviorX: '',
+    overscrollBehaviorY: '',
+  });
   assert.equal(scrollRoot.scrollTop, 91);
   assert.equal(scrollRoot.scrollLeft, 13);
   assert.equal(inertRoot.inert, true);

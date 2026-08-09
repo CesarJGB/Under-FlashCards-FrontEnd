@@ -12,6 +12,9 @@ import '../../src/index.css';
 import ManualCardEditorModal from '../../src/components/creator/ManualCardEditorModal';
 import ActionSheet from '../../src/components/common/ActionSheet';
 import StylePanel from '../../src/components/creator/StylePanel';
+import DeckCard from '../../src/components/DeckCard';
+import DeckHeader from '../../src/components/DeckHeader';
+import ScheduleCalendar from '../../src/components/library/ScheduleCalendar';
 import { AlignCenter, AlignLeft, AlignRight } from 'lucide-react';
 import {
   createManualEditorDiagnostics,
@@ -383,9 +386,19 @@ function installSyntheticGeometryController() {
     }
   };
 
+  const emitType = (type, count = 1) => {
+    const repetitions = Math.max(1, Math.min(1000, Math.trunc(count)));
+    for (let index = 0; index < repetitions; index += 1) {
+      if (type === 'scroll') fakeViewport.dispatchEvent(new Event('scroll'));
+      else if (type === 'resize') fakeViewport.dispatchEvent(new Event('resize'));
+    }
+  };
+
   return {
     apply,
     emit,
+    emitScroll: (count) => emitType('scroll', count),
+    emitResize: (count) => emitType('resize', count),
     read: () => (current ? structuredClone(current) : null),
     restore() {
       restoreDescriptor(window, 'visualViewport', windowDescriptors.visualViewport);
@@ -432,6 +445,9 @@ function Harness() {
   const [lowerSheetOpen, setLowerSheetOpen] = useState(false);
   const [upperSheetOpen, setUpperSheetOpen] = useState(false);
   const [longSheetOpen, setLongSheetOpen] = useState(false);
+  const [footerSheetOpen, setFooterSheetOpen] = useState(false);
+  const [longFooterSheetOpen, setLongFooterSheetOpen] = useState(false);
+  const [consumerSurface, setConsumerSurface] = useState(null);
   const [, forceRender] = useState(0);
   const renderCountRef = useRef(0);
   const renderCountOutputRef = useRef(null);
@@ -527,6 +543,8 @@ function Harness() {
           setLowerSheetOpen(true);
           setUpperSheetOpen(true);
         } else if (kind === 'long') setLongSheetOpen(true);
+        else if (kind === 'footer') setFooterSheetOpen(true);
+        else if (kind === 'long-footer') setLongFooterSheetOpen(true);
         else setSheetOpen(true);
       },
       closeActionSheets() {
@@ -535,6 +553,14 @@ function Harness() {
         setLowerSheetOpen(false);
         setUpperSheetOpen(false);
         setLongSheetOpen(false);
+        setFooterSheetOpen(false);
+        setLongFooterSheetOpen(false);
+      },
+      openConsumerCase(kind) {
+        setConsumerSurface(kind);
+      },
+      closeConsumerCases() {
+        setConsumerSurface(null);
       },
       forceRender: () => forceRender((value) => value + 1),
       getRenderCount: () => renderCountRef.current,
@@ -587,6 +613,8 @@ function Harness() {
       captureSnapshot,
       setGeometrySample: syntheticGeometry.apply,
       emitGeometryEvents: syntheticGeometry.emit,
+      emitVisualViewportScroll: syntheticGeometry.emitScroll,
+      emitVisualViewportResize: syntheticGeometry.emitResize,
       getSyntheticGeometry: syntheticGeometry.read,
       getGeometrySnapshot() {
         const modal = document.querySelector('[data-testid="manual-card-editor-modal"]');
@@ -610,6 +638,79 @@ function Harness() {
           geometry: palette.dataset.colorPaletteGeometry,
           epoch: Number(palette.dataset.colorPaletteEpoch || 0),
           revision: Number(palette.dataset.colorPaletteRevision || 0),
+        };
+      },
+      getActionSheetMetrics(name) {
+        const dialogs = [...document.querySelectorAll('section[role="dialog"]')];
+        const section = name
+          ? dialogs.find((node) => node.getAttribute('aria-label') === name
+            || document.getElementById(node.getAttribute('aria-labelledby'))?.textContent === name)
+          : dialogs.find((node) => node.closest('[data-action-sheet-layer]'));
+        const frame = section?.closest('[data-action-sheet-layer]');
+        const scroll = section?.querySelector('[data-action-sheet-scroll="true"]');
+        const appRoot = document.querySelector('[data-app-scroll-root]');
+        const visualViewport = window.visualViewport;
+        const rect = (node) => {
+          if (!node) return null;
+          const value = node.getBoundingClientRect();
+          return {
+            x: value.x,
+            y: value.y,
+            top: value.top,
+            right: value.right,
+            bottom: value.bottom,
+            left: value.left,
+            width: value.width,
+            height: value.height,
+          };
+        };
+        const overflow = (node) => {
+          if (!node) return null;
+          const style = getComputedStyle(node);
+          return {
+            overflow: style.overflow,
+            overflowY: style.overflowY,
+            overscrollBehavior: style.overscrollBehavior,
+            overscrollBehaviorY: style.overscrollBehaviorY,
+            touchAction: style.touchAction,
+          };
+        };
+        const sectionStyle = section ? getComputedStyle(section) : null;
+        return {
+          frame: rect(frame),
+          section: rect(section),
+          sectionBottom: rect(section)?.bottom ?? null,
+          viewport: { width: window.innerWidth, height: window.innerHeight },
+          visualViewport: {
+            offsetLeft: visualViewport?.offsetLeft ?? 0,
+            offsetTop: visualViewport?.offsetTop ?? 0,
+            width: visualViewport?.width ?? window.innerWidth,
+            height: visualViewport?.height ?? window.innerHeight,
+          },
+          scrollOffsets: {
+            window: { x: window.scrollX, y: window.scrollY },
+            documentElement: { x: document.documentElement.scrollLeft, y: document.documentElement.scrollTop },
+            body: { x: document.body.scrollLeft, y: document.body.scrollTop },
+            app: { x: appRoot?.scrollLeft || 0, y: appRoot?.scrollTop || 0 },
+            content: { x: scroll?.scrollLeft || 0, y: scroll?.scrollTop || 0 },
+          },
+          content: scroll ? {
+            clientHeight: scroll.clientHeight,
+            scrollHeight: scroll.scrollHeight,
+            scrollable: scroll.scrollHeight > scroll.clientHeight + 1,
+          } : null,
+          animation: sectionStyle ? {
+            name: sectionStyle.animationName,
+            playState: sectionStyle.animationPlayState,
+            transform: sectionStyle.transform,
+            maxHeight: sectionStyle.maxHeight,
+          } : null,
+          overflow: {
+            body: overflow(document.body),
+            documentElement: overflow(document.documentElement),
+            app: overflow(appRoot),
+            content: overflow(scroll),
+          },
         };
       },
       getOverflowSnapshot() {
@@ -647,7 +748,7 @@ function Harness() {
       getPublicState: () => ({
         fixture: fixtureName,
         modal: open ? 'open' : 'closed',
-        sheet: sheetOpen || styleSheetOpen || lowerSheetOpen || upperSheetOpen || longSheetOpen
+        sheet: sheetOpen || styleSheetOpen || lowerSheetOpen || upperSheetOpen || longSheetOpen || footerSheetOpen || longFooterSheetOpen
           ? 'open'
           : 'closed',
         activeSide: document.querySelector('[data-testid="manual-card-editor-modal"]')?.dataset.activeSide || null,
@@ -668,13 +769,16 @@ function Harness() {
     captureSnapshot,
     closeEditor,
     fixtureName,
+    footerSheetOpen,
     longSheetOpen,
+    longFooterSheetOpen,
     lowerSheetOpen,
     open,
     openEditor,
     sheetOpen,
     styleSheetOpen,
     upperSheetOpen,
+    consumerSurface,
   ]);
 
   const handleRender = useCallback(() => {
@@ -723,6 +827,40 @@ function Harness() {
         <div className="harness-fixture-content" aria-hidden="true">
           {Array.from({ length: 12 }, (_, index) => <div className="harness-card" key={index} />)}
         </div>
+        {consumerSurface === 'deck-card' && (
+          <div className="mx-auto w-full max-w-sm p-4" data-testid="consumer-deck-card">
+            <DeckCard
+              deck={{ id: 'deck-smoke', title: 'Mazo sintético real', userId: 'user-smoke', cardCount: 4 }}
+              currentUserId="user-smoke"
+              isAdmin={false}
+              onOpen={() => {}}
+              onEdit={() => {}}
+              onDelete={() => {}}
+              onToggleStar={() => {}}
+            />
+          </div>
+        )}
+        {consumerSurface === 'deck-header' && (
+          <div data-testid="consumer-deck-header">
+            <DeckHeader
+              deck={{ id: 'deck-smoke', title: 'Mazo sintético real' }}
+              mode="edit"
+              setMode={() => {}}
+              onBack={() => {}}
+              onExport={() => {}}
+              onExportPDF={() => {}}
+            />
+          </div>
+        )}
+        {consumerSurface === 'schedule' && (
+          <div data-testid="consumer-schedule-calendar">
+            <ScheduleCalendar
+              userId={null}
+              scheduleId={null}
+              onBack={() => {}}
+            />
+          </div>
+        )}
       </main>
 
       <Profiler id="manual-card-editor" onRender={handleRender}>
@@ -816,6 +954,41 @@ function Harness() {
         title="Contenido largo sintético"
         onClose={() => setLongSheetOpen(false)}
         options={LONG_SHEET_OPTIONS}
+      />
+
+      <ActionSheet
+        open={footerSheetOpen}
+        title="Hoja con footer sintético"
+        onClose={() => setFooterSheetOpen(false)}
+        footer={(
+          <button
+            type="button"
+            onClick={() => setFooterSheetOpen(false)}
+            className="min-h-11 w-full rounded-2xl bg-slate-900 px-4 py-3 text-sm font-bold text-white"
+            data-testid="synthetic-sheet-footer-action"
+          >
+            Confirmar
+          </button>
+        )}
+      >
+        <p data-testid="synthetic-sheet-short-content">Contenido breve sin scroll.</p>
+      </ActionSheet>
+
+      <ActionSheet
+        open={longFooterSheetOpen}
+        title="Hoja larga con footer sintético"
+        onClose={() => setLongFooterSheetOpen(false)}
+        options={LONG_SHEET_OPTIONS}
+        footer={(
+          <button
+            type="button"
+            onClick={() => setLongFooterSheetOpen(false)}
+            className="min-h-11 w-full rounded-2xl bg-slate-900 px-4 py-3 text-sm font-bold text-white"
+            data-testid="synthetic-long-sheet-footer-action"
+          >
+            Confirmar contenido largo
+          </button>
+        )}
       />
     </div>
   );

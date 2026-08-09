@@ -8,6 +8,7 @@ import {
 } from './overlayRegistry.js';
 import {
   acquireScrollLease,
+  acquireScrollLeaseGroup,
   getScrollLeaseSnapshot,
 } from '../../../lib/scrollLock.js';
 
@@ -80,7 +81,14 @@ test('UT-AS-001 — two sheets and a child palette dismiss one top layer per eve
 });
 
 const createElement = ({ overflow = '', overscrollBehavior = '', top = 0, left = 0 } = {}) => ({
-  style: { overflow, overscrollBehavior },
+  style: {
+    overflow,
+    overflowX: '',
+    overflowY: '',
+    overscrollBehavior,
+    overscrollBehaviorX: '',
+    overscrollBehaviorY: '',
+  },
   scrollTop: top,
   scrollLeft: left,
   attributes: new Map(),
@@ -122,7 +130,14 @@ test('UT-AS-002 — lower modality, focus safety and final owner cleanup are det
   assert.equal(registry.isTop('lower'), true);
   registry.removeLayer('lower', lowerToken, 'test');
   releaseLower();
-  assert.deepEqual(scrollRoot.style, { overflow: 'auto', overscrollBehavior: 'contain' });
+  assert.deepEqual(scrollRoot.style, {
+    overflow: 'auto',
+    overflowX: '',
+    overflowY: '',
+    overscrollBehavior: 'contain',
+    overscrollBehaviorX: '',
+    overscrollBehaviorY: '',
+  });
   assert.equal(scrollRoot.scrollTop, 87);
   assert.equal(scrollRoot.scrollLeft, 9);
   assert.equal(inertRoot.inert, false);
@@ -131,4 +146,44 @@ test('UT-AS-002 — lower modality, focus safety and final owner cleanup are det
   });
   assert.equal(registry.getRuntimeSnapshot().registrySize, 0);
   assert.deepEqual(coordinator.getSnapshot(), { hosts: 0, listeners: 0 });
+});
+
+test('UT-AS-STABLE-003 — grouped viewport leases deduplicate roots and restore exact state', () => {
+  const app = createElement({ overflow: 'auto', overscrollBehavior: 'contain', top: 73, left: 4 });
+  app.style.overflowX = 'clip';
+  app.style.overflowY = 'scroll';
+  app.style.overscrollBehaviorX = 'contain';
+  app.style.overscrollBehaviorY = 'auto';
+  const body = createElement({ overflow: 'visible', overscrollBehavior: 'auto', top: 11, left: 2 });
+  const inertRoot = createElement();
+  const appStyle = { ...app.style };
+  const bodyStyle = { ...body.style };
+
+  const releaseLower = acquireScrollLeaseGroup({
+    owner: 'lower', scrollRoots: [app, body, body], inertRoot,
+  });
+  const releaseUpper = acquireScrollLeaseGroup({
+    owner: 'upper', scrollRoots: [app, body], inertRoot,
+  });
+  assert.equal(app.style.overflow, 'hidden');
+  assert.equal(body.style.overscrollBehavior, 'none');
+  assert.deepEqual(getScrollLeaseSnapshot(), {
+    scrollRoots: 2,
+    inertRoots: 1,
+    ownerCount: 4,
+    owners: ['lower', 'upper', 'lower', 'upper'],
+  });
+
+  releaseUpper();
+  assert.equal(app.style.overflow, 'hidden');
+  assert.equal(inertRoot.inert, true);
+  releaseLower();
+  assert.deepEqual(app.style, appStyle);
+  assert.deepEqual(body.style, bodyStyle);
+  assert.deepEqual({ appTop: app.scrollTop, appLeft: app.scrollLeft }, { appTop: 73, appLeft: 4 });
+  assert.deepEqual({ bodyTop: body.scrollTop, bodyLeft: body.scrollLeft }, { bodyTop: 11, bodyLeft: 2 });
+  assert.equal(inertRoot.inert, false);
+  assert.deepEqual(getScrollLeaseSnapshot(), {
+    scrollRoots: 0, inertRoots: 0, ownerCount: 0, owners: [],
+  });
 });

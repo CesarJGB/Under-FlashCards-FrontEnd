@@ -9,7 +9,7 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { Check } from 'lucide-react';
-import { acquireScrollLease } from '../../lib/scrollLock';
+import { acquireScrollLeaseGroup } from '../../lib/scrollLock';
 import {
   createLayerInteractionState,
   focusConnectedTarget,
@@ -19,6 +19,7 @@ import {
 import useEditorGeometry from '../creator/manual-editor/useEditorGeometry';
 import { needsInitialEditorGeometryFallback } from '../creator/manual-editor/editorGeometry';
 import { OverlayScope, useOverlayScope } from './OverlayScope';
+import { installActionSheetGestureGuard } from './actionSheetGestureGuard';
 
 const EMPTY_SNAPSHOT = Object.freeze({ layers: [], topId: null, nextOrder: 1 });
 const EMPTY_SUBSCRIBE = () => () => {};
@@ -57,6 +58,7 @@ export default function ActionSheet({
   const consumePendingFocus = layerStack.consumePendingFocus;
   const getLayerSnapshot = layerStack.getSnapshot;
   const dialogRef = useRef(null);
+  const frameRef = useRef(null);
   const releaseLeaseRef = useRef(null);
   const layerTokenRef = useRef(null);
   const returnTargetRef = useRef(null);
@@ -75,6 +77,13 @@ export default function ActionSheet({
   const ownGeometry = useEditorGeometry({ active: Boolean(open && !parentScope?.geometry) });
   const geometry = parentScope?.geometry || ownGeometry;
   const isInitialFallback = needsInitialEditorGeometryFallback(geometry);
+  const portalTarget = typeof document !== 'undefined'
+    ? (portalTargetOverride || parentScope?.portalTarget || document.body)
+    : null;
+  const isViewportPortal = Boolean(
+    portalTarget
+    && (portalTarget === document.body || portalTarget === document.documentElement)
+  );
   const isTop = Boolean(open && (
     parentScope?.layerStack
       ? parentScope.layerStack.isTop(layerId)
@@ -115,8 +124,9 @@ export default function ActionSheet({
   useLayoutEffect(() => {
     if (!open || typeof document === 'undefined') return undefined;
     if (parentScope?.ownsModality) {
-      const release = acquireScrollLease({
+      const release = acquireScrollLeaseGroup({
         owner: `${layerId}-scope`,
+        scrollRoots: isViewportPortal ? [document.documentElement, document.body] : [],
         inertRoot: parentScope.modalContentRef?.current,
       });
       releaseLeaseRef.current = release;
@@ -130,9 +140,11 @@ export default function ActionSheet({
     if (!document.querySelector('[data-app-scroll-root]') && import.meta.env?.DEV) {
       console.warn('[ActionSheet] data-app-scroll-root ausente; se usa body como fallback.');
     }
-    const release = acquireScrollLease({
+    const release = acquireScrollLeaseGroup({
       owner: layerId,
-      scrollRoot,
+      scrollRoots: isViewportPortal
+        ? [scrollRoot, document.documentElement, document.body]
+        : [scrollRoot],
       inertRoot: document.getElementById('root'),
     });
     releaseLeaseRef.current = release;
@@ -151,7 +163,13 @@ export default function ActionSheet({
     open,
     parentScope?.modalContentRef,
     parentScope?.ownsModality,
+    isViewportPortal,
   ]);
+
+  useLayoutEffect(() => {
+    if (!open || !isTop || !frameRef.current) return undefined;
+    return installActionSheetGestureGuard(frameRef.current);
+  }, [isTop, open]);
 
   useLayoutEffect(() => {
     if (!open || !isTop) {
@@ -170,7 +188,6 @@ export default function ActionSheet({
 
   if (!open || typeof document === 'undefined') return null;
 
-  const portalTarget = portalTargetOverride || parentScope?.portalTarget || document.body;
   if (!portalTarget) return null;
   const actionOptions = Array.isArray(options) ? options : [];
   const isSelectable = selectedId !== undefined;
@@ -196,14 +213,9 @@ export default function ActionSheet({
       {typeof closeAction === 'string' ? closeAction : (closeAction?.label || 'Cerrar')}
     </button>
   ) : closeAction;
-  const frameStyle = isInitialFallback
-    ? { left: 0, top: 0, width: '100%', height: '100dvh' }
-    : {
-      left: `${geometry.visual.left}px`,
-      top: `${geometry.visual.top}px`,
-      width: `${geometry.visual.width}px`,
-      height: `${geometry.visual.height}px`,
-    };
+  const frameStyle = isViewportPortal
+    ? { left: 0, right: 0, bottom: 0, height: '100dvh' }
+    : { inset: 0 };
   const maxSurfaceHeight = isInitialFallback
     ? 'min(100dvh, 720px)'
     : `${Math.max(1, Math.min(720, geometry.visual.height))}px`;
@@ -215,17 +227,19 @@ export default function ActionSheet({
 
   return createPortal(
     <div
-      className={`fixed z-[90] isolate overflow-hidden ${isTop ? 'pointer-events-auto' : 'pointer-events-none'}`}
+      ref={frameRef}
+      className={`${isViewportPortal ? 'fixed' : 'absolute'} z-[90] isolate overflow-hidden overscroll-none ${isTop ? 'pointer-events-auto' : 'pointer-events-none'}`}
       style={frameStyle}
       data-action-sheet-layer={layerId}
       data-action-sheet-top={isTop ? 'true' : 'false'}
       data-action-sheet-geometry={geometry.source}
       data-action-sheet-scale={geometry.visual.scale}
+      data-action-sheet-anchor={isViewportPortal ? 'viewport' : 'scope'}
     >
       <div
         role="presentation"
         aria-hidden="true"
-        className="absolute inset-0 z-0 cursor-default bg-slate-900/40 animate-[fadeIn_0.25s_ease-out]"
+        className="absolute inset-0 z-0 touch-none cursor-default bg-slate-900/40 animate-[fadeIn_0.25s_ease-out]"
         onPointerDown={(event) => {
           if (!isTop) return;
           event.preventDefault();
@@ -250,20 +264,20 @@ export default function ActionSheet({
         aria-label={title ? undefined : 'Acciones'}
         inert={interaction.inert}
         tabIndex={-1}
-        className="absolute inset-x-0 bottom-0 z-10 flex flex-col rounded-t-3xl bg-white shadow-2xl outline-none dark:bg-slate-900"
+        className="absolute inset-x-0 bottom-0 z-10 flex flex-col overflow-hidden overscroll-none rounded-t-3xl bg-white shadow-2xl outline-none dark:bg-slate-900"
         style={{
-          animation: 'slideUp 0.4s cubic-bezier(0.32, 0.72, 0, 1) forwards',
+          animation: 'slideUp 0.4s cubic-bezier(0.32, 0.72, 0, 1)',
           maxHeight: maxSurfaceHeight,
           left: 'env(safe-area-inset-left, 0px)',
           right: 'env(safe-area-inset-right, 0px)',
         }}
       >
-        <div className="flex justify-center pt-3 pb-4" aria-hidden="true">
+        <div className="flex touch-none select-none justify-center pt-3 pb-4" aria-hidden="true" data-action-sheet-handle="true">
           <div className="w-10 h-1 rounded-full bg-slate-300 dark:bg-slate-600" />
         </div>
 
         {title && (
-          <h2 id={titleId} className="px-4 pb-2 text-center text-sm font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+          <h2 id={titleId} className="touch-none select-none px-4 pb-2 text-center text-sm font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500" data-action-sheet-title="true">
             {title}
           </h2>
         )}
@@ -278,7 +292,7 @@ export default function ActionSheet({
           modalContentRef={dialogRef}
         >
           <div
-            className={`min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 ${hasFooter ? 'pb-2' : 'pb-[calc(1.25rem+env(safe-area-inset-bottom))]'}`}
+            className={`min-h-0 flex-1 overflow-y-auto overscroll-none px-4 ${hasFooter ? 'pb-2' : 'pb-[calc(1.25rem+env(safe-area-inset-bottom))]'}`}
             style={{ WebkitOverflowScrolling: 'touch' }}
             data-action-sheet-scroll="true"
           >
@@ -338,7 +352,7 @@ export default function ActionSheet({
           </div>
 
           {hasFooter && (
-            <div className="shrink-0 border-t border-slate-200/70 px-4 pt-2 pb-[calc(0.75rem+env(safe-area-inset-bottom))] dark:border-slate-700/70">
+            <div className="shrink-0 touch-none border-t border-slate-200/70 px-4 pt-2 pb-[calc(0.75rem+env(safe-area-inset-bottom))] dark:border-slate-700/70" data-action-sheet-footer="true">
               {footer || closeControl}
             </div>
           )}

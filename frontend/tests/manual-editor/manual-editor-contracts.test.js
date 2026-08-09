@@ -126,7 +126,7 @@ test('KEEP-001, KEEP-005, KEEP-006, KEEP-007 and KEEP-009 remain observable', as
   assert.match(modal, /<footer[\s\S]*?className="[^"]*shrink-0/);
   assert.match(modal, /overflow-y-auto overscroll-contain/);
   assert.match(stylePanel, /overflow-x-auto overscroll-contain/);
-  assert.match(actionSheet, /overflow-y-auto overscroll-contain/);
+  assert.match(actionSheet, /overflow-y-auto overscroll-none/);
   assert.match(modal, /Toca aquí para seguir escribiendo/);
 });
 
@@ -328,6 +328,23 @@ test('Corte 5 leaves one common layer-stack implementation and removes the orpha
   assert.match(stylePanel, /layerId=\{overlayScope\?\.layerStack/);
   assert.doesNotMatch(creator, /onFooterHeightChange|footerRef|ResizeObserver|ref=\{footerRef\}/);
   assert.match(creator, /aiProgressRef/);
+});
+
+test('ActionSheet anchoring and pan containment stay scoped to their owning layer', async () => {
+  const [actionSheet, gestureGuard, scrollLock] = await Promise.all([
+    readFrontendFile('src/components/common/ActionSheet.jsx'),
+    readFrontendFile('src/components/common/actionSheetGestureGuard.js'),
+    readFrontendFile('src/lib/scrollLock.js'),
+  ]);
+  assert.match(actionSheet, /height: '100dvh'/);
+  assert.match(actionSheet, /data-action-sheet-anchor=\{isViewportPortal \? 'viewport' : 'scope'\}/);
+  assert.doesNotMatch(actionSheet, /top: `\$\{geometry\.visual\.top\}px`/);
+  assert.match(actionSheet, /installActionSheetGestureGuard\(frameRef\.current\)/);
+  assert.match(gestureGuard, /layer\.addEventListener\('touchmove', handleTouchMove, \{ passive: false \}\)/);
+  assert.doesNotMatch(gestureGuard, /document\.|window\.|navigator\./);
+  assert.match(gestureGuard, /input\[type="range"\]/);
+  assert.match(scrollLock, /acquireScrollLeaseGroup/);
+  assert.match(actionSheet, /document\.documentElement, document\.body/);
 });
 
 test('KEEP-011 and KEEP-012 remain unchanged in production contracts', async () => {

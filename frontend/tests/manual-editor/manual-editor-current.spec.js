@@ -38,6 +38,67 @@ async function expectStableGeometry(page, expected = {}) {
   return page.evaluate(() => window.__manualEditorHarness.getGeometrySnapshot());
 }
 
+async function waitForActionSheetAnimation(page, name) {
+  await expect(page.getByRole('dialog', { name })).toBeVisible();
+  await expect.poll(() => page.evaluate((dialogName) => (
+    window.__manualEditorHarness.getActionSheetMetrics(dialogName)?.animation?.transform
+  ), name)).toBe('none');
+}
+
+const ACTION_SHEET_RECT_FIELDS = ['x', 'y', 'top', 'right', 'bottom', 'left', 'width', 'height'];
+
+function expectActionSheetRectStable(before, after) {
+  for (const field of ACTION_SHEET_RECT_FIELDS) {
+    if (Number.isFinite(before?.[field]) && Number.isFinite(after?.[field])) {
+      expect(after[field], field).toBeCloseTo(before[field], 1);
+    }
+  }
+}
+
+async function readActionSheetMetrics(page, name) {
+  return page.evaluate((dialogName) => (
+    window.__manualEditorHarness.getActionSheetMetrics(dialogName)
+  ), name);
+}
+
+async function dispatchVerticalTouchPan(locator, { from = 140, to = 80 } = {}) {
+  return locator.evaluate((node, points) => {
+    const touch = (clientY) => ({ identifier: 7, clientX: 20, clientY });
+    const dispatch = (type, touches, changedTouches = touches) => {
+      const event = new Event(type, { bubbles: true, cancelable: true });
+      Object.defineProperties(event, {
+        touches: { value: touches },
+        changedTouches: { value: changedTouches },
+      });
+      node.dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+    dispatch('touchstart', [touch(points.from)]);
+    const prevented = dispatch('touchmove', [touch(points.to)]);
+    dispatch('touchend', [], [touch(points.to)]);
+    return prevented;
+  }, { from, to });
+}
+
+async function readInlineScrollState(page) {
+  return page.evaluate(() => {
+    const app = document.querySelector('[data-app-scroll-root]');
+    return {
+      styles: {
+        html: document.documentElement.style.cssText,
+        body: document.body.style.cssText,
+        app: app?.style.cssText || '',
+      },
+      scroll: {
+        window: [window.scrollX, window.scrollY],
+        html: [document.documentElement.scrollLeft, document.documentElement.scrollTop],
+        body: [document.body.scrollLeft, document.body.scrollTop],
+        app: [app?.scrollLeft || 0, app?.scrollTop || 0],
+      },
+    };
+  });
+}
+
 async function closeThroughHarness(page) {
   await page.evaluate(() => window.__manualEditorHarness.close());
   await expect(page.getByTestId('manual-card-editor-modal')).toHaveCount(0);
@@ -431,6 +492,331 @@ test('PW-AS-004 — contenido largo en landscape llega a la última acción por 
   });
   expect(result).toEqual({ scrollable: true, atEnd: true });
   await expect(sheet.getByRole('button', { name: 'Acción sintética 18' })).toBeVisible();
+});
+
+test('PW-AS-STABLE-001 — hoja corta contiene gestos y permanece anclada', async ({ page }) => {
+  await openHarness(page, { touch: true });
+  const appRoot = page.getByTestId('harness-app-scroll-root');
+  await appRoot.evaluate((node) => { node.scrollTop = 180; });
+  await page.evaluate(() => window.__manualEditorHarness.openActionSheetCase('footer'));
+  const name = 'Hoja con footer sintético';
+  const sheet = page.getByRole('dialog', { name });
+  await waitForActionSheetAnimation(page, name);
+  const before = await readActionSheetMetrics(page, name);
+  expect(before.content.scrollable).toBe(false);
+  expect(before.animation.transform).toBe('none');
+  expect(before.sectionBottom).toBeCloseTo(before.viewport.height, 1);
+  expect(before.overflow.body).toMatchObject({ overflow: 'hidden', overscrollBehavior: 'none' });
+  expect(before.overflow.documentElement).toMatchObject({ overflow: 'hidden', overscrollBehavior: 'none' });
+  expect(before.overflow.app).toMatchObject({ overflow: 'hidden', overscrollBehavior: 'none' });
+
+  const gestureTargets = [
+    sheet.locator('[data-action-sheet-handle="true"]'),
+    sheet.locator('[data-action-sheet-title="true"]'),
+    sheet.locator('[data-action-sheet-scroll="true"]'),
+    sheet.locator('[data-action-sheet-footer="true"]'),
+  ];
+  for (const target of gestureTargets) {
+    expect(await dispatchVerticalTouchPan(target)).toBe(true);
+    expect(await dispatchVerticalTouchPan(target, { from: 80, to: 140 })).toBe(true);
+    const current = await readActionSheetMetrics(page, name);
+    expectActionSheetRectStable(before.frame, current.frame);
+    expectActionSheetRectStable(before.section, current.section);
+    expect(current.scrollOffsets).toEqual(before.scrollOffsets);
+  }
+});
+
+test('PW-AS-STABLE-002 — hoja larga desplaza solo contenido y contiene ambos límites', async ({ page }) => {
+  await openHarness(page, { touch: true });
+  await page.evaluate(() => window.__manualEditorHarness.openActionSheetCase('long'));
+  const name = 'Contenido largo sintético';
+  const sheet = page.getByRole('dialog', { name });
+  await waitForActionSheetAnimation(page, name);
+  const scroll = sheet.locator('[data-action-sheet-scroll="true"]');
+  const before = await readActionSheetMetrics(page, name);
+  expect(before.content.scrollable).toBe(true);
+
+  await scroll.evaluate((node) => { node.scrollTop = (node.scrollHeight - node.clientHeight) / 2; });
+  expect(await dispatchVerticalTouchPan(scroll)).toBe(false);
+  const middle = await readActionSheetMetrics(page, name);
+  expect(middle.scrollOffsets.content.y).toBeGreaterThan(0);
+  expectActionSheetRectStable(before.section, middle.section);
+  expect(middle.scrollOffsets.window).toEqual(before.scrollOffsets.window);
+  expect(middle.scrollOffsets.documentElement).toEqual(before.scrollOffsets.documentElement);
+  expect(middle.scrollOffsets.body).toEqual(before.scrollOffsets.body);
+  expect(middle.scrollOffsets.app).toEqual(before.scrollOffsets.app);
+
+  await scroll.evaluate((node) => { node.scrollTop = node.scrollHeight; });
+  expect(await dispatchVerticalTouchPan(scroll)).toBe(true);
+  const end = await readActionSheetMetrics(page, name);
+  expectActionSheetRectStable(before.section, end.section);
+  expect(end.scrollOffsets.window).toEqual(before.scrollOffsets.window);
+  expect(end.scrollOffsets.app).toEqual(before.scrollOffsets.app);
+
+  await scroll.evaluate((node) => { node.scrollTop = 0; });
+  expect(await dispatchVerticalTouchPan(scroll, { from: 80, to: 140 })).toBe(true);
+  const start = await readActionSheetMetrics(page, name);
+  expect(start.scrollOffsets.content.y).toBe(0);
+  expectActionSheetRectStable(before.section, start.section);
+  expect(start.scrollOffsets.window).toEqual(before.scrollOffsets.window);
+  expect(start.scrollOffsets.app).toEqual(before.scrollOffsets.app);
+});
+
+test('PW-AS-STABLE-003 — offsetTop de VisualViewport no mueve una hoja raíz', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openHarness(page);
+  await setSyntheticGeometry(page, {
+    layout: { width: 390, height: 844 },
+    visual: { left: 0, top: 0, width: 390, height: 844, scale: 1 },
+  });
+  await page.evaluate(() => window.__manualEditorHarness.openActionSheetCase('simple'));
+  const name = 'Acciones de prueba';
+  await expect(page.getByRole('dialog', { name })).toBeVisible();
+  await waitForActionSheetAnimation(page, name);
+  const before = await page.evaluate((dialogName) => (
+    window.__manualEditorHarness.getActionSheetMetrics(dialogName)
+  ), name);
+
+  await page.evaluate(() => {
+    window.__manualEditorHarness.setGeometrySample({
+      layout: { width: 390, height: 844 },
+      visual: { left: 0, top: 48, width: 390, height: 844, scale: 1 },
+    });
+    window.__manualEditorHarness.emitVisualViewportScroll();
+  });
+  await expect.poll(() => page.evaluate(() => (
+    window.__manualEditorHarness.getSyntheticGeometry()?.visual?.top
+  ))).toBe(48);
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  const after = await page.evaluate((dialogName) => (
+    window.__manualEditorHarness.getActionSheetMetrics(dialogName)
+  ), name);
+
+  expect(after.frame).toEqual(before.frame);
+  expect(after.section).toEqual(before.section);
+
+  await page.setViewportSize({ width: 390, height: 640 });
+  await setSyntheticGeometry(page, {
+    layout: { width: 390, height: 640 },
+    visual: { left: 0, top: 0, width: 390, height: 640, scale: 1 },
+  });
+  await expect.poll(() => readActionSheetMetrics(page, name).then((metrics) => (
+    metrics.animation.maxHeight
+  ))).toBe('640px');
+  const resizedPortrait = await readActionSheetMetrics(page, name);
+  expect(resizedPortrait.frame.bottom).toBeCloseTo(640, 1);
+  expect(resizedPortrait.section.bottom).toBeCloseTo(640, 1);
+  expect(resizedPortrait.animation.maxHeight).toBe('640px');
+
+  await page.setViewportSize({ width: 844, height: 390 });
+  await setSyntheticGeometry(page, {
+    layout: { width: 844, height: 390 },
+    visual: { left: 0, top: 0, width: 844, height: 390, scale: 1 },
+  });
+  await expect.poll(() => readActionSheetMetrics(page, name).then((metrics) => (
+    metrics.animation.maxHeight
+  ))).toBe('390px');
+  const landscape = await readActionSheetMetrics(page, name);
+  expect(landscape.frame.bottom).toBeCloseTo(390, 1);
+  expect(landscape.section.bottom).toBeCloseTo(390, 1);
+  const landscapeBeforeScroll = structuredClone(landscape);
+  await page.evaluate(() => {
+    window.__manualEditorHarness.setGeometrySample({
+      layout: { width: 844, height: 390 },
+      visual: { left: 0, top: 32, width: 844, height: 390, scale: 1 },
+    });
+    window.__manualEditorHarness.emitVisualViewportScroll();
+  });
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  const landscapeAfterScroll = await readActionSheetMetrics(page, name);
+  expectActionSheetRectStable(landscapeBeforeScroll.frame, landscapeAfterScroll.frame);
+  expectActionSheetRectStable(landscapeBeforeScroll.section, landscapeAfterScroll.section);
+  expect(landscapeAfterScroll.animation.transform).toBe('none');
+});
+
+test('PW-AS-STABLE-004 — footer queda fijo mientras el contenido largo se desplaza', async ({ page }) => {
+  await openHarness(page, { touch: true });
+  await page.evaluate(() => window.__manualEditorHarness.openActionSheetCase('long-footer'));
+  const name = 'Hoja larga con footer sintético';
+  const sheet = page.getByRole('dialog', { name });
+  await waitForActionSheetAnimation(page, name);
+  const footer = sheet.locator('[data-action-sheet-footer="true"]');
+  const scroll = sheet.locator('[data-action-sheet-scroll="true"]');
+  const before = await readActionSheetMetrics(page, name);
+  const footerBefore = await footer.boundingBox();
+  expect(before.content.scrollable).toBe(true);
+  await scroll.evaluate((node) => { node.scrollTop = node.scrollHeight; });
+  const footerAfter = await footer.boundingBox();
+  expectActionSheetRectStable(footerBefore, footerAfter);
+  expect(await dispatchVerticalTouchPan(footer)).toBe(true);
+  const after = await readActionSheetMetrics(page, name);
+  expectActionSheetRectStable(before.section, after.section);
+  expect(after.scrollOffsets.content.y).toBeGreaterThan(0);
+});
+
+test('PW-AS-STABLE-005 — CustomColorActionSheet conserva posición y sliders', async ({ page }) => {
+  await openHarness(page, { touch: true });
+  await chooseAndOpen(page, 'distinct', 'question');
+  await page.getByTestId('manual-card-editor-color').click();
+  await page.getByRole('button', { name: 'Color personalizado' }).click();
+  const name = 'Color personalizado';
+  const sheet = page.getByRole('dialog', { name });
+  await waitForActionSheetAnimation(page, name);
+  const before = await readActionSheetMetrics(page, name);
+  const hue = sheet.getByRole('slider', { name: 'Tono' });
+  expect(await dispatchVerticalTouchPan(hue)).toBe(false);
+  for (const value of ['45', '180', '315']) await hue.fill(value);
+  await expect(sheet.locator('[data-custom-color-sheet="true"]')).not.toHaveAttribute('data-draft-color', '#0f172a');
+  const after = await readActionSheetMetrics(page, name);
+  expectActionSheetRectStable(before.section, after.section);
+  await sheet.getByTestId('custom-color-cancel').click();
+  await expect(sheet).toHaveCount(0);
+  await expect(page.getByTestId('manual-card-editor-modal')).toBeVisible();
+});
+
+test('PW-AS-STABLE-006 — ImageActionSheet mantiene anclaje y file input funcional', async ({ page }) => {
+  await openHarness(page, { touch: true });
+  await chooseAndOpen(page, 'distinct', 'question');
+  await page.getByTestId('manual-card-editor-image-control').click();
+  const name = 'Imagen de la tarjeta';
+  const sheet = page.getByRole('dialog', { name });
+  await waitForActionSheetAnimation(page, name);
+  const before = await readActionSheetMetrics(page, name);
+  await sheet.getByTestId('image-sheet-side-answer').click();
+  await sheet.getByTestId('image-sheet-file-input').setInputFiles({
+    name: 'stable-image.svg',
+    mimeType: 'image/svg+xml',
+    buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"/>'),
+  });
+  await expect(sheet.locator('img[src^="blob:manual-editor-"]')).toHaveCount(1);
+  const after = await readActionSheetMetrics(page, name);
+  expect(after.section.x).toBeCloseTo(before.section.x, 1);
+  expect(after.section.width).toBeCloseTo(before.section.width, 1);
+  expect(after.section.bottom).toBeCloseTo(before.section.bottom, 1);
+  await sheet.getByTestId('image-sheet-cancel').click();
+  await expect(sheet).toHaveCount(0);
+});
+
+test('PW-AS-STABLE-007 — stack conserva anclaje, inert y leases hasta el último cierre', async ({ page }) => {
+  await openHarness(page);
+  const initial = await readInlineScrollState(page);
+  await page.evaluate(() => window.__manualEditorHarness.openActionSheetCase('consecutive'));
+  const lowerName = 'Hoja inferior sintética';
+  const upperName = 'Hoja superior sintética';
+  await waitForActionSheetAnimation(page, upperName);
+  const lower = page.getByRole('dialog', { name: lowerName, includeHidden: true });
+  await expect(lower).toHaveAttribute('inert', '');
+  const lowerBefore = await readActionSheetMetrics(page, lowerName);
+  await expect.poll(() => page.evaluate(() => (
+    window.__manualEditorHarness.getOwnershipSnapshot().scroll.ownerCount
+  ))).toBe(6);
+
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog', { name: upperName })).toHaveCount(0);
+  await expect(page.getByRole('dialog', { name: lowerName })).toBeVisible();
+  const lowerAfter = await readActionSheetMetrics(page, lowerName);
+  expectActionSheetRectStable(lowerBefore.section, lowerAfter.section);
+  await expect.poll(() => page.evaluate(() => (
+    window.__manualEditorHarness.getOwnershipSnapshot().scroll.ownerCount
+  ))).toBe(3);
+
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog', { name: lowerName })).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => (
+    window.__manualEditorHarness.getOwnershipSnapshot().scroll
+  ))).toEqual({ scrollRoots: 0, inertRoots: 0, ownerCount: 0, owners: [] });
+  expect(await readInlineScrollState(page)).toEqual(initial);
+});
+
+test('PW-AS-STABLE-008 — 20 ciclos no dejan listeners, leases, layers ni estilos', async ({ page }) => {
+  await openHarness(page);
+  const appRoot = page.getByTestId('harness-app-scroll-root');
+  await appRoot.evaluate((node) => { node.scrollTop = 215; });
+  const initial = await readInlineScrollState(page);
+
+  await page.evaluate(() => window.__manualEditorHarness.openActionSheetCase('long'));
+  await expect(page.getByRole('dialog', { name: 'Contenido largo sintético' })).toBeVisible();
+  await page.evaluate(() => window.__manualEditorHarness.closeActionSheets());
+  await expect(page.getByRole('dialog', { name: 'Contenido largo sintético' })).toHaveCount(0);
+  const baselineListeners = await page.evaluate(() => window.__manualEditorHarness.getListenerSnapshot());
+
+  for (let cycle = 0; cycle < 20; cycle += 1) {
+    await page.evaluate(() => window.__manualEditorHarness.openActionSheetCase('long'));
+    const sheet = page.getByRole('dialog', { name: 'Contenido largo sintético' });
+    await expect(sheet).toBeVisible();
+    await sheet.locator('[data-action-sheet-scroll="true"]').evaluate((node) => {
+      node.scrollTop = Math.max(1, node.scrollHeight / 2);
+    });
+    await page.evaluate(() => window.__manualEditorHarness.closeActionSheets());
+    await expect(sheet).toHaveCount(0);
+  }
+
+  expect(await page.evaluate(() => window.__manualEditorHarness.getListenerSnapshot()))
+    .toEqual(baselineListeners);
+  expect(await readInlineScrollState(page)).toEqual(initial);
+  await expect.poll(() => page.evaluate(() => window.__manualEditorHarness.getOwnershipSnapshot()))
+    .toEqual({
+      layers: { instances: 0, listeners: 0, registrySize: 0, sentinels: 0, owners: [] },
+      sharedOverlays: {
+        coordinator: { hosts: 0, listeners: 0 },
+        registry: {
+          layers: 0,
+          topId: null,
+          registrySize: 0,
+          subscribers: 0,
+          armed: false,
+        },
+      },
+      scroll: { scrollRoots: 0, inertRoots: 0, ownerCount: 0, owners: [] },
+    });
+  expect(await page.locator('[data-action-sheet-layer], [data-action-sheet-overlay-root="true"]').count()).toBe(0);
+  expect(await page.evaluate(() => Boolean(history.state?.__underFlashOverlay))).toBe(false);
+});
+
+test('PW-AS-CONSUMERS-001 — mazo, descarga y calendario reales conservan acciones y anclaje', async ({ page }) => {
+  await openHarness(page);
+
+  await page.evaluate(() => window.__manualEditorHarness.openConsumerCase('deck-card'));
+  await page.getByRole('button', { name: 'Abrir acciones de Mazo sintético real', exact: true }).click();
+  let name = 'Acciones de Mazo sintético real';
+  await waitForActionSheetAnimation(page, name);
+  let metrics = await readActionSheetMetrics(page, name);
+  expect(metrics.section.bottom).toBeCloseTo(metrics.viewport.height, 1);
+  await page.getByRole('button', { name: 'Editar' }).click();
+  await expect(page.getByRole('dialog', { name })).toHaveCount(0);
+  await page.evaluate(() => window.__manualEditorHarness.closeConsumerCases());
+
+  await page.evaluate(() => window.__manualEditorHarness.openConsumerCase('deck-header'));
+  await page.getByRole('button', { name: 'Abrir opciones de descarga' }).click();
+  name = 'Descargar';
+  await waitForActionSheetAnimation(page, name);
+  metrics = await readActionSheetMetrics(page, name);
+  expect(metrics.section.bottom).toBeCloseTo(metrics.viewport.height, 1);
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog', { name })).toHaveCount(0);
+  await page.evaluate(() => window.__manualEditorHarness.closeConsumerCases());
+
+  await page.evaluate(() => window.__manualEditorHarness.openConsumerCase('schedule'));
+  await page.getByRole('button', { name: 'Abrir opciones del horario. Horario actual: Horario' }).click();
+  name = 'Opciones del horario';
+  await waitForActionSheetAnimation(page, name);
+  metrics = await readActionSheetMetrics(page, name);
+  expect(metrics.section.bottom).toBeCloseTo(metrics.viewport.height, 1);
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog', { name })).toHaveCount(0);
+
+  await page.setViewportSize({ width: 844, height: 500 });
+  await page.getByRole('button', { name: 'Descargar horario como PDF' }).click();
+  name = 'Exportar horario';
+  await waitForActionSheetAnimation(page, name);
+  metrics = await readActionSheetMetrics(page, name);
+  expect(metrics.section.bottom).toBeCloseTo(metrics.viewport.height, 1);
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog', { name })).toHaveCount(0);
+  await page.evaluate(() => window.__manualEditorHarness.closeConsumerCases());
+  await expect.poll(() => page.evaluate(() => (
+    window.__manualEditorHarness.getOwnershipSnapshot().scroll
+  ))).toEqual({ scrollRoots: 0, inertRoots: 0, ownerCount: 0, owners: [] });
 });
 
 test('PW-OPEN-001 / KEEP-009 — la ayuda baja el área editable y permite reanudar', async ({ page }) => {

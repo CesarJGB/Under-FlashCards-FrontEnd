@@ -22,7 +22,7 @@ Este directorio es la autoridad técnica del proyecto para cualquier cambio que 
 |---|---|
 | Refactor/V2 del editor manual | Los cuatro documentos de auditoría de Fase 2, `manual-editor-v2-architecture`, `manual-editor-v2-state-machines`, `manual-editor-v2-migration-plan`, `manual-editor-v2-test-plan`, `manual-editor-v2-traceability` y los documentos especializados citados por cada hallazgo |
 | `ManualCardEditorModal`, altura del editor o teclado | `virtual-keyboard`, `viewport-and-safe-area`, `focus-and-input`, `fixed-sticky-overlays`, `known-browser-bugs` |
-| `ActionSheet`, diálogo, backdrop o trampa de foco | `modals-and-sheets`, `focus-and-input`, `fixed-sticky-overlays`, `touch-and-gestures` |
+| `ActionSheet`, diálogo, backdrop o trampa de foco | `action-sheet-viewport-anchoring`, `modals-and-sheets`, `focus-and-input`, `fixed-sticky-overlays`, `touch-and-gestures` |
 | `ScheduleCalendar` o `ScheduleMobileFooter` | `viewport-and-safe-area`, `fixed-sticky-overlays`, `touch-and-gestures` |
 | `StylePanel` o `ColorPalette` | `focus-and-input`, `touch-and-gestures`, `viewport-and-safe-area`, `known-browser-bugs` |
 | `textarea`, `contenteditable`, caret o selección | `focus-and-input`, `virtual-keyboard` |
@@ -72,6 +72,8 @@ El Corte 5 se ejecutó sobre el `HEAD` efectivo de `origin/main` `9a775679b88246
 La implementación y migración de código de los Cortes 0–5 queda terminada en el alcance estático/determinista documentado. Esto no equivale a certificación de plataformas: no se ejecutaron Playwright ni pruebas físicas. `G5` queda **`BLOCKED — DEVICE REQUIRED`**; Safari iOS, Android, WebView, OSK, picker nativo, cutouts y Back físico no se declaran `PASS` sin evidencia real.
 
 Después del Corte 5 se aplicó una corrección de regresiones observadas en uso real: se restauró la superficie contextual dentro de la textarea y su desplazamiento inferior, se aseguró foco durante cambio rápido de lado y cierre por el mismo trigger, y se hizo inmediata la autoridad de transacciones para que el color personalizado no lea estado obsoleto. Véase [`manual-editor-v2-post-cut-5-regression-fix.md`](manual-editor-v2-post-cut-5-regression-fix.md). Esta corrección no cambia el estado de certificación física de `G5`.
+
+La regresión posterior de anclaje y overscroll de `ActionSheet`, introducida al envolver la superficie fija en un frame basado en offsets de VisualViewport durante el Corte 4, está documentada en [`action-sheet-viewport-anchoring.md`](action-sheet-viewport-anchoring.md). El contrato automatizado está cubierto en tres motores; el rebote elástico real de Safari iOS permanece **PENDING — DEVICE REQUIRED**.
 
 ## Jerarquía de fuentes
 

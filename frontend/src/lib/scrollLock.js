@@ -64,7 +64,11 @@ export function acquireScrollLease({ owner = 'default', scrollRoot, inertRoot } 
       owners: new Map(),
       snapshot: {
         overflow: scrollRoot.style?.overflow ?? '',
+        overflowX: scrollRoot.style?.overflowX ?? '',
+        overflowY: scrollRoot.style?.overflowY ?? '',
         overscrollBehavior: scrollRoot.style?.overscrollBehavior ?? '',
+        overscrollBehaviorX: scrollRoot.style?.overscrollBehaviorX ?? '',
+        overscrollBehaviorY: scrollRoot.style?.overscrollBehaviorY ?? '',
         scrollTop: scrollRoot.scrollTop ?? 0,
         scrollLeft: scrollRoot.scrollLeft ?? 0,
       },
@@ -89,11 +93,36 @@ export function acquireScrollLease({ owner = 'default', scrollRoot, inertRoot } 
     if (current.owners.size > 0) return;
     if (scrollRoot.style) {
       scrollRoot.style.overflow = current.snapshot.overflow;
+      scrollRoot.style.overflowX = current.snapshot.overflowX;
+      scrollRoot.style.overflowY = current.snapshot.overflowY;
       scrollRoot.style.overscrollBehavior = current.snapshot.overscrollBehavior;
+      scrollRoot.style.overscrollBehaviorX = current.snapshot.overscrollBehaviorX;
+      scrollRoot.style.overscrollBehaviorY = current.snapshot.overscrollBehaviorY;
     }
     scrollRoot.scrollTop = current.snapshot.scrollTop;
     scrollRoot.scrollLeft = current.snapshot.scrollLeft;
     scrollRegistry.delete(scrollRoot);
+  };
+}
+
+export function acquireScrollLeaseGroup({
+  owner = 'default',
+  scrollRoots = [],
+  inertRoot,
+} = {}) {
+  const roots = [...new Set(scrollRoots.filter(Boolean))];
+  const releases = roots.length > 0
+    ? roots.map((scrollRoot, index) => acquireScrollLease({
+      owner,
+      scrollRoot,
+      inertRoot: index === 0 ? inertRoot : null,
+    }))
+    : [acquireScrollLease({ owner, inertRoot })];
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    releases.reverse().forEach((release) => release());
   };
 }
 
