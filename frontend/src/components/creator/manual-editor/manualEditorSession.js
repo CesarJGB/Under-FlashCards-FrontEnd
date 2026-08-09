@@ -185,9 +185,9 @@ function pickerEventMatches(state, event) {
   );
 }
 
-function resumeAfterPicker(state) {
-  if (state.domFocus.side === state.activeSide) return state.resume;
-  return { available: true, reason: 'picker-returned' };
+function resumeAfterPicker(state, { force = false, reason = 'picker-returned' } = {}) {
+  if (!force && state.domFocus.side === state.activeSide) return state.resume;
+  return { available: true, reason };
 }
 
 export function manualEditorSessionReducer(state, event) {
@@ -399,10 +399,19 @@ export function manualEditorSessionReducer(state, event) {
     case 'PICKER_COMMITTED': {
       if (!pickerEventMatches(state, event) || state.picker.status === 'committed') return state;
       if (!['requested', 'external', 'returned-unknown'].includes(state.picker.status)) return state;
+      const imagePickerCommitted = state.picker.kind === 'image';
       return {
         ...state,
-        phase: state.domFocus.side === state.activeSide ? state.phase : 'interrupted',
-        resume: resumeAfterPicker(state),
+        phase: imagePickerCommitted || state.domFocus.side !== state.activeSide
+          ? 'interrupted'
+          : state.phase,
+        // A native file picker can close the software keyboard while the DOM
+        // still reports the textarea as focused. Treat a committed image as an
+        // explicit resume point instead of trying to infer keyboard state.
+        resume: resumeAfterPicker(state, {
+          force: imagePickerCommitted,
+          reason: imagePickerCommitted ? 'image-picker-returned' : 'picker-returned',
+        }),
         picker: {
           ...state.picker,
           status: 'committed',
@@ -465,4 +474,3 @@ export function requestColorPickerFromClick(input) {
     return { requested: false, method: 'none' };
   }
 }
-

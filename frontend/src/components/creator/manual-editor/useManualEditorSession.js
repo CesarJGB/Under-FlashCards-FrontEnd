@@ -47,7 +47,7 @@ export default function useManualEditorSession({
   const previousOpenRef = useRef(Boolean(open));
   const handledFocusRequestRef = useRef(0);
 
-  const [state, dispatch] = useReducer(
+  const [state, reactDispatch] = useReducer(
     manualEditorSessionReducer,
     null,
     () => createManualEditorSession({
@@ -59,6 +59,19 @@ export default function useManualEditorSession({
       },
     }),
   );
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
+  // Native pickers are opened inside the same trusted gesture that dispatches
+  // PICKER_REQUESTED. Keep an immediate reducer snapshot so picker callbacks
+  // never validate against the previous React render.
+  const dispatch = useCallback((event) => {
+    const next = manualEditorSessionReducer(stateRef.current, event);
+    if (next === stateRef.current) return next;
+    stateRef.current = next;
+    reactDispatch(event);
+    return next;
+  }, []);
 
   useLayoutEffect(() => {
     const wasOpen = previousOpenRef.current;
@@ -103,27 +116,29 @@ export default function useManualEditorSession({
     }
   }, [answer, question]);
 
-  const captureSelection = useCallback((side = state.activeSide) => {
+  const captureSelection = useCallback((side = stateRef.current.activeSide) => {
     const normalizedSide = normalizeSide(side);
+    const current = stateRef.current;
     const textarea = textareaRef.current;
-    if (!textarea || normalizedSide !== state.activeSide) {
-      return state.selections[normalizedSide];
+    if (!textarea || normalizedSide !== current.activeSide) {
+      return current.selections[normalizedSide];
     }
 
     const selection = readTextareaSelection(
       textarea,
       valueRevisionRef.current[normalizedSide],
     );
-    if (!selection) return state.selections[normalizedSide];
+    if (!selection) return current.selections[normalizedSide];
     dispatch({ type: 'SELECTION_CAPTURED', side: normalizedSide, selection });
     return selection;
-  }, [state.activeSide, state.selections, textareaRef]);
+  }, [dispatch, textareaRef]);
 
   const restoreSelection = useCallback((side, textarea = textareaRef.current) => {
     const normalizedSide = normalizeSide(side);
     if (!textarea) return false;
-    const meta = state.valueMeta[normalizedSide];
-    const savedSelection = state.selections[normalizedSide];
+    const current = stateRef.current;
+    const meta = current.valueMeta[normalizedSide];
+    const savedSelection = current.selections[normalizedSide];
     const restorable = canRestoreSelection(savedSelection, meta);
     const selection = restorable
       ? clampSelection(savedSelection, meta.valueLength)
@@ -147,14 +162,16 @@ export default function useManualEditorSession({
       });
     }
     return true;
-  }, [state.selections, state.valueMeta, textareaRef]);
+  }, [dispatch, textareaRef]);
 
-  const attemptFocus = useCallback(({
-    side = state.activeSide,
-    reason = 'continuation',
-    requestId = state.focusRequestId,
-    restore = true,
-  } = {}) => {
+  const attemptFocus = useCallback((options = {}) => {
+    const current = stateRef.current;
+    const {
+      side = current.activeSide,
+      reason = 'continuation',
+      requestId = current.focusRequestId,
+      restore = true,
+    } = options;
     const normalizedSide = normalizeSide(side);
     const textarea = textareaRef.current;
     dispatch({ type: 'FOCUS_ATTEMPTED', requestId, reason });
@@ -190,7 +207,7 @@ export default function useManualEditorSession({
     // never cause another focus() call.
     if (restore) restoreSelection(normalizedSide, textarea);
     return focusObserved;
-  }, [restoreSelection, state.activeSide, state.focusRequestId, textareaRef]);
+  }, [dispatch, restoreSelection, textareaRef]);
 
   useLayoutEffect(() => {
     if (!open || state.phase === 'closed') return;
@@ -227,52 +244,63 @@ export default function useManualEditorSession({
     });
   }, []);
 
-  const switchSide = useCallback((nextSide) => {
-    captureSelection(state.activeSide);
-    dispatch({ type: 'SIDE_REQUESTED', side: normalizeSide(nextSide) });
-  }, [captureSelection, state.activeSide]);
+  const switchSide = useCallback((nextSide, { focusWithinGesture = false } = {}) => {
+    const currentSide = stateRef.current.activeSide;
+    const normalizedNextSide = normalizeSide(nextSide);
+    captureSelection(currentSide);
+    const next = dispatch({ type: 'SIDE_REQUESTED', side: normalizedNextSide });
+    if (focusWithinGesture && next.activeSide === normalizedNextSide) {
+      handledFocusRequestRef.current = next.focusRequestId;
+      attemptFocus({
+        side: normalizedNextSide,
+        reason: 'side-switch-gesture',
+        requestId: next.focusRequestId,
+      });
+    }
+  }, [attemptFocus, captureSelection, dispatch]);
 
-  const startComposition = useCallback((side = state.activeSide) => {
+  const startComposition = useCallback((side = stateRef.current.activeSide) => {
     dispatch({ type: 'COMPOSITION_STARTED', side: normalizeSide(side) });
-  }, [state.activeSide]);
+  }, [dispatch]);
 
-  const endComposition = useCallback((side = state.activeSide, textarea = textareaRef.current) => {
+  const endComposition = useCallback((side = stateRef.current.activeSide, textarea = textareaRef.current) => {
     const normalizedSide = normalizeSide(side);
     const selection = readTextareaSelection(
       textarea,
       valueRevisionRef.current[normalizedSide],
     );
     dispatch({ type: 'COMPOSITION_ENDED', side: normalizedSide, selection });
-  }, [state.activeSide, textareaRef]);
+  }, [dispatch, textareaRef]);
 
-  const observeFocus = useCallback((side = state.activeSide) => {
+  const observeFocus = useCallback((side = stateRef.current.activeSide) => {
     dispatch({ type: 'FOCUS_OBSERVED', side: normalizeSide(side) });
-  }, [state.activeSide]);
+  }, [dispatch]);
 
-  const observeBlur = useCallback((side = state.activeSide) => {
+  const observeBlur = useCallback((side = stateRef.current.activeSide) => {
     captureSelection(side);
     dispatch({
       type: 'FOCUS_LEFT',
       side: normalizeSide(side),
       reason: 'focus-left-editor',
     });
-  }, [captureSelection, state.activeSide]);
+  }, [captureSelection, dispatch]);
 
   const observeInput = useCallback(() => {
     dispatch({ type: 'INPUT_OBSERVED' });
   }, []);
 
   const resolveResumeFromGesture = useCallback(() => {
+    const current = stateRef.current;
     dispatch({ type: 'RESUME_ACTIVATED' });
     return attemptFocus({
-      side: state.activeSide,
+      side: current.activeSide,
       reason: 'resume-gesture',
-      requestId: state.focusRequestId,
+      requestId: current.focusRequestId,
     });
-  }, [attemptFocus, state.activeSide, state.focusRequestId]);
+  }, [attemptFocus, dispatch]);
 
   const beginPicker = useCallback((kind) => {
-    const side = state.activeSide;
+    const side = stateRef.current.activeSide;
     const selection = captureSelection(side);
     const transactionId = transactionCounterRef.current + 1;
     transactionCounterRef.current = transactionId;
@@ -284,7 +312,7 @@ export default function useManualEditorSession({
       selection,
     });
     return transactionId;
-  }, [captureSelection, state.activeSide]);
+  }, [captureSelection, dispatch]);
 
   const markPickerExternal = useCallback((transactionId) => {
     if (transactionId == null) return false;
@@ -295,62 +323,66 @@ export default function useManualEditorSession({
   }, []);
 
   const updatePickerDraft = useCallback((transactionId, value) => {
+    const current = stateRef.current;
     if (
-      state.picker.transactionId !== transactionId
-      || !['requested', 'external', 'returned-unknown'].includes(state.picker.status)
+      current.picker.transactionId !== transactionId
+      || !['requested', 'external', 'returned-unknown'].includes(current.picker.status)
     ) return false;
     dispatch({ type: 'PICKER_INPUT', transactionId, value });
     return true;
-  }, [state.picker.status, state.picker.transactionId]);
+  }, [dispatch]);
 
   const commitPicker = useCallback((transactionId, value) => {
+    const current = stateRef.current;
     if (
-      state.picker.transactionId !== transactionId
-      || !['requested', 'external', 'returned-unknown'].includes(state.picker.status)
+      current.picker.transactionId !== transactionId
+      || !['requested', 'external', 'returned-unknown'].includes(current.picker.status)
     ) return false;
     dispatch({ type: 'PICKER_COMMITTED', transactionId, value });
     return true;
-  }, [state.picker.status, state.picker.transactionId]);
+  }, [dispatch]);
 
   const cancelPicker = useCallback((transactionId) => {
+    const current = stateRef.current;
     if (
-      state.picker.transactionId !== transactionId
-      || !['requested', 'external', 'returned-unknown'].includes(state.picker.status)
+      current.picker.transactionId !== transactionId
+      || !['requested', 'external', 'returned-unknown'].includes(current.picker.status)
     ) return false;
     dispatch({ type: 'PICKER_CANCELLED', transactionId });
     return true;
-  }, [state.picker.status, state.picker.transactionId]);
+  }, [dispatch]);
 
-  const signalPickerReturn = useCallback((transactionId = state.picker.transactionId) => {
+  const signalPickerReturn = useCallback((transactionId = stateRef.current.picker.transactionId) => {
     if (transactionId == null) return false;
     dispatch({ type: 'PICKER_RETURN_SIGNAL', transactionId });
     return true;
-  }, [state.picker.transactionId]);
+  }, [dispatch]);
 
   const resolvePicker = useCallback((transactionId) => {
-    if (state.picker.transactionId !== transactionId) return false;
+    if (stateRef.current.picker.transactionId !== transactionId) return false;
     dispatch({ type: 'PICKER_RESOLVED', transactionId });
     return true;
-  }, [state.picker.transactionId]);
+  }, [dispatch]);
 
   useEffect(() => {
     if (!open || typeof window === 'undefined' || typeof document === 'undefined') return undefined;
 
     const handlePossibleReturn = () => {
-      const pickerCanReturn = ['requested', 'external'].includes(state.picker.status);
+      const current = stateRef.current;
+      const pickerCanReturn = ['requested', 'external'].includes(current.picker.status);
       if (!pickerCanReturn) return;
       if (
-        state.domFocus.observed
+        current.domFocus.observed
         && textareaRef.current
         && document.activeElement !== textareaRef.current
       ) {
         dispatch({
           type: 'FOCUS_LEFT',
-          side: state.domFocus.side,
+          side: current.domFocus.side,
           reason: 'picker-returned',
         });
       }
-      signalPickerReturn();
+      signalPickerReturn(current.picker.transactionId);
     };
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') handlePossibleReturn();
@@ -362,7 +394,7 @@ export default function useManualEditorSession({
       window.removeEventListener('focus', handlePossibleReturn);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [open, signalPickerReturn, state.domFocus, state.picker.status, textareaRef]);
+  }, [dispatch, open, signalPickerReturn, textareaRef]);
 
   return {
     state,

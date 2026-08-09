@@ -250,17 +250,21 @@ test('UT-PICK-002 — unknown and cancel do not mutate a color; stale events are
 });
 
 test('UT-PICK-003 — image commit, cancel and unknown preserve side and selection metadata', () => {
-  const initial = manualEditorSessionReducer(createOpenSession('answer'), {
-    type: 'SELECTION_CAPTURED',
-    side: 'answer',
-    selection: {
-      start: 3,
-      end: 11,
-      direction: 'backward',
-      valueLength: 20,
-      valueRevision: 1,
+  const initial = reduce(
+    createOpenSession('answer'),
+    {
+      type: 'SELECTION_CAPTURED',
+      side: 'answer',
+      selection: {
+        start: 3,
+        end: 11,
+        direction: 'backward',
+        valueLength: 20,
+        valueRevision: 1,
+      },
     },
-  });
+    { type: 'FOCUS_OBSERVED', side: 'answer' },
+  );
   const request = (id) => reduce(
     initial,
     { type: 'PICKER_REQUESTED', transactionId: id, kind: 'image', side: 'answer' },
@@ -285,6 +289,11 @@ test('UT-PICK-003 — image commit, cancel and unknown preserve side and selecti
     assert.deepEqual(state.selections.answer, initial.selections.answer);
   }
   assert.equal(committed.picker.status, 'committed');
+  assert.equal(committed.phase, 'interrupted');
+  assert.deepEqual(committed.resume, {
+    available: true,
+    reason: 'image-picker-returned',
+  });
   assert.equal(cancelled.picker.status, 'cancelled');
   assert.equal(unknown.picker.status, 'returned-unknown');
 });
@@ -317,4 +326,3 @@ test('UT-PICK-004 — semantic click uses showPicker or one immediate click fall
   assert.equal(pickerCalls, 2);
   assert.equal(clickCalls, 2);
 });
-
