@@ -57,7 +57,7 @@ const acquireInert = (node, owner) => {
 };
 
 export function acquireScrollLease({ owner = 'default', scrollRoot, inertRoot } = {}) {
-  if (!scrollRoot) return () => {};
+  if (!scrollRoot) return acquireInert(inertRoot, owner);
   let record = scrollRegistry.get(scrollRoot);
   if (!record) {
     record = {
