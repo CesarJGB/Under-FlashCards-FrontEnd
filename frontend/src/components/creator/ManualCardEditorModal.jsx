@@ -1,5 +1,12 @@
 import { createPortal } from 'react-dom';
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   AlignCenter,
   AlignLeft,
@@ -15,6 +22,11 @@ import {
   X,
 } from 'lucide-react';
 import { ColorPalette, ColorSwatchButton } from './StylePanel';
+import { OverlayPortal, OverlayScope } from '../common/OverlayScope';
+import { useScrollLease } from '../../lib/scrollLock';
+import EditorOverlayRoot from './manual-editor/EditorOverlayRoot';
+import { needsInitialEditorGeometryFallback } from './manual-editor/editorGeometry';
+import useEditorLayerStack from './manual-editor/useEditorLayerStack';
 import useManualEditorSession from './manual-editor/useManualEditorSession';
 import useEditorGeometry from './manual-editor/useEditorGeometry';
 
@@ -40,6 +52,108 @@ const getSideCopy = (side) => (
     : { label: 'Pregunta', placeholder: 'Escribe la pregunta…' }
 );
 
+const COLOR_LAYER_ID = 'manual-editor-color';
+const ALIGN_LAYER_ID = 'manual-editor-align';
+
+function AlignmentPopover({
+  anchorRef,
+  geometry,
+  layerStack,
+  options,
+  currentAlign,
+  onSelect,
+  controlButtonClass,
+}) {
+  const popoverRef = useRef(null);
+  const [position, setPosition] = useState(null);
+
+  useLayoutEffect(() => {
+    let frameId = 0;
+    const measure = () => {
+      frameId = 0;
+      const anchor = anchorRef.current;
+      const popover = popoverRef.current;
+      if (!anchor) {
+        if (layerStack.isTop(ALIGN_LAYER_ID)) layerStack.dismissTop('anchor-lost');
+        return;
+      }
+      if (!popover) return;
+      const anchorRect = anchor.getBoundingClientRect();
+      const popoverRect = popover.getBoundingClientRect();
+      const margin = 8;
+      const gap = 8;
+      const minLeft = geometry.visual.left + margin;
+      const maxRight = geometry.visual.left + geometry.visual.width - margin;
+      const minTop = geometry.visual.top + margin;
+      const maxBottom = geometry.visual.top + geometry.visual.height - margin;
+      const width = Math.min(168, Math.max(1, maxRight - minLeft));
+      const height = Math.min(popoverRect.height, Math.max(1, maxBottom - minTop));
+      const left = Math.min(Math.max(anchorRect.right - width, minLeft), maxRight - width);
+      const above = anchorRect.top - height - gap;
+      const below = anchorRect.bottom + gap;
+      const top = above >= minTop
+        ? above
+        : Math.min(Math.max(below, minTop), maxBottom - height);
+      const next = { left, top, width, maxHeight: Math.max(1, maxBottom - minTop) };
+      setPosition((current) => (
+        current
+        && Math.abs(current.left - next.left) <= 0.5
+        && Math.abs(current.top - next.top) <= 0.5
+        && Math.abs(current.width - next.width) <= 0.5
+          ? current
+          : next
+      ));
+    };
+    frameId = window.requestAnimationFrame(measure);
+    const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : null;
+    if (anchorRef.current) observer?.observe(anchorRef.current);
+    if (popoverRef.current) observer?.observe(popoverRef.current);
+    return () => {
+      if (frameId) window.cancelAnimationFrame(frameId);
+      observer?.disconnect();
+    };
+  }, [anchorRef, geometry.epoch, geometry.revision, layerStack]);
+
+  return (
+    <OverlayPortal
+      ref={popoverRef}
+      layerId={ALIGN_LAYER_ID}
+      role="dialog"
+      aria-label="Alineación"
+      data-editor-align-popover="true"
+      className="fixed w-[168px] rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl animate-[slideUp_0.1s_ease-out]"
+      style={{
+        left: `${position?.left ?? 0}px`,
+        top: `${position?.top ?? 0}px`,
+        width: position ? `${position.width}px` : undefined,
+        maxHeight: position ? `${position.maxHeight}px` : undefined,
+        visibility: position ? 'visible' : 'hidden',
+        overflowY: position ? 'auto' : undefined,
+      }}
+    >
+      <p className="mb-2 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+        Alineación
+      </p>
+      <div className="grid grid-cols-3 gap-2">
+        {options.map(({ value, label, Icon }) => (
+          <button
+            key={value}
+            type="button"
+            title={label}
+            aria-label={label}
+            aria-pressed={currentAlign === value}
+            onPointerDown={(event) => event.preventDefault()}
+            onClick={() => onSelect(value)}
+            className={controlButtonClass(currentAlign === value)}
+          >
+            <Icon className="h-4 w-4" />
+          </button>
+        ))}
+      </div>
+    </OverlayPortal>
+  );
+}
+
 export default function ManualCardEditorModal({
   open,
   initialSide = 'question',
@@ -62,14 +176,19 @@ export default function ManualCardEditorModal({
   SWATCHES = DEFAULT_SWATCHES,
   textAlign = 'left',
   setTextAlign,
+  resolveReturnFocus,
 }) {
-  const [openMenu, setOpenMenu] = useState(null); // 'color' | 'align' | null
-
   const textareaRef = useRef(null);
+  const dialogRef = useRef(null);
+  const editorSurfaceRef = useRef(null);
   const editorMainRef = useRef(null);
+  const overlayRootRef = useRef(null);
+  const [overlayRootElement, setOverlayRootElement] = useState(null);
   const imageInputRef = useRef(null);
   const imageTransactionIdRef = useRef(null);
   const colorAnchorRef = useRef(null);
+  const alignAnchorRef = useRef(null);
+  const scrollOwnerRef = useRef(`manual-editor-scroll-${Math.random().toString(36).slice(2)}`);
 
   const editorSession = useManualEditorSession({
     open,
@@ -80,6 +199,44 @@ export default function ManualCardEditorModal({
   });
   const activeSide = editorSession.activeSide;
   const editorGeometry = useEditorGeometry({ active: open });
+  const scrollTargets = useMemo(() => {
+    if (!open || typeof document === 'undefined') return { scrollRoot: null, inertRoot: null };
+    const appScrollRoot = document.querySelector('[data-app-scroll-root]');
+    if (!appScrollRoot && import.meta.env?.DEV) {
+      console.warn('[manual-editor] data-app-scroll-root unavailable; using body fallback.');
+    }
+    return {
+      scrollRoot: appScrollRoot || document.body,
+      inertRoot: document.getElementById('root'),
+    };
+  }, [open]);
+  const releaseScrollLease = useScrollLease({
+    active: open,
+    owner: scrollOwnerRef.current,
+    ...scrollTargets,
+  });
+  const handleDismissRoot = useCallback((reason) => {
+    releaseScrollLease();
+    onClose?.(reason);
+  }, [onClose, releaseScrollLease]);
+  const layerStack = useEditorLayerStack({
+    active: open,
+    dialogRef,
+    overlayRootRef,
+    onDismissRoot: handleDismissRoot,
+    resolveRootReturnFocus: resolveReturnFocus,
+  });
+  const setOverlayRoot = useCallback((node) => {
+    overlayRootRef.current = node;
+    setOverlayRootElement((current) => (current === node ? current : node));
+  }, []);
+  const openMenu = layerStack.topId === COLOR_LAYER_ID
+    ? 'color'
+    : layerStack.topId === ALIGN_LAYER_ID
+      ? 'align'
+      : null;
+  const colorLayerToken = layerStack.layers.find((layer) => layer.id === COLOR_LAYER_ID)?.token;
+  const alignLayerToken = layerStack.layers.find((layer) => layer.id === ALIGN_LAYER_ID)?.token;
 
   const alignOptions = Array.isArray(ALIGNS) && ALIGNS.length ? ALIGNS : DEFAULT_ALIGNS;
   const swatches = Array.isArray(SWATCHES) && SWATCHES.length ? SWATCHES : DEFAULT_SWATCHES;
@@ -113,30 +270,8 @@ export default function ManualCardEditorModal({
 
   useLayoutEffect(() => {
     if (!open) return;
-    setOpenMenu(null);
     imageTransactionIdRef.current = null;
   }, [initialSide, open]);
-
-  useEffect(() => {
-    if (!open || typeof document === 'undefined') return undefined;
-
-    const previousOverflow = document.body.style.overflow;
-    const previousOverscrollBehavior = document.body.style.overscrollBehavior;
-    document.body.style.overflow = 'hidden';
-    document.body.style.overscrollBehavior = 'none';
-
-    const handleKeyDown = (event) => {
-      if (event.key === 'Escape') onClose?.();
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      document.body.style.overscrollBehavior = previousOverscrollBehavior;
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [onClose, open]);
 
   useEffect(() => {
     const input = imageInputRef.current;
@@ -190,10 +325,14 @@ export default function ManualCardEditorModal({
     && editorGeometry.occlusion.bottom > 0
   );
   const editorSurfaceStyle = {
-    left: `${editorGeometry.visual.left}px`,
-    top: `${editorGeometry.visual.top}px`,
-    width: `${editorGeometry.visual.width}px`,
-    height: `${editorGeometry.visual.height}px`,
+    ...(needsInitialEditorGeometryFallback(editorGeometry)
+      ? { left: 0, top: 0, width: '100%', height: '100dvh' }
+      : {
+        left: `${editorGeometry.visual.left}px`,
+        top: `${editorGeometry.visual.top}px`,
+        width: `${editorGeometry.visual.width}px`,
+        height: `${editorGeometry.visual.height}px`,
+      }),
     paddingTop: 'env(safe-area-inset-top, 0px)',
     paddingLeft: 'env(safe-area-inset-left, 0px)',
     paddingRight: 'env(safe-area-inset-right, 0px)',
@@ -231,27 +370,26 @@ export default function ManualCardEditorModal({
     preserveToolbarFocus(event);
   };
 
-  const closeMenu = () => {
-    setOpenMenu(null);
-  };
+  const closeColorMenu = (reason = 'selection') => (
+    layerStack.dismissLayer(COLOR_LAYER_ID, colorLayerToken, reason)
+  );
+  const closeAlignMenu = (reason = 'selection') => (
+    layerStack.dismissLayer(ALIGN_LAYER_ID, alignLayerToken, reason)
+  );
 
-  const toggleColorMenu = () => {
-    setOpenMenu((currentMenu) => (currentMenu === 'color' ? null : 'color'));
-  };
-
-  const blockMenuBackdropPointerDown = (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-  };
-
-  const closeMenuFromBackdrop = (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    closeMenu();
+  const toggleEditorLayer = (event, id, returnTarget) => {
+    layerStack.toggleLayer({
+      id,
+      ownerId: 'manual-editor-toolbar',
+      kind: 'popover',
+      focusPolicy: event.detail === 0 ? 'move-focus' : 'pointer-preserve',
+      returnTarget,
+      replaceOwner: true,
+    });
   };
 
   const switchSide = () => {
-    setOpenMenu(null);
+    if (layerStack.topId) layerStack.dismissTop('side-switch');
     editorSession.switchSide(reverseSide);
   };
 
@@ -262,12 +400,12 @@ export default function ManualCardEditorModal({
     if (wasSaved === false) return false;
 
     if (keepEditing) {
-      setOpenMenu(null);
+      if (layerStack.topId) layerStack.dismissTop('save-and-continue');
       if (activeSide !== 'question') editorSession.switchSide('question');
       return true;
     }
 
-    onClose?.();
+    layerStack.dismissTop('save');
     return true;
   };
 
@@ -275,7 +413,7 @@ export default function ManualCardEditorModal({
     if (saving) return;
 
     if (!question.trim() || !answer.trim()) {
-      onClose?.();
+      layerStack.dismissTop('done');
       return;
     }
 
@@ -291,6 +429,7 @@ export default function ManualCardEditorModal({
 
   const modal = (
     <div
+      ref={dialogRef}
       className="fixed inset-0 z-[70] isolate overflow-hidden bg-white text-slate-900"
       role="dialog"
       aria-modal="true"
@@ -303,11 +442,19 @@ export default function ManualCardEditorModal({
       data-geometry-source={editorGeometry.source}
       data-geometry-orientation={editorGeometry.orientation}
       data-geometry-safe-bottom={visualEdgeMitigation ? 'visual-edge' : 'conservative'}
+      data-editor-layer-top={layerStack.topId || ''}
+      data-editor-layer-count={layerStack.layers.length}
       data-editor-geometry={JSON.stringify(editorGeometry)}
       data-testid="manual-card-editor-modal"
     >
+      <OverlayScope
+        portalTarget={overlayRootElement}
+        layerStack={layerStack}
+        bounds={editorGeometry.visual}
+      >
       <div
-        className="fixed z-[71] flex min-h-0 max-w-full flex-col overflow-hidden bg-white"
+        ref={editorSurfaceRef}
+        className="fixed z-10 flex min-h-0 max-w-full flex-col overflow-hidden bg-white"
         style={editorSurfaceStyle}
         data-testid="manual-card-editor-surface"
       >
@@ -473,7 +620,11 @@ export default function ManualCardEditorModal({
                 <button
                   type="button"
                   onPointerDown={handleMenuTriggerPointerDown}
-                  onClick={toggleColorMenu}
+                  onClick={(event) => toggleEditorLayer(
+                    event,
+                    COLOR_LAYER_ID,
+                    event.currentTarget,
+                  )}
                   aria-label="Color del texto"
                   aria-expanded={openMenu === 'color'}
                   className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition-all ${
@@ -503,24 +654,27 @@ export default function ManualCardEditorModal({
                     onPickerCommit={editorSession.commitPicker}
                     onPickerCancel={editorSession.cancelPicker}
                     onPickerReturnUnknown={editorSession.signalPickerReturn}
-                    onClose={closeMenu}
+                    onClose={closeColorMenu}
                     anchorRef={colorAnchorRef}
                     editorGeometry={editorGeometry}
                     editorBoundsRef={editorMainRef}
                     placement="above"
                     variant="horizontal"
                     label={`Colores de ${activeCopy.label.toLowerCase()}`}
+                    layerId={COLOR_LAYER_ID}
                   />
                 )}
               </div>
 
-              <div className="relative shrink-0">
+              <div ref={alignAnchorRef} className="relative shrink-0">
                 <button
                   type="button"
                   onPointerDown={handleMenuTriggerPointerDown}
-                  onClick={() => setOpenMenu((currentMenu) => (
-                    currentMenu === 'align' ? null : 'align'
-                  ))}
+                  onClick={(event) => toggleEditorLayer(
+                    event,
+                    ALIGN_LAYER_ID,
+                    event.currentTarget,
+                  )}
                   aria-label={`Alineación: ${currentAlignOption.label}`}
                   aria-expanded={openMenu === 'align'}
                   className={controlButtonClass(currentAlign !== 'left')}
@@ -530,38 +684,19 @@ export default function ManualCardEditorModal({
                 </button>
 
                 {openMenu === 'align' && (
-                  <>
-                    <div
-                      className="fixed inset-0 z-[80] bg-transparent"
-                      onPointerDown={blockMenuBackdropPointerDown}
-                      onClick={closeMenuFromBackdrop}
-                    />
-                    <div className="absolute bottom-[calc(100%+0.5rem)] right-0 z-[90] w-[168px] rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl animate-[slideUp_0.1s_ease-out]">
-                      <p className="mb-2 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
-                        Alineación
-                      </p>
-                      <div className="grid grid-cols-3 gap-2">
-                        {alignOptions.map(({ value, label, Icon }) => (
-                          <button
-                            key={value}
-                            type="button"
-                            title={label}
-                            aria-label={label}
-                            aria-pressed={currentAlign === value}
-                            onPointerDown={preserveToolbarFocus}
-                            onClick={() => {
-                              editorSession.captureSelection(activeSide);
-                              setTextAlign?.(value);
-                              closeMenu();
-                            }}
-                            className={controlButtonClass(currentAlign === value)}
-                          >
-                            <Icon className="h-4 w-4" />
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </>
+                  <AlignmentPopover
+                    anchorRef={alignAnchorRef}
+                    geometry={editorGeometry}
+                    layerStack={layerStack}
+                    options={alignOptions}
+                    currentAlign={currentAlign}
+                    controlButtonClass={controlButtonClass}
+                    onSelect={(value) => {
+                      editorSession.captureSelection(activeSide);
+                      setTextAlign?.(value);
+                      closeAlignMenu('selection');
+                    }}
+                  />
                 )}
               </div>
             </div>
@@ -588,6 +723,8 @@ export default function ManualCardEditorModal({
           </div>
         </footer>
       </div>
+      <EditorOverlayRoot ref={setOverlayRoot} geometry={editorGeometry} />
+      </OverlayScope>
     </div>
   );
 

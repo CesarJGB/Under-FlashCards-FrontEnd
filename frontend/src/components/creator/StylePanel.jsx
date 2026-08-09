@@ -1,7 +1,7 @@
 // ARCHIVO: frontend/src/components/creator/StylePanel.jsx
-import { createPortal } from 'react-dom';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ImagePlus, Plus, Minus, Bold, Italic, Pipette, X } from 'lucide-react';
+import { OverlayPortal, useOverlayScope } from '../common/OverlayScope';
 import { requestColorPickerFromClick } from './manual-editor/manualEditorSession';
 
 const VIEWPORT_MARGIN = 8;
@@ -56,7 +56,9 @@ export function ColorPalette({
   onPickerReturnUnknown,
   editorGeometry,
   editorBoundsRef,
+  layerId,
 }) {
+  const overlayScope = useOverlayScope();
   const paletteRef = useRef(null);
   const colorInputRef = useRef(null);
   const [position, setPosition] = useState(null);
@@ -122,7 +124,9 @@ export function ColorPalette({
       const anchor = anchorRef?.current;
       const palette = paletteRef.current;
       if (!anchor) {
-        if (hasSharedGeometry) onCloseRef.current?.();
+        if (overlayScope?.layerStack && layerId && overlayScope.layerStack.isTop(layerId)) {
+          overlayScope.layerStack.dismissTop('anchor-lost');
+        } else if (hasSharedGeometry) onCloseRef.current?.('anchor-lost');
         return;
       }
       if (!palette) return;
@@ -242,15 +246,20 @@ export function ColorPalette({
     editorGeometry?.source,
     editorGeometry?.visual?.scale,
     hasSharedGeometry,
+    layerId,
+    overlayScope,
     placement,
   ]);
 
   if (typeof document === 'undefined') return null;
 
   const isHorizontal = variant === 'horizontal';
-  const palette = (
-    <div
+  return (
+    <OverlayPortal
       ref={paletteRef}
+      layerId={layerId}
+      onClose={onClose}
+      backdropTestId={layerId ? `${layerId}-backdrop` : undefined}
       data-color-palette="true"
       data-color-palette-variant={variant}
       data-color-palette-geometry={hasSharedGeometry ? 'shared' : 'legacy-compatible'}
@@ -259,14 +268,7 @@ export function ColorPalette({
       data-color-palette-scale={editorGeometry?.visual?.scale}
       role="dialog"
       aria-label={label}
-      onKeyDown={(event) => {
-        if (event.key === 'Escape') {
-          event.preventDefault();
-          event.stopPropagation();
-          onClose?.();
-        }
-      }}
-      className={`fixed z-[120] rounded-2xl border border-slate-200 bg-white p-2 shadow-xl animate-[slideUp_0.1s_ease-out] dark:border-slate-700 dark:bg-slate-800 ${isHorizontal
+      className={`fixed rounded-2xl border border-slate-200 bg-white p-2 shadow-xl animate-[slideUp_0.1s_ease-out] dark:border-slate-700 dark:bg-slate-800 ${isHorizontal
         ? `flex w-max flex-nowrap items-center gap-2 overflow-x-auto overscroll-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${hasSharedGeometry ? 'max-w-none' : 'max-w-[calc(100vw-1rem)]'}`
         : `grid w-[168px] grid-cols-4 gap-2 ${hasSharedGeometry ? 'max-w-none' : 'max-w-[calc(100vw-1rem)]'}`}`}
       style={{
@@ -345,29 +347,7 @@ export function ColorPalette({
           tabIndex={-1}
           aria-label={`Elegir ${label || 'color'}`}
         />
-    </div>
-  );
-
-  return createPortal(
-    <>
-      <button
-        type="button"
-        tabIndex={-1}
-        className="fixed inset-0 z-[110] cursor-default bg-transparent"
-        onPointerDown={(event) => {
-          event.preventDefault();
-          event.stopPropagation();
-        }}
-        onClick={(event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          onClose?.();
-        }}
-        aria-hidden="true"
-      />
-      {palette}
-    </>,
-    document.body,
+    </OverlayPortal>
   );
 }
 

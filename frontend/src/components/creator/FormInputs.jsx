@@ -115,6 +115,8 @@ export default function FormInputs({
   const [showBulkPromptSheet, setShowBulkPromptSheet] = useState(false);
   const aiTextRef = useRef(aiText || '');
   const autoOpenedEditingIdRef = useRef(null);
+  const manualEditorTriggerRefs = useRef({ question: null, answer: null });
+  const manualEditorReturnSideRef = useRef('question');
 
   useEffect(() => {
     aiTextRef.current = aiText || '';
@@ -130,9 +132,18 @@ export default function FormInputs({
   }, [onModalStateChange]);
 
   const openManualEditor = useCallback((side) => {
+    manualEditorReturnSideRef.current = side === 'answer' ? 'answer' : 'question';
     setManualEditorSide(side);
     onModalStateChange?.(true);
   }, [onModalStateChange]);
+
+  const resolveManualEditorReturnFocus = useCallback(() => {
+    const preferred = manualEditorTriggerRefs.current[manualEditorReturnSideRef.current];
+    if (preferred?.isConnected) return preferred;
+    const creatorFallback = manualEditorTriggerRefs.current.question
+      || manualEditorTriggerRefs.current.answer;
+    return creatorFallback?.isConnected ? creatorFallback : null;
+  }, []);
 
   useEffect(() => {
     if (!editingId) {
@@ -421,6 +432,7 @@ export default function FormInputs({
 
     return (
       <button
+        ref={(node) => { manualEditorTriggerRefs.current[side] = node; }}
         type="button"
         onPointerDown={(event) => event.preventDefault()}
         onClick={() => openManualEditor(side)}
@@ -476,6 +488,7 @@ export default function FormInputs({
         SWATCHES={SWATCHES}
         textAlign={textAlign}
         setTextAlign={setTextAlign}
+        resolveReturnFocus={resolveManualEditorReturnFocus}
       />
     </>
   );
