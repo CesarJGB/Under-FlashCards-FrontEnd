@@ -61,6 +61,8 @@ La implementación debe empezar por Corte 0. Ningún corte posterior puede elimi
 
 El resultado de la primera implementación está registrado en [`manual-editor-v2-cut-0-report.md`](manual-editor-v2-cut-0-report.md). El Corte 1 se ejecutó con la autorización excepcional que permite mantener G0 abierto cuando Playwright está bloqueado únicamente por la ausencia de binarios; su implementación y evidencia están en [`manual-editor-v2-cut-1-report.md`](manual-editor-v2-cut-1-report.md).
 
+El Corte 2 sustituyó la geometría heredada por un snapshot observable único para surface, footer y paleta manual, con ownership de safe area por borde. Su implementación, comandos reales y estado `G2 OPEN/BLOCKED` están en [`manual-editor-v2-cut-2-report.md`](manual-editor-v2-cut-2-report.md). La ausencia de binarios Playwright y las pruebas físicas pendientes impiden tratar este corte como certificación móvil o autorización automática del Corte 3.
+
 ## Jerarquía de fuentes
 
 Se aplica este orden, salvo que una fuente de nivel superior no trate la cuestión concreta:
