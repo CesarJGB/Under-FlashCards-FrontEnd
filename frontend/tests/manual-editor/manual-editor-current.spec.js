@@ -22,6 +22,22 @@ async function chooseAndOpen(page, fixture, side = 'question') {
   await expect(page.getByTestId(`manual-card-editor-${side}`)).toBeVisible();
 }
 
+async function setSyntheticGeometry(page, sample, eventCount = 1) {
+  const applied = await page.evaluate(({ geometry, count }) => {
+    const didApply = window.__manualEditorHarness.setGeometrySample(geometry);
+    if (didApply) window.__manualEditorHarness.emitGeometryEvents(count);
+    return didApply;
+  }, { geometry: sample, count: eventCount });
+  expect(applied).toBe(true);
+}
+
+async function expectStableGeometry(page, expected = {}) {
+  await expect.poll(() => page.evaluate(() => (
+    window.__manualEditorHarness.getGeometrySnapshot()
+  ))).toMatchObject({ phase: 'stable', ...expected });
+  return page.evaluate(() => window.__manualEditorHarness.getGeometrySnapshot());
+}
+
 async function closeThroughHarness(page) {
   await page.evaluate(() => window.__manualEditorHarness.close());
   await expect(page.getByTestId('manual-card-editor-modal')).toHaveCount(0);
@@ -329,16 +345,138 @@ test('PW-PICK-002 — imagen distingue cancel, returned-unknown y commit', async
   await expect(page.getByTestId('manual-card-editor-image-control').locator('img')).toBeVisible();
 });
 
-test('FIXME EDITOR-VV-001 / EDITOR-KB-001 / EDITOR-SAFE-001 — rotación se clasifica como teclado', async ({ page }, testInfo) => {
+test('PW-GEO-001 — snapshot compartido rota epochs, coalesce eventos y reancla la paleta', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await openHarness(page);
+  await setSyntheticGeometry(page, {
+    layout: { width: 390, height: 844 },
+    visual: { left: 10, top: 20, width: 370, height: 760, scale: 1 },
+  });
   await chooseAndOpen(page, 'distinct', 'question');
+  const portrait = await expectStableGeometry(page, {
+    source: 'visual-viewport',
+    orientation: 'portrait',
+    visual: { left: 10, top: 20, width: 370, height: 760, scale: 1 },
+    occlusion: { top: 20, right: 10, bottom: 64, left: 10 },
+  });
+  const surface = page.getByTestId('manual-card-editor-surface');
+  await expect(surface).toHaveCSS('left', '10px');
+  await expect(surface).toHaveCSS('top', '20px');
+  await expect(surface).toHaveCSS('width', '370px');
+  await expect(surface).toHaveCSS('height', '760px');
+
+  const rendersBefore = await page.evaluate(() => window.__manualEditorHarness.getRenderCount());
+  await page.evaluate(() => window.__manualEditorHarness.emitGeometryEvents(100));
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  expect(await page.evaluate(() => window.__manualEditorHarness.getRenderCount())).toBe(rendersBefore);
+
+  await page.getByTestId('manual-card-editor-color').click();
+  await expect(page.locator('[data-color-palette="true"]')).toBeVisible();
   await page.setViewportSize({ width: 844, height: 390 });
-  await expect(page.getByTestId('manual-card-editor-modal')).toHaveAttribute('data-keyboard-open', 'true');
-  const inferredKeyboard = await page.getByTestId('manual-card-editor-modal').getAttribute('data-keyboard-open');
-  await attachDiagnostics(page, testInfo, 'EDITOR-VV-001');
-  test.fixme(inferredKeyboard === 'true', 'EDITOR-VV-001, EDITOR-KB-001 y EDITOR-SAFE-001: baseline portrait monotónico produce falso teclado en landscape.');
-  expect(inferredKeyboard).not.toBe('true');
+  await setSyntheticGeometry(page, {
+    layout: { width: 844, height: 390 },
+    visual: { left: 12, top: 8, width: 820, height: 360, scale: 1 },
+  });
+  const landscape = await expectStableGeometry(page, {
+    source: 'visual-viewport',
+    orientation: 'landscape',
+  });
+  expect(landscape.epoch).toBe(portrait.epoch + 1);
+  await expect.poll(() => page.evaluate(() => window.__manualEditorHarness.getPaletteMetrics()))
+    .toMatchObject({ geometry: 'shared', epoch: landscape.epoch });
+  const palette = await page.evaluate(() => window.__manualEditorHarness.getPaletteMetrics());
+  expect(palette.width).toBeGreaterThan(0);
+  expect(palette.left).toBeGreaterThanOrEqual(12);
+  expect(palette.left + palette.width).toBeLessThanOrEqual(832);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await setSyntheticGeometry(page, {
+    layout: { width: 390, height: 844 },
+    visual: { left: 0, top: 0, width: 390, height: 844, scale: 1 },
+  });
+  const portraitAgain = await expectStableGeometry(page, { orientation: 'portrait' });
+  expect(portraitAgain.epoch).toBe(landscape.epoch + 1);
+  const overflow = await page.evaluate(() => window.__manualEditorHarness.getOverflowSnapshot());
+  expect(overflow.surface.horizontal).toBe(false);
+  expect(overflow.editor.horizontal).toBe(false);
+  expect(overflow.footer.horizontal).toBe(false);
+  await attachDiagnostics(page, testInfo, 'PW-GEO-001');
+});
+
+test('PW-GEO-002 — fallback y 320×568/568×320 conservan layout recuperable sin overflow', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 320, height: 568 });
+  await openHarness(page);
+  await setSyntheticGeometry(page, {
+    source: 'layout-fallback',
+    layout: { width: 320, height: 568 },
+  });
+  await chooseAndOpen(page, 'long', 'question');
+  const portrait = await expectStableGeometry(page, {
+    source: 'layout-fallback',
+    orientation: 'portrait',
+    layout: { left: 0, top: 0, width: 320, height: 568 },
+    visual: { left: 0, top: 0, width: 320, height: 568, scale: 1 },
+  });
+  await expect(page.getByTestId('manual-card-editor-modal'))
+    .toHaveAttribute('data-geometry-safe-bottom', 'conservative');
+  let overflow = await page.evaluate(() => window.__manualEditorHarness.getOverflowSnapshot());
+  expect(Object.values(overflow).every((entry) => !entry.horizontal)).toBe(true);
+
+  await page.setViewportSize({ width: 568, height: 320 });
+  await setSyntheticGeometry(page, {
+    source: 'layout-fallback',
+    layout: { width: 568, height: 320 },
+  });
+  const landscape = await expectStableGeometry(page, {
+    source: 'layout-fallback',
+    orientation: 'landscape',
+  });
+  expect(landscape.epoch).toBe(portrait.epoch + 1);
+  overflow = await page.evaluate(() => window.__manualEditorHarness.getOverflowSnapshot());
+  expect(Object.values(overflow).every((entry) => !entry.horizontal)).toBe(true);
+
+  await setSyntheticGeometry(page, {
+    layout: { width: 568, height: 320 },
+    visual: { left: 18, top: 14, width: 520, height: 280, scale: 1.5 },
+  });
+  await expectStableGeometry(page, {
+    source: 'visual-viewport',
+    visual: { left: 18, top: 14, width: 520, height: 280, scale: 1.5 },
+  });
+  await expect(page.getByTestId('manual-card-editor-modal'))
+    .toHaveAttribute('data-geometry-safe-bottom', 'conservative');
+  await attachDiagnostics(page, testInfo, 'PW-GEO-002');
+});
+
+test('PW-VIS-001 — visual-edge solo aparece con geometría estable, escala 1 y textarea activo', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openHarness(page);
+  await setSyntheticGeometry(page, {
+    layout: { width: 390, height: 844 },
+    visual: { left: 0, top: 0, width: 390, height: 620, scale: 2 },
+  });
+  await chooseAndOpen(page, 'distinct', 'question');
+  await expectStableGeometry(page, { source: 'visual-viewport' });
+  await page.getByTestId('manual-card-editor-question').click();
+  await expect(page.getByTestId('manual-card-editor-modal'))
+    .toHaveAttribute('data-geometry-safe-bottom', 'conservative');
+
+  await setSyntheticGeometry(page, {
+    layout: { width: 390, height: 844 },
+    visual: { left: 0, top: 0, width: 390, height: 620, scale: 1 },
+  });
+  await expectStableGeometry(page, { source: 'visual-viewport', phase: 'stable' });
+  await expect(page.getByTestId('manual-card-editor-modal'))
+    .toHaveAttribute('data-geometry-safe-bottom', 'visual-edge');
+
+  await setSyntheticGeometry(page, {
+    source: 'layout-fallback',
+    layout: { width: 390, height: 844 },
+  });
+  await expectStableGeometry(page, { source: 'layout-fallback' });
+  await expect(page.getByTestId('manual-card-editor-modal'))
+    .toHaveAttribute('data-geometry-safe-bottom', 'conservative');
+  await attachDiagnostics(page, testInfo, 'PW-VIS-001');
 });
 
 test('FIXME EDITOR-OVERLAY-002 / EDITOR-COLOR-005 — Escape salta la paleta sin foco', async ({ page }, testInfo) => {

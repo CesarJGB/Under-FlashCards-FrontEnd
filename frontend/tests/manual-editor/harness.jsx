@@ -168,6 +168,93 @@ function installPickerStubs() {
 
 const pickerStubs = installPickerStubs();
 
+function installSyntheticGeometryController() {
+  const windowDescriptors = {
+    visualViewport: Object.getOwnPropertyDescriptor(window, 'visualViewport'),
+    innerWidth: Object.getOwnPropertyDescriptor(window, 'innerWidth'),
+    innerHeight: Object.getOwnPropertyDescriptor(window, 'innerHeight'),
+  };
+  const documentDescriptors = {
+    clientWidth: Object.getOwnPropertyDescriptor(document.documentElement, 'clientWidth'),
+    clientHeight: Object.getOwnPropertyDescriptor(document.documentElement, 'clientHeight'),
+  };
+  const fakeViewport = new EventTarget();
+  let current = null;
+
+  for (const field of ['width', 'height', 'offsetLeft', 'offsetTop', 'scale']) {
+    Object.defineProperty(fakeViewport, field, {
+      configurable: true,
+      get: () => current?.visual?.[field],
+    });
+  }
+
+  const restoreDescriptor = (target, property, descriptor) => {
+    if (descriptor) Object.defineProperty(target, property, descriptor);
+    else delete target[property];
+  };
+
+  const apply = (sample) => {
+    if (!sample?.layout) return false;
+    current = {
+      source: sample.source === 'layout-fallback' ? 'layout-fallback' : 'visual-viewport',
+      layout: {
+        left: 0,
+        top: 0,
+        width: Number(sample.layout.width),
+        height: Number(sample.layout.height),
+      },
+      visual: {
+        left: Number(sample.visual?.left ?? sample.visual?.offsetLeft ?? 0),
+        top: Number(sample.visual?.top ?? sample.visual?.offsetTop ?? 0),
+        width: Number(sample.visual?.width ?? sample.layout.width),
+        height: Number(sample.visual?.height ?? sample.layout.height),
+        scale: Number(sample.visual?.scale ?? 1),
+      },
+    };
+    current.visual.offsetLeft = current.visual.left;
+    current.visual.offsetTop = current.visual.top;
+
+    try {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: current.layout.width });
+      Object.defineProperty(window, 'innerHeight', { configurable: true, value: current.layout.height });
+      Object.defineProperty(document.documentElement, 'clientWidth', { configurable: true, value: current.layout.width });
+      Object.defineProperty(document.documentElement, 'clientHeight', { configurable: true, value: current.layout.height });
+      Object.defineProperty(window, 'visualViewport', {
+        configurable: true,
+        value: current.source === 'visual-viewport' ? fakeViewport : undefined,
+      });
+    } catch {
+      return false;
+    }
+    return true;
+  };
+
+  const emit = (count = 1) => {
+    const repetitions = Math.max(1, Math.min(1000, Math.trunc(count)));
+    for (let index = 0; index < repetitions; index += 1) {
+      fakeViewport.dispatchEvent(new Event('resize'));
+      fakeViewport.dispatchEvent(new Event('scroll'));
+      window.dispatchEvent(new Event('resize'));
+    }
+  };
+
+  return {
+    apply,
+    emit,
+    read: () => (current ? structuredClone(current) : null),
+    restore() {
+      restoreDescriptor(window, 'visualViewport', windowDescriptors.visualViewport);
+      restoreDescriptor(window, 'innerWidth', windowDescriptors.innerWidth);
+      restoreDescriptor(window, 'innerHeight', windowDescriptors.innerHeight);
+      restoreDescriptor(document.documentElement, 'clientWidth', documentDescriptors.clientWidth);
+      restoreDescriptor(document.documentElement, 'clientHeight', documentDescriptors.clientHeight);
+      current = null;
+    },
+  };
+}
+
+const syntheticGeometry = installSyntheticGeometryController();
+
 function cloneFixture(name) {
   const fixture = FIXTURES[name] || FIXTURES.distinct;
   return {
@@ -270,6 +357,36 @@ function Harness() {
       resetDiagnostics: () => diagnostics.reset(),
       getListenerSnapshot: () => listenerProbe.snapshot(),
       captureSnapshot,
+      setGeometrySample: syntheticGeometry.apply,
+      emitGeometryEvents: syntheticGeometry.emit,
+      getSyntheticGeometry: syntheticGeometry.read,
+      getGeometrySnapshot() {
+        const modal = document.querySelector('[data-testid="manual-card-editor-modal"]');
+        try {
+          return JSON.parse(modal?.dataset.editorGeometry || 'null');
+        } catch {
+          return null;
+        }
+      },
+      getPaletteMetrics() {
+        const palette = document.querySelector('[data-color-palette="true"]');
+        if (!palette) return null;
+        const rect = palette.getBoundingClientRect();
+        return {
+          left: rect.left,
+          top: rect.top,
+          width: rect.width,
+          height: rect.height,
+          maxWidth: getComputedStyle(palette).maxWidth,
+          maxHeight: getComputedStyle(palette).maxHeight,
+          geometry: palette.dataset.colorPaletteGeometry,
+          epoch: Number(palette.dataset.colorPaletteEpoch || 0),
+          revision: Number(palette.dataset.colorPaletteRevision || 0),
+        };
+      },
+      getOverflowSnapshot() {
+        return captureSnapshot()?.overflow || null;
+      },
       configureColorPicker: pickerStubs.configureColor,
       getPickerState: pickerStubs.read,
       resetPickerState: pickerStubs.reset,
@@ -326,6 +443,11 @@ function Harness() {
         sheet: sheetOpen ? 'open' : 'closed',
         activeSide: document.querySelector('[data-testid="manual-card-editor-modal"]')?.dataset.activeSide || null,
         pickerStatus: document.querySelector('[data-testid="manual-card-editor-modal"]')?.dataset.pickerStatus || 'idle',
+        geometryPhase: document.querySelector('[data-testid="manual-card-editor-modal"]')?.dataset.geometryPhase || 'unavailable',
+        geometryRevision: Number(document.querySelector('[data-testid="manual-card-editor-modal"]')?.dataset.geometryRevision || 0),
+        geometryEpoch: Number(document.querySelector('[data-testid="manual-card-editor-modal"]')?.dataset.geometryEpoch || 0),
+        geometrySource: document.querySelector('[data-testid="manual-card-editor-modal"]')?.dataset.geometrySource || null,
+        geometryOrientation: document.querySelector('[data-testid="manual-card-editor-modal"]')?.dataset.geometryOrientation || null,
       }),
     };
 
@@ -436,5 +558,6 @@ root.render(
 window.addEventListener('pagehide', () => {
   stopObservingHarness();
   pickerStubs.restore();
+  syntheticGeometry.restore();
   listenerProbe.restore();
 }, { once: true });

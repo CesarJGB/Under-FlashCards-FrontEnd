@@ -29,6 +29,19 @@ test('diagnostics discard content and preserve only the approved evidence fields
     rects: { textarea: { left: 1, top: 2, width: 3, height: 4, value: secretMarker } },
     visualViewport: { width: 390, height: 500, offsetLeft: 0, offsetTop: 10, scale: 1 },
     orientation: 'portrait',
+    geometry: {
+      revision: 2,
+      epoch: 1,
+      phase: 'stable',
+      source: 'visual-viewport',
+      orientation: 'portrait',
+      layout: { left: 0, top: 0, width: 390, height: 844 },
+      visual: { left: 0, top: 10, width: 390, height: 500, scale: 1 },
+      occlusion: { top: 10, right: 0, bottom: 334, left: 0 },
+    },
+    overflow: {
+      surface: { horizontal: false, scrollWidth: 390, clientWidth: 390 },
+    },
     renderCount: 4,
     listenerCount: { total: 3, byType: { resize: 2, scroll: 1 } },
     scrollOffsets: { editor: { x: 0, y: 20, value: secretMarker } },
@@ -43,9 +56,11 @@ test('diagnostics discard content and preserve only the approved evidence fields
   assert.deepEqual(Object.keys(event).sort(), [
     'activeElement',
     'error',
+    'geometry',
     'layerIds',
     'listenerCount',
     'orientation',
+    'overflow',
     'owners',
     'rects',
     'renderCount',
@@ -92,11 +107,12 @@ test('harness imports the real modal and provides every required synthetic fixtu
 });
 
 test('KEEP-001, KEEP-005, KEEP-006, KEEP-007 and KEEP-009 remain observable', async () => {
-  const [modal, stylePanel, actionSheet, sessionHook] = await Promise.all([
+  const [modal, stylePanel, actionSheet, sessionHook, geometryHook] = await Promise.all([
     readFrontendFile('src/components/creator/ManualCardEditorModal.jsx'),
     readFrontendFile('src/components/creator/StylePanel.jsx'),
     readFrontendFile('src/components/common/ActionSheet.jsx'),
     readFrontendFile('src/components/creator/manual-editor/useManualEditorSession.js'),
+    readFrontendFile('src/components/creator/manual-editor/useEditorGeometry.js'),
   ]);
 
   assert.match(modal, /<textarea/);
@@ -104,9 +120,9 @@ test('KEEP-001, KEEP-005, KEEP-006, KEEP-007 and KEEP-009 remain observable', as
   assert.match(sessionHook, /selectionEnd/);
   assert.match(sessionHook, /selectionDirection/);
   assert.match(sessionHook, /setSelectionRange/);
-  assert.match(modal, /visualViewport\?\.addEventListener\('resize'/);
-  assert.match(modal, /visualViewport\?\.addEventListener\('scroll'/);
-  assert.match(modal, /visualViewport\?\.removeEventListener\('resize'/);
+  assert.match(geometryHook, /visualViewport\?\.addEventListener\?\.\('resize'/);
+  assert.match(geometryHook, /visualViewport\?\.addEventListener\?\.\('scroll'/);
+  assert.match(geometryHook, /visualViewport\?\.removeEventListener\?\.\('resize'/);
   assert.match(modal, /<footer[\s\S]*?className="[^"]*shrink-0/);
   assert.match(modal, /overflow-y-auto overscroll-contain/);
   assert.match(stylePanel, /overflow-x-auto overscroll-contain/);
@@ -163,6 +179,44 @@ test('Corte 1 protects semantic pickers, per-side selection and non-blocking res
 
   const presetBlock = stylePanel.slice(stylePanel.indexOf('swatches.map'), customButtonStart);
   assert.doesNotMatch(presetBlock, /onPickerRequest|PICKER_REQUESTED/);
+});
+
+test('UT-ARCH-001 / Corte 2 has one geometry authority and no keyboard heuristics', async () => {
+  const [modal, stylePanel, geometry, geometryHook, session, sessionHook, indexHtml] = await Promise.all([
+    readFrontendFile('src/components/creator/ManualCardEditorModal.jsx'),
+    readFrontendFile('src/components/creator/StylePanel.jsx'),
+    readFrontendFile('src/components/creator/manual-editor/editorGeometry.js'),
+    readFrontendFile('src/components/creator/manual-editor/useEditorGeometry.js'),
+    readFrontendFile('src/components/creator/manual-editor/manualEditorSession.js'),
+    readFrontendFile('src/components/creator/manual-editor/useManualEditorSession.js'),
+    readFrontendFile('index.html'),
+  ]);
+  const runtimeV2 = `${modal}\n${stylePanel}\n${geometry}\n${geometryHook}\n${session}\n${sessionHook}`;
+
+  assert.doesNotMatch(runtimeV2, /keyboardOpen|initialLayoutHeight|layoutHeight\s*-\s*100|initialKeyboardCheckTimerRef|data-keyboard-open|@remove-in-cut-2/);
+  assert.doesNotMatch(runtimeV2, /useKeyboardHeight/);
+  assert.doesNotMatch(runtimeV2, /navigator\.(?:userAgent|platform)|userAgentData/);
+  assert.doesNotMatch(runtimeV2, /setTimeout\s*\([^)]*(?:80|250|450)|(?:80|250|450)\s*\)/);
+  assert.doesNotMatch(indexHtml, /interactive-widget/i);
+
+  assert.match(modal, /useEditorGeometry\(\{ active: open \}\)/);
+  assert.match(modal, /left: `\$\{editorGeometry\.visual\.left\}px`/);
+  assert.match(modal, /width: `\$\{editorGeometry\.visual\.width\}px`/);
+  assert.match(modal, /--editor-safe-bottom-effective/);
+  assert.match(modal, /editorGeometry=\{editorGeometry\}/);
+  assert.match(stylePanel, /if \(!hasSharedGeometry\) \{[\s\S]*visualViewport\?\.addEventListener/);
+  assert.match(stylePanel, /width: position \? `\$\{position\.width\}px`/);
+});
+
+test('Corte 2 safe-area ownership and horizontal overflow contracts are explicit', async () => {
+  const modal = await readFrontendFile('src/components/creator/ManualCardEditorModal.jsx');
+  assert.equal((modal.match(/env\(safe-area-inset-top/g) || []).length, 1);
+  assert.equal((modal.match(/env\(safe-area-inset-left/g) || []).length, 1);
+  assert.equal((modal.match(/env\(safe-area-inset-right/g) || []).length, 1);
+  assert.equal((modal.match(/env\(safe-area-inset-bottom/g) || []).length, 1);
+  assert.match(modal, /overflow-x-hidden overflow-y-auto/);
+  assert.match(modal, /footer[\s\S]*overflow-x-hidden/);
+  assert.match(modal, /source === 'visual-viewport'[\s\S]*visual\.scale === 1[\s\S]*occlusion\.bottom > 0/);
 });
 
 test('KEEP-011 and KEEP-012 remain unchanged in production contracts', async () => {

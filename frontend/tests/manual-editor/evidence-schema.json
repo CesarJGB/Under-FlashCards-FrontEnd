@@ -39,6 +39,39 @@
         "x": { "type": "number" },
         "y": { "type": "number" }
       }
+    },
+    "visualRect": {
+      "type": "object",
+      "required": ["left", "top", "width", "height", "scale"],
+      "additionalProperties": false,
+      "properties": {
+        "left": { "type": "number" },
+        "top": { "type": "number" },
+        "width": { "type": "number", "exclusiveMinimum": 0 },
+        "height": { "type": "number", "exclusiveMinimum": 0 },
+        "scale": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "occlusion": {
+      "type": "object",
+      "required": ["top", "right", "bottom", "left"],
+      "additionalProperties": false,
+      "properties": {
+        "top": { "type": "number", "minimum": 0 },
+        "right": { "type": "number", "minimum": 0 },
+        "bottom": { "type": "number", "minimum": 0 },
+        "left": { "type": "number", "minimum": 0 }
+      }
+    },
+    "overflow": {
+      "type": "object",
+      "required": ["horizontal", "scrollWidth", "clientWidth"],
+      "additionalProperties": false,
+      "properties": {
+        "horizontal": { "type": "boolean" },
+        "scrollWidth": { "type": "number", "minimum": 0 },
+        "clientWidth": { "type": "number", "minimum": 0 }
+      }
     }
   },
   "properties": {
@@ -64,6 +97,26 @@
       }
     },
     "orientation": { "enum": ["portrait", "landscape", "square"] },
+    "geometry": {
+      "type": "object",
+      "required": ["revision", "epoch", "phase", "source", "orientation", "layout", "visual", "occlusion"],
+      "additionalProperties": false,
+      "properties": {
+        "revision": { "type": "integer", "minimum": 0 },
+        "epoch": { "type": "integer", "minimum": 0 },
+        "phase": { "enum": ["unavailable", "settling", "stable"] },
+        "source": { "enum": ["visual-viewport", "layout-fallback"] },
+        "orientation": { "enum": ["portrait", "landscape", "square"] },
+        "layout": { "$ref": "#/$defs/rect" },
+        "visual": { "$ref": "#/$defs/visualRect" },
+        "occlusion": { "$ref": "#/$defs/occlusion" }
+      }
+    },
+    "overflow": {
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/token" },
+      "additionalProperties": { "$ref": "#/$defs/overflow" }
+    },
     "renderCount": { "type": "integer", "minimum": 0 },
     "listenerCount": {
       "type": "object",
@@ -96,7 +149,7 @@
       "type": "object",
       "propertyNames": { "$ref": "#/$defs/token" },
       "additionalProperties": {
-        "enum": ["open", "closed", "opening", "closing", "unknown"]
+        "enum": ["open", "closed", "opening", "closing", "unknown", "unavailable", "settling", "stable"]
       }
     },
     "error": {
