@@ -1,6 +1,12 @@
 const ORIENTATIONS = new Set(['portrait', 'landscape', 'square']);
 const SOURCES = new Set(['visual-viewport', 'layout-fallback']);
 
+// VisualViewport values can jitter by a few tenths of a CSS pixel while the
+// browser chrome or OSK settles. Keep position/size and scale tolerances
+// separate: CSS pixels and the unitless zoom factor have different semantics.
+export const GEOMETRY_CSS_PX_TOLERANCE = 0.5;
+export const GEOMETRY_SCALE_TOLERANCE = 0.001;
+
 const isFiniteNumber = (value) => typeof value === 'number' && Number.isFinite(value);
 
 const asFiniteNumber = (value) => (isFiniteNumber(value) ? value : null);
@@ -70,6 +76,16 @@ export function createUnavailableEditorGeometry() {
     visual: { ...fallbackRect, scale: 1 },
     occlusion: { top: 0, right: 0, bottom: 0, left: 0 },
   };
+}
+
+/** True only before the observer has ever published a valid sample. */
+export function needsInitialEditorGeometryFallback(snapshot) {
+  return Boolean(
+    snapshot
+    && snapshot.phase === 'unavailable'
+    && snapshot.epoch === 0
+    && snapshot.revision === 0
+  );
 }
 
 function normalizeGeometrySample(sample) {
@@ -148,15 +164,37 @@ export function readEditorGeometry(windowLike, documentLike) {
 const RECT_FIELDS = ['left', 'top', 'width', 'height'];
 const OCCLUSION_FIELDS = ['top', 'right', 'bottom', 'left'];
 
+const valuesWithinTolerance = (left, right, tolerance) => (
+  isFiniteNumber(left)
+  && isFiniteNumber(right)
+  && Math.abs(left - right) <= tolerance
+);
+
 /** Compares only observable sample semantics, never reducer metadata. */
 export function geometrySamplesEqual(left, right) {
   if (left === right) return true;
   if (!left || !right) return false;
   if (left.source !== right.source || left.orientation !== right.orientation) return false;
-  if (left.visual?.scale !== right.visual?.scale) return false;
-  if (RECT_FIELDS.some((field) => left.layout?.[field] !== right.layout?.[field])) return false;
-  if (RECT_FIELDS.some((field) => left.visual?.[field] !== right.visual?.[field])) return false;
-  return !OCCLUSION_FIELDS.some((field) => left.occlusion?.[field] !== right.occlusion?.[field]);
+  if (!valuesWithinTolerance(
+    left.visual?.scale,
+    right.visual?.scale,
+    GEOMETRY_SCALE_TOLERANCE,
+  )) return false;
+  if (RECT_FIELDS.some((field) => !valuesWithinTolerance(
+    left.layout?.[field],
+    right.layout?.[field],
+    GEOMETRY_CSS_PX_TOLERANCE,
+  ))) return false;
+  if (RECT_FIELDS.some((field) => !valuesWithinTolerance(
+    left.visual?.[field],
+    right.visual?.[field],
+    GEOMETRY_CSS_PX_TOLERANCE,
+  ))) return false;
+  return !OCCLUSION_FIELDS.some((field) => !valuesWithinTolerance(
+    left.occlusion?.[field],
+    right.occlusion?.[field],
+    GEOMETRY_CSS_PX_TOLERANCE,
+  ));
 }
 
 const publishSample = (state, sample) => {

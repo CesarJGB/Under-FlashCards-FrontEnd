@@ -11,6 +11,12 @@ const SAFE_STATE = new Set([
   'unavailable',
   'settling',
   'stable',
+  'locked',
+  'unlocked',
+  'inert',
+  'interactive',
+  'scoped',
+  'missing',
 ]);
 
 const asFiniteNumber = (value) => (
@@ -291,8 +297,8 @@ export function readManualEditorDiagnosticSnapshot({
   const layerIds = [
     modal ? 'manual-editor' : null,
     actionSheet ? 'action-sheet' : null,
-    palette ? 'color-palette' : null,
-    modal?.querySelector('[data-testid="manual-card-editor-align"][aria-expanded="true"]') ? 'alignment-menu' : null,
+    ...[...documentLike.querySelectorAll('[data-editor-layer-id]')]
+      .map((node) => node.dataset.editorLayerId),
   ].filter(Boolean);
   let geometry;
   try {
@@ -344,11 +350,18 @@ export function readManualEditorDiagnosticSnapshot({
       'action-sheet': { x: actionSheet?.scrollLeft ?? 0, y: actionSheet?.scrollTop ?? 0 },
     },
     layerIds,
-    owners: documentLike.body.style.overflow === 'hidden' ? ['body-scroll-lock'] : [],
+    owners: [
+      appScrollRoot?.style.overflow === 'hidden' ? 'app-scroll-lease' : null,
+      documentLike.getElementById('root')?.hasAttribute('inert') ? 'root-inert' : null,
+      documentLike.body.style.overflow === 'hidden' ? 'body-scroll-lock' : null,
+    ].filter(Boolean),
     state: {
       modal: modal ? 'open' : 'closed',
       palette: palette ? 'open' : 'closed',
       'action-sheet': actionSheet ? 'open' : 'closed',
+      scroll: appScrollRoot?.style.overflow === 'hidden' ? 'locked' : 'unlocked',
+      shell: documentLike.getElementById('root')?.hasAttribute('inert') ? 'inert' : 'interactive',
+      portal: palette?.parentElement?.matches?.('[data-editor-overlay-root="true"]') ? 'scoped' : 'missing',
     },
   });
 }

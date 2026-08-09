@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   createUnavailableEditorGeometry,
+  GEOMETRY_CSS_PX_TOLERANCE,
   geometrySamplesEqual,
+  needsInitialEditorGeometryFallback,
   readEditorGeometry,
   reduceEditorGeometry,
 } from './editorGeometry.js';
@@ -144,6 +146,65 @@ test('UT-GEO-006 — invalid viewport values fall back or preserve the last vali
   assert.equal(missing, null);
 });
 
+test('UT-GEO-007 — subpixel jitter stabilizes and cumulative real change settles again', () => {
+  const base = readEditorGeometry(createWindow({
+    visualViewport: { width: 389.8, height: 699.8, offsetLeft: 0.2, offsetTop: 20.2, scale: 1 },
+  }), createDocument(390, 844));
+  const stable = stabilize(createUnavailableEditorGeometry(), base);
+  let current = stable;
+
+  for (const delta of [0.18, -0.16, 0.24, -0.21, 0.12]) {
+    const jitter = {
+      ...base,
+      visual: {
+        ...base.visual,
+        left: base.visual.left + delta,
+        top: base.visual.top - delta,
+        width: base.visual.width + delta,
+        height: base.visual.height - delta,
+      },
+      occlusion: {
+        ...base.occlusion,
+        top: base.occlusion.top - delta,
+        right: base.occlusion.right - delta,
+        bottom: base.occlusion.bottom + delta,
+        left: base.occlusion.left + delta,
+      },
+    };
+    current = reduceEditorGeometry(current, { type: 'SAMPLE', sample: jitter });
+  }
+
+  assert.equal(current, stable);
+  assert.equal(current.phase, 'stable');
+  assert.equal(current.revision, stable.revision);
+
+  const realChange = {
+    ...base,
+    visual: {
+      ...base.visual,
+      height: base.visual.height - GEOMETRY_CSS_PX_TOLERANCE - 1,
+    },
+    occlusion: {
+      ...base.occlusion,
+      bottom: base.occlusion.bottom + GEOMETRY_CSS_PX_TOLERANCE + 1,
+    },
+  };
+  const settling = reduceEditorGeometry(current, { type: 'SAMPLE', sample: realChange });
+  assert.equal(settling.phase, 'settling');
+  assert.ok(settling.revision > stable.revision);
+});
+
+test('initial geometry fallback applies only before the first valid sample', () => {
+  const initial = createUnavailableEditorGeometry();
+  assert.equal(needsInitialEditorGeometryFallback(initial), true);
+
+  const sample = readEditorGeometry(createWindow(), createDocument(390, 844));
+  const stable = stabilize(initial, sample);
+  const unavailableAfterSample = reduceEditorGeometry(stable, { type: 'SOURCE_UNAVAILABLE' });
+  assert.equal(needsInitialEditorGeometryFallback(unavailableAfterSample), false);
+  assert.deepEqual(unavailableAfterSample.visual, stable.visual);
+});
+
 class FakeEventTarget {
   constructor() {
     this.listeners = new Map();
@@ -246,4 +307,3 @@ test('UT-LIFE-001 / StrictMode — setup-cleanup cycles do not accumulate resour
   assert.equal(windowLike.visualViewport.added, windowLike.visualViewport.removed);
   assert.equal(windowLike.frames.size, 0);
 });
-
