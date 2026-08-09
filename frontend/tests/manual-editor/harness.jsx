@@ -11,6 +11,8 @@ import { createRoot } from 'react-dom/client';
 import '../../src/index.css';
 import ManualCardEditorModal from '../../src/components/creator/ManualCardEditorModal';
 import ActionSheet from '../../src/components/common/ActionSheet';
+import StylePanel from '../../src/components/creator/StylePanel';
+import { AlignCenter, AlignLeft, AlignRight } from 'lucide-react';
 import {
   createManualEditorDiagnostics,
   installManualEditorListenerProbe,
@@ -19,6 +21,7 @@ import {
 } from '../../src/components/creator/manual-editor/manualEditorDiagnostics';
 import { getEditorLayerRuntimeSnapshot } from '../../src/components/creator/manual-editor/useEditorLayerStack';
 import { getScrollLeaseSnapshot } from '../../src/lib/scrollLock';
+import { getSharedOverlayRuntimeSnapshot } from '../../src/components/common/overlays/overlayRegistry';
 
 const MOCK_IMAGE = 'data:image/svg+xml;charset=utf-8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22160%22 height=%22120%22 viewBox=%220 0 160 120%22%3E%3Crect width=%22160%22 height=%22120%22 rx=%2218%22 fill=%22%23e2e8f0%22/%3E%3Ccircle cx=%2250%22 cy=%2244%22 r=%2214%22 fill=%22%2394a3b8%22/%3E%3Cpath d=%22M20 100 66 58l24 22 18-16 32 36Z%22 fill=%22%2364758b%22/%3E%3C/svg%3E';
 const LONG_TEXT = Array.from({ length: 36 }, (_, index) => (
@@ -36,6 +39,24 @@ const BASE_STYLES = Object.freeze({
   aColor: '#2563eb',
   bgColor: '#ffffff',
 });
+
+const HARNESS_ALIGNS = Object.freeze([
+  { value: 'left', label: 'Izquierda', Icon: AlignLeft },
+  { value: 'center', label: 'Centro', Icon: AlignCenter },
+  { value: 'right', label: 'Derecha', Icon: AlignRight },
+]);
+const HARNESS_SWATCHES = Object.freeze([
+  { value: '', label: 'Predeterminado' },
+  { value: '#0f172a', label: 'Pizarra' },
+  { value: '#2563eb', label: 'Azul' },
+  { value: '#7c3aed', label: 'Violeta' },
+]);
+const LONG_SHEET_OPTIONS = Object.freeze(Array.from({ length: 18 }, (_, index) => ({
+  id: `long-action-${index + 1}`,
+  label: `Acción sintética ${index + 1}`,
+  description: 'Contenido representativo sin datos externos.',
+  onSelect() {},
+})));
 
 const FIXTURES = Object.freeze({
   empty: {
@@ -285,6 +306,10 @@ function Harness() {
   const [saving, setSaving] = useState(initial.saving);
   const [saveMode, setSaveMode] = useState(initial.saveMode);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [styleSheetOpen, setStyleSheetOpen] = useState(false);
+  const [lowerSheetOpen, setLowerSheetOpen] = useState(false);
+  const [upperSheetOpen, setUpperSheetOpen] = useState(false);
+  const [longSheetOpen, setLongSheetOpen] = useState(false);
   const [, forceRender] = useState(0);
   const renderCountRef = useRef(0);
   const renderCountOutputRef = useRef(null);
@@ -371,6 +396,21 @@ function Harness() {
       close: closeEditor,
       openSheet: () => setSheetOpen(true),
       closeSheet: () => setSheetOpen(false),
+      openActionSheetCase(kind) {
+        if (kind === 'style') setStyleSheetOpen(true);
+        else if (kind === 'consecutive') {
+          setLowerSheetOpen(true);
+          setUpperSheetOpen(true);
+        } else if (kind === 'long') setLongSheetOpen(true);
+        else setSheetOpen(true);
+      },
+      closeActionSheets() {
+        setSheetOpen(false);
+        setStyleSheetOpen(false);
+        setLowerSheetOpen(false);
+        setUpperSheetOpen(false);
+        setLongSheetOpen(false);
+      },
       forceRender: () => forceRender((value) => value + 1),
       getRenderCount: () => renderCountRef.current,
       getDiagnostics: () => diagnostics.read(),
@@ -388,6 +428,7 @@ function Harness() {
       getOwnershipSnapshot() {
         return {
           layers: getEditorLayerRuntimeSnapshot(),
+          sharedOverlays: getSharedOverlayRuntimeSnapshot(),
           scroll: getScrollLeaseSnapshot(),
         };
       },
@@ -494,7 +535,9 @@ function Harness() {
       getPublicState: () => ({
         fixture: fixtureName,
         modal: open ? 'open' : 'closed',
-        sheet: sheetOpen ? 'open' : 'closed',
+        sheet: sheetOpen || styleSheetOpen || lowerSheetOpen || upperSheetOpen || longSheetOpen
+          ? 'open'
+          : 'closed',
         activeSide: document.querySelector('[data-testid="manual-card-editor-modal"]')?.dataset.activeSide || null,
         pickerStatus: document.querySelector('[data-testid="manual-card-editor-modal"]')?.dataset.pickerStatus || 'idle',
         geometryPhase: document.querySelector('[data-testid="manual-card-editor-modal"]')?.dataset.geometryPhase || 'unavailable',
@@ -508,7 +551,19 @@ function Harness() {
     return () => {
       delete window.__manualEditorHarness;
     };
-  }, [applyFixture, captureSnapshot, closeEditor, fixtureName, open, openEditor, sheetOpen]);
+  }, [
+    applyFixture,
+    captureSnapshot,
+    closeEditor,
+    fixtureName,
+    longSheetOpen,
+    lowerSheetOpen,
+    open,
+    openEditor,
+    sheetOpen,
+    styleSheetOpen,
+    upperSheetOpen,
+  ]);
 
   const handleRender = useCallback(() => {
     renderCountRef.current += 1;
@@ -598,6 +653,55 @@ function Harness() {
             onSelect() {},
           },
         ]}
+      />
+
+      <ActionSheet
+        open={styleSheetOpen}
+        title="Estilo sintético"
+        onClose={() => setStyleSheetOpen(false)}
+        compact
+        footer={(
+          <button
+            type="button"
+            onClick={() => setStyleSheetOpen(false)}
+            className="min-h-11 w-full rounded-2xl bg-slate-900 px-4 py-3 text-sm font-bold text-white"
+          >
+            Listo
+          </button>
+        )}
+      >
+        <StylePanel
+          ALIGNS={HARNESS_ALIGNS}
+          SWATCHES={HARNESS_SWATCHES}
+          textAlign={textAlign}
+          setTextAlign={setTextAlign}
+          bgImage=""
+          setBgImage={() => {}}
+          styles={styles}
+          updateStyle={updateStyle}
+          handleBgFile={() => {}}
+          compact
+        />
+      </ActionSheet>
+
+      <ActionSheet
+        open={lowerSheetOpen}
+        title="Hoja inferior sintética"
+        onClose={() => setLowerSheetOpen(false)}
+        options={[{ id: 'lower-action', label: 'Acción inferior', onSelect() {} }]}
+      />
+      <ActionSheet
+        open={upperSheetOpen}
+        title="Hoja superior sintética"
+        onClose={() => setUpperSheetOpen(false)}
+        options={[{ id: 'upper-action', label: 'Acción superior', onSelect() {} }]}
+      />
+
+      <ActionSheet
+        open={longSheetOpen}
+        title="Contenido largo sintético"
+        onClose={() => setLongSheetOpen(false)}
+        options={LONG_SHEET_OPTIONS}
       />
     </div>
   );

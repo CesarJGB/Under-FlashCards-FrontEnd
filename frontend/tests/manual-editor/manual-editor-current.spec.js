@@ -309,6 +309,16 @@ test('PW-LIFE-001 — 20 cycles and open-layer unmount leave zero runtime resour
   await expect.poll(() => page.evaluate(() => window.__manualEditorHarness.getOwnershipSnapshot()))
     .toEqual({
       layers: { instances: 0, listeners: 0, registrySize: 0, sentinels: 0, owners: [] },
+      sharedOverlays: {
+        coordinator: { hosts: 0, listeners: 0 },
+        registry: {
+          layers: 0,
+          topId: null,
+          registrySize: 0,
+          subscribers: 0,
+          armed: false,
+        },
+      },
       scroll: { scrollRoots: 0, inertRoots: 0, ownerCount: 0, owners: [] },
     });
   expect(await page.locator('[data-editor-overlay-root="true"]').count()).toBe(0);
@@ -333,6 +343,72 @@ test('fixtures de error, guardado, imagen y alineación por lado son montables',
   await closeThroughHarness(page);
   await chooseAndOpen(page, 'styled', 'answer');
   await expect(page.getByTestId('manual-card-editor-answer')).toHaveCSS('text-align', 'right');
+});
+
+test('PW-AS-001 — opciones simples conservan foco, backdrop no tabbable y cierre único', async ({ page }) => {
+  await openHarness(page);
+  await page.evaluate(() => window.__manualEditorHarness.openActionSheetCase('simple'));
+  const sheet = page.getByRole('dialog', { name: 'Acciones de prueba' });
+  await expect(sheet).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Acción sintética' })).toBeFocused();
+  const backdrop = page.locator('[data-action-sheet-backdrop="true"]');
+  await expect(backdrop).toHaveCount(1);
+  expect(await backdrop.evaluate((node) => ({
+    tag: node.tagName,
+    tabIndex: node.getAttribute('tabindex'),
+  }))).toEqual({ tag: 'DIV', tabIndex: null });
+  await page.keyboard.press('Escape');
+  await expect(sheet).toHaveCount(0);
+});
+
+test('PW-AS-002 — contenido custom/footer porta ColorPalette dentro del scope del sheet', async ({ page }) => {
+  await openHarness(page);
+  await page.evaluate(() => window.__manualEditorHarness.openActionSheetCase('style'));
+  const sheet = page.getByRole('dialog', { name: 'Estilo sintético' });
+  await expect(sheet).toBeVisible();
+  await sheet.getByRole('button', { name: 'Color de estilo de la pregunta' }).click();
+  const palette = page.locator('[data-color-palette="true"]');
+  await expect(palette).toBeVisible();
+  expect(await palette.evaluate((node) => (
+    node.parentElement?.matches('[data-action-sheet-overlay-root="true"]')
+  ))).toBe(true);
+  await page.keyboard.press('Escape');
+  await expect(palette).toHaveCount(0);
+  await expect(sheet).toBeVisible();
+  await expect(sheet.getByRole('button', { name: 'Listo' })).toBeVisible();
+});
+
+test('PW-AS-003 — dos sheets consecutivos mantienen inferior inert y cierran uno por Escape', async ({ page }) => {
+  await openHarness(page);
+  await page.evaluate(() => window.__manualEditorHarness.openActionSheetCase('consecutive'));
+  const lower = page.getByRole('dialog', { name: 'Hoja inferior sintética', includeHidden: true });
+  const upper = page.getByRole('dialog', { name: 'Hoja superior sintética' });
+  await expect(upper).toBeVisible();
+  await expect(lower).toHaveAttribute('inert', '');
+  await expect(lower).toHaveAttribute('aria-hidden', 'true');
+  await page.keyboard.press('Escape');
+  await expect(upper).toHaveCount(0);
+  await expect(page.getByRole('dialog', { name: 'Hoja inferior sintética' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog', { name: 'Hoja inferior sintética' })).toHaveCount(0);
+});
+
+test('PW-AS-004 — contenido largo en landscape llega a la última acción por scroll interno', async ({ page }) => {
+  await page.setViewportSize({ width: 844, height: 390 });
+  await openHarness(page);
+  await page.evaluate(() => window.__manualEditorHarness.openActionSheetCase('long'));
+  const sheet = page.getByRole('dialog', { name: 'Contenido largo sintético' });
+  await expect(sheet).toBeVisible();
+  const scroll = sheet.locator('[data-action-sheet-scroll="true"]');
+  const result = await scroll.evaluate((node) => {
+    node.scrollTop = node.scrollHeight;
+    return {
+      scrollable: node.scrollHeight > node.clientHeight,
+      atEnd: node.scrollTop + node.clientHeight >= node.scrollHeight - 1,
+    };
+  });
+  expect(result).toEqual({ scrollable: true, atEnd: true });
+  await expect(sheet.getByRole('button', { name: 'Acción sintética 18' })).toBeVisible();
 });
 
 test('PW-OPEN-001 / KEEP-009 — la ayuda es compacta y no bloquea el textarea', async ({ page }) => {

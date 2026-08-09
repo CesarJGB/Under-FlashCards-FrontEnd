@@ -238,7 +238,7 @@ test('UT-ARCH-001 / Corte 3 has one scoped stack, scroll lease and history owner
     readFrontendFile('src/components/creator/ManualCardEditorModal.jsx'),
     readFrontendFile('src/components/creator/StylePanel.jsx'),
     readFrontendFile('src/components/creator/manual-editor/useEditorLayerStack.js'),
-    readFrontendFile('src/components/creator/manual-editor/editorLayerStack.js'),
+    readFrontendFile('src/components/common/overlays/layerStack.js'),
     readFrontendFile('src/components/common/OverlayScope.jsx'),
     readFrontendFile('src/lib/scrollLock.js'),
     readFrontendFile('src/App.jsx'),
@@ -251,9 +251,7 @@ test('UT-ARCH-001 / Corte 3 has one scoped stack, scroll lease and history owner
   assert.match(stylePanel, /<OverlayPortal/);
   assert.doesNotMatch(stylePanel, /createPortal|z-\[110\]|z-\[120\]/);
   assert.doesNotMatch(modal, /z-\[80\]|z-\[90\]|document\.body\.style\.overflow|addEventListener\(['"]keydown/);
-  assert.match(layerHook, /document\.addEventListener\('keydown'/);
-  assert.equal((layerHook.match(/addEventListener\('keydown'/g) || []).length, 1);
-  assert.equal((layerHook.match(/addEventListener\('popstate'/g) || []).length, 1);
+  assert.match(layerHook, /getSharedOverlayEventCoordinator/);
   assert.match(layerReducer, /OPEN_LAYER/);
   assert.doesNotMatch(layerReducer, /callback|HTMLElement|document\.|window\.|geometry|question|answer/);
   assert.match(scrollLock, /acquireScrollLease/);
@@ -262,6 +260,36 @@ test('UT-ARCH-001 / Corte 3 has one scoped stack, scroll lease and history owner
   assert.doesNotMatch(deck.slice(deck.indexOf('const handleEdit'), deck.indexOf('const handleDelete')), /window\.scrollTo/);
   assert.doesNotMatch(editorRuntime, /touchmove|scrollIntoView\s*\(|navigator\.(?:userAgent|platform)|interactive-widget/);
   assert.match(actionSheet, /export default function ActionSheet/);
+});
+
+test('Corte 4 graduates ActionSheet to the common top-only authority', async () => {
+  const [actionSheet, registry, reducer, legacyPath, overlayScope, stylePanel, creator] = await Promise.all([
+    readFrontendFile('src/components/common/ActionSheet.jsx'),
+    readFrontendFile('src/components/common/overlays/overlayRegistry.js'),
+    readFrontendFile('src/components/common/overlays/layerStack.js'),
+    readFrontendFile('src/components/creator/manual-editor/editorLayerStack.js'),
+    readFrontendFile('src/components/common/OverlayScope.jsx'),
+    readFrontendFile('src/components/creator/StylePanel.jsx'),
+    readFrontendFile('src/components/FlashcardCreator.jsx'),
+  ]);
+  assert.match(legacyPath, /export \{ createEditorLayerState, editorLayerReducer \} from '..\/..\/common\/overlays\/layerStack\.js'/);
+  assert.doesNotMatch(legacyPath, /case ['"]OPEN_LAYER|function editorLayerReducer/);
+  assert.doesNotMatch(`${actionSheet}\n${creator}`, /preserveFocus/);
+  assert.doesNotMatch(actionSheet, /useBodyScrollLock|setTimeout\s*\(|addEventListener\(['"]keydown/);
+  assert.match(actionSheet, /useLayoutEffect/);
+  assert.match(actionSheet, /useEditorGeometry/);
+  assert.match(actionSheet, /acquireScrollLease/);
+  assert.match(actionSheet, /<OverlayScope/);
+  assert.match(actionSheet, /data-action-sheet-backdrop="true"/);
+  assert.doesNotMatch(actionSheet, /<button[\s\S]{0,240}data-action-sheet-backdrop/);
+  assert.equal((registry.match(/addEventListener\?\.\('keydown'/g) || []).length, 1);
+  assert.equal((registry.match(/addEventListener\?\.\('popstate'/g) || []).length, 1);
+  assert.match(registry, /createOverlayRegistry/);
+  assert.match(reducer, /OPEN_LAYER/);
+  assert.doesNotMatch(reducer, /callback|HTMLElement|document\.|window\.|geometry|question|answer/);
+  assert.match(overlayScope, /hostLayerId/);
+  assert.match(stylePanel, /overlayScope\.layerStack\.toggleLayer/);
+  assert.match(stylePanel, /layerId=\{overlayScope\?\.layerStack/);
 });
 
 test('KEEP-011 and KEEP-012 remain unchanged in production contracts', async () => {
