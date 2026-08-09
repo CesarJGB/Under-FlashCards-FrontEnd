@@ -2,7 +2,16 @@ const DIAGNOSTICS_BUILD_ENABLED = Boolean(import.meta.env?.DEV);
 
 const DEFAULT_MAX_EVENTS = 500;
 const SAFE_TOKEN = /^[a-z0-9][a-z0-9:._-]{0,79}$/i;
-const SAFE_STATE = new Set(['open', 'closed', 'opening', 'closing', 'unknown']);
+const SAFE_STATE = new Set([
+  'open',
+  'closed',
+  'opening',
+  'closing',
+  'unknown',
+  'unavailable',
+  'settling',
+  'stable',
+]);
 
 const asFiniteNumber = (value) => (
   Number.isFinite(Number(value)) ? Number(value) : undefined
@@ -82,6 +91,68 @@ const copyTokenList = (items) => {
   return safeItems.length ? safeItems : undefined;
 };
 
+const copyGeometry = (geometry) => {
+  if (!geometry || typeof geometry !== 'object') return undefined;
+  const revision = asFiniteNumber(geometry.revision);
+  const epoch = asFiniteNumber(geometry.epoch);
+  const phase = ['unavailable', 'settling', 'stable'].includes(geometry.phase)
+    ? geometry.phase
+    : undefined;
+  const source = ['visual-viewport', 'layout-fallback'].includes(geometry.source)
+    ? geometry.source
+    : undefined;
+  const orientation = ['portrait', 'landscape', 'square'].includes(geometry.orientation)
+    ? geometry.orientation
+    : undefined;
+  const layout = copyRect(geometry.layout);
+  const visualRect = copyRect(geometry.visual);
+  const scale = asFiniteNumber(geometry.visual?.scale);
+  const occlusion = {};
+  for (const edge of ['top', 'right', 'bottom', 'left']) {
+    const value = asFiniteNumber(geometry.occlusion?.[edge]);
+    if (value === undefined || value < 0) return undefined;
+    occlusion[edge] = value;
+  }
+  if (
+    revision === undefined
+    || epoch === undefined
+    || !phase
+    || !source
+    || !orientation
+    || !layout
+    || !visualRect
+    || scale === undefined
+    || scale <= 0
+  ) return undefined;
+  return {
+    revision: Math.max(0, Math.trunc(revision)),
+    epoch: Math.max(0, Math.trunc(epoch)),
+    phase,
+    source,
+    orientation,
+    layout,
+    visual: { ...visualRect, scale },
+    occlusion,
+  };
+};
+
+const copyOverflow = (overflow) => {
+  if (!overflow || typeof overflow !== 'object') return undefined;
+  const result = {};
+  Object.entries(overflow).forEach(([name, metrics]) => {
+    const safeName = asSafeToken(name);
+    const scrollWidth = asFiniteNumber(metrics?.scrollWidth);
+    const clientWidth = asFiniteNumber(metrics?.clientWidth);
+    if (!safeName || scrollWidth === undefined || clientWidth === undefined) return;
+    result[safeName] = {
+      horizontal: Boolean(metrics.horizontal),
+      scrollWidth: Math.max(0, scrollWidth),
+      clientWidth: Math.max(0, clientWidth),
+    };
+  });
+  return Object.keys(result).length ? result : undefined;
+};
+
 /**
  * Copies only the diagnostic fields approved for the manual editor harness.
  * Unknown fields are discarded by construction, including values, filenames,
@@ -104,6 +175,8 @@ export function sanitizeManualEditorDiagnostic(input = {}) {
   const scrollOffsets = copyOffsets(input.scrollOffsets);
   const layerIds = copyTokenList(input.layerIds);
   const owners = copyTokenList(input.owners);
+  const geometry = copyGeometry(input.geometry);
+  const overflow = copyOverflow(input.overflow);
 
   if (target) output.target = target;
   if (activeElement) output.activeElement = activeElement;
@@ -114,6 +187,8 @@ export function sanitizeManualEditorDiagnostic(input = {}) {
   if (scrollOffsets) output.scrollOffsets = scrollOffsets;
   if (layerIds) output.layerIds = layerIds;
   if (owners) output.owners = owners;
+  if (geometry) output.geometry = geometry;
+  if (overflow) output.overflow = overflow;
 
   const rects = {};
   Object.entries(input.rects || {}).forEach(([name, rect]) => {
@@ -203,6 +278,7 @@ export function readManualEditorDiagnosticSnapshot({
   const textarea = modal?.querySelector('textarea');
   const editorMain = modal?.querySelector('main');
   const footer = modal?.querySelector('footer');
+  const surface = modal?.querySelector('[data-testid="manual-card-editor-surface"]');
   const palette = documentLike.querySelector('[data-color-palette="true"]');
   const actionSheet = [...documentLike.querySelectorAll('section[role="dialog"]')]
     .find((node) => !modal?.contains(node));
@@ -218,6 +294,17 @@ export function readManualEditorDiagnosticSnapshot({
     palette ? 'color-palette' : null,
     modal?.querySelector('[data-testid="manual-card-editor-align"][aria-expanded="true"]') ? 'alignment-menu' : null,
   ].filter(Boolean);
+  let geometry;
+  try {
+    geometry = JSON.parse(modal?.dataset.editorGeometry || 'null');
+  } catch {
+    geometry = undefined;
+  }
+  const overflowMetrics = (node) => ({
+    horizontal: Boolean(node && node.scrollWidth > node.clientWidth),
+    scrollWidth: node?.scrollWidth ?? 0,
+    clientWidth: node?.clientWidth ?? 0,
+  });
 
   return sanitizeManualEditorDiagnostic({
     timestamp: 0,
@@ -225,6 +312,7 @@ export function readManualEditorDiagnosticSnapshot({
     activeElement: describeManualEditorTarget(documentLike.activeElement, windowLike),
     rects: {
       modal: modal?.getBoundingClientRect(),
+      surface: surface?.getBoundingClientRect(),
       textarea: textarea?.getBoundingClientRect(),
       editor: editorMain?.getBoundingClientRect(),
       footer: footer?.getBoundingClientRect(),
@@ -240,6 +328,12 @@ export function readManualEditorDiagnosticSnapshot({
       scale: visualViewport?.scale ?? 1,
     },
     orientation,
+    geometry,
+    overflow: {
+      surface: overflowMetrics(surface),
+      editor: overflowMetrics(editorMain),
+      footer: overflowMetrics(footer),
+    },
     renderCount,
     listenerCount,
     scrollOffsets: {
