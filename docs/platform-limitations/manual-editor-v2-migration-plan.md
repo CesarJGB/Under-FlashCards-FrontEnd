@@ -170,7 +170,7 @@ Revertir adaptador por picker de forma independiente. El reducer y tests pueden 
 
 ### Salida exacta
 
-No existe evento nativo abierto desde `pointerdown`; pregunta y respuesta tienen selección propia; timers 80/250 y guardia general 450 ya no deciden el flujo.
+Pregunta y respuesta tienen selección propia; timers 80/250 y guardia general 450 ya no deciden el flujo. Tras evidencia física posterior al Corte 5, los controles sensibles al foco usan una activación única: puntero en `pointerdown` primario y teclado/AT en click semántico, suprimiendo el click de compatibilidad.
 
 ## 5. Corte 2 — Geometría y safe area
 

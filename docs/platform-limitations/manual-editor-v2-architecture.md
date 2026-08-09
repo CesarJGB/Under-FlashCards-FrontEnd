@@ -202,9 +202,9 @@ Política inferior:
 - Foco DOM, selección y OSK son hechos distintos.
 - Solo una llamada inmediata intenta foco inicial.
 - Preset/alineación nunca inicia ni altera una transacción nativa.
-- Color custom e imagen se solicitan desde `click` semántico sin rAF/timeout.
+- Color custom se solicita desde activación confiable: `pointerdown` primario para puntero o `click` semántico para teclado/AT, sin rAF/timeout; imagen conserva su click nativo.
 - Toda transacción tiene `id`; eventos viejos se ignoran.
-- CTA de reanudación nunca cubre el textarea.
+- La superficie contextual de reanudación puede cubrir visualmente la caja del textarea por decisión de producto; no mueve foco por sí sola y `beforeinput/input` la retira.
 
 ### Autoridad, entradas y transiciones
 
@@ -214,7 +214,7 @@ Política inferior:
 | Entradas | open, focusin/out observado, select, change/input, composition, switch side, preset, picker request/input/change/cancel/return signal, resume gesture, close. |
 | Transiciones | sesión opening → editing/interrupted → closing; picker idle → requested → external → committed/cancelled/returned-unknown → idle. |
 | Consumidores | textarea, switch de lado, toolbar, ColorPalette, file input y CTA. |
-| Fallback | presets siempre; `input.click()` dentro del mismo click si `showPicker()` falta o rechaza; CTA/textarea para reanudar. |
+| Fallback | presets siempre; `input.click()` dentro de la misma activación confiable si `showPicker()` falta o rechaza; CTA/textarea para reanudar. |
 
 ### Errores recuperables
 
@@ -597,7 +597,7 @@ Todos los módulos declaran explícitamente lo que **no** poseen en sus contrato
 2. **Teclado físico:** la superficie contextual no mueve el foco por sí sola; `beforeinput/input` retira la ayuda y el gesto de reanudación conserva el rango.
 3. **Preset:** aplica una vez, cierra una capa y no despacha eventos de picker.
 4. **Color custom iOS:** se acepta cierre de OSK; contenido/rango permanecen y al volver se ofrece reanudación. La transacción usa un snapshot inmediato para que `input/change` del picker no validen contra el render previo.
-5. **Toggle:** `pointerdown` puede preservar foco solo para menú DOM; `click` ejecuta una única transición `TOGGLE_LAYER`. Pulsar el mismo trigger cierra, no reabre y vuelve a asegurar foco dentro del mismo gesto.
+5. **Toggle:** el puntero ejecuta `TOGGLE_LAYER` en `pointerdown` primario con `preventDefault`; su click de compatibilidad se ignora. Teclado/AT ejecuta la misma transición por click semántico. Pulsar el mismo trigger cierra sin transferir el foco de la textarea.
 6. **Footer:** permanece dentro del frame flex. En fallback no se fija contra una altura inventada; el sistema puede exigir ocultar IME para acceder, sin pérdida de datos.
 7. **Landscape:** top, left, right y bottom respetan `env(safe-area-inset-*, 0px)` según ownership.
 8. **Scroll:** App main queda congelado; editor main, textarea, contenido de ActionSheet y paleta horizontal conservan scroll.
@@ -609,8 +609,8 @@ Todos los módulos declaran explícitamente lo que **no** poseen en sus contrato
 | Control | `pointerdown` | `click` | Foco |
 |---|---|---|---|
 | Preset/alineación | Puede `preventDefault` para preservar textarea; no cambia estado. | Aplica + dismiss top. | Pointer conserva; teclado/AT usa foco visible. |
-| Trigger de menú DOM | Puede preservar foco; no abre/cierra. | `TOGGLE_LAYER`. | Según modalidad observada de activación. |
-| Color custom | Captura rango, **sin** impedir el foco por contrato. | En el mismo call stack: begin transaction → `showPicker` o `click`. | UA puede moverlo/cerrar OSK. |
+| Trigger de menú DOM | `preventDefault` + `TOGGLE_LAYER`; el click posterior se ignora. | Solo teclado/AT (`detail === 0`) ejecuta `TOGGLE_LAYER`. | Pointer conserva textarea; teclado/AT usa foco visible. |
+| Color custom | Captura rango + begin transaction + `showPicker`/`click`; el click posterior se ignora. | Enter/Space/AT ejecutan la misma activación. | El trigger no roba foco; la UI nativa puede cerrar OSK. |
 | Imagen | Captura rango, no afirma conservar OSK. | Resetea input y ejecuta `click()`. | UA controla transición. |
 | Backdrop | Previene acción del fondo. | `DISMISS_TOP`. | No es tabbable ni recibe retorno. |
 | Resume | Sin lógica. | Un intento de foco + rango válido desde gesto. | Resultado DOM observado; OSK desconocido. |

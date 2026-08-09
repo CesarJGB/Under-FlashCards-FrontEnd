@@ -20,8 +20,8 @@
 ## 2. Invariantes de eventos
 
 1. Cada gesto de UI despacha como máximo una transición de capa.
-2. `pointerdown` no abre/cierra menús ni pickers.
-3. `click` semántico abre el picker inmediatamente; no se difiere.
+2. Para controles que deben conservar la textarea, el puntero ejecuta una sola transición en `pointerdown` con `preventDefault`; su click de compatibilidad se ignora.
+3. Teclado y tecnología asistiva ejecutan la misma acción mediante `click` semántico (`detail === 0`); el picker nunca se difiere.
 4. Todo evento de picker lleva `transactionId`.
 5. `blur`, `window.focus`, `visibilitychange` y un timeout nunca significan commit/cancel por sí solos.
 6. Reducers ignoran eventos incompatibles con el estado actual.
@@ -121,10 +121,9 @@ stateDiagram-v2
 
 | Evento | Acción |
 |---|---|
-| `pointerdown` del trigger | Opcionalmente preservar foco para una herramienta DOM; capturar selección; **sin transición**. |
-| `click` del trigger cerrado | `TOGGLE_LAYER(id)` abre. |
-| `click` del mismo trigger abierto | La misma acción lo retira; no ejecuta close + open separados. |
-| `click` de otro trigger | Reemplaza top por el otro en una transición. |
+| `pointerdown` primario del trigger | `preventDefault` + `TOGGLE_LAYER(id)` antes de transferir foco; abre, cierra o reemplaza una sola vez. |
+| `click` generado por ese puntero | No-op; la transición ya ocurrió. |
+| `click` semántico de teclado/AT | Ejecuta el mismo `TOGGLE_LAYER(id)` una sola vez. |
 | backdrop | `stopPropagation` + `DISMISS_TOP('backdrop')`. |
 | Escape/Back | Coordinador único llama `DISMISS_TOP`. |
 
@@ -177,7 +176,7 @@ sequenceDiagram
   participant S as InputSession
   participant I as input color
   participant N as UA/SO
-  U->>B: click semántico
+  U->>B: pointerdown primario o click semántico
   B->>S: PICKER_REQUESTED(color, id)
   B->>I: showPicker() si existe
   alt ausente o rechaza
@@ -190,8 +189,8 @@ sequenceDiagram
 
 ### Activación
 
-- El botón custom no abre en `pointerdown` ni en `pointerup` exclusivo.
-- `click` cubre tap, mouse, Enter/Space y activación asistiva.
+- Tap/mouse abre desde `pointerdown` primario con `preventDefault`, antes de que el botón pueda robar foco.
+- El click de compatibilidad del puntero es no-op; Enter/Space y activación asistiva usan `click` con `detail === 0`.
 - `showPicker` se detecta por capacidad y se llama dentro del handler.
 - Si lanza, `input.click()` se ejecuta antes de salir del mismo handler.
 - Si ningún camino abre UI, la paleta permanece operable; no se muestra un error fatal.
