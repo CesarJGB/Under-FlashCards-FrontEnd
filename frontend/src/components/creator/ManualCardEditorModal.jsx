@@ -18,6 +18,7 @@ import {
   ImagePlus,
   Italic,
   Loader2,
+  Pencil,
   Plus,
   X,
 } from 'lucide-react';
@@ -312,6 +313,8 @@ export default function ManualCardEditorModal({
   const hasActiveImage = Boolean(contentImage && imageSide === activeSide);
   const canSave = Boolean(question.trim() && answer.trim() && !saving);
   const needsFocusResume = editorSession.state.resume.available;
+  const imageResume = needsFocusResume
+    && editorSession.state.resume.reason === 'image-picker-returned';
 
   const textareaEditoriallyActive = (
     editorSession.state.domFocus.observed
@@ -378,6 +381,7 @@ export default function ManualCardEditorModal({
   );
 
   const toggleEditorLayer = (event, id, returnTarget) => {
+    const wasOpen = layerStack.isTop(id);
     layerStack.toggleLayer({
       id,
       ownerId: 'manual-editor-toolbar',
@@ -386,11 +390,17 @@ export default function ManualCardEditorModal({
       returnTarget,
       replaceOwner: true,
     });
+    if (wasOpen) {
+      editorSession.attemptFocus({
+        side: activeSide,
+        reason: 'menu-toggle-close',
+      });
+    }
   };
 
   const switchSide = () => {
     if (layerStack.topId) layerStack.dismissTop('side-switch');
-    editorSession.switchSide(reverseSide);
+    editorSession.switchSide(reverseSide, { focusWithinGesture: true });
   };
 
   const saveCard = async (keepEditing) => {
@@ -471,7 +481,7 @@ export default function ManualCardEditorModal({
             }
           }}
         >
-          <div className="mx-auto flex w-full max-w-2xl flex-col gap-3">
+          <div className={`mx-auto flex w-full max-w-2xl flex-col gap-3 ${needsFocusResume ? 'flex-1 justify-end pb-4' : ''}`}>
             <div className="relative h-[clamp(8rem,20dvh,10rem)] shrink-0 overflow-hidden rounded-[1.5rem] border-2 border-slate-500/80 bg-white shadow-[0_18px_45px_-36px_rgba(15,23,42,0.55)] focus-within:border-slate-700 focus-within:ring-4 focus-within:ring-slate-900/[0.06]">
               <textarea
                 ref={textareaRef}
@@ -493,21 +503,29 @@ export default function ManualCardEditorModal({
                 className="h-full min-h-0 w-full resize-none bg-transparent px-4 py-3 text-base leading-7 outline-none placeholder:font-medium placeholder:text-slate-300 sm:px-5 sm:py-4 sm:text-lg sm:leading-8"
                 data-testid={`manual-card-editor-${activeSide}`}
               />
-            </div>
 
-            {needsFocusResume && (
-              <div className="flex justify-end" aria-live="polite">
+              {needsFocusResume && (
                 <button
                   type="button"
                   onClick={editorSession.resolveResumeFromGesture}
-                  className="inline-flex min-h-9 items-center justify-center rounded-full border border-slate-200 bg-white px-3 text-xs font-bold text-slate-600 shadow-sm transition-colors active:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
-                  aria-label="Toca para continuar"
+                  className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-white/85 text-slate-700 backdrop-blur-sm animate-[fadeIn_0.15s_ease] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-slate-400"
+                  aria-label={imageResume ? 'Toca para seguir escribiendo' : 'Toca para comenzar a escribir'}
                   data-testid="manual-card-editor-resume"
                 >
-                  Continuar escribiendo
+                  {imageResume ? (
+                    <ImagePlus className="mb-2 h-6 w-6 text-slate-500" />
+                  ) : (
+                    <Pencil className="mb-2 h-6 w-6 text-slate-500" />
+                  )}
+                  <span className="text-sm font-bold">
+                    {imageResume ? 'Imagen cargada' : 'Listo para editar'}
+                  </span>
+                  <span className="mt-1 text-xs font-medium text-slate-500">
+                    {imageResume ? 'Toca aquí para seguir escribiendo' : 'Toca aquí para comenzar a escribir'}
+                  </span>
                 </button>
-              </div>
-            )}
+              )}
+            </div>
 
             {error && (
               <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">

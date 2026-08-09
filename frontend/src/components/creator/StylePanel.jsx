@@ -333,7 +333,10 @@ export function ColorPalette({
             if (input.value !== colorInputValue) input.value = colorInputValue;
             const result = requestColorPickerFromClick(input);
             if (result.requested) onPickerExternal?.(transactionId, result.method);
-            else onPickerReturnUnknown?.(transactionId);
+            else {
+              activeCustomTransactionRef.current = null;
+              onPickerReturnUnknown?.(transactionId);
+            }
           }}
         >
           <Pipette className="relative z-10 h-3.5 w-3.5 text-white drop-shadow-xs transition-transform group-hover:scale-110" aria-hidden="true" />
