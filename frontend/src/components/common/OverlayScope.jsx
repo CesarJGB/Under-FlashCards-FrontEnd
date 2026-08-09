@@ -8,10 +8,27 @@ import { createPortal } from 'react-dom';
 
 const OverlayScopeContext = createContext(null);
 
-export function OverlayScope({ portalTarget, layerStack, bounds, children }) {
+export function OverlayScope({
+  portalTarget,
+  layerStack,
+  bounds,
+  geometry,
+  hostLayerId = null,
+  ownsModality = false,
+  modalContentRef = null,
+  children,
+}) {
   const value = useMemo(
-    () => ({ portalTarget, layerStack, bounds }),
-    [bounds, layerStack, portalTarget],
+    () => ({
+      portalTarget,
+      layerStack,
+      bounds,
+      geometry,
+      hostLayerId,
+      ownsModality,
+      modalContentRef,
+    }),
+    [bounds, geometry, hostLayerId, layerStack, modalContentRef, ownsModality, portalTarget],
   );
   return (
     <OverlayScopeContext.Provider value={value}>
@@ -35,8 +52,9 @@ export const OverlayPortal = forwardRef(function OverlayPortal({
   ...contentProps
 }, forwardedRef) {
   const scope = useOverlayScope();
-  const target = scope?.portalTarget
-    || (typeof document !== 'undefined' ? document.body : null);
+  const target = scope
+    ? scope.portalTarget
+    : (typeof document !== 'undefined' ? document.body : null);
   if (!target) return null;
 
   const scoped = Boolean(scope?.portalTarget && scope?.layerStack && layerId);
@@ -56,9 +74,8 @@ export const OverlayPortal = forwardRef(function OverlayPortal({
 
   return createPortal(
     <>
-      <button
-        type="button"
-        tabIndex={-1}
+      <div
+        role="presentation"
         aria-hidden="true"
         data-testid={backdropTestId}
         className={`${scoped ? 'absolute' : 'fixed'} inset-0 z-0 cursor-default bg-transparent pointer-events-auto`}
