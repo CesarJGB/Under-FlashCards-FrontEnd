@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://under-flashcards.local/schemas/manual-editor-diagnostic-event.json",
+  "title": "Manual editor diagnostic event",
+  "description": "Privacy-limited event emitted only by the development/test harness.",
+  "type": "object",
+  "required": ["timestamp", "type"],
+  "additionalProperties": false,
+  "$defs": {
+    "token": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9:._-]{0,79}$"
+    },
+    "target": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": false,
+      "properties": {
+        "tag": { "$ref": "#/$defs/token" },
+        "testId": { "$ref": "#/$defs/token" }
+      }
+    },
+    "rect": {
+      "type": "object",
+      "required": ["left", "top", "width", "height"],
+      "additionalProperties": false,
+      "properties": {
+        "left": { "type": "number" },
+        "top": { "type": "number" },
+        "width": { "type": "number", "minimum": 0 },
+        "height": { "type": "number", "minimum": 0 }
+      }
+    },
+    "offset": {
+      "type": "object",
+      "required": ["x", "y"],
+      "additionalProperties": false,
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" }
+      }
+    }
+  },
+  "properties": {
+    "timestamp": { "type": "number", "minimum": 0 },
+    "type": { "$ref": "#/$defs/token" },
+    "target": { "$ref": "#/$defs/target" },
+    "activeElement": { "$ref": "#/$defs/target" },
+    "rects": {
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/token" },
+      "additionalProperties": { "$ref": "#/$defs/rect" }
+    },
+    "visualViewport": {
+      "type": "object",
+      "required": ["width", "height", "offsetLeft", "offsetTop", "scale"],
+      "additionalProperties": false,
+      "properties": {
+        "width": { "type": "number", "minimum": 0 },
+        "height": { "type": "number", "minimum": 0 },
+        "offsetLeft": { "type": "number" },
+        "offsetTop": { "type": "number" },
+        "scale": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "orientation": { "enum": ["portrait", "landscape", "square"] },
+    "renderCount": { "type": "integer", "minimum": 0 },
+    "listenerCount": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "total": { "type": "number", "minimum": 0 },
+        "byType": {
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/token" },
+          "additionalProperties": { "type": "number", "minimum": 0 }
+        }
+      }
+    },
+    "scrollOffsets": {
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/token" },
+      "additionalProperties": { "$ref": "#/$defs/offset" }
+    },
+    "layerIds": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/token" }
+    },
+    "owners": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/token" }
+    },
+    "state": {
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/token" },
+      "additionalProperties": {
+        "enum": ["open", "closed", "opening", "closing", "unknown"]
+      }
+    },
+    "error": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": false,
+      "properties": {
+        "name": { "$ref": "#/$defs/token" },
+        "code": { "$ref": "#/$defs/token" }
+      }
+    }
+  }
+}
