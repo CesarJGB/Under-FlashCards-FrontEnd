@@ -1,5 +1,5 @@
 // ARCHIVO: frontend/src/components/creator/StylePanel.jsx
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { ImagePlus, Plus, Minus, Bold, Italic, Pipette, X } from 'lucide-react';
 import { OverlayPortal, useOverlayScope } from '../common/OverlayScope';
 import { requestColorPickerFromClick } from './manual-editor/manualEditorSession';
@@ -59,6 +59,7 @@ export function ColorPalette({
   layerId,
 }) {
   const overlayScope = useOverlayScope();
+  const sharedGeometry = editorGeometry || overlayScope?.geometry;
   const paletteRef = useRef(null);
   const colorInputRef = useRef(null);
   const [position, setPosition] = useState(null);
@@ -70,9 +71,9 @@ export function ColorPalette({
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
   const hasSharedGeometry = Boolean(
-    editorGeometry
-    && editorGeometry.visual
-    && editorGeometry.layout
+    sharedGeometry
+    && sharedGeometry.visual
+    && sharedGeometry.layout
   );
 
   useEffect(() => {
@@ -116,7 +117,7 @@ export function ColorPalette({
     if (typeof window === 'undefined' || typeof document === 'undefined') return undefined;
 
     let frameId = 0;
-    if (hasSharedGeometry && editorGeometry.phase === 'settling') setPosition(null);
+    if (hasSharedGeometry && sharedGeometry.phase === 'settling') setPosition(null);
 
     const measure = () => {
       frameId = 0;
@@ -135,7 +136,7 @@ export function ColorPalette({
       const paletteRect = palette.getBoundingClientRect();
       const dialogRect = anchor.closest('[role="dialog"]')?.getBoundingClientRect();
 
-      const sharedVisual = hasSharedGeometry ? editorGeometry.visual : null;
+      const sharedVisual = hasSharedGeometry ? sharedGeometry.visual : null;
       const visualViewport = hasSharedGeometry ? null : window.visualViewport;
       const viewportLeft = sharedVisual?.left ?? Math.max(0, visualViewport?.offsetLeft || 0);
       const viewportTop = sharedVisual?.top ?? Math.max(0, visualViewport?.offsetTop || 0);
@@ -240,11 +241,11 @@ export function ColorPalette({
   }, [
     anchorRef,
     editorBoundsRef,
-    editorGeometry?.epoch,
-    editorGeometry?.phase,
-    editorGeometry?.revision,
-    editorGeometry?.source,
-    editorGeometry?.visual?.scale,
+    sharedGeometry?.epoch,
+    sharedGeometry?.phase,
+    sharedGeometry?.revision,
+    sharedGeometry?.source,
+    sharedGeometry?.visual?.scale,
     hasSharedGeometry,
     layerId,
     overlayScope,
@@ -263,10 +264,10 @@ export function ColorPalette({
       data-color-palette="true"
       data-color-palette-variant={variant}
       data-color-palette-geometry={hasSharedGeometry ? 'shared' : 'legacy-compatible'}
-      data-color-palette-epoch={editorGeometry?.epoch}
-      data-color-palette-revision={editorGeometry?.revision}
-      data-color-palette-scale={editorGeometry?.visual?.scale}
-      role="dialog"
+      data-color-palette-epoch={sharedGeometry?.epoch}
+      data-color-palette-revision={sharedGeometry?.revision}
+      data-color-palette-scale={sharedGeometry?.visual?.scale}
+      role="group"
       aria-label={label}
       className={`fixed rounded-2xl border border-slate-200 bg-white p-2 shadow-xl animate-[slideUp_0.1s_ease-out] dark:border-slate-700 dark:bg-slate-800 ${isHorizontal
         ? `flex w-max flex-nowrap items-center gap-2 overflow-x-auto overscroll-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${hasSharedGeometry ? 'max-w-none' : 'max-w-[calc(100vw-1rem)]'}`
@@ -363,6 +364,12 @@ export default function StylePanel({
   handleBgFile,
   compact = false,
 }) {
+  const overlayScope = useOverlayScope();
+  const reactId = useId();
+  const layerOwnerIdRef = useRef(null);
+  if (layerOwnerIdRef.current === null) {
+    layerOwnerIdRef.current = `style-panel-${reactId.replace(/[^a-zA-Z0-9_-]/g, '')}`;
+  }
   const [openColor, setOpenColor] = useState(null);
   const bgImageInputRef = useRef(null);
   const qColorAnchorRef = useRef(null);
@@ -371,11 +378,26 @@ export default function StylePanel({
   const openColorRef = useRef(null);
   const colorReturnFocusRef = useRef(null);
   const focusRestoreFrameRef = useRef(null);
+  const scopedLayerRef = useRef(null);
+  const mountedRef = useRef(true);
 
-  const closeColor = () => {
-    const wasOpen = openColorRef.current !== null;
+  const scopedLayerId = (colorId) => `${layerOwnerIdRef.current}-color-${colorId}`;
+  const clearColorState = () => {
     openColorRef.current = null;
-    setOpenColor(null);
+    if (mountedRef.current) setOpenColor(null);
+  };
+
+  const closeColor = (reason = 'selection') => {
+    const scopedLayer = scopedLayerRef.current;
+    if (overlayScope?.layerStack && scopedLayer) {
+      return overlayScope.layerStack.dismissLayer?.(
+        scopedLayer.id,
+        scopedLayer.token,
+        reason,
+      ) ?? false;
+    }
+    const wasOpen = openColorRef.current !== null;
+    clearColorState();
 
     // El backdrop es portalizado y no debe convertirse en el nuevo elemento
     // activo al cerrar. Conservamos el foco que existía antes de abrirlo para
@@ -415,7 +437,28 @@ export default function StylePanel({
     if (openColorRef.current === null) rememberColorFocus();
   };
 
-  const toggleColor = (colorId) => {
+  const toggleColor = (colorId, event) => {
+    if (overlayScope?.layerStack) {
+      const id = scopedLayerId(colorId);
+      const token = overlayScope.layerStack.toggleLayer({
+        id,
+        ownerId: overlayScope.hostLayerId || layerOwnerIdRef.current,
+        kind: 'popover',
+        focusPolicy: event?.detail === 0 ? 'move-focus' : 'pointer-preserve',
+        returnTarget: event?.currentTarget,
+        replaceOwner: true,
+        onDismiss() {
+          if (scopedLayerRef.current?.id === id) scopedLayerRef.current = null;
+          if (openColorRef.current === colorId) clearColorState();
+        },
+      });
+      if (token) {
+        scopedLayerRef.current = { id, token };
+        openColorRef.current = colorId;
+        setOpenColor(colorId);
+      }
+      return;
+    }
     if (openColorRef.current === colorId) {
       closeColor();
       return;
@@ -431,10 +474,20 @@ export default function StylePanel({
   };
 
   useEffect(() => () => {
+    mountedRef.current = false;
+    const scopedLayer = scopedLayerRef.current;
+    scopedLayerRef.current = null;
+    if (scopedLayer) {
+      overlayScope?.layerStack?.removeLayer?.(
+        scopedLayer.id,
+        scopedLayer.token,
+        'unmount',
+      );
+    }
     if (focusRestoreFrameRef.current && typeof window !== 'undefined') {
       window.cancelAnimationFrame(focusRestoreFrameRef.current);
     }
-  }, []);
+  }, [overlayScope?.layerStack]);
 
   const openBgImagePicker = () => {
     const input = bgImageInputRef.current;
@@ -499,7 +552,7 @@ export default function StylePanel({
               <button
                 type="button"
                 onPointerDown={handleColorTriggerPointerDown}
-                onClick={() => toggleColor(colorId)}
+                onClick={(event) => toggleColor(colorId, event)}
                 aria-label={`Color de ${title.toLowerCase()}`}
                 aria-expanded={colorOpen}
                 className={`flex min-h-10 min-w-10 items-center justify-center rounded-lg border transition-all ${
@@ -521,6 +574,7 @@ export default function StylePanel({
                   anchorRef={colorAnchorRef}
                   placement="above"
                   label={`Colores de ${title.toLowerCase()}`}
+                  layerId={overlayScope?.layerStack ? scopedLayerId(colorId) : undefined}
                 />
               )}
             </div>
@@ -596,7 +650,7 @@ export default function StylePanel({
               <button
                 type="button"
                 onPointerDown={handleColorTriggerPointerDown}
-                onClick={() => toggleColor('bg')}
+                onClick={(event) => toggleColor('bg', event)}
                 title="Color de fondo sólido"
                 aria-label="Color de fondo sólido"
                 aria-expanded={openColor === 'bg'}
@@ -620,6 +674,7 @@ export default function StylePanel({
                   anchorRef={bgColorAnchorRef}
                   placement="below"
                   label="Colores de fondo"
+                  layerId={overlayScope?.layerStack ? scopedLayerId('bg') : undefined}
                 />
               )}
             </div>

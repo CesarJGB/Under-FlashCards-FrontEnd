@@ -451,6 +451,10 @@ export default function ManualCardEditorModal({
         portalTarget={overlayRootElement}
         layerStack={layerStack}
         bounds={editorGeometry.visual}
+        geometry={editorGeometry}
+        hostLayerId="manual-editor"
+        ownsModality
+        modalContentRef={editorSurfaceRef}
       >
       <div
         ref={editorSurfaceRef}
