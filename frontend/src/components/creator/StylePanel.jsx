@@ -54,6 +54,8 @@ export function ColorPalette({
   onPickerCommit,
   onPickerCancel,
   onPickerReturnUnknown,
+  editorGeometry,
+  editorBoundsRef,
 }) {
   const paletteRef = useRef(null);
   const colorInputRef = useRef(null);
@@ -63,6 +65,13 @@ export function ColorPalette({
   const initialColorInputValue = useRef(colorInputValue);
   const localTransactionCounterRef = useRef(0);
   const activeCustomTransactionRef = useRef(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  const hasSharedGeometry = Boolean(
+    editorGeometry
+    && editorGeometry.visual
+    && editorGeometry.layout
+  );
 
   useEffect(() => {
     const input = colorInputRef.current;
@@ -105,31 +114,58 @@ export function ColorPalette({
     if (typeof window === 'undefined' || typeof document === 'undefined') return undefined;
 
     let frameId = 0;
+    if (hasSharedGeometry && editorGeometry.phase === 'settling') setPosition(null);
 
     const measure = () => {
       frameId = 0;
 
       const anchor = anchorRef?.current;
       const palette = paletteRef.current;
-      if (!anchor || !palette) return;
+      if (!anchor) {
+        if (hasSharedGeometry) onCloseRef.current?.();
+        return;
+      }
+      if (!palette) return;
 
       const anchorRect = anchor.getBoundingClientRect();
       const paletteRect = palette.getBoundingClientRect();
       const dialogRect = anchor.closest('[role="dialog"]')?.getBoundingClientRect();
 
-      const visualViewport = window.visualViewport;
-      const viewportLeft = Math.max(0, Math.round(visualViewport?.offsetLeft || 0));
-      const viewportTop = Math.max(0, Math.round(visualViewport?.offsetTop || 0));
-      const viewportRight = viewportLeft + Math.round(visualViewport?.width || window.innerWidth);
-      const viewportBottom = viewportTop + Math.round(visualViewport?.height || window.innerHeight);
+      const sharedVisual = hasSharedGeometry ? editorGeometry.visual : null;
+      const visualViewport = hasSharedGeometry ? null : window.visualViewport;
+      const viewportLeft = sharedVisual?.left ?? Math.max(0, visualViewport?.offsetLeft || 0);
+      const viewportTop = sharedVisual?.top ?? Math.max(0, visualViewport?.offsetTop || 0);
+      const viewportWidth = sharedVisual?.width ?? visualViewport?.width ?? window.innerWidth;
+      const viewportHeight = sharedVisual?.height ?? visualViewport?.height ?? window.innerHeight;
+      const viewportRight = viewportLeft + viewportWidth;
+      const viewportBottom = viewportTop + viewportHeight;
+      const editorBounds = hasSharedGeometry
+        ? editorBoundsRef?.current?.getBoundingClientRect?.()
+        : null;
 
-      // Fixed portals use the layout viewport, while iOS moves the visible
-      // viewport when the keyboard is open. Use the latter so the palette
-      // remains above the keyboard instead of being rendered underneath it.
-      const minLeft = Math.max(VIEWPORT_MARGIN, viewportLeft + VIEWPORT_MARGIN, dialogRect?.left ?? VIEWPORT_MARGIN);
-      const maxRight = Math.min(viewportRight - VIEWPORT_MARGIN, dialogRect?.right ?? viewportRight - VIEWPORT_MARGIN);
-      const minTop = Math.max(VIEWPORT_MARGIN, viewportTop + VIEWPORT_MARGIN, dialogRect?.top ?? VIEWPORT_MARGIN);
-      const maxBottom = Math.min(viewportBottom - VIEWPORT_MARGIN, dialogRect?.bottom ?? viewportBottom - VIEWPORT_MARGIN);
+      // VisualViewport and DOM rects are expressed in CSS pixels. Scale is
+      // retained by the shared snapshot for policy/diagnostics and must not be
+      // multiplied into these coordinates a second time.
+      const minLeft = Math.max(
+        viewportLeft + VIEWPORT_MARGIN,
+        editorBounds
+          ? editorBounds.left + VIEWPORT_MARGIN
+          : (dialogRect?.left ?? VIEWPORT_MARGIN),
+      );
+      const maxRight = Math.min(
+        viewportRight - VIEWPORT_MARGIN,
+        editorBounds
+          ? editorBounds.right - VIEWPORT_MARGIN
+          : (dialogRect?.right ?? viewportRight - VIEWPORT_MARGIN),
+      );
+      const minTop = Math.max(
+        viewportTop + VIEWPORT_MARGIN,
+        dialogRect?.top ?? viewportTop + VIEWPORT_MARGIN,
+      );
+      const maxBottom = Math.min(
+        viewportBottom - VIEWPORT_MARGIN,
+        dialogRect?.bottom ?? viewportBottom - VIEWPORT_MARGIN,
+      );
 
       const paletteWidth = Math.min(paletteRect.width, Math.max(1, maxRight - minLeft));
       const paletteHeight = Math.min(paletteRect.height, Math.max(1, maxBottom - minTop));
@@ -150,7 +186,20 @@ export function ColorPalette({
           ? oppositeTop
           : clamp(preferredTop, minTop, maxTop);
 
-      setPosition({ left: Math.round(left), top: Math.round(top) });
+      const nextPosition = {
+        left: Math.round(left),
+        top: Math.round(top),
+        width: Math.round(paletteWidth),
+        maxHeight: Math.round(Math.max(1, maxBottom - minTop)),
+      };
+      setPosition((current) => (
+        current?.left === nextPosition.left
+        && current?.top === nextPosition.top
+        && current?.width === nextPosition.width
+        && current?.maxHeight === nextPosition.maxHeight
+          ? current
+          : nextPosition
+      ));
     };
 
     const updatePosition = () => {
@@ -159,9 +208,11 @@ export function ColorPalette({
     };
 
     updatePosition();
-    window.addEventListener('resize', updatePosition);
-    window.visualViewport?.addEventListener('resize', updatePosition);
-    window.visualViewport?.addEventListener('scroll', updatePosition);
+    if (!hasSharedGeometry) {
+      window.addEventListener('resize', updatePosition);
+      window.visualViewport?.addEventListener('resize', updatePosition);
+      window.visualViewport?.addEventListener('scroll', updatePosition);
+    }
     // The ActionSheet content scrolls inside its own element, so listen in capture mode.
     document.addEventListener('scroll', updatePosition, true);
 
@@ -174,13 +225,25 @@ export function ColorPalette({
 
     return () => {
       if (frameId) window.cancelAnimationFrame(frameId);
-      window.removeEventListener('resize', updatePosition);
-      window.visualViewport?.removeEventListener('resize', updatePosition);
-      window.visualViewport?.removeEventListener('scroll', updatePosition);
+      if (!hasSharedGeometry) {
+        window.removeEventListener('resize', updatePosition);
+        window.visualViewport?.removeEventListener('resize', updatePosition);
+        window.visualViewport?.removeEventListener('scroll', updatePosition);
+      }
       document.removeEventListener('scroll', updatePosition, true);
       resizeObserver?.disconnect();
     };
-  }, [anchorRef, placement]);
+  }, [
+    anchorRef,
+    editorBoundsRef,
+    editorGeometry?.epoch,
+    editorGeometry?.phase,
+    editorGeometry?.revision,
+    editorGeometry?.source,
+    editorGeometry?.visual?.scale,
+    hasSharedGeometry,
+    placement,
+  ]);
 
   if (typeof document === 'undefined') return null;
 
@@ -190,6 +253,10 @@ export function ColorPalette({
       ref={paletteRef}
       data-color-palette="true"
       data-color-palette-variant={variant}
+      data-color-palette-geometry={hasSharedGeometry ? 'shared' : 'legacy-compatible'}
+      data-color-palette-epoch={editorGeometry?.epoch}
+      data-color-palette-revision={editorGeometry?.revision}
+      data-color-palette-scale={editorGeometry?.visual?.scale}
       role="dialog"
       aria-label={label}
       onKeyDown={(event) => {
@@ -200,12 +267,16 @@ export function ColorPalette({
         }
       }}
       className={`fixed z-[120] rounded-2xl border border-slate-200 bg-white p-2 shadow-xl animate-[slideUp_0.1s_ease-out] dark:border-slate-700 dark:bg-slate-800 ${isHorizontal
-        ? 'flex w-max max-w-[calc(100vw-1rem)] flex-nowrap items-center gap-2 overflow-x-auto overscroll-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
-        : 'grid w-[168px] max-w-[calc(100vw-1rem)] grid-cols-4 gap-2'}`}
+        ? `flex w-max flex-nowrap items-center gap-2 overflow-x-auto overscroll-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${hasSharedGeometry ? 'max-w-none' : 'max-w-[calc(100vw-1rem)]'}`
+        : `grid w-[168px] grid-cols-4 gap-2 ${hasSharedGeometry ? 'max-w-none' : 'max-w-[calc(100vw-1rem)]'}`}`}
       style={{
         left: `${position?.left ?? 0}px`,
         top: `${position?.top ?? 0}px`,
+        width: position ? `${position.width}px` : undefined,
+        maxWidth: position ? `${position.width}px` : undefined,
+        maxHeight: position ? `${position.maxHeight}px` : undefined,
         visibility: position ? 'visible' : 'hidden',
+        overflowY: position ? 'auto' : undefined,
         touchAction: isHorizontal ? 'pan-x' : undefined,
         WebkitOverflowScrolling: isHorizontal ? 'touch' : undefined,
       }}

@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { ColorPalette, ColorSwatchButton } from './StylePanel';
 import useManualEditorSession from './manual-editor/useManualEditorSession';
+import useEditorGeometry from './manual-editor/useEditorGeometry';
 
 const DEFAULT_ALIGNS = [
   { label: 'Izquierda', value: 'left', Icon: AlignLeft },
@@ -62,10 +63,10 @@ export default function ManualCardEditorModal({
   textAlign = 'left',
   setTextAlign,
 }) {
-  const [viewportFrame, setViewportFrame] = useState(null);
   const [openMenu, setOpenMenu] = useState(null); // 'color' | 'align' | null
 
   const textareaRef = useRef(null);
+  const editorMainRef = useRef(null);
   const imageInputRef = useRef(null);
   const imageTransactionIdRef = useRef(null);
   const colorAnchorRef = useRef(null);
@@ -78,6 +79,7 @@ export default function ManualCardEditorModal({
     textareaRef,
   });
   const activeSide = editorSession.activeSide;
+  const editorGeometry = useEditorGeometry({ active: open });
 
   const alignOptions = Array.isArray(ALIGNS) && ALIGNS.length ? ALIGNS : DEFAULT_ALIGNS;
   const swatches = Array.isArray(SWATCHES) && SWATCHES.length ? SWATCHES : DEFAULT_SWATCHES;
@@ -113,7 +115,6 @@ export default function ManualCardEditorModal({
     if (!open) return;
     setOpenMenu(null);
     imageTransactionIdRef.current = null;
-    setViewportFrame(null);
   }, [initialSide, open]);
 
   useEffect(() => {
@@ -136,51 +137,6 @@ export default function ManualCardEditorModal({
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [onClose, open]);
-
-  // @remove-in-cut-2: legacy geometry remains a layout-only compatibility
-  // adapter. It does not own focus, selection, resume or picker state.
-  useLayoutEffect(() => {
-    if (!open || typeof window === 'undefined') return undefined;
-
-    const visualViewport = window.visualViewport;
-    const initialLayoutHeight = Math.max(
-      window.innerHeight,
-      document.documentElement?.clientHeight || 0,
-    );
-
-    const updateViewportFrame = () => {
-      const layoutHeight = Math.max(
-        initialLayoutHeight,
-        window.innerHeight,
-        document.documentElement?.clientHeight || 0,
-      );
-      const height = Math.max(1, Math.round(visualViewport?.height || layoutHeight));
-      const offsetTop = Math.max(0, Math.round(visualViewport?.offsetTop || 0));
-      const keyboardOpen = height < layoutHeight - 100;
-
-      setViewportFrame((previousFrame) => {
-        if (
-          previousFrame?.height === height &&
-          previousFrame.offsetTop === offsetTop &&
-          previousFrame.keyboardOpen === keyboardOpen
-        ) {
-          return previousFrame;
-        }
-        return { height, offsetTop, keyboardOpen };
-      });
-    };
-
-    updateViewportFrame();
-    visualViewport?.addEventListener('resize', updateViewportFrame);
-    visualViewport?.addEventListener('scroll', updateViewportFrame);
-    window.addEventListener('resize', updateViewportFrame);
-
-    return () => {
-      visualViewport?.removeEventListener('resize', updateViewportFrame);
-      visualViewport?.removeEventListener('scroll', updateViewportFrame);
-      window.removeEventListener('resize', updateViewportFrame);
-    };
-  }, [open]);
 
   useEffect(() => {
     const input = imageInputRef.current;
@@ -222,14 +178,31 @@ export default function ManualCardEditorModal({
   const canSave = Boolean(question.trim() && answer.trim() && !saving);
   const needsFocusResume = editorSession.state.resume.available;
 
-  const modalViewportStyle = viewportFrame
-    ? { height: `${viewportFrame.height}px`, top: `${viewportFrame.offsetTop}px` }
-    : { height: '100dvh', top: 0 };
-
+  const textareaEditoriallyActive = (
+    editorSession.state.domFocus.observed
+    && editorSession.state.domFocus.side === activeSide
+  );
+  const visualEdgeMitigation = (
+    editorGeometry.phase === 'stable'
+    && editorGeometry.source === 'visual-viewport'
+    && editorGeometry.visual.scale === 1
+    && textareaEditoriallyActive
+    && editorGeometry.occlusion.bottom > 0
+  );
+  const editorSurfaceStyle = {
+    left: `${editorGeometry.visual.left}px`,
+    top: `${editorGeometry.visual.top}px`,
+    width: `${editorGeometry.visual.width}px`,
+    height: `${editorGeometry.visual.height}px`,
+    paddingTop: 'env(safe-area-inset-top, 0px)',
+    paddingLeft: 'env(safe-area-inset-left, 0px)',
+    paddingRight: 'env(safe-area-inset-right, 0px)',
+    '--editor-safe-bottom-effective': visualEdgeMitigation
+      ? '0px'
+      : 'env(safe-area-inset-bottom, 0px)',
+  };
   const footerSafeAreaStyle = {
-    // @remove-in-cut-2: the legacy geometry flag remains isolated to the
-    // existing visual compatibility rule and never enters InputSession.
-    paddingBottom: viewportFrame?.keyboardOpen ? '0px' : 'env(safe-area-inset-bottom)',
+    paddingBottom: 'var(--editor-safe-bottom-effective)',
   };
 
   const activeTextareaStyle = {
@@ -322,17 +295,25 @@ export default function ManualCardEditorModal({
       role="dialog"
       aria-modal="true"
       aria-label={`Editar ${activeCopy.label.toLowerCase()} de la tarjeta`}
-      data-keyboard-open={viewportFrame?.keyboardOpen ? 'true' : 'false'}
       data-active-side={activeSide}
       data-picker-status={editorSession.state.picker.status}
+      data-geometry-phase={editorGeometry.phase}
+      data-geometry-revision={editorGeometry.revision}
+      data-geometry-epoch={editorGeometry.epoch}
+      data-geometry-source={editorGeometry.source}
+      data-geometry-orientation={editorGeometry.orientation}
+      data-geometry-safe-bottom={visualEdgeMitigation ? 'visual-edge' : 'conservative'}
+      data-editor-geometry={JSON.stringify(editorGeometry)}
       data-testid="manual-card-editor-modal"
     >
       <div
-        className="fixed inset-x-0 z-[71] flex min-h-0 flex-col overflow-hidden bg-white pt-[env(safe-area-inset-top)]"
-        style={modalViewportStyle}
+        className="fixed z-[71] flex min-h-0 max-w-full flex-col overflow-hidden bg-white"
+        style={editorSurfaceStyle}
+        data-testid="manual-card-editor-surface"
       >
         <main
-          className="relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain bg-[#f7f8fc] px-4 py-3 sm:px-6 sm:py-5"
+          ref={editorMainRef}
+          className="relative z-10 flex min-h-0 min-w-0 max-w-full flex-1 flex-col overflow-x-hidden overflow-y-auto overscroll-contain bg-[#f7f8fc] px-4 py-3 sm:px-6 sm:py-5"
           onClick={(event) => {
             if (event.target === event.currentTarget) {
               editorSession.resolveResumeFromGesture();
@@ -386,7 +367,7 @@ export default function ManualCardEditorModal({
         </main>
 
         <footer
-          className="relative z-20 shrink-0 border-t border-slate-200/80 bg-white shadow-[0_-12px_35px_-28px_rgba(15,23,42,0.65)]"
+          className="relative z-20 min-w-0 max-w-full shrink-0 overflow-x-hidden border-t border-slate-200/80 bg-white shadow-[0_-12px_35px_-28px_rgba(15,23,42,0.65)]"
           style={footerSafeAreaStyle}
         >
           <div className="relative z-10 mx-auto flex w-full max-w-2xl gap-2 border-b border-slate-100 bg-white px-3 py-2 sm:px-4">
@@ -524,6 +505,8 @@ export default function ManualCardEditorModal({
                     onPickerReturnUnknown={editorSession.signalPickerReturn}
                     onClose={closeMenu}
                     anchorRef={colorAnchorRef}
+                    editorGeometry={editorGeometry}
+                    editorBoundsRef={editorMainRef}
                     placement="above"
                     variant="horizontal"
                     label={`Colores de ${activeCopy.label.toLowerCase()}`}
