@@ -411,7 +411,7 @@ test('PW-AS-004 — contenido largo en landscape llega a la última acción por 
   await expect(sheet.getByRole('button', { name: 'Acción sintética 18' })).toBeVisible();
 });
 
-test('PW-OPEN-001 / KEEP-009 — la ayuda es compacta y no bloquea el textarea', async ({ page }) => {
+test('PW-OPEN-001 / KEEP-009 — la ayuda baja el área editable y permite reanudar', async ({ page }) => {
   await openHarness(page);
   await chooseAndOpen(page, 'distinct', 'question');
   const textarea = page.getByTestId('manual-card-editor-question');
@@ -439,7 +439,7 @@ test.skip('PENDING — DEVICE REQUIRED EDITOR-COLOR-002 / DEV-IOS-002 / DEV-AND-
   // el OSK ni la selección en iOS/Android. Esa evidencia solo es válida en dispositivo.
 });
 
-test('PW-PICK-001 / EDITOR-COLOR-001 — click, Enter y Space activan custom; pointerdown no', async ({ page }, testInfo) => {
+test('PW-PICK-001 / EDITOR-COLOR-001 — pointerdown, Enter, Space y click activan custom una vez', async ({ page }, testInfo) => {
   await openHarness(page);
   await chooseAndOpen(page, 'distinct', 'question');
   await page.evaluate(() => {
@@ -449,12 +449,12 @@ test('PW-PICK-001 / EDITOR-COLOR-001 — click, Enter y Space activan custom; po
   await page.getByTestId('manual-card-editor-color').click();
   const custom = page.getByRole('button', { name: 'Color personalizado' });
   await custom.dispatchEvent('pointerdown');
-  expect(await page.evaluate(() => window.__manualEditorHarness.getPickerState().colorRequests)).toBe(0);
+  expect(await page.evaluate(() => window.__manualEditorHarness.getPickerState().colorRequests)).toBe(1);
   await custom.focus();
   await custom.press('Enter');
   await custom.press('Space');
   await custom.click();
-  expect(await page.evaluate(() => window.__manualEditorHarness.getPickerState().colorRequests)).toBe(3);
+  expect(await page.evaluate(() => window.__manualEditorHarness.getPickerState().colorRequests)).toBe(4);
 
   await page.evaluate(() => {
     window.__manualEditorHarness.resetPickerState();

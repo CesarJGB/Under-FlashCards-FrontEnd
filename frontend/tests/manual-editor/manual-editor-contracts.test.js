@@ -156,8 +156,8 @@ test('Corte 1 protects semantic pickers, per-side selection and contextual resum
   const customButton = stylePanel.slice(customButtonStart, customButtonEnd);
   assert.ok(customButtonStart >= 0 && customButtonEnd > customButtonStart);
   assert.match(customButton, /onClick=/);
-  assert.doesNotMatch(customButton, /onPointerDown=/);
-  assert.match(customButton, /requestColorPickerFromClick\(input\)/);
+  assert.match(customButton, /onPointerDown=/);
+  assert.match(stylePanel, /requestCustomColor[\s\S]*requestColorPickerFromClick\(input\)/);
 
   assert.match(session, /question:\s*createSideSelection/);
   assert.match(session, /answer:\s*createSideSelection/);
@@ -193,13 +193,14 @@ test('post-Corte 5 regressions keep focus and native picker transactions inside 
     readFrontendFile('src/components/creator/manual-editor/useManualEditorSession.js'),
   ]);
 
-  assert.match(modal, /wasOpen[\s\S]*reason: 'menu-toggle-close'/);
-  assert.match(modal, /switchSide\(reverseSide, \{ focusWithinGesture: true \}\)/);
+  assert.match(modal, /onPointerDown=\{handleSidePress\}[\s\S]*onClick=\{handleSidePress\}/);
+  assert.match(modal, /handleMenuPress\(event, COLOR_LAYER_ID\)/);
+  assert.match(modal, /handleMenuPress\(event, ALIGN_LAYER_ID\)/);
   assert.match(hook, /stateRef\.current = next[\s\S]*reactDispatch\(event\)/);
-  assert.match(hook, /handledFocusRequestRef\.current = next\.focusRequestId/);
+  assert.match(hook, /const alreadyFocused[\s\S]*document\.activeElement === textarea/);
   assert.match(hook, /current\.picker\.transactionId !== transactionId/);
   assert.match(session, /imagePickerCommitted[\s\S]*reason: imagePickerCommitted \? 'image-picker-returned'/);
-  assert.match(stylePanel, /title="Color personalizado"[\s\S]{0,500}?onClick=/);
+  assert.match(stylePanel, /title="Color personalizado"[\s\S]{0,500}?onPointerDown=\{requestCustomColor\}[\s\S]*onClick=\{requestCustomColor\}/);
 });
 
 test('UT-ARCH-001 / Corte 2 has one geometry authority and no keyboard heuristics', async () => {
