@@ -127,7 +127,7 @@ test('KEEP-001, KEEP-005, KEEP-006, KEEP-007 and KEEP-009 remain observable', as
   assert.match(modal, /overflow-y-auto overscroll-contain/);
   assert.match(stylePanel, /overflow-x-auto overscroll-contain/);
   assert.match(actionSheet, /overflow-y-auto overscroll-contain/);
-  assert.match(modal, /Continuar escribiendo/);
+  assert.match(modal, /Toca aquí para seguir escribiendo/);
 });
 
 test('KEEP-002 and KEEP-003 retain picker detection, fallback and an uncontrolled color input', async () => {
@@ -143,7 +143,7 @@ test('KEEP-002 and KEEP-003 retain picker detection, fallback and an uncontrolle
   assert.doesNotMatch(stylePanel, /type="color"[\s\S]{0,240}?value=\{/);
 });
 
-test('Corte 1 protects semantic pickers, per-side selection and non-blocking resume UI', async () => {
+test('Corte 1 protects semantic pickers, per-side selection and contextual resume UI', async () => {
   const [modal, stylePanel, session, hook] = await Promise.all([
     readFrontendFile('src/components/creator/ManualCardEditorModal.jsx'),
     readFrontendFile('src/components/creator/StylePanel.jsx'),
@@ -176,11 +176,30 @@ test('Corte 1 protects semantic pickers, per-side selection and non-blocking res
   const resumeIndex = modal.indexOf('data-testid="manual-card-editor-resume"');
   const textareaIndex = modal.indexOf('data-testid={`manual-card-editor-${activeSide}`}');
   assert.ok(textareaIndex >= 0 && resumeIndex > textareaIndex);
-  assert.doesNotMatch(modal.slice(resumeIndex - 500, resumeIndex + 500), /absolute\s+inset-0/);
+  assert.match(modal.slice(resumeIndex - 700, resumeIndex + 700), /absolute inset-0/);
+  assert.match(modal, /needsFocusResume \? 'flex-1 justify-end pb-4'/);
+  assert.match(modal, /Imagen cargada/);
   assert.match(modal, /onBeforeInput=\{editorSession\.observeInput\}/);
 
   const presetBlock = stylePanel.slice(stylePanel.indexOf('swatches.map'), customButtonStart);
   assert.doesNotMatch(presetBlock, /onPickerRequest|PICKER_REQUESTED/);
+});
+
+test('post-Corte 5 regressions keep focus and native picker transactions inside the trusted gesture', async () => {
+  const [modal, stylePanel, session, hook] = await Promise.all([
+    readFrontendFile('src/components/creator/ManualCardEditorModal.jsx'),
+    readFrontendFile('src/components/creator/StylePanel.jsx'),
+    readFrontendFile('src/components/creator/manual-editor/manualEditorSession.js'),
+    readFrontendFile('src/components/creator/manual-editor/useManualEditorSession.js'),
+  ]);
+
+  assert.match(modal, /wasOpen[\s\S]*reason: 'menu-toggle-close'/);
+  assert.match(modal, /switchSide\(reverseSide, \{ focusWithinGesture: true \}\)/);
+  assert.match(hook, /stateRef\.current = next[\s\S]*reactDispatch\(event\)/);
+  assert.match(hook, /handledFocusRequestRef\.current = next\.focusRequestId/);
+  assert.match(hook, /current\.picker\.transactionId !== transactionId/);
+  assert.match(session, /imagePickerCommitted[\s\S]*reason: imagePickerCommitted \? 'image-picker-returned'/);
+  assert.match(stylePanel, /title="Color personalizado"[\s\S]{0,500}?onClick=/);
 });
 
 test('UT-ARCH-001 / Corte 2 has one geometry authority and no keyboard heuristics', async () => {
