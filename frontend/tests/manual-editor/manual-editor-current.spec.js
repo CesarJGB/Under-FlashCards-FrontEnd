@@ -398,6 +398,7 @@ test('PW-LIFE-001 — 20 cycles and open-layer unmount leave zero runtime resour
           layers: 0,
           topId: null,
           registrySize: 0,
+          pendingFocus: 0,
           subscribers: 0,
           armed: false,
         },
@@ -474,6 +475,70 @@ test('PW-AS-003 — dos sheets consecutivos mantienen inferior inert y cierran u
   await expect(page.getByRole('dialog', { name: 'Hoja inferior sintética' })).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog', { name: 'Hoja inferior sintética' })).toHaveCount(0);
+});
+
+test('PW-AS-TRANSITION-001 — una transición espera el cierre, abre una vez y Atrás cierra sólo la hija', async ({ page }) => {
+  await openHarness(page);
+  await page.evaluate(() => window.__manualEditorHarness.openActionSheetCase('transition'));
+  const root = page.getByRole('dialog', { name: 'Transición raíz sintética' });
+  const child = page.getByRole('dialog', { name: 'Transición hija sintética' });
+  await expect(root).toBeVisible();
+
+  await root.getByRole('button', { name: 'Abrir hoja siguiente' }).evaluate((button) => {
+    button.click();
+    button.click();
+  });
+
+  await expect(root).toHaveCount(0);
+  await expect(child).toBeVisible();
+  expect(await page.evaluate(() => window.__manualEditorHarness.getTransitionTrace()))
+    .toEqual(['root-close', 'after-close']);
+  await expect.poll(() => page.evaluate(() => (
+    window.__manualEditorHarness.getOwnershipSnapshot().sharedOverlays.registry.layers
+  ))).toBe(1);
+
+  await page.evaluate(() => history.back());
+  await expect(child).toHaveCount(0);
+  expect(await page.evaluate(() => window.__manualEditorHarness.getTransitionTrace()))
+    .toEqual(['root-close', 'after-close', 'child-close']);
+  await expect.poll(() => page.evaluate(() => (
+    window.__manualEditorHarness.getOwnershipSnapshot()
+  ))).toEqual({
+    layers: { instances: 0, listeners: 0, registrySize: 0, sentinels: 0, owners: [] },
+    sharedOverlays: {
+      coordinator: { hosts: 0, listeners: 0 },
+      registry: {
+        layers: 0,
+        topId: null,
+        registrySize: 0,
+        pendingFocus: 0,
+        subscribers: 0,
+        armed: false,
+      },
+    },
+    scroll: { scrollRoots: 0, inertRoots: 0, ownerCount: 0, owners: [] },
+  });
+  expect(await page.evaluate(() => ({
+    inert: Boolean(document.getElementById('root')?.inert),
+    historyOverlay: Boolean(history.state?.__underFlashOverlay),
+  }))).toEqual({ inert: false, historyOverlay: false });
+});
+
+test('PW-AS-TRANSITION-002 — una opción directa conserva el gesto y se ejecuta una sola vez', async ({ page }) => {
+  await openHarness(page);
+  await page.evaluate(() => window.__manualEditorHarness.openActionSheetCase('transition'));
+  const root = page.getByRole('dialog', { name: 'Transición raíz sintética' });
+  await expect(root).toBeVisible();
+
+  await root.getByRole('button', { name: 'Acción directa de transición' }).evaluate((button) => {
+    button.click();
+    button.click();
+  });
+
+  await expect(root).toHaveCount(0);
+  expect(await page.evaluate(() => window.__manualEditorHarness.getTransitionTrace()))
+    .toEqual(['direct', 'root-close']);
+  await expect(page.getByRole('dialog', { name: 'Transición hija sintética' })).toHaveCount(0);
 });
 
 test('PW-AS-004 — contenido largo en landscape llega a la última acción por scroll interno', async ({ page }) => {
@@ -763,6 +828,7 @@ test('PW-AS-STABLE-008 — 20 ciclos no dejan listeners, leases, layers ni estil
           layers: 0,
           topId: null,
           registrySize: 0,
+          pendingFocus: 0,
           subscribers: 0,
           armed: false,
         },
@@ -773,7 +839,7 @@ test('PW-AS-STABLE-008 — 20 ciclos no dejan listeners, leases, layers ni estil
   expect(await page.evaluate(() => Boolean(history.state?.__underFlashOverlay))).toBe(false);
 });
 
-test('PW-AS-CONSUMERS-001 — mazo, descarga y calendario reales conservan acciones y anclaje', async ({ page }) => {
+test('PW-AS-CONSUMERS-001 — descarga y calendario reales enlazan sus ActionSheets', async ({ page }) => {
   await openHarness(page);
 
   await page.evaluate(() => window.__manualEditorHarness.openConsumerCase('deck-card'));
@@ -792,8 +858,11 @@ test('PW-AS-CONSUMERS-001 — mazo, descarga y calendario reales conservan accio
   await waitForActionSheetAnimation(page, name);
   metrics = await readActionSheetMetrics(page, name);
   expect(metrics.section.bottom).toBeCloseTo(metrics.viewport.height, 1);
+  await page.getByRole('button', { name: 'Descargar PDF' }).click();
+  await expect(page.getByRole('dialog', { name: 'Descargar', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('dialog', { name: 'Descargar PDF', exact: true })).toBeVisible();
   await page.keyboard.press('Escape');
-  await expect(page.getByRole('dialog', { name })).toHaveCount(0);
+  await expect(page.getByRole('dialog', { name: 'Descargar PDF', exact: true })).toHaveCount(0);
   await page.evaluate(() => window.__manualEditorHarness.closeConsumerCases());
 
   await page.evaluate(() => window.__manualEditorHarness.openConsumerCase('schedule'));
@@ -802,11 +871,17 @@ test('PW-AS-CONSUMERS-001 — mazo, descarga y calendario reales conservan accio
   await waitForActionSheetAnimation(page, name);
   metrics = await readActionSheetMetrics(page, name);
   expect(metrics.section.bottom).toBeCloseTo(metrics.viewport.height, 1);
+  await page.getByRole('button', { name: 'Cambiar modo' }).click();
+  await expect(page.getByRole('dialog', { name: 'Opciones del horario' })).toHaveCount(0);
+  await expect(page.getByRole('dialog', { name: 'Cambiar modo' })).toBeVisible();
   await page.keyboard.press('Escape');
-  await expect(page.getByRole('dialog', { name })).toHaveCount(0);
+  await expect(page.getByRole('dialog', { name: 'Cambiar modo' })).toHaveCount(0);
 
-  await page.setViewportSize({ width: 844, height: 500 });
-  await page.getByRole('button', { name: 'Descargar horario como PDF' }).click();
+  await page.getByRole('button', { name: 'Ajustes y acciones del horario' }).click();
+  await expect(page.getByRole('dialog', { name: 'Acciones del horario' })).toBeVisible();
+  await page.getByRole('dialog', { name: 'Acciones del horario' })
+    .getByRole('button', { name: 'Descargar PDF' }).click();
+  await expect(page.getByRole('dialog', { name: 'Acciones del horario' })).toHaveCount(0);
   name = 'Exportar horario';
   await waitForActionSheetAnimation(page, name);
   metrics = await readActionSheetMetrics(page, name);
@@ -817,6 +892,16 @@ test('PW-AS-CONSUMERS-001 — mazo, descarga y calendario reales conservan accio
   await expect.poll(() => page.evaluate(() => (
     window.__manualEditorHarness.getOwnershipSnapshot().scroll
   ))).toEqual({ scrollRoots: 0, inertRoots: 0, ownerCount: 0, owners: [] });
+  await expect.poll(() => page.evaluate(() => (
+    window.__manualEditorHarness.getOwnershipSnapshot().sharedOverlays.registry
+  ))).toEqual({
+    layers: 0,
+    topId: null,
+    registrySize: 0,
+    pendingFocus: 0,
+    subscribers: 0,
+    armed: false,
+  });
 });
 
 test('PW-OPEN-001 / KEEP-009 — la ayuda baja el área editable y permite reanudar', async ({ page }) => {

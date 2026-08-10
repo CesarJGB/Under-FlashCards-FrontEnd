@@ -68,6 +68,7 @@ export function createOverlayHistoryController({
   let alive = true;
   let armed = false;
   let closing = false;
+  let pendingRootDismissReason = null;
   let previousState;
 
   const currentUrl = () => locationLike?.href;
@@ -85,7 +86,15 @@ export function createOverlayHistoryController({
   };
 
   const handlePopState = (event = {}) => {
-    if (!alive || closing) return false;
+    if (!alive) return false;
+    if (closing) {
+      if (pendingRootDismissReason === null) return false;
+      const reason = pendingRootDismissReason;
+      pendingRootDismissReason = null;
+      armed = false;
+      onDismissRoot?.(reason);
+      return true;
+    }
     armed = false;
     const depth = Number(getDepth?.() || 0);
     if (rootIsLayer && depth > 0) {
@@ -109,7 +118,9 @@ export function createOverlayHistoryController({
     closing = true;
     if (armed && typeof historyLike?.back === 'function') {
       armed = false;
+      pendingRootDismissReason = reason;
       historyLike.back();
+      return true;
     }
     onDismissRoot?.(reason);
     return true;
@@ -127,6 +138,7 @@ export function createOverlayHistoryController({
       historyLike.replaceState(previousState, '', currentUrl());
     }
     armed = false;
+    pendingRootDismissReason = null;
   };
 
   return {
@@ -246,6 +258,7 @@ export function createOverlayRegistry({
   const dismissTop = (reason = 'programmatic', options = {}) => {
     const depth = state.layers.length;
     if (!depth) return false;
+    if (!options.fromHistory && historyController?.isClosing()) return false;
     if (!options.fromHistory && depth === 1 && historyController?.isArmed()) {
       return historyController.requestRootDismiss(reason);
     }
@@ -410,6 +423,7 @@ export function createOverlayRegistry({
       layers: state.layers.length,
       topId: state.topId,
       registrySize: entries.size,
+      pendingFocus: pendingFocus.size,
       subscribers: subscribers.size,
       armed: Boolean(historyController?.isArmed()),
     }),

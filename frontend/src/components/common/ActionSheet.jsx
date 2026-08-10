@@ -64,6 +64,8 @@ export default function ActionSheet({
   const layerTokenRef = useRef(null);
   const returnTargetRef = useRef(null);
   const closedRef = useRef(false);
+  const actionTriggeredRef = useRef(false);
+  const pendingTransitionRef = useRef(null);
   const wasTopRef = useRef(false);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
@@ -95,6 +97,8 @@ export default function ActionSheet({
   useLayoutEffect(() => {
     if (!open || typeof document === 'undefined') return undefined;
     closedRef.current = false;
+    actionTriggeredRef.current = false;
+    pendingTransitionRef.current = null;
     returnTargetRef.current = returnTargetOverride?.isConnected === true
       ? returnTargetOverride
       : document.activeElement !== document.body
@@ -107,16 +111,25 @@ export default function ActionSheet({
       focusPolicy: 'move-focus',
       returnTarget: returnTargetRef.current,
       replaceOwner: false,
-      onDismiss(reason) {
+      onDismiss(reason, dismissedToken) {
         if (closedRef.current) return;
         closedRef.current = true;
+        const pendingTransition = pendingTransitionRef.current;
+        pendingTransitionRef.current = null;
         onCloseRef.current?.(reason);
+        if (
+          reason === 'option-transition'
+          && pendingTransition?.token === dismissedToken
+        ) {
+          pendingTransition.run();
+        }
       },
     });
     layerTokenRef.current = token;
 
     return () => {
       closedRef.current = true;
+      pendingTransitionRef.current = null;
       removeOwnerLayers?.(layerId, 'host-unmount');
       removeLayer?.(layerId, token, 'unmount');
       if (layerTokenRef.current === token) layerTokenRef.current = null;
@@ -326,8 +339,19 @@ export default function ActionSheet({
                       disabled={option.disabled}
                       data-action-sheet-action="true"
                       onClick={() => {
-                        if (option.disabled) return;
+                        if (option.disabled || actionTriggeredRef.current) return;
+                        actionTriggeredRef.current = true;
                         option.onSelect?.();
+                        if (typeof option.onAfterClose === 'function') {
+                          pendingTransitionRef.current = {
+                            token: layerTokenRef.current,
+                            run: option.onAfterClose,
+                          };
+                          if (!dismissSelf('option-transition')) {
+                            pendingTransitionRef.current = null;
+                          }
+                          return;
+                        }
                         dismissSelf('option');
                       }}
                       className={`w-full min-h-11 rounded-3xl ${compact ? 'p-4' : 'p-5'} text-left active:scale-[0.98] transition-all duration-200 motion-reduce:transition-none disabled:opacity-50 ${optionClasses}`}

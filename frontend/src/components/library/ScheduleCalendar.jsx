@@ -140,10 +140,7 @@ export default function ScheduleCalendar({ userId, scheduleId, onBack, dashboard
       label: 'Descargar PDF',
       description: 'Elige orientación horizontal o vertical',
       icon: Download,
-      onSelect: () => {
-        setShowMobileActions(false);
-        setShowExportSheet(true);
-      },
+      onAfterClose: () => setShowExportSheet(true),
     },
     { id: 'cancel', label: 'Cancelar' },
   ];
@@ -172,7 +169,7 @@ export default function ScheduleCalendar({ userId, scheduleId, onBack, dashboard
       label: 'Cambiar modo',
       description: 'Alterna entre la vista diaria y semanal',
       icon: viewMode === 'day' ? CalendarDays : List,
-      onSelect: () => setShowModeSheet(true),
+      onAfterClose: () => setShowModeSheet(true),
     },
     {
       id: 'change-schedule',

@@ -551,7 +551,7 @@ export default function PdfExtractor({ onTextExtracted, onExtractionComplete, oc
             icon: Layers,
             label: 'Seleccionar parte',
             description: 'Elige únicamente las páginas que necesitas.',
-            onSelect: handleOpenPartialSelection,
+            onAfterClose: handleOpenPartialSelection,
           },
         ]}
       />

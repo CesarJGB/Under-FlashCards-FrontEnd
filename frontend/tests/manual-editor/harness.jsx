@@ -447,6 +447,8 @@ function Harness() {
   const [longSheetOpen, setLongSheetOpen] = useState(false);
   const [footerSheetOpen, setFooterSheetOpen] = useState(false);
   const [longFooterSheetOpen, setLongFooterSheetOpen] = useState(false);
+  const [transitionRootOpen, setTransitionRootOpen] = useState(false);
+  const [transitionChildOpen, setTransitionChildOpen] = useState(false);
   const [consumerSurface, setConsumerSurface] = useState(null);
   const [, forceRender] = useState(0);
   const renderCountRef = useRef(0);
@@ -456,6 +458,7 @@ function Harness() {
   const questionTriggerRef = useRef(null);
   const answerTriggerRef = useRef(null);
   const returnSideRef = useRef('question');
+  const transitionTraceRef = useRef([]);
 
   const updateStyle = useCallback((key, value) => {
     styleUpdateCountsRef.current.set(key, (styleUpdateCountsRef.current.get(key) || 0) + 1);
@@ -542,6 +545,10 @@ function Harness() {
         else if (kind === 'consecutive') {
           setLowerSheetOpen(true);
           setUpperSheetOpen(true);
+        } else if (kind === 'transition') {
+          transitionTraceRef.current = [];
+          setTransitionChildOpen(false);
+          setTransitionRootOpen(true);
         } else if (kind === 'long') setLongSheetOpen(true);
         else if (kind === 'footer') setFooterSheetOpen(true);
         else if (kind === 'long-footer') setLongFooterSheetOpen(true);
@@ -555,7 +562,10 @@ function Harness() {
         setLongSheetOpen(false);
         setFooterSheetOpen(false);
         setLongFooterSheetOpen(false);
+        setTransitionRootOpen(false);
+        setTransitionChildOpen(false);
       },
+      getTransitionTrace: () => [...transitionTraceRef.current],
       openConsumerCase(kind) {
         setConsumerSurface(kind);
       },
@@ -989,6 +999,40 @@ function Harness() {
             Confirmar contenido largo
           </button>
         )}
+      />
+
+      <ActionSheet
+        open={transitionRootOpen}
+        title="Transición raíz sintética"
+        onClose={() => {
+          transitionTraceRef.current.push('root-close');
+          setTransitionRootOpen(false);
+        }}
+        options={[
+          {
+            id: 'open-transition-child',
+            label: 'Abrir hoja siguiente',
+            onAfterClose: () => {
+              transitionTraceRef.current.push('after-close');
+              setTransitionChildOpen(true);
+            },
+          },
+          {
+            id: 'direct-transition-action',
+            label: 'Acción directa de transición',
+            onSelect: () => transitionTraceRef.current.push('direct'),
+          },
+        ]}
+      />
+
+      <ActionSheet
+        open={transitionChildOpen}
+        title="Transición hija sintética"
+        onClose={() => {
+          transitionTraceRef.current.push('child-close');
+          setTransitionChildOpen(false);
+        }}
+        options={[{ id: 'child-action', label: 'Acción hija' }]}
       />
     </div>
   );

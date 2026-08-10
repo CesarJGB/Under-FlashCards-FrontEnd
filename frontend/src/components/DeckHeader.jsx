@@ -75,10 +75,7 @@ export default function DeckHeader({
       label: 'Descargar PDF',
       description: 'Elige el formato de PDF que quieres generar.',
       icon: FileText,
-      onSelect: () => {
-        setDownloadSheetOpen(false);
-        setPdfSheetOpen(true);
-      },
+      onAfterClose: () => setPdfSheetOpen(true),
     },
     {
       id: 'cancel',

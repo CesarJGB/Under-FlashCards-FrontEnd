@@ -80,6 +80,36 @@ test('UT-AS-001 — two sheets and a child palette dismiss one top layer per eve
   assert.equal(registry.getRuntimeSnapshot().registrySize, 0);
 });
 
+test('UT-AS-TRANSITION-001 — root dismissal waits for popstate and completes once', () => {
+  const { historyLike, registry, windowLike } = createRegistryFixture();
+  const dismissed = [];
+  const token = registry.openLayer({
+    id: 'root',
+    kind: 'sheet',
+    onDismiss: (reason) => dismissed.push(reason),
+  });
+
+  assert.equal(registry.dismissLayer('root', token, 'option-transition'), true);
+  assert.equal(registry.getSnapshot().topId, 'root');
+  assert.deepEqual(dismissed, []);
+  assert.deepEqual(historyLike.calls.at(-1), ['back']);
+  assert.equal(registry.dismissLayer('root', token, 'option-transition'), false);
+
+  windowLike.dispatch('popstate', { state: { host: 'preserved' } });
+  assert.equal(registry.getSnapshot().topId, null);
+  assert.deepEqual(dismissed, ['option-transition']);
+  windowLike.dispatch('popstate', { state: { host: 'preserved' } });
+  assert.deepEqual(dismissed, ['option-transition']);
+  assert.deepEqual(registry.getRuntimeSnapshot(), {
+    layers: 0,
+    topId: null,
+    registrySize: 0,
+    pendingFocus: 0,
+    subscribers: 0,
+    armed: false,
+  });
+});
+
 const createElement = ({ overflow = '', overscrollBehavior = '', top = 0, left = 0 } = {}) => ({
   style: {
     overflow,
