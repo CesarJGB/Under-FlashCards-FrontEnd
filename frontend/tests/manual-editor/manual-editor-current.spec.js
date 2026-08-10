@@ -1112,6 +1112,84 @@ test('PW-SIDE-001 — tres alternancias restauran rangos independientes', async 
   }))).toEqual({ start: 5, end: 17, direction: 'backward' });
 });
 
+test('PW-IMAGE-FIRST-001 — un solo gesto abre una sola instancia del sheet con el teclado activo', async ({ page }) => {
+  await openHarness(page, { touch: true });
+  let fileChooserCount = 0;
+  page.on('filechooser', () => { fileChooserCount += 1; });
+
+  const openFromFirstTouch = async (fixture, side, hasImage) => {
+    await chooseAndOpen(page, fixture, side);
+    const textarea = page.getByTestId(`manual-card-editor-${side}`);
+    await textarea.focus();
+    await expect(textarea).toBeFocused();
+    expect(await page.evaluate(() => document.activeElement?.tagName)).toBe('TEXTAREA');
+
+    await page.evaluate(() => {
+      window.__manualEditorHarness.resetPickerState();
+      window.__pwImageSheetOpenCount = 0;
+      window.__pwImageSheetObserver?.disconnect();
+      const seen = new WeakSet();
+      const recordSheets = () => {
+        document.querySelectorAll('[data-image-sheet="true"]').forEach((node) => {
+          if (!seen.has(node)) {
+            seen.add(node);
+            window.__pwImageSheetOpenCount += 1;
+          }
+        });
+      };
+      window.__pwImageSheetObserver = new MutationObserver(recordSheets);
+      window.__pwImageSheetObserver.observe(document.body, { childList: true, subtree: true });
+    });
+
+    const imageControl = page.getByTestId('manual-card-editor-image-control');
+    await imageControl.dispatchEvent('pointerdown', {
+      pointerType: 'touch',
+      isPrimary: true,
+      button: 0,
+    });
+
+    const sheet = page.getByRole('dialog', { name: 'Imagen de la tarjeta' });
+    await expect(sheet).toBeVisible();
+    await expect(sheet).toHaveCount(1);
+    await expect(sheet.locator('[data-image-sheet="true"]')).toHaveAttribute('data-draft-side', side);
+    await expect.poll(() => page.evaluate(() => window.__pwImageSheetOpenCount)).toBe(1);
+    if (hasImage) await expect(sheet.getByTestId('image-sheet-remove')).toBeVisible();
+    expect(await page.evaluate(() => window.__manualEditorHarness.getPickerState())).toMatchObject({
+      imageRequests: 0,
+      imageDirectClicks: 0,
+      imageTrustedDirectClicks: 0,
+    });
+    expect(fileChooserCount).toBe(0);
+
+    await imageControl.dispatchEvent('pointerup', {
+      pointerType: 'touch',
+      isPrimary: true,
+      button: 0,
+    });
+    await imageControl.dispatchEvent('click', { pointerType: 'touch', detail: 1 });
+    await expect(sheet).toHaveCount(1);
+    await expect.poll(() => page.evaluate(() => window.__pwImageSheetOpenCount)).toBe(1);
+    expect(fileChooserCount).toBe(0);
+
+    await sheet.getByTestId('image-sheet-cancel').click();
+    await expect(sheet).toHaveCount(0);
+  };
+
+  await openFromFirstTouch('distinct', 'answer', false);
+  await closeThroughHarness(page);
+  await openFromFirstTouch('image', 'question', true);
+
+  const imageControl = page.getByTestId('manual-card-editor-image-control');
+  await imageControl.focus();
+  await imageControl.press('Enter');
+  const keyboardSheet = page.getByRole('dialog', { name: 'Imagen de la tarjeta' });
+  await expect(keyboardSheet).toBeVisible();
+  await expect(keyboardSheet).toHaveCount(1);
+  await expect(keyboardSheet.locator('[data-image-sheet="true"]')).toHaveAttribute('data-draft-side', 'question');
+  expect(fileChooserCount).toBe(0);
+  await keyboardSheet.getByTestId('image-sheet-cancel').click();
+});
+
 test('PW-IMAGE-APP-001 — el sheet conserva borrador y preview hasta Aplicar', async ({ page }) => {
   await openHarness(page);
   await chooseAndOpen(page, 'distinct', 'answer');

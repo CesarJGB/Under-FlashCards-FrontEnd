@@ -204,6 +204,7 @@ export default function ManualCardEditorModal({
   const sideTriggerRef = useRef(null);
   const colorTriggerRef = useRef(null);
   const alignTriggerRef = useRef(null);
+  const imageTriggerRef = useRef(null);
   const sheetSequenceRef = useRef(0);
   const [customColorSheet, setCustomColorSheet] = useState(null);
   const [imageSheet, setImageSheet] = useState(null);
@@ -270,6 +271,15 @@ export default function ManualCardEditorModal({
       replaceOwner: true,
     });
   };
+  const openImageSheet = () => {
+    sheetSequenceRef.current += 1;
+    setImageSheet({
+      id: sheetSequenceRef.current,
+      initialSide: activeSide,
+      originalImage: contentImage || '',
+      originalSide: imageSide || '',
+    });
+  };
   const sidePress = useFocusPreservingPress(sideTriggerRef, () => {
     if (layerStack.topId) layerStack.dismissTop('side-switch');
     editorSession.switchSide(editorSession.activeSide === 'question' ? 'answer' : 'question');
@@ -280,6 +290,7 @@ export default function ManualCardEditorModal({
   const alignMenuPress = useFocusPreservingPress(alignTriggerRef, (activation) => {
     toggleEditorLayerFromPress(activation, ALIGN_LAYER_ID, alignTriggerRef.current);
   }, open);
+  const imagePress = useFocusPreservingPress(imageTriggerRef, openImageSheet, open);
 
   if (!open || typeof document === 'undefined') return null;
 
@@ -376,16 +387,6 @@ export default function ManualCardEditorModal({
       label: activeCopy.label.toLowerCase(),
     });
     closeColorMenu('custom-color');
-  };
-
-  const openImageSheet = () => {
-    sheetSequenceRef.current += 1;
-    setImageSheet({
-      id: sheetSequenceRef.current,
-      initialSide: activeSide,
-      originalImage: contentImage || '',
-      originalSide: imageSide || '',
-    });
   };
 
   const saveCard = async (keepEditing) => {
@@ -553,8 +554,9 @@ export default function ManualCardEditorModal({
             <div className="relative flex h-10 w-10 shrink-0 items-center justify-center">
               {hasActiveImage ? (
                 <button
+                  ref={imageTriggerRef}
                   type="button"
-                  onClick={openImageSheet}
+                  {...imagePress}
                   className="flex h-10 w-10 cursor-pointer overflow-hidden rounded-xl border border-slate-200 bg-slate-50 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
                   title={`Cambiar imagen de ${activeCopy.label.toLowerCase()}`}
                   aria-label={`Cambiar imagen de ${activeCopy.label.toLowerCase()}`}
@@ -568,8 +570,9 @@ export default function ManualCardEditorModal({
                 </button>
               ) : (
                 <button
+                  ref={imageTriggerRef}
                   type="button"
-                  onClick={openImageSheet}
+                  {...imagePress}
                   className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition-colors active:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
                   title={`Añadir imagen a ${activeCopy.label.toLowerCase()}`}
                   aria-label={`Añadir imagen a ${activeCopy.label.toLowerCase()}`}
