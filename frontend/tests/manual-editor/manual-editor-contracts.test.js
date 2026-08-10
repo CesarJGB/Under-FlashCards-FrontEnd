@@ -155,7 +155,7 @@ test('Corte 1 protects semantic pickers, per-side selection and contextual resum
     readFrontendFile('src/components/creator/manual-editor/useManualEditorSession.js'),
   ]);
 
-  assert.match(stylePanel, /onClick=\{\(\) => onCustomColorRequest\?\.\(normalizedValue\)\}/);
+  assert.match(stylePanel, /onCustomColorRequest\?\.\(normalizedValue, semanticReturnTarget\)/);
 
   assert.match(session, /question:\s*createSideSelection/);
   assert.match(session, /answer:\s*createSideSelection/);
@@ -200,6 +200,8 @@ test('post-Corte 5 focus invariants remain and new color/image sheets avoid prog
   assert.match(modal, /ref=\{sideTriggerRef\}[\s\S]*\{\.\.\.sidePress\}/);
   assert.match(modal, /ref=\{colorTriggerRef\}[\s\S]*\{\.\.\.colorMenuPress\}/);
   assert.match(modal, /ref=\{alignTriggerRef\}[\s\S]*\{\.\.\.alignMenuPress\}/);
+  assert.match(stylePanel, /ref=\{customColorTriggerRef\}[\s\S]*\{\.\.\.customColorPress\}/);
+  assert.match(colorSheet, /returnTarget=\{returnTarget\}/);
   assert.match(activation, /addEventListener\('touchstart',[\s\S]*passive: false/);
   assert.match(activation, /ignoreNextClick/);
   assert.match(hook, /stateRef\.current = next[\s\S]*reactDispatch\(event\)/);

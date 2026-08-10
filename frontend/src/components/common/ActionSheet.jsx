@@ -36,6 +36,7 @@ export default function ActionSheet({
   footer,
   closeAction,
   portalTarget: portalTargetOverride,
+  returnTarget: returnTargetOverride,
 }) {
   const parentScope = useOverlayScope();
   const sharedRegistryRef = useRef(null);
@@ -94,9 +95,11 @@ export default function ActionSheet({
   useLayoutEffect(() => {
     if (!open || typeof document === 'undefined') return undefined;
     closedRef.current = false;
-    returnTargetRef.current = document.activeElement !== document.body
-      ? document.activeElement
-      : null;
+    returnTargetRef.current = returnTargetOverride?.isConnected === true
+      ? returnTargetOverride
+      : document.activeElement !== document.body
+        ? document.activeElement
+        : null;
     const token = openLayer({
       id: layerId,
       ownerId: parentScope?.hostLayerId || 'action-sheet-root',

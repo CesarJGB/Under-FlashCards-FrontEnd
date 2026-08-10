@@ -1047,6 +1047,97 @@ test('PW-COLOR-APP-001 — primer toque abre un borrador estable y Aplicar confi
   await attachInteractionTrace(page, testInfo, 'PW-COLOR-APP-001');
 });
 
+test('PW-COLOR-RESUME-001 — color personalizado restaura foco y selección al cancelar y aplicar', async ({ page }) => {
+  await openHarness(page, { touch: true });
+
+  const openCustomFromFirstTouch = async (textarea) => {
+    await page.getByTestId('manual-card-editor-color').tap();
+    await expect(page.locator('[data-color-palette="true"]')).toBeVisible();
+    await expect(textarea).toBeFocused();
+    await page.evaluate(() => {
+      window.__pwCustomColorOpenCount = 0;
+      window.__pwCustomColorObserver?.disconnect();
+      const seen = new WeakSet();
+      const recordSheets = () => {
+        document.querySelectorAll('[data-custom-color-sheet="true"]').forEach((node) => {
+          if (!seen.has(node)) {
+            seen.add(node);
+            window.__pwCustomColorOpenCount += 1;
+          }
+        });
+      };
+      window.__pwCustomColorObserver = new MutationObserver(recordSheets);
+      window.__pwCustomColorObserver.observe(document.body, { childList: true, subtree: true });
+    });
+
+    const customColor = page.getByRole('button', { name: 'Color personalizado' });
+    await customColor.dispatchEvent('pointerdown', {
+      pointerType: 'touch',
+      isPrimary: true,
+      button: 0,
+    });
+    const sheet = page.getByRole('dialog', { name: 'Color personalizado' });
+    await expect(sheet).toBeVisible();
+    await expect(sheet).toHaveCount(1);
+    await expect.poll(() => page.evaluate(() => window.__pwCustomColorOpenCount)).toBe(1);
+    return sheet;
+  };
+
+  await chooseAndOpen(page, 'distinct', 'question');
+  const question = page.getByTestId('manual-card-editor-question');
+  await question.focus();
+  await page.evaluate(() => {
+    window.__manualEditorHarness.setSelection(2, 11, 'forward');
+    window.__manualEditorHarness.resetStyleUpdateCounts();
+  });
+  const originalQuestionColor = await question.evaluate((node) => getComputedStyle(node).color);
+  const cancelSheet = await openCustomFromFirstTouch(question);
+  expect(await page.evaluate(() => window.__manualEditorHarness.getStyleUpdateCounts().qColor || 0)).toBe(0);
+  await cancelSheet.getByTestId('custom-color-hex').fill('#abcdef');
+  await cancelSheet.getByTestId('custom-color-cancel').click();
+  await expect(cancelSheet).toHaveCount(0);
+  await expect(question).toBeFocused();
+  expect(await readSelection(question)).toEqual({ start: 2, end: 11, direction: 'forward' });
+  await expect(question).toHaveCSS('color', originalQuestionColor);
+  expect(await page.evaluate(() => window.__manualEditorHarness.getStyleUpdateCounts().qColor || 0)).toBe(0);
+  await expect.poll(() => page.evaluate(() => window.__manualEditorHarness.getLayerSnapshot()))
+    .toMatchObject({ topId: null, count: 0 });
+
+  await closeThroughHarness(page);
+  await chooseAndOpen(page, 'distinct', 'answer');
+  const answer = page.getByTestId('manual-card-editor-answer');
+  await answer.focus();
+  await page.evaluate(() => {
+    window.__manualEditorHarness.setSelection(5, 17, 'backward');
+    window.__manualEditorHarness.resetStyleUpdateCounts();
+  });
+  const applySheet = await openCustomFromFirstTouch(answer);
+  await applySheet.getByTestId('custom-color-hex').fill('#2468ac');
+  await applySheet.getByTestId('custom-color-apply').click();
+  await expect(applySheet).toHaveCount(0);
+  const applyCounts = await page.evaluate(() => window.__manualEditorHarness.getStyleUpdateCounts());
+  expect(applyCounts.aColor).toBe(1);
+  expect(applyCounts.qColor || 0).toBe(0);
+  await expect(answer).toBeFocused();
+  expect(await readSelection(answer)).toEqual({ start: 5, end: 17, direction: 'backward' });
+  await expect(answer).toHaveCSS('color', 'rgb(36, 104, 172)');
+  await expect.poll(() => page.evaluate(() => window.__manualEditorHarness.getLayerSnapshot()))
+    .toMatchObject({ topId: null, count: 0 });
+
+  const colorTrigger = page.getByTestId('manual-card-editor-color');
+  await colorTrigger.focus();
+  await colorTrigger.press('Enter');
+  const keyboardCustomColor = page.getByRole('button', { name: 'Color personalizado' });
+  await keyboardCustomColor.focus();
+  await keyboardCustomColor.press('Enter');
+  const keyboardSheet = page.getByRole('dialog', { name: 'Color personalizado' });
+  await expect(keyboardSheet).toBeVisible();
+  await keyboardSheet.getByTestId('custom-color-cancel').click();
+  await expect(keyboardSheet).toHaveCount(0);
+  await expect(colorTrigger).toBeFocused();
+  await expect(page.locator('[data-color-palette="true"], [data-action-sheet-layer]')).toHaveCount(0);
+});
+
 test('PW-COLOR-APP-002 — cancelar, cierre superior, hex inválido y destino congelado no mutan otro lado', async ({ page }) => {
   await openHarness(page);
   await chooseAndOpen(page, 'distinct', 'question');

@@ -30,6 +30,7 @@ export default function CustomColorActionSheet({
   fallbackColor = '#0f172a',
   targetLabel,
   portalTarget,
+  returnTarget,
   onApply,
   onClose,
 }) {
@@ -87,6 +88,7 @@ export default function CustomColorActionSheet({
       onClose={onClose}
       compact
       portalTarget={portalTarget}
+      returnTarget={returnTarget}
       footer={(
         <div className="grid grid-cols-2 gap-2">
           <button

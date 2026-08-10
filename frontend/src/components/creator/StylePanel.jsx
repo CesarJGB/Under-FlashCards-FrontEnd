@@ -3,6 +3,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { ImagePlus, Plus, Minus, Bold, Italic, Pipette, X } from 'lucide-react';
 import { OverlayPortal, useOverlayScope } from '../common/OverlayScope';
 import CustomColorActionSheet from './manual-editor/CustomColorActionSheet';
+import { useFocusPreservingPress } from './manual-editor/editorActivation';
 
 const VIEWPORT_MARGIN = 8;
 const PALETTE_GAP = 8;
@@ -45,6 +46,7 @@ export function ColorPalette({
   const overlayScope = useOverlayScope();
   const sharedGeometry = editorGeometry || overlayScope?.geometry;
   const paletteRef = useRef(null);
+  const customColorTriggerRef = useRef(null);
   const [position, setPosition] = useState(null);
   const normalizedValue = value || '';
   const onCloseRef = useRef(onClose);
@@ -54,6 +56,12 @@ export function ColorPalette({
     && sharedGeometry.visual
     && sharedGeometry.layout
   );
+  const customColorPress = useFocusPreservingPress(customColorTriggerRef, (activation) => {
+    const semanticReturnTarget = activation === 'semantic-click'
+      ? anchorRef?.current?.querySelector?.('button')
+      : null;
+    onCustomColorRequest?.(normalizedValue, semanticReturnTarget);
+  });
 
   useLayoutEffect(() => {
     if (typeof window === 'undefined' || typeof document === 'undefined') return undefined;
@@ -260,11 +268,12 @@ export function ColorPalette({
       })}
 
         <button
+          ref={customColorTriggerRef}
           type="button"
           className="group relative flex min-h-9 min-w-9 cursor-pointer items-center justify-center overflow-hidden rounded-xl border border-slate-300 bg-gradient-to-tr from-amber-400 via-rose-400 to-indigo-400 shadow-xs transition-transform has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-indigo-400 has-[:focus-visible]:ring-offset-2 [@media(hover:hover)]:hover:scale-105 dark:border-slate-600 dark:has-[:focus-visible]:ring-offset-slate-800"
           title="Color personalizado"
           aria-label="Color personalizado"
-          onClick={() => onCustomColorRequest?.(normalizedValue)}
+          {...customColorPress}
           data-custom-color-control="true"
           data-testid="manual-editor-custom-color"
         >
@@ -498,8 +507,8 @@ export default function StylePanel({
                   value={styles[colorKey]}
                   swatches={SWATCHES}
                   onChange={(value) => updateStyle(colorKey, value)}
-                  onCustomColorRequest={(originalColor) => {
-                    setCustomColor({ key: colorKey, originalColor, label: title.toLowerCase() });
+                  onCustomColorRequest={(originalColor, returnTarget) => {
+                    setCustomColor({ key: colorKey, originalColor, label: title.toLowerCase(), returnTarget });
                     closeColor('custom-color');
                   }}
                   onClose={closeColor}
@@ -602,8 +611,8 @@ export default function StylePanel({
                   value={styles.bgColor}
                   swatches={SWATCHES}
                   onChange={(value) => updateStyle('bgColor', value)}
-                  onCustomColorRequest={(originalColor) => {
-                    setCustomColor({ key: 'bgColor', originalColor, label: 'el fondo' });
+                  onCustomColorRequest={(originalColor, returnTarget) => {
+                    setCustomColor({ key: 'bgColor', originalColor, label: 'el fondo', returnTarget });
                     closeColor('custom-color');
                   }}
                   onClose={closeColor}
@@ -629,6 +638,7 @@ export default function StylePanel({
           originalColor={customColor.originalColor}
           fallbackColor={customColor.key === 'bgColor' ? '#ffffff' : '#0f172a'}
           targetLabel={customColor.label}
+          returnTarget={customColor.returnTarget}
           onApply={(value) => {
             updateStyle(customColor.key, value);
             setCustomColor(null);

@@ -377,7 +377,7 @@ export default function ManualCardEditorModal({
     layerStack.dismissLayer(ALIGN_LAYER_ID, alignLayerToken, reason)
   );
 
-  const openCustomColorSheet = () => {
+  const openCustomColorSheet = (_originalColor, returnTarget) => {
     sheetSequenceRef.current += 1;
     setCustomColorSheet({
       id: sheetSequenceRef.current,
@@ -385,6 +385,7 @@ export default function ManualCardEditorModal({
       styleKey: activeColorKey,
       originalColor: activeColor,
       label: activeCopy.label.toLowerCase(),
+      returnTarget,
     });
     closeColorMenu('custom-color');
   };
@@ -710,6 +711,7 @@ export default function ManualCardEditorModal({
           fallbackColor="#0f172a"
           targetLabel={customColorSheet.label}
           portalTarget={document.body}
+          returnTarget={customColorSheet.returnTarget}
           onApply={(value) => {
             updateStyle?.(customColorSheet.styleKey, value);
             setCustomColorSheet(null);
