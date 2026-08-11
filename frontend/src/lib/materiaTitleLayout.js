@@ -9,6 +9,8 @@ export const FOLDER_TITLE_LAYOUT = Object.freeze({
   actionButtonHeightPx: 30,
   actionButtonGapPx: 8,
   titleActionGapPx: 2,
+  labelHeightPx: 9,
+  labelTitleGapPx: 4,
   bottomStripeHeightPx: 8,
   bottomStripeGapPx: 4,
   maxLines: 2,
@@ -23,7 +25,9 @@ export function getFolderTitleSafeArea(folderWidth) {
   const topPx = FOLDER_TITLE_LAYOUT.actionButtonTopPx
     - FOLDER_TITLE_LAYOUT.folderFrontTopPx
     + FOLDER_TITLE_LAYOUT.actionButtonHeightPx
-    + FOLDER_TITLE_LAYOUT.titleActionGapPx;
+    + FOLDER_TITLE_LAYOUT.titleActionGapPx
+    - FOLDER_TITLE_LAYOUT.labelHeightPx
+    - FOLDER_TITLE_LAYOUT.labelTitleGapPx;
   const bottomReservedPx = FOLDER_TITLE_LAYOUT.bottomStripeHeightPx
     + FOLDER_TITLE_LAYOUT.bottomStripeGapPx;
   const frontHeightPx = FOLDER_TITLE_LAYOUT.folderHeightPx - FOLDER_TITLE_LAYOUT.folderFrontTopPx;
@@ -83,7 +87,7 @@ export function getMateriaTitleLayout({ name, availableWidth, measureText }) {
       fontSizePx: FOLDER_TITLE_LAYOUT.denseFontSizesPx.at(-1),
       lineHeight: 1.12,
       maxLines: FOLDER_TITLE_LAYOUT.maxLines,
-      showLabel: false,
+      showLabel: true,
       truncated: false,
     };
   }
@@ -115,7 +119,7 @@ export function getMateriaTitleLayout({ name, availableWidth, measureText }) {
       fontSizePx: FOLDER_TITLE_LAYOUT.comfortableFontSizePx,
       lineHeight: 1.05,
       maxLines: FOLDER_TITLE_LAYOUT.maxLines,
-      showLabel: false,
+      showLabel: true,
       truncated: false,
     };
   }
@@ -130,7 +134,7 @@ export function getMateriaTitleLayout({ name, availableWidth, measureText }) {
     fontSizePx,
     lineHeight: 1.08,
     maxLines: FOLDER_TITLE_LAYOUT.maxLines,
-    showLabel: false,
+    showLabel: true,
     truncated: !fittingDenseSize,
   };
 }

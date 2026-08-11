@@ -7,6 +7,7 @@ test('an existing valid materia color remains authoritative', () => {
 });
 
 test('the bottom strip pastel is derived from the materia accent', () => {
+  assert.equal(getMateriaPastelColor({ color: '#3B82F6' }), 'rgb(177, 205, 251)');
   assert.equal(getMateriaPastelColor({ color: '#000000' }, 0.5), 'rgb(128, 128, 128)');
   assert.equal(getMateriaPastelColor({ color: '#FFFFFF' }, 0.5), 'rgb(255, 255, 255)');
 });

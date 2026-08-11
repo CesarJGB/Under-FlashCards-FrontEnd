@@ -71,7 +71,7 @@ export function mixWithWhite(hex, amount = 0.84) {
   return `rgb(${mix(r)}, ${mix(g)}, ${mix(b)})`;
 }
 
-export function getMateriaPastelColor(materia, amount = 0.78) {
+export function getMateriaPastelColor(materia, amount = 0.6) {
   return mixWithWhite(getMateriaColor(materia), amount);
 }
 

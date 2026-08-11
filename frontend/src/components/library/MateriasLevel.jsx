@@ -53,7 +53,7 @@ function FolderCardShell({ accent, onClick, cornerBadge, tabIcon, children }) {
       >
         {/* Pestaña Izquierda Superior */}
         <div
-          className="absolute left-0 w-[55%] h-[24px] rounded-t-xl flex items-center pl-4"
+          className="absolute left-0 w-[55%] h-[24px] rounded-t-xl flex items-start pl-1 pt-1"
           style={{ 
             background: tabGradient, 
             top: '-24px',
@@ -61,7 +61,7 @@ function FolderCardShell({ accent, onClick, cornerBadge, tabIcon, children }) {
           }}
         >
           {tabIcon && (
-            <div className="flex h-5 w-5 items-center justify-center text-white/95 drop-shadow-sm">
+            <div className="flex h-5 w-5 shrink-0 items-center justify-center text-white/95 drop-shadow-sm">
               {tabIcon}
             </div>
           )}
@@ -93,13 +93,12 @@ function FolderCardShell({ accent, onClick, cornerBadge, tabIcon, children }) {
 function MateriaTitle({ name }) {
   const { regionRef, layout } = useMateriaTitleLayout(name);
   const safeArea = getFolderTitleSafeArea(0);
-  const verticalAlignment = layout.state === 'single' ? 'justify-end' : 'justify-center';
 
   return (
     <div
       ref={regionRef}
       data-title-state={layout.state}
-      className={`absolute min-w-0 flex flex-col ${verticalAlignment} text-left select-none pointer-events-none`}
+      className="absolute min-w-0 flex flex-col justify-end text-left select-none pointer-events-none"
       style={{
         left: `${FOLDER_TITLE_LAYOUT.leftPaddingPx}px`,
         right: `${safeArea.rightReservedPx}px`,
@@ -220,7 +219,7 @@ export default function MateriasLevel({
         <FolderCardShell
           accent={accent}
           onClick={() => setCurrentPath({ ...currentPath, materiaId: m._id })}
-          tabIcon={<MateriaIcon className="h-[18px] w-[18px]" strokeWidth={2.2} aria-hidden="true" />}
+          tabIcon={<MateriaIcon className="h-5 w-5" strokeWidth={2.2} aria-hidden="true" />}
           cornerBadge={
             <>
               {/* El botón conserva su posición fija en la carpeta. */}
