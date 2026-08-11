@@ -53,19 +53,19 @@ function FolderCardShell({ accent, onClick, cornerBadge, tabIcon, children }) {
       >
         {/* Pestaña Izquierda Superior */}
         <div
-          className="absolute left-0 w-[55%] h-8 rounded-t-xl flex items-start pl-1.5 pt-1.5"
+          className="absolute left-0 w-[55%] h-8 rounded-t-xl"
           style={{ 
             background: tabGradient, 
             top: '-24px',
             boxShadow: 'inset 0 1.5px 1px rgba(255, 255, 255, 0.4)' 
           }}
-        >
-          {tabIcon && (
-            <div className="flex h-5 w-5 shrink-0 items-center justify-center text-white/95 drop-shadow-sm">
-              {tabIcon}
-            </div>
-          )}
-        </div>
+        />
+
+        {tabIcon && (
+          <div className="pointer-events-none absolute left-[10px] top-[-14px] z-[1] flex h-5 w-5 items-center justify-center text-white/95 drop-shadow-sm">
+            {tabIcon}
+          </div>
+        )}
 
         {/* Franja pastel integrada al borde inferior del mismo frontal. */}
         <div
