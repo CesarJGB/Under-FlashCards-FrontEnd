@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Loader2, Bookmark, ChevronUp, MoreHorizontal, Pencil, ArrowRight } from 'lucide-react';
+import { Loader2, ChevronUp, MoreHorizontal, Pencil, ArrowRight } from 'lucide-react';
 import DeckCard from '../DeckCard';
 import ActionSheet from '../common/ActionSheet';
 import { getMateriaColor, getMateriaInitial, lightenColor, darkenColor, hexToRgba } from '../../lib/materiaColors';
@@ -98,6 +98,7 @@ export default function MateriasLevel({
   }, [materias, showAll, maxVisible]);
 
   const isList = viewMode === 'list';
+  const unclassifiedDecks = useMemo(() => processedDecks.filter(d => !d.materiaId), [processedDecks]);
 
   const handleEditMateriaName = (materia) => {
     setAcademicModal({ type: 'materia', editing: materia });
@@ -297,20 +298,22 @@ export default function MateriasLevel({
 
       {/* MAZOS SIN CLASIFICAR */}
       <div className="pt-6 border-t border-zinc-200/60 dark:border-zinc-700/50">
-        <div className="flex items-center gap-1.5 mb-4">
-          <Bookmark className="w-3.5 h-3.5 text-zinc-400 dark:text-zinc-500" />
-          <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+        <div className="flex items-center gap-2.5 mb-4">
+          <h3 className="text-xl font-black uppercase tracking-tight text-zinc-800 dark:text-zinc-100">
             Mazos sin clasificar
-          </h4>
+          </h3>
+          <span className="px-2.5 py-0.5 rounded-full bg-zinc-200/80 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 text-xs font-black">
+            {unclassifiedDecks.length}
+          </span>
         </div>
 
-        {processedDecks.filter(d => !d.materiaId).length === 0 ? (
+        {unclassifiedDecks.length === 0 ? (
           <div className="text-xs text-zinc-400 dark:text-zinc-500 font-medium italic bg-zinc-50/40 dark:bg-zinc-900/30 border border-zinc-100 dark:border-zinc-800 rounded-xl p-4 text-center">
             Todos tus mazos están organizados ✓
           </div>
         ) : (
           <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
-            {processedDecks.filter(d => !d.materiaId).map((d) => (
+            {unclassifiedDecks.map((d) => (
               <DeckCard
                 key={d.id}
                 deck={d}
@@ -331,3 +334,4 @@ export default function MateriasLevel({
     </div>
   );
 }
+
