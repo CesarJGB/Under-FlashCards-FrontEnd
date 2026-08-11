@@ -153,13 +153,15 @@ export default function MateriasLevel({
 
     // MODO GRID
     
-    // 1. Heurística: detectamos si el texto tendrá 2 líneas basandonos en su longitud.
-    const isLongName = m.name.length > 18; 
-    
-    // 2. Reglas dinámicas: Ajuste del icono izquierdo
-    const iconTop = isLongName ? 'top-[40px]' : 'top-[46px]'; 
-    const iconBoxSize = isLongName ? 'w-6 h-6' : 'w-8 h-8';     
-    const iconTextSize = isLongName ? 'text-xs' : 'text-sm';    
+    // El botón de opciones ocupa siempre la misma zona superior derecha.
+    // El bloque de texto reserva ese espacio para evitar roces en una o dos líneas.
+    const nameLength = m.name.trim().length;
+    const textBlockWidth = 'max-w-[calc(100%_-_3.25rem)]';
+    const titleTextSize = nameLength > 32
+      ? 'text-sm'
+      : nameLength > 18
+        ? 'text-[15px]'
+        : 'text-base';
 
     return (
       <div key={m._id} className="relative">
@@ -168,14 +170,7 @@ export default function MateriasLevel({
           onClick={() => setCurrentPath({ ...currentPath, materiaId: m._id })}
           cornerBadge={
             <>
-              {/* Icono/Inicial - Se adapta dinámicamente según las líneas de texto */}
-              <div className={`absolute ${iconTop} left-4 transition-all duration-200`}>
-                <div className={`${iconBoxSize} rounded-lg bg-white flex items-center justify-center shadow-md border border-black/5`}>
-                  <span className={`font-black ${iconTextSize}`} style={{ color: accent }}>{initial}</span>
-                </div>
-              </div>
-
-              {/* Botón de opciones - Desplazado hacia abajo (top-[64px]) y alineado a la derecha (right-2.5) */}
+              {/* El botón conserva su posición fija en la carpeta. */}
               <div className="absolute top-[64px] right-2.5 z-30" onClick={(e) => e.stopPropagation()}>
                 <button
                   type="button"
@@ -193,11 +188,11 @@ export default function MateriasLevel({
           }
         >
           {/* Contenido inferior */}
-          <div className="min-w-0 text-left select-none pointer-events-none mt-4">
+          <div className={`w-full min-w-0 ${textBlockWidth} text-left select-none pointer-events-none mt-4`}>
             <span className="text-[9px] font-bold tracking-widest text-white/70 uppercase block mb-1">
               Materia
             </span>
-            <p className={`font-black leading-tight text-white line-clamp-2 drop-shadow-sm ${isLongName ? 'text-[15px]' : 'text-base'}`}>
+            <p className={`font-black leading-tight text-white line-clamp-2 break-words drop-shadow-sm ${titleTextSize}`}>
               {m.name}
             </p>
           </div>
