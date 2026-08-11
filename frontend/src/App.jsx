@@ -48,6 +48,7 @@ function DashboardScreen({ user, onLogout, onInviteRequired }) {
   const contentScrollRef = useRef(null);
   const homeAdaptivePreviewRef = useRef(null);
   const [dashboardShell, setDashboardShell] = useState(null);
+  const [libraryFabHost, setLibraryFabHost] = useState(null);
   const [isCalendarImmersive, setIsCalendarImmersive] = useState(false);
   const handleCalendarImmersiveChange = useCallback((immersive) => {
     setIsCalendarImmersive(Boolean(immersive));
@@ -237,6 +238,11 @@ function DashboardScreen({ user, onLogout, onInviteRequired }) {
       </aside>
 
       <main ref={contentScrollRef} data-app-scroll-root className="relative flex-1 min-h-0 min-w-0 overflow-y-auto overscroll-contain md:min-h-[100dvh] md:overflow-visible">
+        <div
+          ref={setLibraryFabHost}
+          className="sticky z-50 h-0 pointer-events-none"
+          style={{ top: 'calc(100dvh - env(safe-area-inset-bottom) - 9.5rem)' }}
+        />
         {/* Home, biblioteca, perfil y sus ajustes gestionan sus controles dentro de su contenido. */}
         {tab !== 'home' && tab !== 'study' && tab !== 'library' && tab !== 'usuario' && tab !== 'home-settings' && tab !== 'ai-settings' && tab !== 'invite-codes' && (
           <div className="md:hidden sticky top-0 z-30 bg-white border-b border-slate-200 px-4 py-3.5 flex items-center justify-between shadow-xs">
@@ -309,6 +315,7 @@ function DashboardScreen({ user, onLogout, onInviteRequired }) {
               pendingNav={pendingLibraryNav}
               clearPendingNav={() => setPendingLibraryNav(null)}
               dashboardShell={dashboardShell}
+              libraryFabHost={libraryFabHost}
               onCalendarImmersiveChange={handleCalendarImmersiveChange}
             />
           )}

@@ -29,6 +29,7 @@ export default function LibrarySection({
   pendingNav,       
   clearPendingNav,
   dashboardShell,
+  libraryFabHost,
   onCalendarImmersiveChange,
 }) {
   
@@ -571,7 +572,7 @@ export default function LibrarySection({
               importing={importing}
               academicModal={academicModal}
               modal={modal}
-              dashboardShell={dashboardShell}
+              libraryFabHost={libraryFabHost}
             />
           )}
         </>

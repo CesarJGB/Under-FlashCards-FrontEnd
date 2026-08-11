@@ -9,7 +9,7 @@ export default function LibraryFAB({
   setAcademicModal,
   fileInputRef, 
   importing,
-  dashboardShell
+  libraryFabHost
 }) {
   const [fabOpen, setFabOpen] = useState(false);
 
@@ -34,7 +34,7 @@ export default function LibraryFAB({
     <button
       type="button"
       onClick={() => setFabOpen(true)}
-      className="absolute right-6 w-14 h-14 rounded-[1.3rem] md:fixed flex items-center justify-center z-50 cursor-pointer
+      className="pointer-events-auto absolute top-0 right-6 w-14 h-14 rounded-[1.3rem] flex items-center justify-center z-50 cursor-pointer
       /* Opacidad casi nula para no tapar el texto */
       bg-white/10 dark:bg-white/5
       /* Blur mínimo (3px): suficiente para sentir cristal, pero no difuminar letras */
@@ -49,7 +49,6 @@ export default function LibraryFAB({
       before:absolute before:inset-0 before:rounded-[1.3rem] before:pointer-events-none before:bg-[radial-gradient(80%_60%_at_50%_-5%,rgba(255,255,255,0.45)_0%,rgba(255,255,255,0.08)_35%,transparent_70%)] before:opacity-90
       /* Pseudo after: borde interior sutil con blend para dar textura de cristal pulido */
       after:absolute after:inset-[1px] after:rounded-[1.2rem] after:pointer-events-none after:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.18)] after:mix-blend-overlay"
-      style={{ bottom: 'calc(env(safe-area-inset-bottom) + 6rem)' }}
     >
       {/* 
         Análisis del icono: 
@@ -182,7 +181,7 @@ export default function LibraryFAB({
 
   return (
     <>
-      {dashboardShell ? createPortal(fabButton, dashboardShell) : fabButton}
+      {libraryFabHost ? createPortal(fabButton, libraryFabHost) : null}
       {fabOverlays}
     </>
   );
