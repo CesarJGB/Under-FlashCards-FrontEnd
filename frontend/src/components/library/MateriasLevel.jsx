@@ -23,7 +23,7 @@ function FolderCardShell({ accent, onClick, cornerBadge, tabIcon, children }) {
   const topGloss = lightenColor(accent, 0.25);
   const bottomColor = darkenColor(accent, 0.15);
   
-  const tabGradient = `linear-gradient(to bottom, ${topGloss} 0%, ${accent} 100%)`;
+  const tabGradient = `linear-gradient(to bottom, ${topGloss} 0%, ${accent} 75%, ${accent} 100%)`;
   const folderGradient = `linear-gradient(to bottom, ${accent} 0%, ${accent} 50%, ${bottomColor} 100%)`;
   
   const glow = `0 16px 28px -8px ${hexToRgba(accent, 0.45)}, 0 4px 10px -4px ${hexToRgba(accent, 0.2)}`;
@@ -53,7 +53,7 @@ function FolderCardShell({ accent, onClick, cornerBadge, tabIcon, children }) {
       >
         {/* Pestaña Izquierda Superior */}
         <div
-          className="absolute left-0 w-[55%] h-[24px] rounded-t-xl flex items-start pl-1 pt-1"
+          className="absolute left-0 w-[55%] h-8 rounded-t-xl flex items-start pl-1.5 pt-1.5"
           style={{ 
             background: tabGradient, 
             top: '-24px',
