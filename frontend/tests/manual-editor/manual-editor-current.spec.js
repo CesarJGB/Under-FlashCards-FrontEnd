@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { jsPDF } from 'jspdf';
 
 const HARNESS_PATH = '/tests/manual-editor/harness.html';
 
@@ -496,6 +497,9 @@ test('PW-AS-TRANSITION-001 — una transición espera el cierre, abre una vez y 
   await expect.poll(() => page.evaluate(() => (
     window.__manualEditorHarness.getOwnershipSnapshot().sharedOverlays.registry.layers
   ))).toBe(1);
+  await expect.poll(() => page.evaluate(() => (
+    Boolean(history.state?.__underFlashOverlay)
+  ))).toBe(true);
 
   await page.evaluate(() => history.back());
   await expect(child).toHaveCount(0);
@@ -539,6 +543,48 @@ test('PW-AS-TRANSITION-002 — una opción directa conserva el gesto y se ejecut
   expect(await page.evaluate(() => window.__manualEditorHarness.getTransitionTrace()))
     .toEqual(['direct', 'root-close']);
   await expect(page.getByRole('dialog', { name: 'Transición hija sintética' })).toHaveCount(0);
+});
+
+test('PW-AS-TRANSITION-003 — cancelar no transiciona y Sheet A abre un modal tras cerrarse', async ({ page }) => {
+  await openHarness(page);
+  await page.evaluate(() => window.__manualEditorHarness.openActionSheetCase('transition'));
+  let root = page.getByRole('dialog', { name: 'Transición raíz sintética' });
+  await root.getByRole('button', { name: 'Cancelar transición' }).click();
+  await expect(root).toHaveCount(0);
+  expect(await page.evaluate(() => window.__manualEditorHarness.getTransitionTrace()))
+    .toEqual(['root-close']);
+  await expect(page.getByRole('dialog', { name: 'Modal sintético' })).toHaveCount(0);
+
+  await page.evaluate(() => window.__manualEditorHarness.openActionSheetCase('transition'));
+  root = page.getByRole('dialog', { name: 'Transición raíz sintética' });
+  await root.getByRole('button', { name: 'Abrir modal siguiente' }).evaluate((button) => {
+    button.click();
+    button.click();
+  });
+  await expect(root).toHaveCount(0);
+  const modal = page.getByRole('dialog', { name: 'Modal sintético' });
+  await expect(modal).toBeVisible();
+  expect(await page.evaluate(() => window.__manualEditorHarness.getTransitionTrace()))
+    .toEqual(['root-close', 'modal-after-close']);
+  await expect(page.locator('[data-action-sheet-layer], [data-action-sheet-backdrop="true"]')).toHaveCount(0);
+
+  await modal.getByRole('button', { name: 'Cerrar modal sintético' }).click();
+  await expect(modal).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => (
+    window.__manualEditorHarness.getOwnershipSnapshot().scroll
+  ))).toEqual({ scrollRoots: 0, inertRoots: 0, ownerCount: 0, owners: [] });
+  await expect.poll(() => page.evaluate(() => (
+    window.__manualEditorHarness.getOwnershipSnapshot().sharedOverlays.registry
+  ))).toEqual({
+    layers: 0,
+    topId: null,
+    registrySize: 0,
+    pendingFocus: 0,
+    subscribers: 0,
+    armed: false,
+  });
+  await expect(page.locator('[data-action-sheet-layer], [data-action-sheet-backdrop="true"]')).toHaveCount(0);
+  expect(await page.evaluate(() => Boolean(document.getElementById('root')?.inert))).toBe(false);
 });
 
 test('PW-AS-004 — contenido largo en landscape llega a la última acción por scroll interno', async ({ page }) => {
@@ -850,6 +896,8 @@ test('PW-AS-CONSUMERS-001 — descarga y calendario reales enlazan sus ActionShe
   expect(metrics.section.bottom).toBeCloseTo(metrics.viewport.height, 1);
   await page.getByRole('button', { name: 'Editar' }).click();
   await expect(page.getByRole('dialog', { name })).toHaveCount(0);
+  await expect(page.getByRole('dialog', { name: 'Editar mazo sintético' })).toBeVisible();
+  await page.getByRole('button', { name: 'Cerrar edición' }).click();
   await page.evaluate(() => window.__manualEditorHarness.closeConsumerCases());
 
   await page.evaluate(() => window.__manualEditorHarness.openConsumerCase('deck-header'));
@@ -877,6 +925,38 @@ test('PW-AS-CONSUMERS-001 — descarga y calendario reales enlazan sus ActionShe
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog', { name: 'Cambiar modo' })).toHaveCount(0);
 
+  await page.getByRole('button', { name: 'Abrir opciones del horario. Horario actual: Horario' }).click();
+  await page.getByRole('button', { name: 'Cambiar horario' }).click();
+  await expect(page.getByRole('dialog', { name: 'Opciones del horario' })).toHaveCount(0);
+  await expect(page.getByRole('dialog', { name: 'Cambiar horario' })).toBeVisible();
+  await page.getByRole('button', { name: 'Crear nuevo horario' }).click();
+  await expect(page.getByRole('dialog', { name: 'Cambiar horario' })).toHaveCount(0);
+  await expect(page.getByRole('dialog', { name: 'Crear horario' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog', { name: 'Crear horario' })).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Añadir clase' }).click();
+  await page.getByRole('dialog', { name: 'Añadir clase' })
+    .getByRole('button', { name: /^Añadir a / }).click();
+  await expect(page.getByRole('dialog', { name: 'Añadir clase' })).toHaveCount(0);
+  await expect(page.getByRole('dialog', { name: 'Nueva clase' })).toBeVisible();
+  await page.getByRole('button', { name: 'Cerrar formulario' }).click();
+
+  await page.getByRole('button', { name: 'Añadir clase' }).click();
+  await page.getByRole('button', { name: 'Elegir otro día' }).click();
+  await expect(page.getByRole('dialog', { name: 'Añadir clase' })).toHaveCount(0);
+  await expect(page.getByRole('dialog', { name: '¿Qué día?' })).toBeVisible();
+  await page.getByRole('dialog', { name: '¿Qué día?' }).getByRole('button', { name: 'Martes' }).click();
+  await expect(page.getByRole('dialog', { name: '¿Qué día?' })).toHaveCount(0);
+  await expect(page.getByRole('dialog', { name: 'Nueva clase' })).toBeVisible();
+  await page.getByRole('button', { name: 'Cerrar formulario' }).click();
+
+  await page.getByRole('button', { name: 'Ajustes y acciones del horario' }).click();
+  await page.getByRole('button', { name: 'Ajustes del horario' }).click();
+  await expect(page.getByRole('dialog', { name: 'Acciones del horario' })).toHaveCount(0);
+  await expect(page.getByRole('dialog', { name: 'Ajustes del horario' })).toBeVisible();
+  await page.getByRole('button', { name: 'Cerrar ajustes' }).click();
+
   await page.getByRole('button', { name: 'Ajustes y acciones del horario' }).click();
   await expect(page.getByRole('dialog', { name: 'Acciones del horario' })).toBeVisible();
   await page.getByRole('dialog', { name: 'Acciones del horario' })
@@ -902,6 +982,50 @@ test('PW-AS-CONSUMERS-001 — descarga y calendario reales enlazan sus ActionShe
     subscribers: 0,
     armed: false,
   });
+});
+
+test('PW-AS-CONSUMERS-002 — PdfExtractor conserva el file chooser y abre selección tras cerrar PDF listo', async ({ page }) => {
+  await openHarness(page);
+  await page.evaluate(() => window.__manualEditorHarness.useNativePickerObjectUrls());
+  await page.evaluate(() => window.__manualEditorHarness.openConsumerCase('pdf-extractor'));
+  await page.getByRole('button', { name: 'Agregar PDF' }).click();
+  const importSheet = page.getByRole('dialog', { name: 'Agregar PDF' });
+  await expect(importSheet).toBeVisible();
+
+  const pdfDocument = new jsPDF();
+  pdfDocument.text('Contenido de prueba para ActionSheet', 20, 20);
+  const pdfBuffer = Buffer.from(pdfDocument.output('arraybuffer'));
+  const fileInput = page.locator('input[type="file"][accept*="pdf"]');
+  await fileInput.evaluate((input) => {
+    input.click = () => {
+      window.__pdfPickerClicks = (window.__pdfPickerClicks || 0) + 1;
+    };
+  });
+  await importSheet.getByRole('button', { name: 'Agregar PDF' }).click();
+  expect(await page.evaluate(() => window.__pdfPickerClicks)).toBe(1);
+  await fileInput.setInputFiles({
+    name: 'action-sheet-transition.pdf',
+    mimeType: 'application/pdf',
+    buffer: pdfBuffer,
+  });
+
+  const readySheet = page.getByRole('dialog', { name: 'PDF listo' });
+  await expect(readySheet).toBeVisible({ timeout: 20_000 });
+  await readySheet.getByRole('button', { name: 'Seleccionar parte' }).click();
+  await expect(readySheet).toHaveCount(0);
+  const selection = page.getByRole('dialog', { name: 'Seleccionar páginas del PDF' });
+  await expect(selection).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(selection).toHaveCount(0);
+  await page.evaluate(() => window.__manualEditorHarness.closeConsumerCases());
+  await expect.poll(() => page.evaluate(() => (
+    window.__manualEditorHarness.getOwnershipSnapshot().scroll
+  ))).toEqual({ scrollRoots: 0, inertRoots: 0, ownerCount: 0, owners: [] });
+  await expect.poll(() => page.evaluate(() => (
+    window.__manualEditorHarness.getOwnershipSnapshot().sharedOverlays.registry.layers
+  ))).toBe(0);
+  await expect(page.locator('[data-action-sheet-layer], [data-action-sheet-backdrop="true"]')).toHaveCount(0);
+  expect(await page.evaluate(() => Boolean(document.getElementById('root')?.inert))).toBe(false);
 });
 
 test('PW-OPEN-001 / KEEP-009 — la ayuda baja el área editable y permite reanudar', async ({ page }) => {

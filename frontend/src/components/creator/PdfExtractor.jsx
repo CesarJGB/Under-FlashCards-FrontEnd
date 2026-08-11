@@ -244,11 +244,14 @@ export default function PdfExtractor({ onTextExtracted, onExtractionComplete, oc
       && activeOperationRef.current?.id === operation.id
   ), []);
 
-  useEffect(() => () => {
-    isMountedRef.current = false;
-    operationIdRef.current += 1;
-    abortActiveOperation();
-    void releasePdfResources();
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      operationIdRef.current += 1;
+      abortActiveOperation();
+      void releasePdfResources();
+    };
   }, [abortActiveOperation, releasePdfResources]);
 
   const isProcessing = loading && stage === 'extracting';
@@ -455,7 +458,7 @@ export default function PdfExtractor({ onTextExtracted, onExtractionComplete, oc
 
   const requestFile = () => {
     setLocalError('');
-    window.setTimeout(() => fileInputRef.current?.click(), 0);
+    fileInputRef.current?.click();
   };
 
   const handleFabClick = () => {
@@ -542,7 +545,7 @@ export default function PdfExtractor({ onTextExtracted, onExtractionComplete, oc
             icon: FileText,
             label: 'Analizar PDF completo',
             description: totalPages + (totalPages === 1 ? ' página del documento.' : ' páginas del documento.'),
-            onSelect: () => {
+            onAfterClose: () => {
               void handleProcessText(buildPageList(totalPages), 'all');
             },
           },

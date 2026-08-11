@@ -218,7 +218,7 @@ export default function ScheduleListScreen({ userId, onBack, dashboardShell }) {
       label: 'Crear nuevo horario',
       description: 'Empieza un horario desde cero',
       icon: Plus,
-      onSelect: () => setShowCreateConfirm(true),
+      onAfterClose: () => setShowCreateConfirm(true),
     },
     ...schedules.map((s) => ({
       id: s.id,

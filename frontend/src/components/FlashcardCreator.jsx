@@ -652,7 +652,7 @@ export default function FlashcardCreator({
             label: 'Confirmar y generar',
             description: aiGenerationDescription,
             disabled: aiSaving || !aiText.trim(),
-            onSelect: () => {
+            onAfterClose: () => {
               void executeAiGeneration();
             },
           },

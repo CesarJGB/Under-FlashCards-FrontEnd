@@ -100,7 +100,6 @@ export default function MateriasLevel({
   const isList = viewMode === 'list';
 
   const handleEditMateriaName = (materia) => {
-    setActiveMenuId(null);
     setAcademicModal({ type: 'materia', editing: materia });
   };
   const activeMateria = materias.find((materia) => materia._id === activeMenuId);
@@ -291,7 +290,7 @@ export default function MateriasLevel({
           id: 'edit',
           label: 'Editar materia',
           icon: Pencil,
-          onSelect: () => handleEditMateriaName(activeMateria),
+          onAfterClose: () => handleEditMateriaName(activeMateria),
         }] : []}
         onClose={() => setActiveMenuId(null)}
       />

@@ -120,8 +120,8 @@ export default function ScheduleCalendar({ userId, scheduleId, onBack, dashboard
   };
 
   const fabOptions = [
-    { id: 'add-current-day', label: `Añadir a ${WEEKDAYS[activeDayIndex] || `Día ${activeDayIndex + 1}`}`, icon: Plus, onSelect: () => { setSelectedDayForForm(activeDayIndex); setShowClassForm(true); } },
-    { id: 'pick-other-day', label: 'Elegir otro día', icon: Calendar, onSelect: () => setShowDayPicker(true) },
+    { id: 'add-current-day', label: `Añadir a ${WEEKDAYS[activeDayIndex] || `Día ${activeDayIndex + 1}`}`, icon: Plus, onAfterClose: () => { setSelectedDayForForm(activeDayIndex); setShowClassForm(true); } },
+    { id: 'pick-other-day', label: 'Elegir otro día', icon: Calendar, onAfterClose: () => setShowDayPicker(true) },
   ];
 
   const mobileActionOptions = [
@@ -130,10 +130,7 @@ export default function ScheduleCalendar({ userId, scheduleId, onBack, dashboard
       label: 'Ajustes del horario',
       description: 'Nombre y días visibles',
       icon: Settings2,
-      onSelect: () => {
-        setShowMobileActions(false);
-        setShowSettings(true);
-      },
+      onAfterClose: () => setShowSettings(true),
     },
     {
       id: 'export',
@@ -176,7 +173,7 @@ export default function ScheduleCalendar({ userId, scheduleId, onBack, dashboard
       label: 'Cambiar horario',
       description: 'Elige otro horario o crea uno nuevo',
       icon: Calendar,
-      onSelect: () => onOpenSwitcher?.(),
+      onAfterClose: () => onOpenSwitcher?.(),
     },
     { id: 'cancel', label: 'Cancelar' },
   ];
@@ -255,7 +252,7 @@ export default function ScheduleCalendar({ userId, scheduleId, onBack, dashboard
         compact
       />
 
-      <DayPickerModal open={showDayPicker} daysCount={daysCount} onSelectDay={(index) => { setSelectedDayForForm(index); setShowDayPicker(false); window.setTimeout(() => setShowClassForm(true), 180); }} onClose={() => setShowDayPicker(false)} />
+      <DayPickerModal open={showDayPicker} daysCount={daysCount} onSelectDay={(index) => { setSelectedDayForForm(index); setShowClassForm(true); }} onClose={() => setShowDayPicker(false)} />
 
       {showClassForm && <ClassFormModal
         key={editingClass?.id || 'new'}

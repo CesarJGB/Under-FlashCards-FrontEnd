@@ -67,7 +67,7 @@ export default function DeckCard({
       id: 'edit',
       label: 'Editar',
       icon: Pencil,
-      onSelect: () => onEdit(deck),
+      onAfterClose: () => onEdit(deck),
     },
     isOwner && onDelete && {
       id: 'delete',

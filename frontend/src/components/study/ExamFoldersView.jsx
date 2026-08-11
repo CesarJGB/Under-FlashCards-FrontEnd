@@ -113,10 +113,6 @@ function formatAnswerForExport(question) {
   return question.expectedAnswer || 'Sin respuesta configurada';
 }
 
-function defer(callback) {
-  window.setTimeout(callback, 0);
-}
-
 export default function ExamFoldersView({ userId, onBack, dashboardShell, decks = [], materias = [] }) {
   const foldersCacheKey = `examFolders_${userId}`;
   const examsCacheKey = `exams_${userId}`;
@@ -272,7 +268,6 @@ export default function ExamFoldersView({ userId, onBack, dashboardShell, decks 
   };
 
   const openRenameFolder = (folder) => {
-    setActiveMenuId(null);
     setFolderInput(folder.name);
     setFolderModal({ type: 'exam-folder', editing: folder });
   };
@@ -615,7 +610,7 @@ export default function ExamFoldersView({ userId, onBack, dashboardShell, decks 
           id: 'edit',
           label: 'Editar nombre',
           icon: Pencil,
-          onSelect: () => openRenameFolder(activeFolderMenu),
+          onAfterClose: () => openRenameFolder(activeFolderMenu),
         }] : []}
         onClose={() => setActiveMenuId(null)}
       />
@@ -651,17 +646,17 @@ export default function ExamFoldersView({ userId, onBack, dashboardShell, decks 
             label: 'Editor',
             description: 'Añade, edita y organiza las preguntas.',
             icon: Edit3,
-            onSelect: () => defer(() => {
+            onAfterClose: () => {
               setEditorNotice('');
               setEditorExam(activeExam);
-            }),
+            },
           },
           {
             id: 'review',
             label: 'Repasar',
             description: 'Realiza el examen o descarga sus preguntas.',
             icon: ClipboardCheck,
-            onSelect: () => defer(() => setReviewFlow({ exam: activeExam, stage: 'mode' })),
+            onAfterClose: () => setReviewFlow({ exam: activeExam, stage: 'mode' }),
           },
         ]}
       />
@@ -676,26 +671,26 @@ export default function ExamFoldersView({ userId, onBack, dashboardShell, decks 
             label: 'Quiz rápido',
             description: 'Elige un tipo de pregunta y practica sin límite de tiempo.',
             icon: Play,
-            onSelect: () => loadQuestionTypes(reviewFlow.exam, 'quick'),
+            onAfterClose: () => loadQuestionTypes(reviewFlow.exam, 'quick'),
           },
           {
             id: 'timed',
             label: 'Quiz cronometrado',
             description: 'Tiempo total: 60 segundos por cada pregunta, con autocalificación para abiertas.',
             icon: Timer,
-            onSelect: () => loadQuestionTypes(reviewFlow.exam, 'timed'),
+            onAfterClose: () => loadQuestionTypes(reviewFlow.exam, 'timed'),
           },
           {
             id: 'variado',
             label: 'Variado',
             description: 'Mezcla todos los tipos de pregunta disponibles.',
             icon: Sparkles,
-            onSelect: () => defer(() => setReviewFlow({
+            onAfterClose: () => setReviewFlow({
               exam: reviewFlow.exam,
               stage: 'start',
               mode: 'variado',
               questionTypeFilter: null,
-            })),
+            }),
           },
         ]}
       />
@@ -708,12 +703,12 @@ export default function ExamFoldersView({ userId, onBack, dashboardShell, decks 
           id: type,
           label: QUESTION_TYPE_LABELS[type],
           icon: type === 'multiple_choice' ? ClipboardCheck : type === 'true_false' ? Sparkles : Edit3,
-          onSelect: () => defer(() => setReviewFlow({
+          onAfterClose: () => setReviewFlow({
             exam: reviewFlow.exam,
             stage: 'start',
             mode: reviewFlow.mode,
             questionTypeFilter: type,
-          })),
+          }),
         }))}
       />
 
@@ -727,11 +722,11 @@ export default function ExamFoldersView({ userId, onBack, dashboardShell, decks 
             label: 'Realizar examen',
             description: reviewFlow?.mode === 'timed' ? 'El temporizador comenzará al abrirlo.' : 'Comienza cuando estés listo.',
             icon: Play,
-            onSelect: () => defer(() => setSessionConfig({
+            onAfterClose: () => setSessionConfig({
               exam: reviewFlow.exam,
               mode: reviewFlow.mode,
               questionTypeFilter: reviewFlow.questionTypeFilter,
-            })),
+            }),
           },
           {
             id: 'download',
@@ -739,7 +734,7 @@ export default function ExamFoldersView({ userId, onBack, dashboardShell, decks 
             description: 'Genera un PDF con todas las preguntas del examen.',
             icon: Download,
             disabled: pdfExport.isExporting,
-            onSelect: () => defer(() => downloadExam(reviewFlow.exam)),
+            onAfterClose: () => downloadExam(reviewFlow.exam),
           },
         ]}
       />

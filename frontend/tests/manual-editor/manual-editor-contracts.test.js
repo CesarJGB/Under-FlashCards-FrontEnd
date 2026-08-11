@@ -349,6 +349,43 @@ test('ActionSheet anchoring and pan containment stay scoped to their owning laye
   assert.match(actionSheet, /document\.documentElement, document\.body/);
 });
 
+test('ActionSheet consumers use confirmed transitions without close-delay helpers', async () => {
+  const [
+    deckCard,
+    flashcardGrid,
+    creator,
+    pdfExtractor,
+    materias,
+    calendar,
+    dayPicker,
+    scheduleList,
+    exams,
+  ] = await Promise.all([
+    readFrontendFile('src/components/DeckCard.jsx'),
+    readFrontendFile('src/components/FlashcardGrid.jsx'),
+    readFrontendFile('src/components/FlashcardCreator.jsx'),
+    readFrontendFile('src/components/creator/PdfExtractor.jsx'),
+    readFrontendFile('src/components/library/MateriasLevel.jsx'),
+    readFrontendFile('src/components/library/ScheduleCalendar.jsx'),
+    readFrontendFile('src/components/library/calendar/modals/DayPickerModal.jsx'),
+    readFrontendFile('src/components/library/calendar/ScheduleListScreen.jsx'),
+    readFrontendFile('src/components/study/ExamFoldersView.jsx'),
+  ]);
+
+  assert.match(deckCard, /onAfterClose: \(\) => onEdit\(deck\)/);
+  assert.match(flashcardGrid, /onAfterClose: \(\) => onEdit\(actionCard\)/);
+  assert.match(creator, /confirm-ai-generation[\s\S]*onAfterClose/);
+  assert.match(pdfExtractor, /onSelect: requestFile/);
+  assert.doesNotMatch(pdfExtractor.slice(pdfExtractor.indexOf('const requestFile'), pdfExtractor.indexOf('const handleFabClick')), /setTimeout/);
+  assert.match(materias, /onAfterClose: \(\) => handleEditMateriaName/);
+  assert.match(calendar, /add-current-day[^\n]*onAfterClose:[^\n]*setShowClassForm\(true\)/);
+  assert.doesNotMatch(calendar, /setTimeout/);
+  assert.match(dayPicker, /onAfterClose: \(\) => onSelectDay/);
+  assert.match(scheduleList, /create-new[\s\S]*onAfterClose/);
+  assert.doesNotMatch(exams, /\bdefer\b|setTimeout/);
+  assert.ok((exams.match(/onAfterClose:/g) || []).length >= 8);
+});
+
 test('KEEP-011 and KEEP-012 remain unchanged in production contracts', async () => {
   const [modal, stylePanel, actionSheet, indexHtml, indexCss] = await Promise.all([
     readFrontendFile('src/components/creator/ManualCardEditorModal.jsx'),

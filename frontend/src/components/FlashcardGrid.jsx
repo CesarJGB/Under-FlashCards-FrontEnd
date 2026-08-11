@@ -213,7 +213,7 @@ export default function FlashcardGrid({ cards, onEdit, onDelete }) {
               id: 'edit-card',
               icon: Pencil,
               label: 'Editar',
-              onSelect: () => onEdit(actionCard),
+              onAfterClose: () => onEdit(actionCard),
             },
             typeof onDelete === 'function' && {
               id: 'delete-card',

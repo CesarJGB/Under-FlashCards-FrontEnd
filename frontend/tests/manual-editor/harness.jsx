@@ -14,6 +14,7 @@ import ActionSheet from '../../src/components/common/ActionSheet';
 import StylePanel from '../../src/components/creator/StylePanel';
 import DeckCard from '../../src/components/DeckCard';
 import DeckHeader from '../../src/components/DeckHeader';
+import PdfExtractor from '../../src/components/creator/PdfExtractor';
 import ScheduleCalendar from '../../src/components/library/ScheduleCalendar';
 import { AlignCenter, AlignLeft, AlignRight } from 'lucide-react';
 import {
@@ -299,6 +300,10 @@ function installPickerStubs() {
       state.objectUrlsCreated = 0;
       state.objectUrlsRevoked = 0;
     },
+    useNativeObjectUrls() {
+      URL.createObjectURL = nativeCreateObjectURL;
+      URL.revokeObjectURL = nativeRevokeObjectURL;
+    },
     restore() {
       document.removeEventListener('click', observeDirectColorClick, true);
       document.removeEventListener('click', observeDirectImageClick, true);
@@ -449,6 +454,10 @@ function Harness() {
   const [longFooterSheetOpen, setLongFooterSheetOpen] = useState(false);
   const [transitionRootOpen, setTransitionRootOpen] = useState(false);
   const [transitionChildOpen, setTransitionChildOpen] = useState(false);
+  const [transitionModalOpen, setTransitionModalOpen] = useState(false);
+  const [deckCardEditOpen, setDeckCardEditOpen] = useState(false);
+  const [scheduleSwitcherOpen, setScheduleSwitcherOpen] = useState(false);
+  const [scheduleCreateOpen, setScheduleCreateOpen] = useState(false);
   const [consumerSurface, setConsumerSurface] = useState(null);
   const [, forceRender] = useState(0);
   const renderCountRef = useRef(0);
@@ -548,6 +557,7 @@ function Harness() {
         } else if (kind === 'transition') {
           transitionTraceRef.current = [];
           setTransitionChildOpen(false);
+          setTransitionModalOpen(false);
           setTransitionRootOpen(true);
         } else if (kind === 'long') setLongSheetOpen(true);
         else if (kind === 'footer') setFooterSheetOpen(true);
@@ -564,6 +574,7 @@ function Harness() {
         setLongFooterSheetOpen(false);
         setTransitionRootOpen(false);
         setTransitionChildOpen(false);
+        setTransitionModalOpen(false);
       },
       getTransitionTrace: () => [...transitionTraceRef.current],
       openConsumerCase(kind) {
@@ -571,6 +582,9 @@ function Harness() {
       },
       closeConsumerCases() {
         setConsumerSurface(null);
+        setDeckCardEditOpen(false);
+        setScheduleSwitcherOpen(false);
+        setScheduleCreateOpen(false);
       },
       forceRender: () => forceRender((value) => value + 1),
       getRenderCount: () => renderCountRef.current,
@@ -728,6 +742,7 @@ function Harness() {
       },
       getPickerState: pickerStubs.read,
       resetPickerState: pickerStubs.reset,
+      useNativePickerObjectUrls: pickerStubs.useNativeObjectUrls,
       setSelection(start, end, direction = 'none') {
         const textarea = document.querySelector('[data-testid^="manual-card-editor-"][data-testid$="question"], [data-testid^="manual-card-editor-"][data-testid$="answer"]');
         if (!textarea) return false;
@@ -844,10 +859,15 @@ function Harness() {
               currentUserId="user-smoke"
               isAdmin={false}
               onOpen={() => {}}
-              onEdit={() => {}}
+              onEdit={() => setDeckCardEditOpen(true)}
               onDelete={() => {}}
               onToggleStar={() => {}}
             />
+            {deckCardEditOpen && (
+              <div role="dialog" aria-modal="true" aria-label="Editar mazo sintético" data-consumer-modal="deck-edit">
+                <button type="button" onClick={() => setDeckCardEditOpen(false)}>Cerrar edición</button>
+              </div>
+            )}
           </div>
         )}
         {consumerSurface === 'deck-header' && (
@@ -868,7 +888,30 @@ function Harness() {
               userId={null}
               scheduleId={null}
               onBack={() => {}}
+              onOpenSwitcher={() => setScheduleSwitcherOpen(true)}
+              isSwitcherOpen={scheduleSwitcherOpen}
             />
+            <ActionSheet
+              open={scheduleSwitcherOpen}
+              title="Cambiar horario"
+              onClose={() => setScheduleSwitcherOpen(false)}
+              options={[{
+                id: 'create-synthetic-schedule',
+                label: 'Crear nuevo horario',
+                onAfterClose: () => setScheduleCreateOpen(true),
+              }]}
+            />
+            <ActionSheet
+              open={scheduleCreateOpen}
+              title="Crear horario"
+              onClose={() => setScheduleCreateOpen(false)}
+              options={[{ id: 'cancel-synthetic-schedule', label: 'Cancelar' }]}
+            />
+          </div>
+        )}
+        {consumerSurface === 'pdf-extractor' && (
+          <div data-testid="consumer-pdf-extractor">
+            <PdfExtractor />
           </div>
         )}
       </main>
@@ -1022,6 +1065,18 @@ function Harness() {
             label: 'Acción directa de transición',
             onSelect: () => transitionTraceRef.current.push('direct'),
           },
+          {
+            id: 'open-transition-modal',
+            label: 'Abrir modal siguiente',
+            onAfterClose: () => {
+              transitionTraceRef.current.push('modal-after-close');
+              setTransitionModalOpen(true);
+            },
+          },
+          {
+            id: 'cancel-transition',
+            label: 'Cancelar transición',
+          },
         ]}
       />
 
@@ -1034,6 +1089,26 @@ function Harness() {
         }}
         options={[{ id: 'child-action', label: 'Acción hija' }]}
       />
+
+      {transitionModalOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Modal sintético"
+          className="fixed inset-0 z-[90] bg-white"
+          data-synthetic-transition-modal="true"
+        >
+          <button
+            type="button"
+            onClick={() => {
+              transitionTraceRef.current.push('modal-close');
+              setTransitionModalOpen(false);
+            }}
+          >
+            Cerrar modal sintético
+          </button>
+        </div>
+      )}
     </div>
   );
 }

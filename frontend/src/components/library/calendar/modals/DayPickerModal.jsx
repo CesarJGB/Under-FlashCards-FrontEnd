@@ -9,7 +9,7 @@ export default function DayPickerModal({ daysCount, onSelectDay, onClose, open =
     id: `day-${idx}`,
     label: dayName,
     icon: CalendarDays,
-    onSelect: () => onSelectDay(idx),
+    onAfterClose: () => onSelectDay(idx),
   }));
 
   return (
