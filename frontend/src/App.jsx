@@ -353,7 +353,7 @@ function DashboardScreen({ user, onLogout, onInviteRequired }) {
 
       {/* 👇 MENÚ DE NAVEGACIÓN MÓVIL OPTIMIZADO (Se oculta en modo edición de mazo) 👇 */}
       {!isEditingDeck && !isCalendarImmersive && (
-        <div ref={mobileNavRef} className="md:hidden absolute inset-x-0 mx-auto w-fit bg-white/90 backdrop-blur-xl border border-slate-200/80 h-14 rounded-full px-2 flex items-center gap-1.5 z-40 shadow-[0_8px_32px_rgba(0,0,0,0.12)] animate-[slideUp_0.2s_ease-out]" style={{ bottom: 'calc(env(safe-area-inset-bottom) + 0.75rem)' }}>
+        <div ref={mobileNavRef} className="md:hidden absolute inset-x-0 mx-auto flex h-14 w-fit max-w-[calc(100%_-_1rem)] items-center gap-1.5 rounded-full border border-slate-200 bg-white px-1.5 shadow-[0_8px_32px_rgba(15,23,42,0.12)] backdrop-blur-xl z-40 animate-[slideUp_0.2s_ease-out]" style={{ bottom: 'calc(env(safe-area-inset-bottom) + 0.75rem)' }}>
           {[
             { id: 'home', title: 'Inicio', Icon: Home },
             { id: 'study', title: 'Estudio', Icon: BookOpen },
@@ -365,18 +365,26 @@ function DashboardScreen({ user, onLogout, onInviteRequired }) {
 
             return (
               <button
+                type="button"
                 key={item.id}
                 onClick={() => handleTabChange(item.id)}
-                className={`h-10 px-4 flex items-center justify-center transition-all duration-200 rounded-full cursor-pointer active:scale-95 ${
+                aria-label={item.title}
+                aria-current={isActive ? 'page' : undefined}
+                className={`flex h-11 min-w-11 items-center justify-center rounded-full transition-all duration-200 cursor-pointer active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 ${
                   isActive
-                    ? 'bg-slate-900 text-white shadow-lg shadow-slate-900/30'
-                    : 'text-slate-500 hover:text-slate-700'
+                    ? 'gap-2 bg-violet-100 px-3.5 text-violet-900 shadow-sm ring-1 ring-inset ring-violet-200'
+                    : 'w-11 bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700'
                 }`}
                 title={item.title}
               >
-                <IconComponent className={`w-6 h-6 transition-all duration-200 ${
-                  isActive ? 'stroke-[2.5]' : 'stroke-[1.8]'
+                <IconComponent aria-hidden="true" className={`shrink-0 transition-all duration-200 ${
+                  isActive ? 'h-5 w-5 stroke-[2.5]' : 'h-5 w-5 stroke-[1.8]'
                 }`} />
+                {isActive && (
+                  <span className="whitespace-nowrap text-xs font-bold leading-none">
+                    {item.title}
+                  </span>
+                )}
               </button>
             );
           })}
