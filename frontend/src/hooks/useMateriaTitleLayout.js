@@ -14,7 +14,7 @@ const INITIAL_LAYOUT = Object.freeze({
   fontSizePx: 14,
   lineHeight: 1.12,
   maxLines: 2,
-  showLabel: false,
+  showLabel: true,
   truncated: false,
 });
 
@@ -42,6 +42,7 @@ export function useMateriaTitleLayout(name) {
     setLayout((current) => (
       current.state === nextLayout.state
       && current.fontSizePx === nextLayout.fontSizePx
+      && current.showLabel === nextLayout.showLabel
       && current.truncated === nextLayout.truncated
         ? current
         : nextLayout

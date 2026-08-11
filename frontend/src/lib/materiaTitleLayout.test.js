@@ -25,7 +25,7 @@ test('a visually fitting one-line title shows the MATERIA label', () => {
   assert.equal(layout.maxLines, 1);
 });
 
-test('comfortable and dense two-line states omit MATERIA and cap text at two lines', () => {
+test('comfortable and dense two-line states show MATERIA and cap text at two lines', () => {
   const comfortable = getMateriaTitleLayout({
     name: 'Química general',
     availableWidth: 86,
@@ -38,10 +38,10 @@ test('comfortable and dense two-line states omit MATERIA and cap text at two lin
   });
 
   assert.equal(comfortable.state, 'comfortable');
-  assert.equal(comfortable.showLabel, false);
+  assert.equal(comfortable.showLabel, true);
   assert.equal(comfortable.maxLines, FOLDER_TITLE_LAYOUT.maxLines);
   assert.equal(dense.state, 'dense');
-  assert.equal(dense.showLabel, false);
+  assert.equal(dense.showLabel, true);
   assert.equal(dense.maxLines, FOLDER_TITLE_LAYOUT.maxLines);
 });
 
@@ -68,7 +68,13 @@ test('the safe title rectangle reserves the action button and pastel strip', () 
   const actionButtonBottomEdge = FOLDER_TITLE_LAYOUT.actionButtonTopPx
     + FOLDER_TITLE_LAYOUT.actionButtonHeightPx;
 
-  assert.equal(titleTopEdge - actionButtonBottomEdge, FOLDER_TITLE_LAYOUT.titleActionGapPx);
+  assert.equal(
+    titleTopEdge
+      + FOLDER_TITLE_LAYOUT.labelHeightPx
+      + FOLDER_TITLE_LAYOUT.labelTitleGapPx
+      - actionButtonBottomEdge,
+    FOLDER_TITLE_LAYOUT.titleActionGapPx
+  );
   assert.equal(
     safeArea.widthPx,
     folderWidth - FOLDER_TITLE_LAYOUT.leftPaddingPx - FOLDER_TITLE_LAYOUT.rightPaddingPx
