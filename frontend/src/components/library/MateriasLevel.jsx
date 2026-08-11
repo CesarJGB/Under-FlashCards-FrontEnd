@@ -2,7 +2,16 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Loader2, ChevronUp, MoreHorizontal, Pencil, ArrowRight } from 'lucide-react';
 import DeckCard from '../DeckCard';
 import ActionSheet from '../common/ActionSheet';
-import { getMateriaColor, getMateriaInitial, lightenColor, darkenColor, hexToRgba } from '../../lib/materiaColors';
+import {
+  getMateriaColor,
+  getMateriaPastelColor,
+  lightenColor,
+  darkenColor,
+  hexToRgba,
+} from '../../lib/materiaColors';
+import { getMateriaIconComponent } from '../../lib/materiaIcons';
+import { FOLDER_TITLE_LAYOUT, getFolderTitleSafeArea } from '../../lib/materiaTitleLayout';
+import { useMateriaTitleLayout } from '../../hooks/useMateriaTitleLayout';
 
 // Tono neutro para la celda "+N Ver todas"
 const OVERFLOW_ACCENT = '#64748B';
@@ -10,7 +19,7 @@ const OVERFLOW_ACCENT = '#64748B';
 // =========================================================================
 // 🗂️ CARCASA DE "CARPETA" PREMIUM (Estilo Referencia - Hoja Expuesta)
 // =========================================================================
-function FolderCardShell({ accent, onClick, cornerBadge, children }) {
+function FolderCardShell({ accent, onClick, cornerBadge, tabIcon, children }) {
   const topGloss = lightenColor(accent, 0.25);
   const bottomColor = darkenColor(accent, 0.15);
   
@@ -44,12 +53,25 @@ function FolderCardShell({ accent, onClick, cornerBadge, children }) {
       >
         {/* Pestaña Izquierda Superior */}
         <div
-          className="absolute left-0 w-[55%] h-[24px] rounded-t-xl"
+          className="absolute left-0 w-[55%] h-[24px] rounded-t-xl flex items-center pl-4"
           style={{ 
             background: tabGradient, 
             top: '-24px',
             boxShadow: 'inset 0 1.5px 1px rgba(255, 255, 255, 0.4)' 
           }}
+        >
+          {tabIcon && (
+            <div className="flex h-5 w-5 items-center justify-center text-white/95 drop-shadow-sm">
+              {tabIcon}
+            </div>
+          )}
+        </div>
+
+        {/* Franja pastel integrada al borde inferior del mismo frontal. */}
+        <div
+          aria-hidden="true"
+          className="absolute inset-x-0 bottom-0 h-2 rounded-b-2xl opacity-90"
+          style={{ backgroundColor: getMateriaPastelColor({ color: accent }) }}
         />
 
         {/* Contenedor del Texto */}
@@ -65,6 +87,46 @@ function FolderCardShell({ accent, onClick, cornerBadge, children }) {
         </div>
       </div>
     </button>
+  );
+}
+
+function MateriaTitle({ name }) {
+  const { regionRef, layout } = useMateriaTitleLayout(name);
+  const safeArea = getFolderTitleSafeArea(0);
+  const verticalAlignment = layout.state === 'single' ? 'justify-end' : 'justify-center';
+
+  return (
+    <div
+      ref={regionRef}
+      data-title-state={layout.state}
+      className={`absolute min-w-0 flex flex-col ${verticalAlignment} text-left select-none pointer-events-none`}
+      style={{
+        left: `${FOLDER_TITLE_LAYOUT.leftPaddingPx}px`,
+        right: `${safeArea.rightReservedPx}px`,
+        top: `${safeArea.topPx}px`,
+        bottom: `${safeArea.bottomReservedPx}px`,
+      }}
+    >
+      {layout.showLabel && (
+        <span className="mb-1 block text-[9px] font-bold leading-none uppercase tracking-widest text-white/75">
+          Materia
+        </span>
+      )}
+      <p
+        title={layout.truncated ? name : undefined}
+        className="min-w-0 break-words font-black text-white drop-shadow-sm"
+        style={{
+          display: '-webkit-box',
+          WebkitBoxOrient: 'vertical',
+          WebkitLineClamp: layout.maxLines,
+          overflow: 'hidden',
+          fontSize: `${layout.fontSizePx}px`,
+          lineHeight: layout.lineHeight,
+        }}
+      >
+        {name}
+      </p>
+    </div>
   );
 }
 
@@ -111,7 +173,7 @@ export default function MateriasLevel({
   const renderMateriaCard = (m) => {
     const isMenuOpen = activeMenuId === m._id;
     const accent = getMateriaColor(m);
-    const initial = getMateriaInitial(m);
+    const MateriaIcon = getMateriaIconComponent(m);
 
     if (isList) {
       return (
@@ -126,7 +188,7 @@ export default function MateriasLevel({
                 className="w-10 h-10 rounded-xl shrink-0 flex items-center justify-center shadow-xs"
                 style={{ backgroundColor: accent }}
               >
-                <span className="text-white font-black text-sm">{initial}</span>
+                <MateriaIcon className="h-[18px] w-[18px] text-white/95" strokeWidth={2.2} aria-hidden="true" />
               </div>
               <p className="font-bold text-zinc-800 dark:text-zinc-100 text-sm truncate leading-snug">
                 {m.name}
@@ -153,21 +215,12 @@ export default function MateriasLevel({
 
     // MODO GRID
     
-    // El botón de opciones ocupa siempre la misma zona superior derecha.
-    // El bloque de texto reserva ese espacio para evitar roces en una o dos líneas.
-    const nameLength = m.name.trim().length;
-    const textBlockWidth = 'max-w-[calc(100%_-_3.25rem)]';
-    const titleTextSize = nameLength > 32
-      ? 'text-sm'
-      : nameLength > 18
-        ? 'text-[15px]'
-        : 'text-base';
-
     return (
       <div key={m._id} className="relative">
         <FolderCardShell
           accent={accent}
           onClick={() => setCurrentPath({ ...currentPath, materiaId: m._id })}
+          tabIcon={<MateriaIcon className="h-[18px] w-[18px]" strokeWidth={2.2} aria-hidden="true" />}
           cornerBadge={
             <>
               {/* El botón conserva su posición fija en la carpeta. */}
@@ -175,6 +228,7 @@ export default function MateriasLevel({
                 <button
                   type="button"
                   onClick={() => setActiveMenuId(isMenuOpen ? null : m._id)}
+                  aria-label={`Opciones de ${m.name}`}
                   className={`p-1.5 rounded-lg flex items-center justify-center transition-all cursor-pointer backdrop-blur-sm border border-white/20 ${
                     isMenuOpen
                       ? 'bg-black/20 text-white shadow-inner dark:bg-black/40'
@@ -187,15 +241,7 @@ export default function MateriasLevel({
             </>
           }
         >
-          {/* Contenido inferior */}
-          <div className={`w-full min-w-0 ${textBlockWidth} text-left select-none pointer-events-none mt-4`}>
-            <span className="text-[9px] font-bold tracking-widest text-white/70 uppercase block mb-1">
-              Materia
-            </span>
-            <p className={`font-black leading-tight text-white line-clamp-2 break-words drop-shadow-sm ${titleTextSize}`}>
-              {m.name}
-            </p>
-          </div>
+          <MateriaTitle name={m.name} />
         </FolderCardShell>
       </div>
     );
@@ -329,4 +375,3 @@ export default function MateriasLevel({
     </div>
   );
 }
-

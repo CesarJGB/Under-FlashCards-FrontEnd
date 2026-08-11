@@ -82,6 +82,7 @@ export default function LibrarySection({
   const [academicModal, setAcademicModal] = useState(null); 
   const [academicInput, setAcademicInput] = useState('');
   const [academicColor, setAcademicColor] = useState(null);
+  const [academicIcon, setAcademicIcon] = useState(null);
   const [modal, setModal] = useState(null);
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef(null);
@@ -108,6 +109,7 @@ export default function LibrarySection({
     if (academicModal.type === 'materia') {
       url += 'materias';
       body.color = academicColor || null;
+      body.icon = academicIcon || null;
     }
     else if (academicModal.type === 'tema') {
       url += 'temas';
@@ -139,6 +141,7 @@ export default function LibrarySection({
       }
       setAcademicInput('');
       setAcademicColor(null);
+      setAcademicIcon(null);
       setAcademicModal(null);
     } catch { alert('Error de conexión.'); }
   };
@@ -150,7 +153,10 @@ export default function LibrarySection({
     const { type, editing } = academicModal;
     const url = `${BACKEND_URL}/api/academic/${type}s/${editing._id}`;
     const body = { name: academicInput.trim() };
-    if (type === 'materia') body.color = academicColor || null;
+    if (type === 'materia') {
+      body.color = academicColor || null;
+      body.icon = academicIcon || null;
+    }
 
     try {
       const res = await fetch(url, {
@@ -178,6 +184,7 @@ export default function LibrarySection({
 
       setAcademicInput('');
       setAcademicColor(null);
+      setAcademicIcon(null);
       setAcademicModal(null);
     } catch (err) {
       alert(err.message || 'Error de conexión al actualizar.');
@@ -539,6 +546,8 @@ export default function LibrarySection({
               setAcademicInput={setAcademicInput}
               academicColor={academicColor}
               setAcademicColor={setAcademicColor}
+              academicIcon={academicIcon}
+              setAcademicIcon={setAcademicIcon}
               setAcademicModal={setAcademicModal}
               handleCreateAcademicFolder={handleCreateAcademicFolder}
               handleUpdateAcademicFolder={handleUpdateAcademicFolder}

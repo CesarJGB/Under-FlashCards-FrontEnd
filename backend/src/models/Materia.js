@@ -13,6 +13,10 @@ const materiaSchema = new mongoose.Schema(
     // null = usar el color automático (hash) que calcula el frontend.
     color: { type: String, default: null },
 
+    // Identificador estable del catálogo académico. Es opcional para conservar
+    // compatibilidad con materias creadas antes de incorporar iconos.
+    icon: { type: String, default: null },
+
     // Inyección del Radar de Conocimiento (Nivel Asignatura Global)
   knowledgeMetrics: {
       type: knowledgeMetricsSchema,
@@ -57,6 +61,7 @@ materiaSchema.methods.serialize = function () {
     userId: this.userId,
     activeParciales: this.activeParciales,
     color: this.color || null,
+    icon: this.icon || null,
     analytics: {
       masteryPercentage: this.knowledgeMetrics?.mastery ?? 0,
       avgResponseTime: this.knowledgeMetrics?.speed ?? 0,
