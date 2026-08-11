@@ -16,10 +16,21 @@ import { useMateriaTitleLayout } from '../../hooks/useMateriaTitleLayout';
 // Tono neutro para la celda "+N Ver todas"
 const OVERFLOW_ACCENT = '#64748B';
 
+function FolderIdentityBadge({ icon, accent }) {
+  return (
+    <div
+      className="flex h-8 w-8 items-center justify-center rounded-lg border border-black/5 bg-white shadow-md"
+      style={{ color: accent }}
+    >
+      {icon}
+    </div>
+  );
+}
+
 // =========================================================================
 // 🗂️ CARCASA DE "CARPETA" PREMIUM (Estilo Referencia - Hoja Expuesta)
 // =========================================================================
-function FolderCardShell({ accent, onClick, cornerBadge, tabIcon, children }) {
+function FolderCardShell({ accent, onClick, cornerBadge, children }) {
   const topGloss = lightenColor(accent, 0.25);
   const bottomColor = darkenColor(accent, 0.15);
   
@@ -60,12 +71,6 @@ function FolderCardShell({ accent, onClick, cornerBadge, tabIcon, children }) {
             boxShadow: 'inset 0 1.5px 1px rgba(255, 255, 255, 0.4)' 
           }}
         />
-
-        {tabIcon && (
-          <div className="pointer-events-none absolute left-[10px] top-[-14px] z-[1] flex h-5 w-5 items-center justify-center text-white/95 drop-shadow-sm">
-            {tabIcon}
-          </div>
-        )}
 
         {/* Franja pastel integrada al borde inferior del mismo frontal. */}
         <div
@@ -219,9 +224,15 @@ export default function MateriasLevel({
         <FolderCardShell
           accent={accent}
           onClick={() => setCurrentPath({ ...currentPath, materiaId: m._id })}
-          tabIcon={<MateriaIcon className="h-5 w-5" strokeWidth={2.2} aria-hidden="true" />}
           cornerBadge={
             <>
+              <div className="absolute left-4 top-[46px]">
+                <FolderIdentityBadge
+                  accent={accent}
+                  icon={<MateriaIcon className="h-5 w-5" strokeWidth={2.2} aria-hidden="true" />}
+                />
+              </div>
+
               {/* El botón conserva su posición fija en la carpeta. */}
               <div className="absolute top-[64px] right-2.5 z-30" onClick={(e) => e.stopPropagation()}>
                 <button
@@ -256,9 +267,10 @@ export default function MateriasLevel({
           <>
             {/* Icono estático bajo las reglas de 1 línea */}
             <div className="absolute top-[46px] left-4">
-              <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-md border border-black/5">
-                <ArrowRight className="w-4 h-4" style={{ color: OVERFLOW_ACCENT }} />
-              </div>
+              <FolderIdentityBadge
+                accent={OVERFLOW_ACCENT}
+                icon={<ArrowRight className="w-4 h-4" aria-hidden="true" />}
+              />
             </div>
           </>
         }
