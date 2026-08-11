@@ -49,11 +49,6 @@ export function getMateriaColor(materia) {
   return getDeterministicColor(key);
 }
 
-export function getMateriaInitial(materia) {
-  const name = (materia?.name || '').trim();
-  return name ? name.charAt(0).toUpperCase() : '?';
-}
-
 // =========================================================================
 // ðŸŽ¨ Utilidades de color para el look "carpeta" (tab + cuerpo con degradado + glow)
 // =========================================================================
@@ -74,6 +69,10 @@ export function mixWithWhite(hex, amount = 0.84) {
   const { r, g, b } = hexToRgb(hex);
   const mix = (channel) => Math.round(channel + ((255 - channel) * amount));
   return `rgb(${mix(r)}, ${mix(g)}, ${mix(b)})`;
+}
+
+export function getMateriaPastelColor(materia, amount = 0.78) {
+  return mixWithWhite(getMateriaColor(materia), amount);
 }
 
 export function lightenColor(hex, amount = 0.25) {

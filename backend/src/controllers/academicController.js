@@ -8,6 +8,7 @@ const Flashcard = require('../models/Flashcard');
 const ReviewLog = require('../models/ReviewLog');
 const { calculateRadarMetrics } = require('../utils/radarMetrics');
 const { randomUUID } = require('crypto');
+const { getAutomaticMateriaIconId, isValidMateriaIconId } = require('../utils/materiaIcons');
 
 const ALLOWED_PARCIALES = [1, 2, 3];
 const ALLOWED_HISTORY_WINDOWS = [7, 14, 30];
@@ -212,11 +213,11 @@ exports.getPublicMateriaProfile = async (req, res) => {
   }
 };
 
-// ✅ MODIFICADO: Soporte para metaCalificacion por defecto + color de acento
+// ✅ MODIFICADO: Soporte para metaCalificacion, color e icono académico
 exports.createMateria = async (req, res) => {
   try {
-    // 1. Extraemos metaCalificacion y color (si el usuario los define desde el inicio)
-    const { userId, name, metaCalificacion, color } = req.body || {};
+    // 1. Extraemos las opciones que el usuario puede definir desde el inicio.
+    const { userId, name, metaCalificacion, color, icon } = req.body || {};
     if (!name?.trim()) return res.status(400).json({ error: 'El nombre de la materia es requerido.' });
 
     const existe = await Materia.findOne({ name: name.trim(), userId });
@@ -230,11 +231,19 @@ exports.createMateria = async (req, res) => {
       return res.status(400).json({ error: 'El color debe ser un código hexadecimal válido (ej: #6366F1).' });
     }
 
+    // null/undefined representa Automático. El resultado se persiste para que
+    // la identidad visual no cambie entre renders ni sesiones.
+    if (icon !== undefined && icon !== null && !isValidMateriaIconId(icon)) {
+      return res.status(400).json({ error: 'El icono de la materia no pertenece al catálogo permitido.' });
+    }
+    const resolvedIcon = icon || getAutomaticMateriaIconId(name);
+
     const materia = await Materia.create({ 
       userId, 
       name: name.trim(),
       metaCalificacion: meta,
-      color: color || null
+      color: color || null,
+      icon: resolvedIcon
     });
     
     return res.status(201).json(materia.serialize());
@@ -579,15 +588,14 @@ exports.getMetricsHistory = async (req, res) => {
 };
 
 // =========================================================================
-// 5. EDICIÓN DE NOMBRE, META Y COLOR (Renombrar carpetas académicas + extras)
+// 5. EDICIÓN DE NOMBRE, META, COLOR E ICONO (Renombrar carpetas académicas + extras)
 // =========================================================================
 
-// ✅ MODIFICADO: Soporte para actualizar metaCalificacion, color y validación parcial
+// ✅ MODIFICADO: Soporte para actualizar metaCalificacion, color e icono
 exports.updateMateria = async (req, res) => {
   try {
     const { id } = req.params;
-    // 1. Aceptamos 'name', 'metaCalificacion' y 'color' en el cuerpo del request
-    const { name, metaCalificacion, color } = req.body || {};
+    const { name, metaCalificacion, color, icon } = req.body || {};
 
     const materia = await Materia.findById(id);
     if (!materia) return res.status(404).json({ error: 'Materia no encontrada.' });
@@ -621,6 +629,15 @@ exports.updateMateria = async (req, res) => {
         return res.status(400).json({ error: 'El color debe ser un código hexadecimal válido (ej: #6366F1).' });
       }
       materia.color = color;
+    }
+
+    // null vuelve a Automático y persiste inmediatamente el resultado estable.
+    // undefined conserva el icono existente y evita perder otros campos.
+    if (icon !== undefined) {
+      if (icon !== null && !isValidMateriaIconId(icon)) {
+        return res.status(400).json({ error: 'El icono de la materia no pertenece al catálogo permitido.' });
+      }
+      materia.icon = icon || getAutomaticMateriaIconId(materia.name);
     }
 
     await materia.save();
