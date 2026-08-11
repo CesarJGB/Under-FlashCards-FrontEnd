@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { Pencil, Trash2, Star, MoreHorizontal, Globe, Eye, Check } from 'lucide-react';
 import ActionSheet from './common/ActionSheet';
+import { getReadableTextColor } from '../lib/materiaColors';
 
 export default function DeckCard({ 
   deck, 
@@ -25,13 +26,25 @@ export default function DeckCard({
   const isOwner = deck.userId === currentUserId;
   const canModify = isOwner || deck.isDefault === true;
 
-  const bgStyle = deck.coverImage
-    ? { backgroundImage: `url(${deck.coverImage})`, backgroundSize: 'cover', backgroundPosition: 'center' }
-    : { backgroundColor: deck.coverColor || '#ffffff' };
+  const coverColor = deck.coverColor || '#ffffff';
+  const hasCoverImage = Boolean(deck.coverImage);
+  const cardTextColor = hasCoverImage ? '#ffffff' : getReadableTextColor(coverColor);
+  const bgStyle = hasCoverImage
+    ? {
+        backgroundColor: coverColor,
+        backgroundImage: `url(${deck.coverImage})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+      }
+    : { backgroundColor: coverColor };
+
+  const gridSurfaceClasses = hasCoverImage
+    ? 'border-white/20 shadow-[0_8px_22px_-12px_rgba(15,23,42,0.55)] hover:shadow-[0_12px_28px_-12px_rgba(15,23,42,0.65)]'
+    : 'border-black/[0.07] shadow-none hover:border-black/[0.12]';
 
   const containerClasses = isList
     ? `group relative w-full text-left flex items-center justify-between p-4 min-h-[72px] rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 shadow-3xs transition-all cursor-pointer overflow-hidden ${selectionMode && isSelected ? 'border-indigo-500 ring-2 ring-indigo-500' : ''}`
-    : `group relative w-full text-left h-32 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col justify-end overflow-hidden ${selectionMode && isSelected ? 'border-indigo-500 ring-2 ring-indigo-500' : ''}`;
+    : `group relative aspect-[4/3] w-full text-left rounded-[22px] border ${gridSurfaceClasses} transition-all cursor-pointer flex flex-col justify-end overflow-hidden active:scale-[0.99] ${selectionMode && isSelected ? 'border-indigo-500 ring-2 ring-indigo-500' : ''}`;
 
   const handleAction = (e, callback) => {
     e.stopPropagation();
@@ -89,7 +102,9 @@ export default function DeckCard({
       style={isList ? {} : bgStyle}
       className={containerClasses}
     >
-      {!isList && <span className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/65 via-black/25 to-transparent pointer-events-none rounded-b-2xl z-0" />}
+      {!isList && hasCoverImage && (
+        <span className="pointer-events-none absolute inset-x-0 bottom-0 z-0 h-2/3 rounded-b-[22px] bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
+      )}
 
       {/* ======================================================================= */}
       {/* 🎴 MODO CUADRÍCULA (GRID VIEW) */}
@@ -108,7 +123,7 @@ export default function DeckCard({
            )}
 
            {!readOnly && deck.isStarred && (
-            <button type="button" onClick={(e) => handleAction(e, () => onToggleStar(deck))} className={`absolute top-2.5 ${selectionMode ? 'left-10' : 'left-2.5'} p-1.5 rounded-lg bg-white/90 text-amber-500 shadow-3xs z-10 flex items-center justify-center cursor-pointer`}>
+            <button type="button" onClick={(e) => handleAction(e, () => onToggleStar(deck))} className={`absolute top-2.5 ${selectionMode ? 'left-10' : 'left-2.5'} z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-amber-500 shadow-3xs transition-all hover:bg-white active:scale-95 cursor-pointer`}>
               <Star className="w-3.5 h-3.5 fill-amber-500" />
             </button>
           )}
@@ -119,10 +134,15 @@ export default function DeckCard({
             <button
               type="button"
               onClick={() => setShowMenu(true)}
-              className="p-1.5 rounded-lg shadow-3xs flex items-center justify-center transition-all cursor-pointer bg-white/90 text-slate-700 hover:bg-white"
+              className={`flex h-10 w-10 items-center justify-center rounded-full border shadow-3xs transition-all active:scale-95 cursor-pointer ${
+                showMenu
+                  ? 'border-slate-900 bg-slate-900 text-white ring-2 ring-white/70'
+                  : 'border-white/70 bg-white/90 text-slate-700 hover:bg-white'
+              }`}
               aria-label={`Abrir acciones de ${deck.title}`}
+              aria-expanded={showMenu}
             >
-              <MoreHorizontal className="w-3.5 h-3.5" />
+              <MoreHorizontal className="h-4 w-4" />
             </button>
 
             {/* 🌐 Indicadores Oficiales recolocados limpiamente debajo del gatillo */}
@@ -140,9 +160,13 @@ export default function DeckCard({
           )}
 
           {/* Texto inferior (pr-4 optimizado para evitar cualquier colisión) */}
-          <div className="p-3.5 w-full z-10 min-w-0 relative pr-4">
-            <p className="font-bold text-white text-sm truncate drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">{deck.title}</p>
-            <p className="text-[11px] mt-0.5 font-semibold text-white/85 drop-shadow-[0_1px_1px_rgba(0,0,0,0.4)]">{deck.cardCount ?? 0} {countLabel}</p>
+          <div className="relative z-10 w-full min-w-0 p-3.5 pr-4" style={{ color: cardTextColor }}>
+            <p className={`truncate text-[15px] font-extrabold leading-tight tracking-[-0.015em] ${hasCoverImage ? 'drop-shadow-[0_1px_2px_rgba(0,0,0,0.48)]' : ''}`}>
+              {deck.title}
+            </p>
+            <p className={`mt-1 truncate text-[11px] font-semibold ${hasCoverImage ? 'text-white/85 drop-shadow-[0_1px_1px_rgba(0,0,0,0.38)]' : 'opacity-75'}`}>
+              {deck.cardCount ?? 0} {countLabel}
+            </p>
           </div>
         </>
       )}
@@ -179,7 +203,17 @@ export default function DeckCard({
 
           {!readOnly && (
             <div className="flex items-center gap-1 shrink-0 z-30" onClick={(e) => e.stopPropagation()}>
-            <button type="button" onClick={() => setShowMenu(true)} className="p-2 rounded-xl transition-colors text-slate-400 hover:text-slate-600" aria-label={`Abrir acciones de ${deck.title}`}>
+            <button
+              type="button"
+              onClick={() => setShowMenu(true)}
+              className={`flex h-10 w-10 items-center justify-center rounded-full transition-all active:scale-95 ${
+                showMenu
+                  ? 'bg-slate-900 text-white'
+                  : 'bg-slate-100/80 text-slate-500 hover:bg-slate-200 hover:text-slate-700'
+              }`}
+              aria-label={`Abrir acciones de ${deck.title}`}
+              aria-expanded={showMenu}
+            >
               <MoreHorizontal className="w-4 h-4" />
             </button>
             </div>

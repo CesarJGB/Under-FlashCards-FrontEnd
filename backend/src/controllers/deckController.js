@@ -2,6 +2,7 @@
 
 const Deck = require('../models/Deck');
 const Flashcard = require('../models/Flashcard');
+const { resolveDeckCoverColor } = require('../utils/deckColors');
 
 exports.getDecks = async (req, res) => {
   try {
@@ -58,7 +59,7 @@ exports.createDeck = async (req, res) => {
     const deck = await Deck.create({
       userId,
       title: title.trim(),
-      coverColor: coverColor || '#ffffff',
+      coverColor: resolveDeckCoverColor(coverColor),
       coverImage: coverImage || '',
       // Asignaciones de la nueva jerarquía académica
       materiaId: materiaId || null,
@@ -207,7 +208,7 @@ exports.importDeck = async (req, res) => {
     const newDeck = await Deck.create({
       userId,
       title: deck.title.trim(),
-      coverColor: deck.coverColor || '#ffffff',
+      coverColor: resolveDeckCoverColor(deck.coverColor),
       coverImage: typeof deck.coverImage === 'string' ? deck.coverImage : '',
       cardBackgrounds: Array.isArray(deck.cardBackgrounds) ? deck.cardBackgrounds : [],
       materiaId: deck.materiaId || null,

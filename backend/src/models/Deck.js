@@ -1,12 +1,13 @@
 // backend/src/models/Deck.js
 const mongoose = require('mongoose');
 const knowledgeMetricsSchema = require('./subdocuments/KnowledgeMetrics');
+const { getRandomDeckColor } = require('../utils/deckColors');
 
 const deckSchema = new mongoose.Schema(
   {
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     title: { type: String, required: true, trim: true },
-    coverColor: { type: String, default: '#ffffff' },
+    coverColor: { type: String, default: () => getRandomDeckColor() },
     coverImage: { type: String, default: '' },
     cardBackgrounds: { type: [String], default: [] },
     isStarred: { type: Boolean, default: false },

@@ -2,11 +2,7 @@
 import { useState } from 'react';
 import { X, Loader2, Check, Sparkles, Upload, ChevronLeft } from 'lucide-react';
 import { useKeyboardHeight } from '../hooks/useKeyboardHeight';
-
-const COLOR_SWATCHES = [
-  '#ffffff', '#fde68a', '#fca5a5', '#a7f3d0',
-  '#93c5fd', '#c4b5fd', '#f9a8d4', '#1f2937',
-];
+import { DECK_COLOR_SWATCHES } from '../lib/deckColors';
 
 const fileToBase64 = (file) =>
   new Promise((resolve, reject) => {
@@ -19,12 +15,15 @@ const fileToBase64 = (file) =>
 export default function DeckModal({ initial, onClose, onSave, nameOnly = false, entityLabel = 'mazo' }) {
   const [title, setTitle] = useState(initial?.title || '');
   const [coverColor, setCoverColor] = useState(initial?.coverColor || '#ffffff');
+  const [coverColorTouched, setCoverColorTouched] = useState(false);
   const [coverImage, setCoverImage] = useState(initial?.coverImage || '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [step, setStep] = useState('main'); // 'main' | 'customization'
 
   const keyboardHeight = useKeyboardHeight();
+  const hasInitialCoverColor = typeof initial?.coverColor === 'string' && Boolean(initial.coverColor.trim());
+  const hasConfiguredCover = coverColorTouched || hasInitialCoverColor || Boolean(coverImage);
 
   const handleFile = async (e) => {
     const file = e.target.files?.[0];
@@ -48,7 +47,9 @@ export default function DeckModal({ initial, onClose, onSave, nameOnly = false, 
     setSaving(true);
     setError('');
     try {
-      await onSave(nameOnly ? { title: title.trim() } : { title: title.trim(), coverColor, coverImage });
+      const payload = { title: title.trim(), coverImage };
+      if (coverColorTouched) payload.coverColor = coverColor;
+      await onSave(nameOnly ? { title: title.trim() } : payload);
     } catch (err) {
       setError(err.message || `No se pudo guardar el ${entityLabel}.`);
       setSaving(false);
@@ -134,7 +135,7 @@ export default function DeckModal({ initial, onClose, onSave, nameOnly = false, 
                         <div className="text-left">
                           <p className="text-sm font-semibold text-slate-900">Personalización avanzada</p>
                           <p className="text-xs text-slate-500">
-                            {coverColor !== '#ffffff' || coverImage
+                            {hasConfiguredCover
                               ? 'Color e imagen configurados'
                               : 'Color y portada opcionales'}
                           </p>
@@ -201,14 +202,19 @@ export default function DeckModal({ initial, onClose, onSave, nameOnly = false, 
                       Color de portada
                     </label>
                     <div className="grid grid-cols-4 gap-2">
-                      {COLOR_SWATCHES.map((c) => (
+                      {DECK_COLOR_SWATCHES.map((c) => (
                         <button
                           key={c}
                           type="button"
-                          onClick={() => setCoverColor(c)}
+                          onClick={() => {
+                            setCoverColor(c);
+                            setCoverColorTouched(true);
+                          }}
+                          aria-label={`Seleccionar color ${c}`}
+                          aria-pressed={(coverColorTouched || hasInitialCoverColor) && coverColor === c}
                           style={{ backgroundColor: c }}
                           className={`w-12 h-12 rounded-xl border-2 transition-all duration-200 ${
-                            coverColor === c
+                            (coverColorTouched || hasInitialCoverColor) && coverColor === c
                               ? 'ring-2 ring-offset-2 ring-indigo-500 border-white scale-105'
                               : 'border-white hover:scale-105'
                           }`}
@@ -220,7 +226,10 @@ export default function DeckModal({ initial, onClose, onSave, nameOnly = false, 
                         <input
                           type="color"
                           value={coverColor}
-                          onChange={(e) => setCoverColor(e.target.value)}
+                          onChange={(e) => {
+                            setCoverColor(e.target.value);
+                            setCoverColorTouched(true);
+                          }}
                           className="w-6 h-6 rounded cursor-pointer border border-slate-300"
                         />
                         Color personalizado
