@@ -1,54 +1,74 @@
-import { ClipboardCheck, Gamepad2, Layers, Wrench } from 'lucide-react';
+import studyModesIllustration from '../../../media/svg/Modo estudio .svg';
+import minigamesIllustration from '../../../media/svg/Minijuegos.svg';
+import examsIllustration from '../../../media/svg/Exámenes .svg';
+import featuresIllustration from '../../../media/svg/Funcionalidades .svg';
 
 const categories = [
   {
     id: 'study-modes',
     title: 'Modos de Estudio',
-    icon: Layers,
-    color: 'from-emerald-500 to-teal-600',
+    description: 'Elige cómo repasar',
+    illustration: studyModesIllustration,
+    visualClassName: 'bg-[#FFE477]',
   },
   {
     id: 'minigames',
     title: 'Minijuegos',
-    icon: Gamepad2,
-    color: 'from-pink-500 to-rose-600',
+    description: 'Aprende jugando',
+    illustration: minigamesIllustration,
+    visualClassName: 'bg-[#8EDAF2]',
   },
   {
     id: 'exams',
     title: 'Exámenes',
-    icon: ClipboardCheck,
-    color: 'from-violet-500 to-purple-600',
+    description: 'Practica y evalúate',
+    illustration: examsIllustration,
+    visualClassName: 'bg-[#BDEB69]',
   },
   {
     id: 'features',
     title: 'Funcionalidades',
-    icon: Wrench,
-    color: 'from-cyan-500 to-blue-600',
+    description: 'Herramientas extra',
+    illustration: featuresIllustration,
+    visualClassName: 'bg-[#F3B7CB]',
   },
 ];
 
 export default function CategoryGrid({ onSelectCategory }) {
   return (
-    <div className="grid grid-cols-2 gap-3">
-      {categories.map((category) => {
-        const Icon = category.icon;
+    <section aria-labelledby="study-categories-title">
+      <h2 id="study-categories-title" className="mb-3 text-lg font-black tracking-tight text-slate-900">
+        Categorías
+      </h2>
 
-        return (
+      <div className="grid grid-cols-2 gap-3.5">
+        {categories.map((category) => (
           <button
             key={category.id}
             type="button"
             onClick={() => onSelectCategory(category.id)}
-            className="aspect-square rounded-2xl border border-slate-200 bg-white p-4 shadow-3xs transition-all duration-200 hover:border-slate-300 hover:shadow-xs active:scale-[0.99] cursor-pointer"
+            className="group min-h-[204px] cursor-pointer overflow-hidden rounded-[22px] border border-slate-200/90 bg-white text-left shadow-[0_8px_22px_rgba(15,23,42,0.08)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_26px_rgba(15,23,42,0.11)] active:translate-y-0 active:scale-[0.985]"
           >
-            <span className={`mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br ${category.color} text-white shadow-xs`}>
-              <Icon className="h-6 w-6" />
+            <span className={`flex h-[132px] items-center justify-center overflow-hidden ${category.visualClassName}`}>
+              <img
+                src={category.illustration}
+                alt=""
+                aria-hidden="true"
+                className="h-[116px] w-[116px] object-contain transition-transform duration-200 group-hover:scale-[1.03]"
+              />
             </span>
-            <span className="mt-3 block text-center text-sm font-bold tracking-tight text-slate-900">
-              {category.title}
+
+            <span className="flex min-h-[72px] flex-col items-center justify-center px-2.5 py-2 text-center">
+              <span className="block text-[13px] font-black leading-tight tracking-tight text-slate-950 sm:text-sm">
+                {category.title}
+              </span>
+              <span className="mt-1 block text-[11px] font-medium leading-tight text-slate-500">
+                {category.description}
+              </span>
             </span>
           </button>
-        );
-      })}
-    </div>
+        ))}
+      </div>
+    </section>
   );
 }
