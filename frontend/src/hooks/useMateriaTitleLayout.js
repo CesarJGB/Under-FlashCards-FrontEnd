@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { getMateriaTitleLayout } from '../lib/materiaTitleLayout.js';
 
 let sharedCanvasContext = null;
@@ -55,13 +55,17 @@ export function useMateriaTitleLayout(name) {
     frameRef.current = requestAnimationFrame(() => calculateLayout(lastWidthRef.current));
   }, [calculateLayout]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const region = regionRef.current;
     if (!region) return undefined;
 
     let active = true;
     let observer;
     const handleWindowResize = () => scheduleCalculation(region.getBoundingClientRect().width);
+    const initialWidth = region.getBoundingClientRect().width;
+
+    lastWidthRef.current = initialWidth;
+    calculateLayout(initialWidth);
 
     if (typeof ResizeObserver === 'function') {
       observer = new ResizeObserver(([entry]) => scheduleCalculation(entry.contentRect.width));
@@ -76,7 +80,6 @@ export function useMateriaTitleLayout(name) {
     };
     document.fonts?.addEventListener?.('loadingdone', handleFontsLoaded);
     document.fonts?.ready?.then(handleFontsLoaded);
-    scheduleCalculation(region.getBoundingClientRect().width);
 
     return () => {
       active = false;
@@ -85,7 +88,7 @@ export function useMateriaTitleLayout(name) {
       document.fonts?.removeEventListener?.('loadingdone', handleFontsLoaded);
       if (frameRef.current) cancelAnimationFrame(frameRef.current);
     };
-  }, [scheduleCalculation]);
+  }, [calculateLayout, scheduleCalculation]);
 
   return { regionRef, layout };
 }
