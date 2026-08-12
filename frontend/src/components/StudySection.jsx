@@ -96,7 +96,6 @@ export default function StudySection({ decks, materias, userId, userEmail, onOpe
   if (!selectedCategory) {
     return (
       <div className="space-y-5 animate-[fadeIn_0.15s_ease] pt-1 md:-mt-2">
-        <h1 className="mt-2 text-xl font-black tracking-tight text-slate-900">Modo de Estudio</h1>
         <DailyChallengeCard />
         <CategoryGrid onSelectCategory={setSelectedCategory} />
       </div>
