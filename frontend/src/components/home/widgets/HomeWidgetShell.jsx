@@ -16,7 +16,7 @@ export default function HomeWidgetShell({
         <div className="min-w-0">
           <div className="flex items-center gap-2.5 min-w-0">
             {Icon && (
-              <div className="w-9 h-9 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+              <div className="w-9 h-9 rounded-2xl bg-[#F0EBFF] text-[#6246D8] flex items-center justify-center shrink-0">
                 <Icon className="w-4 h-4" />
               </div>
             )}

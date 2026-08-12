@@ -1,4 +1,5 @@
 // FILE: frontend/src/components/home/WidgetCarousel.jsx
+import { ChevronRight } from 'lucide-react';
 import useCardStack from './useCardStack';
 import { DEFAULT_WIDGET_ORDER, getHomeWidgetDefinition } from './homeWidgetRegistry';
 
@@ -14,10 +15,11 @@ function PreviewCard({ widgetId, context, className, style }) {
 
   return (
     <div
-      className={`absolute top-0 rounded-3xl bg-white border border-slate-200/80 overflow-hidden ${className}`}
+      className={`absolute top-0 overflow-hidden rounded-[28px] border ${className}`}
       style={style}
+      aria-hidden="true"
     >
-      <div className="h-full w-full p-6 flex flex-col justify-end bg-gradient-to-br from-white to-slate-50">
+      <div className="invisible flex h-full w-full flex-col justify-end p-6">
         <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mb-4">
           <Icon className="w-5 h-5" />
         </div>
@@ -47,14 +49,15 @@ export default function WidgetCarousel({
 
   return (
     <div className="w-full">
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-xl font-bold text-slate-900">{title}</h2>
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="text-2xl font-extrabold tracking-tight text-slate-900">{title}</h2>
         <button
           type="button"
           onClick={onViewAll}
-          className="text-sm text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+          className="inline-flex min-h-11 cursor-pointer items-center gap-1 whitespace-nowrap text-sm font-semibold text-[#5F4AE6] transition-colors hover:text-[#4935C8]"
         >
           Ver todas ({order.length})
+          <ChevronRight className="h-4 w-4" aria-hidden="true" />
         </button>
       </div>
 
@@ -63,11 +66,12 @@ export default function WidgetCarousel({
           <PreviewCard
             widgetId={behindIds[1]}
             context={widgetContext}
-            className="inset-x-4 z-10"
+            className="inset-x-4 z-10 border-[#E7E0F7] bg-[#FAF8FF]"
             style={{ 
               height: CARD_HEIGHT, 
-              transform: 'translateY(24px) scale(0.95)',
-              opacity: 0.6
+              transform: 'translateY(23px) scale(0.95)',
+              transformOrigin: 'top center',
+              opacity: 0.9
             }}
           />
         )}
@@ -76,26 +80,27 @@ export default function WidgetCarousel({
           <PreviewCard
             widgetId={behindIds[0]}
             context={widgetContext}
-            className="inset-x-2 z-20"
+            className="inset-x-2 z-20 border-[#D8CEF5] bg-[#F2EEFF]"
             style={{ 
               height: CARD_HEIGHT, 
-              transform: 'translateY(12px) scale(0.97)',
-              opacity: 0.8
+              transform: 'translateY(12px) scale(0.975)',
+              transformOrigin: 'top center',
+              opacity: 0.95
             }}
           />
         )}
 
         <div
           {...handlers}
-          className="absolute inset-x-0 top-0 z-30 rounded-3xl bg-white border border-slate-200 select-none overflow-hidden"
+          className="absolute inset-x-0 top-0 z-30 select-none overflow-hidden rounded-[28px] border border-[#D9D0F3] bg-[linear-gradient(180deg,#FAF8FF_0%,#FFFFFF_34%,#FFFFFF_100%)]"
           style={{
             height: CARD_HEIGHT,
             transform: `translateY(${dragY}px) scale(${isPickedUp ? 1.02 : 1})`,
             transition: isPickedUp ? 'none' : 'transform 200ms ease',
             touchAction: isPickedUp ? 'none' : 'pan-x',
             boxShadow: isPickedUp
-              ? '0 12px 32px rgba(15, 23, 42, 0.18)'
-              : '0 1px 2px rgba(15, 23, 42, 0.06)'
+              ? '0 16px 36px rgba(52, 39, 92, 0.16), 0 4px 10px rgba(52, 39, 92, 0.08)'
+              : '0 12px 30px rgba(52, 39, 92, 0.10), 0 2px 8px rgba(52, 39, 92, 0.05)'
           }}
         >
           <ActiveComponent {...widgetContext} />

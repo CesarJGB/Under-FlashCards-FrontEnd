@@ -8,6 +8,33 @@ const GRID_COLUMNS = 3;
 const GRID_ROWS = 2;
 const PAGE_SIZE = GRID_COLUMNS * GRID_ROWS;
 
+const QUICK_VIEW_CARD_TONES = [
+  {
+    card: 'border-[#DDD2FA] bg-[#F3EEFF] hover:border-[#C9B9F3]',
+    track: 'text-[#DDD4F7]'
+  },
+  {
+    card: 'border-[#CFE0FA] bg-[#EEF5FF] hover:border-[#B9D2F5]',
+    track: 'text-[#D3E2FB]'
+  },
+  {
+    card: 'border-[#F4D6BF] bg-[#FFF4EC] hover:border-[#EDC5A7]',
+    track: 'text-[#F8DDCA]'
+  },
+  {
+    card: 'border-[#C6E7E2] bg-[#EDF9F7] hover:border-[#ACDAD3]',
+    track: 'text-[#D0ECE8]'
+  },
+  {
+    card: 'border-[#F4CCD5] bg-[#FFF0F3] hover:border-[#ECB6C2]',
+    track: 'text-[#F5D1D8]'
+  },
+  {
+    card: 'border-[#F1DFAD] bg-[#FFF9E8] hover:border-[#E8CF8D]',
+    track: 'text-[#F4E5B8]'
+  }
+];
+
 function PagerDots({ currentPage, totalPages, onSelectPage }) {
   if (totalPages <= 1) return null;
 
@@ -59,8 +86,9 @@ export default function QuickViewSubjectsWidget({
     if (target) onNavigateToLibrary?.(target);
   };
 
-  const renderMateriaCard = (materia) => {
+  const renderMateriaCard = (materia, position) => {
     const accent = getKnowledgeAccent(materia.masteryPercentage);
+    const tone = QUICK_VIEW_CARD_TONES[position % QUICK_VIEW_CARD_TONES.length];
     const circumference = 2 * Math.PI * 24;
     const strokeDashoffset = circumference - (materia.masteryPercentage / 100) * circumference;
     const parcialesBadge = getParcialesBadge(materia.activeParciales);
@@ -71,12 +99,12 @@ export default function QuickViewSubjectsWidget({
         type="button"
         onClick={() => handleCardClick(materia)}
         // 1. Reducimos el alto de la tarjeta a h-32 y cambiamos el padding a p-2 para compactarlo
-        className="group bg-white dark:bg-zinc-900 p-2 rounded-xl border border-zinc-200/70 dark:border-zinc-800 flex flex-col items-center text-center hover:shadow-sm hover:border-indigo-200 dark:hover:border-indigo-900 transition-all active:scale-[0.97] min-w-0 h-32 justify-start"
+        className={`group flex h-32 min-w-0 flex-col items-center justify-start rounded-xl border p-2 text-center transition-colors active:scale-[0.97] dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-indigo-900 ${tone.card}`}
       >
         {/* Mantener anillo grande pero reducir el margen inferior a mb-1.5 */}
         <div className="relative w-14 h-14 mb-1.5 shrink-0">
           <svg className="w-full h-full transform -rotate-90">
-            <circle cx="28" cy="28" r="24" stroke="currentColor" strokeWidth="5" fill="none" className="text-zinc-100 dark:text-zinc-800" />
+            <circle cx="28" cy="28" r="24" stroke="currentColor" strokeWidth="5" fill="none" className={`${tone.track} dark:text-zinc-800`} />
             <circle
               cx="28"
               cy="28"
@@ -107,7 +135,7 @@ export default function QuickViewSubjectsWidget({
           {parcialesBadge ? (
             <span
               title={parcialesBadge}
-              className="block max-w-full truncate text-[7px] font-bold px-1.5 py-0.5 rounded text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40"
+              className="block max-w-full truncate rounded bg-[#EEE8FC] px-1.5 py-0.5 text-[7px] font-bold text-[#6246D8] dark:bg-indigo-950/40 dark:text-indigo-400"
             >
               {parcialesBadge}
             </span>
@@ -118,12 +146,12 @@ export default function QuickViewSubjectsWidget({
   };
 
   return (
-    <div className="h-full flex flex-col px-3 py-3 bg-white dark:bg-zinc-950 rounded-2xl border border-zinc-200 dark:border-zinc-800">
+    <div className="flex h-full flex-col bg-transparent px-3 py-3 dark:bg-zinc-950">
       <div className="flex items-center gap-2 mb-2 px-1">
-        <div className="w-7 h-7 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
-          <Layers className="w-3.5 h-3.5" />
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[14px] bg-[#F0EBFF] text-[#6246D8] dark:bg-indigo-950/40 dark:text-indigo-400">
+          <Layers className="h-4 w-4" />
         </div>
-        <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100 truncate">Vista rápida</h3>
+        <h3 className="truncate text-base font-bold text-zinc-900 dark:text-zinc-100">Vista rápida</h3>
       </div>
 
       <div className="flex-1 min-h-0">
@@ -146,18 +174,18 @@ export default function QuickViewSubjectsWidget({
             className="grid grid-cols-3 gap-2"
             style={{ touchAction: totalPages > 1 ? 'pan-y' : 'auto' }}
           >
-            {gridItems.map((materia) => {
+            {gridItems.map((materia, position) => {
               if (materia.empty) {
                 return (
                   <div
                     key={materia.id}
                     // 3. Sincronizamos la altura h-32 para los slots vacíos
-                    className="rounded-xl border border-dashed border-zinc-200 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-900/20 h-32"
+                    className="h-32 rounded-xl border border-dashed border-[#E7E0F7] bg-[#FAF8FF]/70 dark:border-zinc-800 dark:bg-zinc-900/20"
                   />
                 );
               }
 
-              return renderMateriaCard(materia);
+              return renderMateriaCard(materia, position);
             })}
           </div>
         )}

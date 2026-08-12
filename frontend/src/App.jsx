@@ -362,7 +362,7 @@ function DashboardScreen({ user, onLogout, onInviteRequired }) {
                 aria-current={isActive ? 'page' : undefined}
                 className={`flex h-[3.25rem] items-center justify-center rounded-full text-black transition-all duration-200 cursor-pointer active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 ${
                   isActive
-                    ? 'gap-2 bg-violet-200 px-[clamp(0.75rem,4vw,1.125rem)] shadow-sm ring-1 ring-inset ring-violet-300'
+                    ? 'gap-2 bg-[linear-gradient(135deg,#E4DCFA_0%,#D6CAF3_100%)] px-[clamp(0.75rem,4vw,1.125rem)] shadow-[0_6px_16px_rgba(96,78,140,0.12)] ring-1 ring-inset ring-[#B8A8DF]'
                     : 'w-[clamp(3rem,14.5vw,3.25rem)] bg-slate-100 hover:bg-slate-200'
                 }`}
                 title={item.title}
