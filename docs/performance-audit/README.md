@@ -105,6 +105,7 @@ Existe drift posterior al último commit documental registrado allí (`36c77a741
 - [measurement-plan.md](./measurement-plan.md): matriz de escala, métricas e instrumentos necesarios.
 - [prioritized-roadmap.md](./prioritized-roadmap.md): orden de investigación futura, riesgos, aceptación y “No hacer todavía”.
 - [experiments/image-baseline/](./experiments/image-baseline/README.md): Fase 1A experimental para `PERF-IMG-001` y `PERF-IMG-003`, medida sobre el commit que publicó esta auditoría. `IMG-DATA = GO`; `IMG-RENDER = PARTIAL`.
+- [research/image-delivery/](./research/image-delivery/README.md): Fase 1B — investigación y recomendación de arquitectura de entrega de imágenes sobre el baseline de la Fase 1A: contrato actual, matriz de consumidores, alternativas A/B/C/D, mediciones, migración, cortes y gates. `IMG-DATA = GO`; `IMG-RENDER = PARTIAL` (sin cambio); implementación recomendada, no autorizada.
 
 ## Comandos ejecutados y resultados relevantes
 

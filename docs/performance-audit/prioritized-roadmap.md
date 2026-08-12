@@ -25,6 +25,8 @@ IDs: PERF-IMG-001, PERF-IMG-002, PERF-SERVER-001.
 
 Estado tras [Fase 1A](./experiments/image-baseline/research-gates.md): **IMG-DATA = GO** para investigar alternativas. Ya están cuantificados Base64, JSON/gzip, BSON sintético, duplicación, parse/stringify y puntos locales de cuota. Siguen faltando distribución real anonimizada, infraestructura de compresión y base representativa; GO no selecciona solución.
 
+**Resuelto por [Fase 1B](./research/image-delivery/README.md) en su parte contractual.** La comparación de alternativas sobre la misma matriz concluyó en una recomendación: normalizar el contrato de salida (diccionario de fondos + índice; resumen de mazo sin `cardBackgrounds`) antes de cualquier almacenamiento externo. Las cifras clave y los cortes de implementación están en [research/image-delivery/quantitative-results.md](./research/image-delivery/quantitative-results.md) y [research/image-delivery/implementation-cuts.md](./research/image-delivery/implementation-cuts.md). La implementación no está autorizada; los gates están en [research/image-delivery/implementation-readiness.md](./research/image-delivery/implementation-readiness.md).
+
 1. Medir bytes binarios/Data URL/JSON/transferidos y BSON por tipo de imagen.
 2. Cuantificar repetición de un fondo en respuesta de tarjetas y campos de fondo en lista de mazos.
 3. Verificar compresión del edge, cuota de localStorage, heap Node/browser y límite operacional del Deck.
@@ -94,6 +96,8 @@ Comparar Data URL en Mongo, almacenamiento de objetos, documentos de assets o h�
 Preguntas obligatorias: ownership, autenticación, URL expiration, CORS/CSP, borrado huérfano, deduplicación, privacidad, coste, backup, migración, offline, formato/calidad, EXIF, Safari y exportación portátil.
 
 No decidir proveedor ni formato hasta medir datos reales y requisitos de producto.
+
+**Estado tras la [Fase 1B](./research/image-delivery/alternatives-comparison.md):** las cuatro familias quedaron comparadas sobre la matriz de la Fase 1A. La recomendación es no externalizar aún: normalizar el contrato (diccionario + índice) y, sólo después, evaluar assets backend (B) u object storage (C) como evolución, con medición de distribución real y coste. La alternativa híbrida (D) es la evolución natural de A si Library exige miniaturas.
 
 ### C. Colecciones incrementales
 
@@ -208,3 +212,5 @@ Comparar cálculo incremental, batch, eventos persistidos y materializaciones. P
 ## Resultado esperado de la siguiente investigación
 
 La siguiente fase debe cerrar con un dossier comparativo por ID: baseline, traza, causa atribuida, alternativas evaluadas, coste/beneficio, contratos, riesgos y propuesta concreta. Sólo esa propuesta —aprobada separadamente— debe convertirse después en cambios de código.
+
+**Entregado por la Fase 1B** en [research/image-delivery/](./research/image-delivery/README.md) para el bloque de imágenes: dossier comparativo completo (contratos, alternativas, mediciones, migración, cortes y gates) con propuesta concreta pendiente de aprobación. Siguen abiertos los bloques de lag físico (IMG-RENDER), curvas de escala, camino de Guardar/review y carreras de respuesta.

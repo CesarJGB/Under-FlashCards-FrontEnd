@@ -1,0 +1,102 @@
+# Plan de implementación por cortes
+
+Plan de trabajo futuro, pequeño y reversible. **No se implementa en esta fase.** Cada corte define archivos probables, contratos, migración, compatibilidad dual, pruebas, métricas de aceptación, rollback, riesgos y dependencias.
+
+Dependencias estrictas: `C0 → C1 → C2 → C3/C4 → C5`. C1 no puede omitir C0; C5 sólo existe tras métricas de C1-C4.
+
+---
+
+## Corte 0 — Contratos y pruebas de caracterización
+
+**Objetivo**: congelar el comportamiento actual y los contract tests de ambos shapes antes de tocar producción.
+
+- Archivos probables: `backend/test/` (contract tests nuevos), `frontend/tests/` (tests del resolver de diccionario), `backend/src/models/Flashcard.js` (sólo si se añade un serializador explícito `serializeLegacy` — sin cambiar el actual).
+- Contratos: shape legacy (expandido) y shape objetivo (diccionario + índice) como fixtures.
+- Migración: ninguna. Compatibilidad dual: n/a (sólo pruebas).
+- Pruebas:
+  - Contract tests del shape objetivo: `backgrounds` único por cadena; `bgImageIndex` resuelve; `-1` → sin fondo.
+  - Tests del resolver cliente: `resolveBackgrounds(cards, backgrounds)` para grid/caras/editor/PDF.
+  - Caracterización: las suites existentes (manual-editor unit 58/58, schedule 44/44, pdf-extraction 8/8) como gate.
+- Métricas de aceptación: contract tests verdes; ningún test existente rojo; `git diff --check` limpio.
+- Rollback: eliminar los tests (no hay código productivo).
+- Riesgos: bajo. Dependencia: ninguna.
+
+## Corte 1 — Eliminar la duplicación del fondo en las respuestas
+
+**Objetivo**: la respuesta de tarjetas envía el fondo una sola vez; la lista de mazos deja de enviar `cardBackgrounds`. Sin cambiar almacenamiento.
+
+- Archivos probables:
+  - Backend: `flashcardController.js` (getCardsByDeck, createCard, updateCard, createBulkCards → devolver `{backgrounds, cards}` o shape dual), `reviewController.js` (tres endpoints de sesión), `deckController.js` (lista sin `cardBackgrounds` en `Deck.serialize` para el resumen), `models/Flashcard.js` (helper `serializeIndexed(backgrounds)`), `models/Deck.js` (helper `serializeSummary()`).
+  - Frontend: `lib/` nuevo resolver (`resolveCardBackgrounds`), `FlashcardGrid.jsx`, `CardFace.jsx`, `ReviewMode.jsx`, `FastDeleteMode.jsx`, `LivePreview.jsx`, `DeckInterior.jsx` (handleEdit), `utils/pdf/*` (resolver antes de exportar), `SessionPlayer.jsx` (reparto de diccionario).
+- Contratos: lectura de tarjetas y sesiones → `{backgrounds, cards}`; lista de mazos → resumen sin `cardBackgrounds`; escritura/ACK → expandido (dual) para no romper el editor.
+- Migración: ninguna de datos. Compatibilidad dual: campo `bgImage` (expandido) sólo para clientes sin cabecera de versión; servidor dual.
+- Pruebas: contract tests C0 en verde; matriz funcional editor/repaso/sesión/PDF/import/export; harness `image-delivery` como verificación (el shape `normalized` es el producido).
+- Métricas de aceptación: 1000 tarjetas fondo grande ⇒ respuesta < 1 MiB (presupuesto: ≤ 0.5 MiB); lista 500 mazos portada+fondos ⇒ < 0.5 MiB; duplicación de fondo = 0% en shape nuevo; 0 errores de resolución en logs; sin regresiones funcionales.
+- Rollback: desplegar backend previo (vuelve a expandir); el cliente nuevo sigue funcionando con el shape expandido.
+- Riesgos: consumidor que olvide resolver (fallback a color sólido, degradación no catastrófica); `contentImage` no se deduplica (alcance aprobado).
+- Dependencias: C0.
+
+## Corte 2 — Contratos ligeros de Library/materias con miniaturas o referencias
+
+**Objetivo**: reducir aún más lo que ve Library/materias (portada en miniatura opcional) y preparar el caché de recursos.
+
+- Archivos probables: `deckController.js`/`Deck.serialize` (resumen con `coverImageThumb` opcional), `DeckCard.jsx` (usar `coverImageThumb` con fallback a `coverImage`), `App.jsx` (`loadDecks` contrato resumen), `LibrarySection`/`HomeSection` (sin cambios salvo campos), `safeLocalStorage` (opcional: presupuesto por clave).
+- Contratos: resumen de mazo ligero; detalle bajo demanda con diccionario (C1).
+- Migración: ninguna (campo nuevo opcional). Compatibilidad: `coverImageThumb` ausente → `coverImage`.
+- Pruebas: contract tests resumen; tests de `DeckCard` con/sin miniatura; matriz Home/Library/búsqueda/orden/persistencia.
+- Métricas: lista 500 mazos con portada ≤ presupuesto aprobado (referencia: 13.58 MiB thumb vs 83.62 MiB actual — ESTIMADO); stringify/parse de `decks_<user>` ≤ 50 ms; sin regresiones de búsqueda/orden.
+- Rollback: ignorar `coverImageThumb` (el código ya tiene fallback).
+- Riesgos: fidelidad de portada en grid (decisión humana de presupuesto visual); dependencia de generación de miniaturas (cliente o servidor — decisión pendiente).
+- Dependencias: C1.
+
+## Corte 3 — Almacenamiento y entrega futura de assets
+
+**Objetivo (sólo si se aprueba)**: mover bytes a assets (Mongo/GridFS/objetos) con referencias cacheables y miniaturas servidas. Es la alternativa D/B/C.
+
+- Archivos probables: nuevo modelo/colección de assets (`backend/src/models/Asset.js` o GridFS), endpoint de recuperación autenticado, escritura dual en `deckController`/`flashcardController`/`aiDeckGenerator`, resolver cliente con caché de assets, GC.
+- Contratos: referencias (`assetId`/`url`) en tarjetas y mazos; cadenas legacy conservadas.
+- Migración: **sí** — extracción por lotes idempotente con doble escritura ([migration-rollout-rollback.md](./migration-rollout-rollback.md)).
+- Compatibilidad: fallback a cadena si falta el asset.
+- Pruebas: migración en entorno controlado; recuperación con/ sin auth; CORS/CSP; offline con caché; multi-instancia.
+- Métricas: referencia en vez de bytes en JSON (ver §6 raw-results: refs 0.3 KiB vs 3,734 KiB BSON); N assets huérfanos = 0 tras GC; tasa de fallback a cadena < umbral.
+- Rollback: desactivar recuperación de assets (sirve cadenas); migración no destructiva.
+- Riesgos: autorización de assets (hoy los endpoints no autentican lecturas), privacidad, consistencia multi-instancia, exportación portátil, CORS/CSP.
+- Dependencias: C2; decisión humana previa (proveedor/almacenamiento, presupuesto).
+
+## Corte 4 — Migración gradual de datos antiguos
+
+**Objetivo**: normalizar datos legados y limpiar huérfanos (`cardBackgrounds` sin tarjetas referenciantes; assets sin referencias).
+
+- Archivos probables: script de migración (no productivo) + `flashcardController.deleteCard`/`deckController.deleteDeck` con limpieza; utilidad de recuento de referencias.
+- Migración: por lotes, idempotente, con dry-run y reporte.
+- Compatibilidad: la limpieza no altera el contrato; sólo elimina bytes no referenciados.
+- Pruebas: dry-run sobre fixture; verificación de que ningún `bgImageIndex` apunte a un fondo borrado.
+- Métricas: recuento de huérfanos antes/después; 0 índices rotos.
+- Rollback: restaurar backup; la migración es no destructiva si se ejecuta con retención.
+- Riesgos: GC borra un fondo aún referenciado (mitigado por recuento real de referencias).
+- Dependencias: C1/C3 según el origen de los datos.
+
+## Corte 5 — Limpieza del contrato heredado
+
+**Objetivo**: eliminar el campo `bgImage` expandido del shape y el legacy `cardBackgrounds` de la lista cuando no haya consumidores.
+
+- Archivos probables: `Flashcard.serialize` (eliminar expansión), `Deck.serialize` (eliminar `cardBackgrounds` del resumen), campo dual del servidor (retirar), consumidores que resuelven diccionario (ya en C1).
+- Migración: ninguna (sólo contrato). Compatibilidad: **fin de soporte de clientes viejos** — requiere métricas sostenidas de tráfico legacy ≈ 0.
+- Pruebas: contract tests del shape final; suite completa.
+- Métricas: 0 requests con cabecera legacy durante N días (N aprobado); suite verde.
+- Rollback: **no limpio** (no borra datos pero sí el shape); por eso se exige el periodo de observación.
+- Riesgos: cliente no actualizado pierde fondos (visible como color sólido).
+- Dependencias: C1-C4.
+
+## Resumen de dependencias y presupuestos
+
+| Corte | Archivos/área principal | Sin migración | Rollback | Depende de |
+|---|---|---:|---|---|
+| 0 | tests/contracts | sí | sí | — |
+| 1 | serializadores + consumidores | sí | sí | C0 |
+| 2 | resumen + thumbnails | sí | sí | C1 |
+| 3 | assets (sólo si se aprueba) | **no** | parcial | C2 + decisión humana |
+| 4 | GC/migración de datos | **no** | backup | C1/C3 |
+| 5 | contrato final | sí | no limpio | C1-C4 |
+
+Presupuestos por contrato (propuestos; sujetos a aprobación): respuesta de tarjetas ≤ 1 MiB en el peor perfil actual (1000 tarjetas fondo grande); lista de mazos ≤ 1 MiB; `decks_<user>` stringify ≤ 50 ms. Estos umbrales son hipótesis de aceptación, no mediciones de producción.
