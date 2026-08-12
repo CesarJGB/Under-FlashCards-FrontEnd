@@ -1,51 +1,67 @@
 // FILE: frontend/src/components/library/GeneralSection.jsx
-import { CalendarDays, NotebookPen } from 'lucide-react';
+import calendarIllustration from '../../../media/svg/Calendario escolar .svg';
+import notesIllustration from '../../../media/svg/Notas .svg';
 
 export default function GeneralSection({ onOpenCalendar }) {
   const upcomingTools = [
     {
       id: 'calendar',
       title: 'Horario de clases',
-      icon: CalendarDays,
-      color: 'from-amber-500 to-orange-600',
+      description: 'Organiza tu semana',
+      illustration: calendarIllustration,
+      visualClassName: 'bg-[#8EDAF2]',
       active: true,
       onClick: onOpenCalendar
     },
     {
       id: 'notes',
       title: 'Notas rápidas',
-      icon: NotebookPen,
-      color: 'from-yellow-400 to-amber-500',
+      description: 'Próximamente',
+      illustration: notesIllustration,
+      visualClassName: 'bg-[#FFE477]',
       active: false
     }
   ];
 
   return (
-    <div className="grid grid-cols-2 gap-3 mt-6">
-      {upcomingTools.map((tool) => {
-        const Icon = tool.icon;
+    <section className="mt-6" aria-labelledby="general-tools-title">
+      <h2 id="general-tools-title" className="mb-3 text-lg font-black tracking-tight text-slate-900 dark:text-white">
+        Herramientas
+      </h2>
 
-        return (
+      <div className="grid grid-cols-2 gap-3.5">
+        {upcomingTools.map((tool) => (
           <button
             key={tool.id}
             type="button"
             onClick={tool.active ? tool.onClick : undefined}
             disabled={!tool.active}
-            className={`aspect-square rounded-2xl border border-slate-200 bg-white p-4 shadow-3xs transition-all duration-200 active:scale-[0.99] dark:border-slate-700 dark:bg-slate-900 ${
+            className={`group min-h-[204px] overflow-hidden rounded-[22px] border border-slate-200/90 bg-white text-left shadow-[0_8px_22px_rgba(15,23,42,0.08)] transition-all duration-200 active:scale-[0.985] dark:border-slate-700 dark:bg-slate-900 ${
               tool.active 
-                ? 'cursor-pointer hover:border-slate-300 hover:shadow-xs dark:hover:border-slate-600'
-                : 'opacity-70 cursor-not-allowed'
+                ? 'cursor-pointer hover:-translate-y-0.5 hover:shadow-[0_12px_26px_rgba(15,23,42,0.11)] active:translate-y-0 dark:hover:border-slate-600'
+                : 'cursor-not-allowed opacity-65 grayscale-[0.12]'
             }`}
           >
-            <span className={`mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br ${tool.color} text-white shadow-xs`}>
-              <Icon className="h-6 w-6" />
+            <span className={`flex h-[132px] items-center justify-center overflow-hidden ${tool.visualClassName}`}>
+              <img
+                src={tool.illustration}
+                alt=""
+                aria-hidden="true"
+                className={`h-[116px] w-[116px] object-contain transition-transform duration-200 ${tool.active ? 'group-hover:scale-[1.03]' : ''}`}
+              />
             </span>
-            <span className="mt-3 block text-center text-sm font-bold tracking-tight text-slate-900 dark:text-white">
-              {tool.title}
+
+            <span className="flex min-h-[72px] flex-col items-center justify-center px-2.5 py-2 text-center">
+              <span className="block text-[13px] font-black leading-tight tracking-tight text-slate-950 dark:text-white sm:text-sm">
+                {tool.title}
+              </span>
+              <span className="mt-1 block text-[11px] font-medium leading-tight text-slate-500 dark:text-slate-400">
+                {tool.description}
+              </span>
             </span>
           </button>
-        );
-      })}
-    </div>
+        ))}
+      </div>
+    </section>
   );
 }
