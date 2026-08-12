@@ -243,18 +243,6 @@ function DashboardScreen({ user, onLogout, onInviteRequired }) {
           className="sticky z-50 h-0 pointer-events-none"
           style={{ top: 'calc(100dvh - env(safe-area-inset-bottom) - 9.5rem)' }}
         />
-        {/* Home, biblioteca, perfil y sus ajustes gestionan sus controles dentro de su contenido. */}
-        {tab === 'general' && !isCalendarImmersive && (
-          <div className="md:hidden sticky top-0 z-30 bg-white border-b border-slate-200 px-4 py-3.5 flex items-center justify-between shadow-xs">
-            <span className="min-w-0 max-w-[80%]">
-              <span className="font-black text-slate-900 tracking-tight text-base block animate-[fadeIn_0.1s_ease]">
-                General
-              </span>
-            </span>
-
-          </div>
-        )}
-
         {/* 💡 Si se está editando un mazo, pb-0 remueve el padding inferior reservado para la barra móvil */}
         <div className={`max-w-5xl mx-auto px-4 pt-4 ${tab === 'home' || isEditingDeck || isCalendarImmersive ? 'pb-0' : 'pb-[calc(env(safe-area-inset-bottom)+6rem)]'} md:px-6 md:pt-8 md:pb-8`}>
           {tab === 'home' && (
