@@ -1,4 +1,4 @@
-import dailyChallengeIllustration from '../../../media/svg/Reto diario  .svg';
+import { staticIllustrations } from '../../lib/staticIllustrations';
 
 export default function DailyChallengeCard() {
   return (
@@ -20,7 +20,7 @@ export default function DailyChallengeCard() {
       </div>
 
       <img
-        src={dailyChallengeIllustration}
+        src={staticIllustrations.dailyChallenge}
         alt=""
         aria-hidden="true"
         className="pointer-events-none absolute -bottom-5 -right-3 h-[168px] w-[168px] object-contain drop-shadow-[0_10px_10px_rgba(49,10,101,0.24)] sm:right-1"

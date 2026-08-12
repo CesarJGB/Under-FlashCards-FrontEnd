@@ -1,35 +1,32 @@
-import studyModesIllustration from '../../../media/svg/Modo estudio v2.svg';
-import minigamesIllustration from '../../../media/svg/Minijuegos.svg';
-import examsIllustration from '../../../media/svg/Exámenes .svg';
-import featuresIllustration from '../../../media/svg/Funcionalidades .svg';
+import { staticIllustrations } from '../../lib/staticIllustrations';
 
 const categories = [
   {
     id: 'study-modes',
     title: 'Modos de Estudio',
     description: 'Elige cómo repasar',
-    illustration: studyModesIllustration,
+    illustration: staticIllustrations.studyModes,
     visualClassName: 'bg-[#FFE477]',
   },
   {
     id: 'minigames',
     title: 'Minijuegos',
     description: 'Aprende jugando',
-    illustration: minigamesIllustration,
+    illustration: staticIllustrations.minigames,
     visualClassName: 'bg-[#8EDAF2]',
   },
   {
     id: 'exams',
     title: 'Exámenes',
     description: 'Practica y evalúate',
-    illustration: examsIllustration,
+    illustration: staticIllustrations.exams,
     visualClassName: 'bg-[#BDEB69]',
   },
   {
     id: 'features',
     title: 'Funcionalidades',
     description: 'Herramientas extra',
-    illustration: featuresIllustration,
+    illustration: staticIllustrations.features,
     visualClassName: 'bg-[#F3B7CB]',
   },
 ];

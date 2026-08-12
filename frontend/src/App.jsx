@@ -17,6 +17,7 @@ import InviteCodeManager from './components/InviteCodeManager';
 import InviteGateScreen from './components/InviteGateScreen';
 import PublicMateriaPage from './components/PublicMateriaPage';
 import { getPublicMateriaShareId } from './lib/publicMateria';
+import { preloadStaticIllustrations } from './lib/staticIllustrations';
 
 const DebugPanel = lazy(() => import('./components/DebugPanel'));
 
@@ -69,6 +70,10 @@ function DashboardScreen({ user, onLogout, onInviteRequired }) {
 
   const [currentDeck, setCurrentDeck] = useState(null);
   const [initialMode, setInitialMode] = useState('edit');
+
+  useEffect(() => {
+    void preloadStaticIllustrations();
+  }, []);
 
   // 💡 Determinamos si se está en el editor de un mazo en la biblioteca
   const isEditingDeck = tab === 'library' && currentDeck !== null && initialMode === 'edit';

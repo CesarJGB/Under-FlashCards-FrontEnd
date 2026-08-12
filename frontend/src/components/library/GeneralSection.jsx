@@ -1,7 +1,6 @@
 // FILE: frontend/src/components/library/GeneralSection.jsx
 import { useLayoutEffect, useState } from 'react';
-import calendarIllustration from '../../../media/svg/Calendario escolar .svg';
-import notesIllustration from '../../../media/svg/Notas .svg';
+import { staticIllustrations } from '../../lib/staticIllustrations';
 import ScheduleListScreen from './calendar/ScheduleListScreen';
 
 export default function GeneralSection({ userId, dashboardShell, onCalendarImmersiveChange }) {
@@ -30,7 +29,7 @@ export default function GeneralSection({ userId, dashboardShell, onCalendarImmer
       id: 'calendar',
       title: 'Horario de clases',
       description: 'Organiza tu semana',
-      illustration: calendarIllustration,
+      illustration: staticIllustrations.schoolCalendar,
       visualClassName: 'bg-[#8EDAF2]',
       active: true,
       onClick: () => setView('calendar')
@@ -39,7 +38,7 @@ export default function GeneralSection({ userId, dashboardShell, onCalendarImmer
       id: 'notes',
       title: 'Notas rápidas',
       description: 'Próximamente',
-      illustration: notesIllustration,
+      illustration: staticIllustrations.quickNotes,
       visualClassName: 'bg-[#FFE477]',
       active: false
     }
