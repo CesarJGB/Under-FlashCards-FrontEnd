@@ -17,6 +17,7 @@ import { DEFAULT_WIDGET_ORDER, normalizeWidgetOrder, serializeWidgetOrder } from
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 const DOMAIN_PREVIEWS_TTL_MS = 15 * 60 * 1000; // 15 minutos
+const ENABLE_HOME_ADAPTIVE_PREVIEW = false;
 
 function getHomeWidgetOrderCacheKey(userId) {
   return `homeWidgetOrder_${userId}`;
@@ -300,6 +301,11 @@ export default function HomeSection({
   useImmersiveScrollGuard(!showWidgetLibrary, 'home-section');
 
   useLayoutEffect(() => {
+    if (!ENABLE_HOME_ADAPTIVE_PREVIEW) {
+      setAreAdaptivePreviewMeasurementsReady(false);
+      return undefined;
+    }
+
     let isCancelled = false;
 
     setAreAdaptivePreviewMeasurementsReady(false);
@@ -373,6 +379,13 @@ export default function HomeSection({
   }, []);
 
   useLayoutEffect(() => {
+    if (!ENABLE_HOME_ADAPTIVE_PREVIEW) {
+      setIsAdaptivePreviewBootstrapValid(false);
+      setAdaptivePreviewBootstrapGap(0);
+      onStableAdaptivePreview?.(null);
+      return undefined;
+    }
+
     if (!isAdaptivePreviewBootstrapValid || !isValidAdaptivePreviewBootstrap(adaptivePreviewBootstrap, bottomNavRef)) {
       setIsAdaptivePreviewBootstrapValid(false);
       return undefined;
@@ -850,38 +863,47 @@ export default function HomeSection({
   const { gap: bottomGap, isReady: isBottomGapReady } = useBottomGap({
     contentEndRef,
     navRef: bottomNavRef,
-    isPaused: showWidgetLibrary
+    isPaused: showWidgetLibrary || !ENABLE_HOME_ADAPTIVE_PREVIEW
   });
 
-  const adaptivePreviewVariant = isBottomGapReady
+  const adaptivePreviewVariant = ENABLE_HOME_ADAPTIVE_PREVIEW && isBottomGapReady
     ? resolveAdaptivePreviewVariant(bottomGap, adaptivePreviewHeights)
     : 'none';
-  const isLiveAdaptivePreviewReady = isBottomGapReady && areAdaptivePreviewMeasurementsReady;
+  const isLiveAdaptivePreviewReady = ENABLE_HOME_ADAPTIVE_PREVIEW && isBottomGapReady && areAdaptivePreviewMeasurementsReady;
   const canUseAdaptivePreviewBootstrap =
+    ENABLE_HOME_ADAPTIVE_PREVIEW &&
     !isLiveAdaptivePreviewReady &&
     isAdaptivePreviewBootstrapValid &&
     adaptivePreviewBootstrapGap >= (adaptivePreviewBootstrap?.requiredSlotHeight || 0) &&
     !showWidgetLibrary;
-  const displayedAdaptivePreviewVariant = isLiveAdaptivePreviewReady
-    ? adaptivePreviewVariant
-    : canUseAdaptivePreviewBootstrap
-      ? adaptivePreviewBootstrap.variant
-      : 'none';
-  const displayedBottomGap = isLiveAdaptivePreviewReady
-    ? bottomGap
-    : canUseAdaptivePreviewBootstrap
-      ? adaptivePreviewBootstrapGap
-      : 0;
-  const showAdaptivePreview = displayedAdaptivePreviewVariant !== 'none' && !showWidgetLibrary;
+  const displayedAdaptivePreviewVariant = ENABLE_HOME_ADAPTIVE_PREVIEW
+    ? isLiveAdaptivePreviewReady
+      ? adaptivePreviewVariant
+      : canUseAdaptivePreviewBootstrap
+        ? adaptivePreviewBootstrap.variant
+        : 'none'
+    : 'none';
+  const displayedBottomGap = ENABLE_HOME_ADAPTIVE_PREVIEW
+    ? isLiveAdaptivePreviewReady
+      ? bottomGap
+      : canUseAdaptivePreviewBootstrap
+        ? adaptivePreviewBootstrapGap
+        : 0
+    : 0;
+  const showAdaptivePreview = ENABLE_HOME_ADAPTIVE_PREVIEW && displayedAdaptivePreviewVariant !== 'none' && !showWidgetLibrary;
   const adaptivePreviewSlotPadding = getAdaptivePreviewSlotPadding(displayedAdaptivePreviewVariant);
 
   useLayoutEffect(() => {
+    if (!ENABLE_HOME_ADAPTIVE_PREVIEW) return;
+
     if (isLiveAdaptivePreviewReady) {
       setIsAdaptivePreviewBootstrapValid(false);
     }
   }, [isLiveAdaptivePreviewReady]);
 
   useLayoutEffect(() => {
+    if (!ENABLE_HOME_ADAPTIVE_PREVIEW) return;
+
     if (!isLiveAdaptivePreviewReady || showWidgetLibrary) return;
 
     if (adaptivePreviewVariant === 'none') {
@@ -1024,19 +1046,21 @@ export default function HomeSection({
           </div>
         )}
 
-        <div ref={adaptivePreviewMeasureRootRef} aria-hidden="true" className="absolute inset-x-0 top-0 invisible pointer-events-none -z-10">
-          <div className="flex flex-col items-center gap-4">
-            <div ref={compactPreviewMeasureRef}>
-              <HomeAdaptiveCompactPreview />
-            </div>
-            <div ref={comfortablePreviewMeasureRef} className="w-full flex justify-center">
-              <HomeAdaptiveComfortablePreview gap={bottomGap} />
-            </div>
-            <div ref={expandedPreviewMeasureRef} className="w-full flex justify-center">
-              <HomeAdaptiveExpandedPreview gap={bottomGap} />
+        {ENABLE_HOME_ADAPTIVE_PREVIEW && (
+          <div ref={adaptivePreviewMeasureRootRef} aria-hidden="true" className="absolute inset-x-0 top-0 invisible pointer-events-none -z-10">
+            <div className="flex flex-col items-center gap-4">
+              <div ref={compactPreviewMeasureRef}>
+                <HomeAdaptiveCompactPreview />
+              </div>
+              <div ref={comfortablePreviewMeasureRef} className="w-full flex justify-center">
+                <HomeAdaptiveComfortablePreview gap={bottomGap} />
+              </div>
+              <div ref={expandedPreviewMeasureRef} className="w-full flex justify-center">
+                <HomeAdaptiveExpandedPreview gap={bottomGap} />
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
       </div>
 

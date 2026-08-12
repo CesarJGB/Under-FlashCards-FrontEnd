@@ -61,7 +61,7 @@ export default function WidgetCarousel({
         </button>
       </div>
 
-      <div className="relative" style={{ height: CARD_HEIGHT + 24 }}>
+      <div className="relative" style={{ height: CARD_HEIGHT + 44 }}>
         {behindIds[1] !== undefined && (
           <PreviewCard
             widgetId={behindIds[1]}
@@ -69,9 +69,9 @@ export default function WidgetCarousel({
             className="inset-x-4 z-10 border-[#E7E0F7] bg-[#FAF8FF]"
             style={{ 
               height: CARD_HEIGHT, 
-              transform: 'translateY(23px) scale(0.95)',
+              transform: 'translateY(40px) scale(0.95)',
               transformOrigin: 'top center',
-              opacity: 0.9
+              opacity: 1
             }}
           />
         )}
@@ -83,9 +83,9 @@ export default function WidgetCarousel({
             className="inset-x-2 z-20 border-[#D8CEF5] bg-[#F2EEFF]"
             style={{ 
               height: CARD_HEIGHT, 
-              transform: 'translateY(12px) scale(0.975)',
+              transform: 'translateY(20px) scale(0.975)',
               transformOrigin: 'top center',
-              opacity: 0.95
+              opacity: 1
             }}
           />
         )}
