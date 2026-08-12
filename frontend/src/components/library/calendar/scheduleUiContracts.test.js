@@ -76,16 +76,29 @@ test('el footer móvil conserva safe area, targets táctiles y concentra las acc
 });
 
 test('la navegación global se controla con estado contextual y se limpia al salir del calendario', async () => {
-  const [app, library] = await Promise.all([
+  const [app, general, library] = await Promise.all([
     source('../../../App.jsx'),
+    source('../GeneralSection.jsx'),
     source('../../LibrarySection.jsx'),
   ]);
   assert.match(app, /isCalendarImmersive/);
   assert.match(app, /onCalendarImmersiveChange/);
   assert.match(app, /pb-0/);
   assert.match(app, /!isCalendarImmersive/);
-  assert.match(library, /sectionMode === 'calendar'/);
-  assert.match(library, /onCalendarImmersiveChange\?\.\(false\)/);
+  assert.match(app, /tab === ['"]general['"]/);
+  assert.match(app, /<GeneralSection\b/);
+  assert.match(app, /userId=\{user\.id\}/);
+  assert.match(app, /dashboardShell=\{dashboardShell\}/);
+  assert.match(app, /onCalendarImmersiveChange=\{handleCalendarImmersiveChange\}/);
+  assert.doesNotMatch(app, /ChatSection|MessageSquare|['"]chat['"]|['"]Chat['"]/);
+
+  assert.match(general, /ScheduleListScreen/);
+  assert.match(general, /view === ['"]calendar['"]/);
+  assert.match(general, /onCalendarImmersiveChange\?\.\(view === ['"]calendar['"]\)/);
+  assert.match(general, /setView\(['"]tools['"]\)/);
+  assert.match(general, /return \(\) => \{[\s\S]*onCalendarImmersiveChange\?\.\(false\)/);
+
+  assert.doesNotMatch(library, /sectionMode|GeneralSection|ScheduleListScreen|onCalendarImmersiveChange/);
 });
 
 test('la asistencia usa Retardos y Participaciones con claves nuevas', async () => {

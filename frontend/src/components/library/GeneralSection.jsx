@@ -1,8 +1,30 @@
 // FILE: frontend/src/components/library/GeneralSection.jsx
+import { useLayoutEffect, useState } from 'react';
 import calendarIllustration from '../../../media/svg/Calendario escolar .svg';
 import notesIllustration from '../../../media/svg/Notas .svg';
+import ScheduleListScreen from './calendar/ScheduleListScreen';
 
-export default function GeneralSection({ onOpenCalendar }) {
+export default function GeneralSection({ userId, dashboardShell, onCalendarImmersiveChange }) {
+  const [view, setView] = useState('tools');
+
+  useLayoutEffect(() => {
+    onCalendarImmersiveChange?.(view === 'calendar');
+
+    return () => {
+      onCalendarImmersiveChange?.(false);
+    };
+  }, [view, onCalendarImmersiveChange]);
+
+  if (view === 'calendar') {
+    return (
+      <ScheduleListScreen
+        userId={userId}
+        dashboardShell={dashboardShell}
+        onBack={() => setView('tools')}
+      />
+    );
+  }
+
   const upcomingTools = [
     {
       id: 'calendar',
@@ -11,7 +33,7 @@ export default function GeneralSection({ onOpenCalendar }) {
       illustration: calendarIllustration,
       visualClassName: 'bg-[#8EDAF2]',
       active: true,
-      onClick: onOpenCalendar
+      onClick: () => setView('calendar')
     },
     {
       id: 'notes',

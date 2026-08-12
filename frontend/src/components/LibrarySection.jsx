@@ -1,12 +1,9 @@
-import { useRef, useState, useMemo, useEffect, useLayoutEffect } from 'react';
+import { useRef, useState, useMemo, useEffect } from 'react';
 import { useLibraryState } from '../hooks/useLibraryState';
 import DeckInterior from './DeckInterior';
 import DeckModal from './DeckModal';
 import LibraryToolbar from './library/LibraryToolbar';
 import LibraryFAB from './library/LibraryFAB';
-import LibrarySectionSwitcher from './library/LibrarySectionSwitcher';
-import GeneralSection from './library/GeneralSection';
-import ScheduleListScreen from './library/calendar/ScheduleListScreen';
 
 import Breadcrumbs from './library/Breadcrumbs';
 import MateriasLevel from './library/MateriasLevel';
@@ -28,29 +25,13 @@ export default function LibrarySection({
   onInviteRequired,
   pendingNav,       
   clearPendingNav,
-  dashboardShell,
   libraryFabHost,
-  onCalendarImmersiveChange,
 }) {
   
   useEffect(() => {
     if (typeof loadDecks === 'function') loadDecks();
     if (typeof loadMaterias === 'function') loadMaterias();
   }, [loadDecks, loadMaterias]);
-
-  // =========================================================================
-  // 🧭 SWITCHER BIBLIOTECA / GENERAL / CALENDAR
-  // =========================================================================
-  const [sectionMode, setSectionMode] = useState('biblioteca'); // 'biblioteca' | 'general' | 'calendar'
-
-  useLayoutEffect(() => {
-    const immersive = sectionMode === 'calendar';
-    onCalendarImmersiveChange?.(immersive);
-
-    return () => {
-      onCalendarImmersiveChange?.(false);
-    };
-  }, [sectionMode, onCalendarImmersiveChange]);
 
   const {
     currentPath, setCurrentPath, temas, setTemas, subtemas, setSubtemas,
@@ -65,7 +46,6 @@ export default function LibrarySection({
   useEffect(() => {
     if (!pendingNav) return;
 
-    setSectionMode('biblioteca');
     setCurrentPath({
       materiaId: pendingNav.materiaId ?? null,
       parcialNumber: pendingNav.parcialNumber ?? null,
@@ -93,12 +73,6 @@ export default function LibrarySection({
   const activeMateriaName = useMemo(() => materias.find(m => m._id === currentPath.materiaId)?.name, [materias, currentPath.materiaId]);
   const activeTemaName = useMemo(() => temas.find(t => t._id === currentPath.temaId)?.name, [temas, currentPath.temaId]);
   const activeSubtemaName = useMemo(() => subtemas.find(s => s._id === currentPath.subtemaId)?.name, [subtemas, currentPath.subtemaId]);
-
-  // 💡 Condición para ocultar el Switcher en sub-pantallas, búsquedas y creador/editor de mazos
-  const shouldShowSwitcher = 
-    !modal && 
-    ((sectionMode === 'general') || 
-     (sectionMode === 'biblioteca' && currentPath.materiaId === null && !searchResults));
 
   const handleCreateAcademicFolder = async (e) => {
     e.preventDefault();
@@ -337,22 +311,7 @@ export default function LibrarySection({
     <div data-testid="library-section" className="relative min-h-[60vh]">
       <input ref={fileInputRef} type="file" accept=".json" onChange={handleImport} className="hidden" />
 
-      {/* 💡 Solo visible en la raíz de General o en la raíz de Biblioteca sin modal ni búsqueda activa */}
-      {shouldShowSwitcher && (
-        <LibrarySectionSwitcher sectionMode={sectionMode} setSectionMode={setSectionMode} />
-      )}
-
-      {sectionMode === 'general' ? (
-        <GeneralSection onOpenCalendar={() => setSectionMode('calendar')} />
-      ) : sectionMode === 'calendar' ? (
-        <ScheduleListScreen 
-          userId={userId}
-          onBack={() => setSectionMode('general')} 
-          dashboardShell={dashboardShell} 
-        />
-      ) : (
-        <>
-          <div className="mt-3">
+      <div className="mt-3">
             <Breadcrumbs 
               currentPath={currentPath}
               setCurrentPath={setCurrentPath}
@@ -361,7 +320,7 @@ export default function LibrarySection({
               activeTemaName={activeTemaName}
               activeSubtemaName={activeSubtemaName}
             />
-          </div>
+      </div>
 
           <div className="animate-[fadeIn_0.15s_ease]">
             {currentPath.materiaId === null && (
@@ -575,8 +534,6 @@ export default function LibrarySection({
               libraryFabHost={libraryFabHost}
             />
           )}
-        </>
-      )}
     </div>
   );
 }

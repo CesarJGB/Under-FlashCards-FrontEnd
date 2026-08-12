@@ -3,16 +3,16 @@ import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react'
 import { getJSON, setJSON } from './lib/safeLocalStorage';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
-import { Sparkles, Library, Home, BookOpen, User, MessageSquare } from 'lucide-react';
+import { Sparkles, Library, Home, BookOpen, User, LayoutGrid } from 'lucide-react';
 
 import LoginScreen from './components/LoginScreen';
 import usePendingReviewsFlush from './hooks/usePendingReviewsFlush';
 import HomeSection from './components/HomeSection';
 import StudySection from './components/StudySection';
 import LibrarySection from './components/LibrarySection';
+import GeneralSection from './components/library/GeneralSection';
 import SettingsSection from './components/SettingsSection';
 import UserSection from './components/UserSection';
-import ChatSection from './components/ChatSection';
 import InviteCodeManager from './components/InviteCodeManager';
 import InviteGateScreen from './components/InviteGateScreen';
 import PublicMateriaPage from './components/PublicMateriaPage';
@@ -136,7 +136,7 @@ function DashboardScreen({ user, onLogout, onInviteRequired }) {
   }, []);
 
   const handleTabChange = (id) => {
-    if (id !== 'library') setIsCalendarImmersive(false);
+    if (id !== 'general') setIsCalendarImmersive(false);
     if (id === 'library') {
       setCurrentDeck(null);
       setInitialMode('edit');
@@ -233,7 +233,7 @@ function DashboardScreen({ user, onLogout, onInviteRequired }) {
           {navItem('home', 'Inicio', Home)}
           {navItem('study', 'Modo Estudio', BookOpen)}
           {navItem('library', 'Biblioteca', Library)}
-          {navItem('chat', 'Chat', MessageSquare)}
+          {navItem('general', 'General', LayoutGrid)}
         </nav>
       </aside>
 
@@ -244,18 +244,12 @@ function DashboardScreen({ user, onLogout, onInviteRequired }) {
           style={{ top: 'calc(100dvh - env(safe-area-inset-bottom) - 9.5rem)' }}
         />
         {/* Home, biblioteca, perfil y sus ajustes gestionan sus controles dentro de su contenido. */}
-        {tab !== 'home' && tab !== 'study' && tab !== 'library' && tab !== 'usuario' && tab !== 'home-settings' && tab !== 'ai-settings' && tab !== 'invite-codes' && (
+        {tab === 'general' && !isCalendarImmersive && (
           <div className="md:hidden sticky top-0 z-30 bg-white border-b border-slate-200 px-4 py-3.5 flex items-center justify-between shadow-xs">
             <span className="min-w-0 max-w-[80%]">
-              {currentDeck && tab === 'library' ? (
-                <span className="font-black text-slate-900 text-base border-l-4 border-slate-900 pl-2.5 block truncate">
-                  {currentDeck.title}
-                </span>
-                ) : (
-                <span className="font-black text-slate-900 tracking-tight text-base block animate-[fadeIn_0.1s_ease]">
-                  {tab === 'library' ? 'Biblioteca' : tab === 'study' ? 'Modo de Estudio' : tab === 'chat' ? 'Chat' : 'Ajustes'}
-                </span>
-              )}
+              <span className="font-black text-slate-900 tracking-tight text-base block animate-[fadeIn_0.1s_ease]">
+                General
+              </span>
             </span>
 
           </div>
@@ -290,7 +284,6 @@ function DashboardScreen({ user, onLogout, onInviteRequired }) {
               userEmail={user.email}
               onOpenReview={handleOpenReviewFromStudy}
               dashboardShell={dashboardShell}
-              onCalendarImmersiveChange={handleCalendarImmersiveChange}
             />
           )}
 
@@ -314,8 +307,14 @@ function DashboardScreen({ user, onLogout, onInviteRequired }) {
               onInviteRequired={onInviteRequired}
               pendingNav={pendingLibraryNav}
               clearPendingNav={() => setPendingLibraryNav(null)}
-              dashboardShell={dashboardShell}
               libraryFabHost={libraryFabHost}
+            />
+          )}
+
+          {tab === 'general' && (
+            <GeneralSection
+              userId={user.id}
+              dashboardShell={dashboardShell}
               onCalendarImmersiveChange={handleCalendarImmersiveChange}
             />
           )}
@@ -327,8 +326,6 @@ function DashboardScreen({ user, onLogout, onInviteRequired }) {
           {tab === 'ai-settings' && (
             <SettingsSection userId={user.id} section="ai" onBack={() => handleTabChange('usuario')} />
           )}
-
-          {tab === 'chat' && <ChatSection userId={user.id} />}
 
           {tab === 'invite-codes' && (
             <InviteCodeManager
@@ -358,7 +355,7 @@ function DashboardScreen({ user, onLogout, onInviteRequired }) {
             { id: 'home', title: 'Inicio', Icon: Home },
             { id: 'study', title: 'Estudio', Icon: BookOpen },
             { id: 'library', title: 'Biblioteca', Icon: Library },
-            { id: 'chat', title: 'Chat', Icon: MessageSquare }
+            { id: 'general', title: 'General', Icon: LayoutGrid }
           ].map((item) => {
             const isActive = tab === item.id;
             const IconComponent = item.Icon;
