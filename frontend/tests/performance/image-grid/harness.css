@@ -1,0 +1,24 @@
+html, body {
+  min-height: 100%;
+  margin: 0;
+  background: #f8fafc;
+}
+
+body {
+  padding: 16px;
+}
+
+.perf-harness {
+  margin: 0 auto;
+  max-width: 760px;
+}
+
+/* Experimental controls only. They never load from production. */
+.perf-shadow-off article {
+  box-shadow: none !important;
+  transition-property: none !important;
+}
+
+.perf-overlay-off article > span.absolute.inset-0 {
+  display: none !important;
+}

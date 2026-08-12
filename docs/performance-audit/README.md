@@ -104,6 +104,7 @@ Existe drift posterior al último commit documental registrado allí (`36c77a741
 - [image-pipeline.md](./image-pipeline.md): ciclo de vida de imágenes y análisis del lag de la cuadrícula.
 - [measurement-plan.md](./measurement-plan.md): matriz de escala, métricas e instrumentos necesarios.
 - [prioritized-roadmap.md](./prioritized-roadmap.md): orden de investigación futura, riesgos, aceptación y “No hacer todavía”.
+- [experiments/image-baseline/](./experiments/image-baseline/README.md): Fase 1A experimental para `PERF-IMG-001` y `PERF-IMG-003`, medida sobre el commit que publicó esta auditoría. `IMG-DATA = GO`; `IMG-RENDER = PARTIAL`.
 
 ## Comandos ejecutados y resultados relevantes
 

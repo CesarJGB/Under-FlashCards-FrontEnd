@@ -10,6 +10,8 @@ Este documento ordena investigación y posibles líneas de solución. No autoriz
 
 IDs: PERF-IMG-003, PERF-DECK-001, PERF-MOBILE-001.
 
+Estado tras [Fase 1A](./experiments/image-baseline/research-gates.md): **IMG-RENDER = PARTIAL**. Ya existe matriz headless y atribución Chromium de Paint/Raster; faltan iPhone/Safari físico, compositor/GPU y acción exacta del reporte. No repetir el baseline salvo para validar drift.
+
 1. Obtener el escenario exacto del reporte: dispositivo, Safari/Chrome, cantidad de cards, resolución/bytes y fondo compartido/distinto.
 2. Ejecutar C20/100/500/1000 con I0/I2/I3, aislando tamaño, sombra y overlay en harness.
 3. Atribuir scripting, style, paint, composite, decode, GPU/GC y memoria.
@@ -20,6 +22,8 @@ Criterio para avanzar: al menos una traza repetible por escritorio y móvil que 
 ### P0 — Presupuesto de datos de imagen
 
 IDs: PERF-IMG-001, PERF-IMG-002, PERF-SERVER-001.
+
+Estado tras [Fase 1A](./experiments/image-baseline/research-gates.md): **IMG-DATA = GO** para investigar alternativas. Ya están cuantificados Base64, JSON/gzip, BSON sintético, duplicación, parse/stringify y puntos locales de cuota. Siguen faltando distribución real anonimizada, infraestructura de compresión y base representativa; GO no selecciona solución.
 
 1. Medir bytes binarios/Data URL/JSON/transferidos y BSON por tipo de imagen.
 2. Cuantificar repetición de un fondo en respuesta de tarjetas y campos de fondo en lista de mazos.
