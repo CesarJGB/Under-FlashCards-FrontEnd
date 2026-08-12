@@ -1,4 +1,4 @@
-import studyModesIllustration from '../../../media/svg/Modo estudio .svg';
+import studyModesIllustration from '../../../media/svg/Modo estudio v2.svg';
 import minigamesIllustration from '../../../media/svg/Minijuegos.svg';
 import examsIllustration from '../../../media/svg/Exámenes .svg';
 import featuresIllustration from '../../../media/svg/Funcionalidades .svg';
