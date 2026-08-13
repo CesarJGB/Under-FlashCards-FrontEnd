@@ -38,9 +38,9 @@ El harness está en `frontend/tests/performance/image-delivery/run-delivery-base
 
 La duplicación de imágenes no es un problema de almacenamiento sino de **contrato de salida**:
 
-1. **El fondo compartido se expande por tarjeta en la respuesta.** Con el contrato actual, 1000 tarjetas con un fondo grande compartido son **911.87 MiB JSON / 686.81 MiB gzip**, de los que 99.86% son la misma cadena repetida. El mismo escenario con un diccionario de fondos + índice (Alternativa A) baja a **0.375 MiB JSON / 0.008 MiB gzip** (reducción ~99.96%).
-2. **La lista de mazos transporta campos que ningún consumidor usa.** `cardBackgrounds` no tiene **ningún** consumidor en el frontend (verificado estáticamente; sólo aparece en el harness de pruebas). `Deck.serialize()` lo incluye igualmente en `GET /api/decks/:userId`, que App además copia a `safeLocalStorage`. Con 500 mazos con portada + 3 fondos, la lista cae de **83.62 MiB JSON / 62.99 MiB gzip** a **0.22 MiB / 0.004 MiB** si el resumen no lleva imágenes de fondo.
-3. **El cambio mínimo con mayor impacto es de serialización, no de infraestructura.** No requiere S3, GridFS, miniaturas servidas ni nuevos endpoints para capturar el 99.7–99.96% del peso repetido.
+1. **El fondo compartido se expande por tarjeta en la respuesta.** Con el contrato actual, 1000 tarjetas con un fondo grande compartido son **911.87 MiB JSON / 686.81 MiB gzip**, de los que 99.86% son la misma cadena repetida. Con un diccionario de fondos + índice (Alternativa A) la respuesta conserva **una copia real del fondo** y baja a **1.285 MiB JSON / 0.695 MiB gzip** (−99.86% / −99.0%). El ahorro existe sólo cuando hay fondos compartidos: con 1000 fondos **distintos**, `normalized` queda en 333.74 MiB (igual que `current`), porque cada fondo es único y debe viajar una vez.
+2. **La lista de mazos transporta campos que ningún consumidor usa.** `cardBackgrounds` no tiene **ningún** consumidor en el frontend (verificado estáticamente; sólo aparece en el harness de pruebas). `Deck.serialize()` lo incluye igualmente en `GET /api/decks/:userId`, que App además copia a `safeLocalStorage`. Con 500 mazos con portada + 3 fondos, eliminar sólo `cardBackgrounds` (Corte 1, portada completa conservada) baja de **83.61 MiB JSON / 62.98 MiB gzip** a **21.06 MiB / 15.85 MiB**; el control sin ninguna imagen queda en **0.207 MiB** y una portada en miniatura (Corte 2, ESTIMADO) en **13.56 MiB**.
+3. **El cambio mínimo con mayor impacto es de serialización, no de infraestructura.** No requiere S3, GridFS, miniaturas servidas ni nuevos endpoints para eliminar la duplicación de fondos compartidos y los bytes sin consumidores.
 
 **Recomendación**: adoptar la **Alternativa A (diccionario de fondos + índice en la respuesta de tarjetas y resumen de mazo sin `cardBackgrounds`)** como primera onda de implementación, conservando el almacenamiento actual (Data URL en MongoDB). **Respaldo**: la **Alternativa D (híbrida)**, añadiendo miniaturas y referencias de asset cuando Library necesite menos bytes aún o el render lo exija. B (assets en backend) y C (object storage) quedan documentadas como opciones futuras de mayor coste y riesgo, sin decisión de proveedor.
 
@@ -52,11 +52,11 @@ Los detalles, cifras y matices por alternativa están en [recommended-architectu
 |---|---|---|
 | IMG-DATA | **GO** (heredado de 1A) | compara contratos con la misma matriz; no elige proveedor |
 | IMG-RENDER | **PARTIAL** (heredado de 1A) | **PENDING — DEVICE REQUIRED**; no se cerró ni se repitió |
-| IMG-CONTRACT | **GO** | contrato objetivo definido y cuantificado |
+| IMG-CONTRACT | **GO** | contrato objetivo definido y cuantificado con cifras corregidas; beneficio dependiente del escenario |
 | IMG-STORAGE | **PARTIAL** | primera onda sin cambio de almacenamiento; object storage diferido |
 | IMG-MIGRATION | **GO** | onda 1 no requiere migración de datos; dual read compatible |
 | IMG-CACHE | **PARTIAL** | política de invalidación/TTL pendiente de decisión humana |
-| IMG-CONSUMERS | **GO** | inventario campo→consumidor completo |
+| IMG-CONSUMERS | **GO** | inventario campo→consumidor completo (análisis estático, no afectado por la corrección del harness) |
 | IMG-IMPLEMENTATION | **PARTIAL** | recomendado, requiere aprobación humana |
 
 ## Clasificación usada

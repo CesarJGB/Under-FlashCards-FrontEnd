@@ -1,11 +1,21 @@
-// Harness no productivo de la Fase 1B (image-delivery).
-// Compara, con los mismos perfiles sintéticos de la Fase 1A, cuatro contratos:
-//   current      — contrato actual: bgImage expandido por tarjeta; lista de mazos con coverImage+cardBackgrounds
-//   normalized   — tarjetas con bgImageIndex + diccionario de fondos una sola vez (Alternativa A)
-//   referenced   — tarjetas con referencia de asset y sin bytes de imagen en JSON (Alternativa C, URL proxy)
-//   hybrid       — diccionario de miniaturas + referencia; resolución completa fuera del resumen (Alternativa D)
-// Además modela el crecimiento de la lista de mazos durante una migración dual
-// (campos heredados + nuevas referencias) y las escrituras en localStorage.
+// Harness no productivo de la Fase 1B (image-delivery) — CORRECCIÓN 1.
+// Compara, con los mismos perfiles sintéticos de la Fase 1A, contratos de
+// respuestas de tarjetas y de listas de mazos:
+//
+// Respuestas de tarjetas:
+//   current      — contrato actual: bgImage expandido por tarjeta (Fase 1A)
+//   normalized   — diccionario de fondos únicos + bgImageIndex por tarjeta (Alternativa A)
+//   referenced   — tarjetas con referencia de asset y sin bytes de imagen en JSON (Alternativa C)
+//   hybrid       — diccionario de miniaturas (una por fondo único) + referencias full externas (Alternativa D)
+//
+// Listas de mazos:
+//   current              — portada completa + cardBackgrounds completos (serializador actual)
+//   without_backgrounds  — conserva coverImage, elimina sólo cardBackgrounds (Corte 1)
+//   metadata_only        — elimina portada y fondos (control, NO es el contrato propuesto)
+//   thumbnail_summary    — conserva una miniatura de portada, sin fondos (posible Corte 2)
+//   migration_dual       — datos heredados + referencias/ids (convivencia de migración)
+//
+// Invariantes estructurales con salida no cero ante cualquier fallo.
 // No accede a red, base de datos ni datos de usuario. Genera bytes deterministas
 // en memoria; los archivos de salida sólo contienen tamaños y tiempos.
 import { createRequire } from 'node:module';
@@ -50,6 +60,13 @@ function dataUrl(profileName, seed = 1) {
   return `data:${profile.mime};base64,${seededBytes(profile.binaryBytes, seed).toString('base64')}`;
 }
 
+function estimatedBinaryBytes(dataUrlValue) {
+  const commaIndex = dataUrlValue.indexOf(',');
+  if (commaIndex === -1) return 0;
+  const payload = dataUrlValue.slice(commaIndex + 1);
+  return Math.max(0, Math.floor((payload.length * 3) / 4) - (payload.endsWith('==') ? 2 : payload.endsWith('=') ? 1 : 0));
+}
+
 function percentileSummary(values) {
   const sorted = [...values].sort((a, b) => a - b);
   const middle = Math.floor(sorted.length / 2);
@@ -90,6 +107,10 @@ function timeJsonOperation(value, operation) {
   return percentileSummary(values);
 }
 
+// Contabiliza las imágenes que REALMENTE forman parte del JSON modelado.
+// Cada entrada debe ser una cadena Data URL completa; no se aceptan
+// concatenaciones artificiales (p. ej. array.join(',')), que ocultarían el
+// tamaño real de cada imagen y romperían la deduplicación.
 function imageStats(images) {
   const unique = new Set();
   let total = 0;
@@ -140,6 +161,7 @@ function sharedSetFor(scenario) {
   return { bg: '', content: '' };
 }
 
+// Fuente única de verdad de imágenes por tarjeta: devuelve { bgImage, contentImage }.
 function cardImagesFor(scenario, index) {
   if (scenario === 'shared_small' || scenario === 'shared_medium' || scenario === 'shared_large') {
     return { bgImage: sharedSetFor(scenario).bg, contentImage: '' };
@@ -150,6 +172,15 @@ function cardImagesFor(scenario, index) {
   }
   if (scenario === 'content_all') return { bgImage: '', contentImage: dataUrl('content', 3000 + index) };
   return { bgImage: '', contentImage: '' };
+}
+
+// Número de imágenes únicas esperadas por escenario (para invariantes).
+function expectedImageCounts(scenario, count) {
+  if (scenario.startsWith('shared_')) return { backgrounds: 1, content: 0 };
+  if (scenario === 'distinct_backgrounds') return { backgrounds: count, content: 0 };
+  if (scenario === 'content_10pct') return { backgrounds: 0, content: Math.ceil(count / 10) };
+  if (scenario === 'content_all') return { backgrounds: 0, content: count };
+  return { backgrounds: 0, content: 0 };
 }
 
 // ---------------------------------------------------------------------------
@@ -169,16 +200,25 @@ function buildCurrentCards(count, scenario) {
 }
 
 // ---------------------------------------------------------------------------
-// Alternativa A (normalizada): tarjeta conserva bgImageIndex; fondo una sola vez
+// Alternativa A (normalizada): diccionario de TODOS los fondos únicos + índice.
+// Recorre cada tarjeta, registra cada fondo único exactamente una vez y asigna
+// el índice correspondiente; -1 si la tarjeta no tiene fondo.
 // ---------------------------------------------------------------------------
 function buildNormalizedCards(count, scenario) {
-  const { bg, content } = cardImagesFor(scenario, 0);
-  const backgrounds = bg ? [bg] : [];
+  const backgrounds = [];
+  const indexByUrl = new Map();
   const cards = Array.from({ length: count }, (_, index) => {
     const images = cardImagesFor(scenario, index);
-    const indexOf = images.bgImage ? (images.bgImage === bg ? 0 : -1) : -1;
+    let bgImageIndex = -1;
+    if (images.bgImage) {
+      if (!indexByUrl.has(images.bgImage)) {
+        indexByUrl.set(images.bgImage, backgrounds.length);
+        backgrounds.push(images.bgImage);
+      }
+      bgImageIndex = indexByUrl.get(images.bgImage);
+    }
     return baseCard(index, {
-      bgImageIndex: indexOf,
+      bgImageIndex,
       contentImage: images.contentImage,
       imageSide: images.contentImage ? (index % 2 ? 'question' : 'answer') : '',
     });
@@ -187,49 +227,79 @@ function buildNormalizedCards(count, scenario) {
 }
 
 // ---------------------------------------------------------------------------
-// Alternativa C (referenciada): la tarjeta sólo referencia assets; sin bytes
+// Alternativa C (referenciada): la tarjeta sólo referencia assets; el JSON no
+// incluye bytes de imagen. Los bytes externos se reportan aparte (ESTIMATED).
 // ---------------------------------------------------------------------------
 function buildReferencedCards(count, scenario) {
-  const unique = new Map();
+  const uniqueBackgrounds = new Map();
   let next = 0;
   const assetIdFor = (seed) => {
-    if (!unique.has(seed)) unique.set(seed, next++);
-    return `bg-${String(unique.get(seed)).padStart(4, '0')}`;
+    if (!uniqueBackgrounds.has(seed)) uniqueBackgrounds.set(seed, next++);
+    return `bg-${String(uniqueBackgrounds.get(seed)).padStart(4, '0')}`;
   };
+  let contentCount = 0;
   const cards = Array.from({ length: count }, (_, index) => {
     const images = cardImagesFor(scenario, index);
+    if (images.contentImage) contentCount += 1;
     return baseCard(index, {
       bgImageIndex: images.bgImage ? 0 : -1,
       bgImageUrl: images.bgImage ? `/api/assets/deck-0002/${assetIdFor(images.bgImage)}` : '',
-      contentImageUrl: images.contentImage ? `/api/assets/deck-0002/content-${index}` : '',
+      contentImageUrl: images.contentImage ? `/api/assets/deck-0002/content-${String(index).padStart(4, '0')}` : '',
       contentImage: '',
       imageSide: images.contentImage ? (index % 2 ? 'question' : 'answer') : '',
     });
   });
-  return { cards, uniqueAssetCount: unique.size + (scenario === 'content_all' ? count : scenario === 'content_10pct' ? Math.ceil(count / 10) : 0) };
+  return {
+    cards,
+    uniqueBackgroundCount: uniqueBackgrounds.size,
+    uniqueContentCount: contentCount,
+    uniqueAssetCount: uniqueBackgrounds.size + contentCount,
+  };
 }
 
 // ---------------------------------------------------------------------------
-// Alternativa D (híbrida): miniaturas en el diccionario; la tarjeta referencia
-// el índice de miniatura y la resolución completa se sirve aparte (detail).
+// Alternativa D (híbrida): una entrada de miniatura por fondo ÚNICO (ids
+// únicos) + referencias full externas. Las miniaturas viven en el JSON; la
+// resolución completa y el contenido se obtienen con requests separados.
 // ---------------------------------------------------------------------------
 function buildHybridCards(count, scenario) {
-  const { bg } = cardImagesFor(scenario, 0);
-  const thumb = bg ? dataUrl('thumb', 900) : '';
-  const backgrounds = thumb ? [{ id: 'bg-0000', thumb }] : [];
+  const backgrounds = [];
+  const indexByUrl = new Map();
+  let contentCount = 0;
   const cards = Array.from({ length: count }, (_, index) => {
     const images = cardImagesFor(scenario, index);
-    const indexOf = images.bgImage ? 0 : -1;
+    if (images.contentImage) contentCount += 1;
+    let bgImageIndex = -1;
+    let bgImageThumbUrl = '';
+    let bgImageFullUrl = '';
+    if (images.bgImage) {
+      if (!indexByUrl.has(images.bgImage)) {
+        indexByUrl.set(images.bgImage, backgrounds.length);
+        backgrounds.push({
+          id: `bg-${String(backgrounds.length).padStart(4, '0')}`,
+          thumb: dataUrl('thumb', 90000 + backgrounds.length),
+        });
+      }
+      bgImageIndex = indexByUrl.get(images.bgImage);
+      bgImageThumbUrl = `assets/${backgrounds[bgImageIndex].id}/thumb`;
+      bgImageFullUrl = `assets/${backgrounds[bgImageIndex].id}/full`;
+    }
     return baseCard(index, {
-      bgImageIndex: indexOf,
-      bgImageThumbUrl: images.bgImage ? 'assets/bg-0000/thumb' : '',
-      bgImageFullUrl: images.bgImage ? 'assets/bg-0000/full' : '',
-      contentImageThumbUrl: images.contentImage ? `assets/content-${index}/thumb` : '',
+      bgImageIndex,
+      bgImageThumbUrl,
+      bgImageFullUrl,
+      contentImageThumbUrl: images.contentImage ? `assets/content-${String(index).padStart(4, '0')}/thumb` : '',
       contentImage: '',
       imageSide: images.contentImage ? (index % 2 ? 'question' : 'answer') : '',
     });
   });
-  return { backgrounds, cards };
+  return {
+    backgrounds,
+    cards,
+    thumbnailCount: backgrounds.length,
+    uniqueBackgroundCount: backgrounds.length,
+    uniqueContentCount: contentCount,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -266,12 +336,16 @@ function timedJson(value, kind) {
 }
 
 // ---------------------------------------------------------------------------
-// Serialización del JSON y medición de un contrato de tarjetas
+// Medición de un contrato de tarjetas.
+// jsonImages: Data URLs que realmente forman parte del JSON modelado.
+// externalAssets: { bytes, requests, counts } de recursos fuera del JSON.
 // ---------------------------------------------------------------------------
-async function measureContract(label, chunkGeneratorFn, images, endpoint, evidence, extra = {}, timingPayload = null) {
+async function measureContract(label, chunkGeneratorFn, jsonImages, externalAssets, endpoint, evidence, extra = {}, timingPayload = null) {
   const { jsonUtf8Bytes, gzipBytes, streamModelDurationMs } = await measureJsonStreaming(chunkGeneratorFn);
   const stringify = timingPayload ? timedJson(timingPayload, 'stringify') : { run: false };
   const parse = timingPayload ? timedJson(timingPayload, 'parse') : { run: false };
+  const stats = imageStats(jsonImages);
+  const externals = externalAssets || { bytes: 0, requests: 0 };
   return {
     contract: label,
     endpoint,
@@ -291,25 +365,21 @@ async function measureContract(label, chunkGeneratorFn, images, endpoint, eviden
     stringifyEvidence: stringify.run ? 'MEASURED' : 'NOT RUN',
     parseEvidence: parse.run ? 'MEASURED' : 'NOT RUN',
     streamModelDurationMs,
-    ...statsFor(images),
-    duplicatePercentOfJson: jsonUtf8Bytes ? (statsFor(images).repeatedImageUtf8Bytes / jsonUtf8Bytes) * 100 : 0,
+    imageUtf8Bytes: stats.imageUtf8Bytes,
+    uniqueImageUtf8Bytes: stats.uniqueImageUtf8Bytes,
+    repeatedImageUtf8Bytes: stats.repeatedImageUtf8Bytes,
+    uniqueImageCount: stats.uniqueImageCount,
+    duplicatePercentOfJson: jsonUtf8Bytes ? (stats.repeatedImageUtf8Bytes / jsonUtf8Bytes) * 100 : 0,
+    externalAssetBytes: externals.bytes,
+    externalAssetRequests: externals.requests,
+    externalAssetEvidence: externals.evidence || 'ESTIMATED',
+    externalBytesNotInJson: true,
     ...extra,
   };
 }
 
-function statsFor(images) {
-  return imageStats(images);
-}
-
-async function runCardScenario(count, scenario) {
-  const current = buildCurrentCards(count, scenario);
-  const normalized = buildNormalizedCards(count, scenario);
-  const referenced = buildReferencedCards(count, scenario);
-  const hybrid = buildHybridCards(count, scenario);
-  const imagesFor = cardImagesFor;
-  const allImages = Array.from({ length: count }, (_, i) => [imagesFor(scenario, i).bgImage, imagesFor(scenario, i).contentImage]).flat();
-
-  const arrayGenerator = (array) => async function* generator() {
+function arrayGenerator(array) {
+  return async function* generator() {
     const open = '[';
     yield open;
     for (let index = 0; index < array.length; index += 1) {
@@ -318,23 +388,46 @@ async function runCardScenario(count, scenario) {
     }
     yield ']';
   };
+}
 
-  const dictGenerator = ({ backgrounds, cards: cardArray }) => async function* generator() {
-    const json = JSON.stringify({ backgrounds, cards: cardArray });
-    yield json;
+// Serializa el shape { backgrounds, cards } por partes (el diccionario puede
+// superar 300 MiB con fondos distintos a 1000 tarjetas).
+function dictGenerator({ backgrounds, cards: cardArray }) {
+  return async function* generator() {
+    yield '{"backgrounds":[';
+    for (let i = 0; i < backgrounds.length; i += 1) {
+      const json = JSON.stringify(backgrounds[i]);
+      yield i ? `,${json}` : json;
+    }
+    yield '],"cards":[';
+    for (let i = 0; i < cardArray.length; i += 1) {
+      const json = JSON.stringify(cardArray[i]);
+      yield i ? `,${json}` : json;
+    }
+    yield ']}';
   };
+}
 
-  const uniqueContentImages = (scenario === 'content_all'
-    ? Array.from({ length: count }, (_, i) => dataUrl('content', 3000 + i))
-    : scenario === 'content_10pct'
-      ? Array.from({ length: Math.ceil(count / 10) }, (_, i) => dataUrl('content', 2000 + i * 10))
-      : []);
+async function runCardScenario(count, scenario) {
+  const expected = expectedImageCounts(scenario, count);
+  const current = buildCurrentCards(count, scenario);
+  const normalized = buildNormalizedCards(count, scenario);
+  const referenced = buildReferencedCards(count, scenario);
+  const hybrid = buildHybridCards(count, scenario);
+
+  const allImages = Array.from({ length: count }, (_, i) => [cardImagesFor(scenario, i).bgImage, cardImagesFor(scenario, i).contentImage]).flat();
+  const contentImagesInCards = current.filter((c) => c.contentImage).map((c) => c.contentImage);
+
+  // Assets externos por contrato (NO están en el JSON; ESTIMATED).
+  const backgroundBinaryBytes = (urls) => urls.reduce((sum, url) => sum + estimatedBinaryBytes(url), 0);
+  const contentBinaryBytes = (urls) => urls.reduce((sum, url) => sum + estimatedBinaryBytes(url), 0);
 
   const rows = [
     await measureContract(
       'current',
       arrayGenerator(current),
       allImages,
+      null,
       'GET /api/flashcards/deck/:deckId',
       'MODELED',
       { cardCount: count, imageScenario: scenario, logicalBackgroundCopies: current.filter((c) => c.bgImage).length }
@@ -342,49 +435,86 @@ async function runCardScenario(count, scenario) {
     await measureContract(
       'normalized',
       dictGenerator(normalized),
-      [...normalized.backgrounds, ...uniqueContentImages],
+      [...normalized.backgrounds, ...contentImagesInCards],
+      null,
       'GET /api/flashcards/deck/:deckId (diccionario + índice)',
       'MODELED',
-      { cardCount: count, imageScenario: scenario, logicalBackgroundCopies: normalized.backgrounds.length, dictionaryCount: normalized.backgrounds.length },
+      {
+        cardCount: count,
+        imageScenario: scenario,
+        logicalBackgroundCopies: normalized.backgrounds.length,
+        dictionaryCount: normalized.backgrounds.length,
+        uniqueBackgroundCount: normalized.backgrounds.length,
+        uniqueContentCount: contentImagesInCards.length,
+        requestsColdAssets: 0,
+      },
       normalized
     ),
     await measureContract(
       'referenced',
       arrayGenerator(referenced.cards),
       [],
+      {
+        bytes: backgroundBinaryBytes([...new Set(current.filter((c) => c.bgImage).map((c) => c.bgImage))])
+          + contentBinaryBytes([...new Set(contentImagesInCards)]),
+        requests: referenced.uniqueAssetCount,
+        evidence: 'ESTIMATED',
+      },
       'GET /api/flashcards/deck/:deckId (referencias de asset)',
       'MODELED',
-      { cardCount: count, imageScenario: scenario, uniqueAssetCount: referenced.uniqueAssetCount, requestsColdAssets: referenced.uniqueAssetCount },
+      {
+        cardCount: count,
+        imageScenario: scenario,
+        uniqueBackgroundCount: referenced.uniqueBackgroundCount,
+        uniqueContentCount: referenced.uniqueContentCount,
+        uniqueAssetCount: referenced.uniqueAssetCount,
+        requestsColdAssets: referenced.uniqueAssetCount,
+      },
       referenced.cards
     ),
     await measureContract(
       'hybrid',
       dictGenerator(hybrid),
-      [hybrid.backgrounds.map((b) => b.thumb).join(',')],
-      'GET /api/flashcards/deck/:deckId (miniaturas + referencias)',
+      hybrid.backgrounds.map((b) => b.thumb),
+      {
+        bytes: backgroundBinaryBytes([...new Set(current.filter((c) => c.bgImage).map((c) => c.bgImage))])
+          + contentBinaryBytes([...new Set(contentImagesInCards)]),
+        requests: hybrid.uniqueBackgroundCount + hybrid.uniqueContentCount,
+        evidence: 'ESTIMATED',
+      },
+      'GET /api/flashcards/deck/:deckId (miniaturas inline + referencias full)',
       'MODELED',
-      { cardCount: count, imageScenario: scenario, thumbnailCount: hybrid.backgrounds.length, requestsColdAssets: hybrid.backgrounds.length },
+      {
+        cardCount: count,
+        imageScenario: scenario,
+        thumbnailCount: hybrid.thumbnailCount,
+        uniqueBackgroundCount: hybrid.uniqueBackgroundCount,
+        uniqueContentCount: hybrid.uniqueContentCount,
+        requestsColdAssets: hybrid.uniqueBackgroundCount + hybrid.uniqueContentCount,
+      },
       hybrid
     ),
   ];
 
-  return rows.map((row) => ({
-    scenarioId: `cards-${count}-${scenario}-${row.contract}`,
-    ...row,
-    limitation: 'Contrato JSON reproducido en Node (MODELED); gzip y tiempos Node/V8 (MEASURED sobre el modelo); las miniaturas usan un perfil ESTIMADO; no incluye HTTP, MongoDB, parseo del navegador ni memoria raster.',
-  }));
+  return {
+    rows: rows.map((row) => ({
+      scenarioId: `cards-${count}-${scenario}-${row.contract}`,
+      ...row,
+      limitation: 'Contrato JSON reproducido en Node (MODELED); gzip y tiempos Node/V8 (MEASURED sobre el modelo); el perfil de miniatura y los bytes externos son ESTIMATED; los bytes externos no forman parte del JSON; no incluye HTTP, MongoDB, parseo del navegador ni memoria raster.',
+    })),
+    expected,
+  };
 }
 
-function baseDeck(index, { coverImage = '', cardBackgrounds = [], coverImageThumb = '' } = {}) {
+function baseDeck(index, extra = {}) {
   return {
     id: `deck-${String(index).padStart(4, '0')}`,
     userId: '000000000000000000000001',
     title: `Mazo sintético ${index}`,
     coverColor: '#4f46e5',
-    coverImage,
+    coverImage: '',
     cardCount: 100,
-    cardBackgrounds,
-    coverImageThumb,
+    cardBackgrounds: [],
     isStarred: false,
     isDefault: false,
     isPublicReadOnly: false,
@@ -400,10 +530,11 @@ function baseDeck(index, { coverImage = '', cardBackgrounds = [], coverImageThum
       lastCalculatedAt: '2026-08-12T00:00:00.000Z',
     },
     createdAt: '2026-08-12T00:00:00.000Z',
+    ...extra,
   };
 }
 
-function deckImagesFor(count, scenario, index) {
+function deckImagesFor(scenario, index) {
   const coverImage = scenario === 'covers' || scenario === 'cover_and_backgrounds'
     ? dataUrl('small', 10000 + index)
     : '';
@@ -416,21 +547,43 @@ function deckImagesFor(count, scenario, index) {
   return { coverImage, cardBackgrounds, coverImageThumb };
 }
 
-async function runDeckScenario(count, scenario) {
-  const currentDecks = Array.from({ length: count }, (_, index) => {
-    const images = deckImagesFor(count, scenario, index);
+// Variantes de lista de mazos con nombres inequívocos.
+function buildDeckListVariants(count, scenario) {
+  const current = Array.from({ length: count }, (_, index) => {
+    const images = deckImagesFor(scenario, index);
     return baseDeck(index, { coverImage: images.coverImage, cardBackgrounds: images.cardBackgrounds });
   });
-  const summaryDecks = currentDecks.map(({ coverImage, cardBackgrounds, ...rest }) => rest);
-  const thumbDecks = currentDecks.map((deck, index) => baseDeck(index, { coverImageThumb: deckImagesFor(count, scenario, index).coverImageThumb }));
-  const migrationDecks = currentDecks.map((deck, index) => ({
+  const withoutBackgrounds = current.map((deck) => {
+    const { cardBackgrounds, ...rest } = deck;
+    return rest;
+  });
+  const metadataOnly = current.map((deck) => {
+    const { coverImage, cardBackgrounds, ...rest } = deck;
+    return rest;
+  });
+  const thumbnailSummary = current.map((deck, index) => ({
+    ...metadataOnly[index],
+    coverImageThumb: deckImagesFor(scenario, index).coverImageThumb,
+  }));
+  const migrationDual = current.map((deck, index) => ({
     ...deck,
-    cardBackgrounds: deck.cardBackgrounds,
     cardBackgroundAssetIds: deck.cardBackgrounds.map((_, bgIndex) => `bg-${String(index).padStart(4, '0')}-${bgIndex}`),
   }));
+  return { current, without_backgrounds: withoutBackgrounds, metadata_only: metadataOnly, thumbnail_summary: thumbnailSummary, migration_dual: migrationDual };
+}
+
+function deckVariantImages(label, decks) {
+  if (label === 'without_backgrounds') return decks.map((deck) => deck.coverImage);
+  if (label === 'metadata_only') return [];
+  if (label === 'thumbnail_summary') return decks.map((deck) => deck.coverImageThumb);
+  return decks.flatMap((deck) => [deck.coverImage, ...(deck.cardBackgrounds || [])]);
+}
+
+async function runDeckScenario(count, scenario) {
+  const variants = buildDeckListVariants(count, scenario);
 
   const measure = async (label, decks, endpoint, evidence, extra = {}) => {
-    const images = decks.flatMap((deck) => [deck.coverImage, ...(deck.cardBackgrounds || [])]);
+    const images = deckVariantImages(label, decks);
     async function* generator() {
       const open = '[';
       yield open;
@@ -443,6 +596,7 @@ async function runDeckScenario(count, scenario) {
     const { jsonUtf8Bytes, gzipBytes } = await measureJsonStreaming(generator);
     const stringify = timedJson(decks, 'stringify');
     const parse = timedJson(decks, 'parse');
+    const stats = imageStats(images);
     return {
       scenarioId: `decks-${count}-${scenario}-${label}`,
       contract: label,
@@ -460,17 +614,22 @@ async function runDeckScenario(count, scenario) {
       parseMs: parse.run ? { ...parse } : null,
       stringifyEvidence: stringify.run ? 'MEASURED' : 'NOT RUN',
       parseEvidence: parse.run ? 'MEASURED' : 'NOT RUN',
-      ...imageStats(images),
+      imageUtf8Bytes: stats.imageUtf8Bytes,
+      uniqueImageUtf8Bytes: stats.uniqueImageUtf8Bytes,
+      repeatedImageUtf8Bytes: stats.repeatedImageUtf8Bytes,
+      uniqueImageCount: stats.uniqueImageCount,
+      duplicatePercentOfJson: jsonUtf8Bytes ? (stats.repeatedImageUtf8Bytes / jsonUtf8Bytes) * 100 : 0,
       ...extra,
-      limitation: 'JSON reproducido en Node (MODELED); gzip y tiempos Node/V8 (MEASURED sobre el modelo); el contrato summary elimina coverImage y cardBackgrounds como haría un contrato de resumen.',
+      limitation: 'JSON reproducido en Node (MODELED); gzip y tiempos Node/V8 (MEASURED sobre el modelo); el perfil de miniatura es ESTIMATED; sin HTTP, MongoDB, parseo del navegador ni memoria raster.',
     };
   };
 
   const rows = [
-    await measure('current', currentDecks, 'GET /api/decks/:userId', 'MODELED', { legacyContract: true }),
-    await measure('summary', summaryDecks, 'GET /api/decks/:userId (resumen sin imágenes)', 'MODELED', { summaryWithoutImages: true }),
-    await measure('thumb', thumbDecks, 'GET /api/decks/:userId (sólo miniatura de portada)', 'MODELED', { thumbnailOnly: true }),
-    await measure('migration_dual', migrationDecks, 'GET /api/decks/:userId (migración dual: heredado + ids)', 'MODELED', { dualMigration: true, legacyContract: true }),
+    await measure('current', variants.current, 'GET /api/decks/:userId', 'MODELED', { legacyContract: true }),
+    await measure('without_backgrounds', variants.without_backgrounds, 'GET /api/decks/:userId (Corte 1: sin cardBackgrounds, portada completa)', 'MODELED', { corte1: true, keepsCoverImage: true }),
+    await measure('metadata_only', variants.metadata_only, 'GET /api/decks/:userId (control: sin portada ni fondos)', 'MODELED', { controlOnly: true }),
+    await measure('thumbnail_summary', variants.thumbnail_summary, 'GET /api/decks/:userId (Corte 2: portada en miniatura, sin fondos)', 'MODELED', { corte2: true, thumbnailOnly: true }),
+    await measure('migration_dual', variants.migration_dual, 'GET /api/decks/:userId (migración dual: heredado + ids)', 'MODELED', { dualMigration: true, legacyContract: true }),
   ];
 
   return rows;
@@ -515,6 +674,155 @@ function measureBsonAssets() {
   return cases;
 }
 
+// ---------------------------------------------------------------------------
+// INVARIANTES: cualquier fallo imprime el detalle y termina con código != 0.
+// ---------------------------------------------------------------------------
+function verifyInvariants({ cardRows, deckRows, cardScenarios, cardCounts, deckScenarios, deckCounts }) {
+  const failures = [];
+  const passed = [];
+  const check = (cond, message) => {
+    if (cond) passed.push(`PASS: ${message}`);
+    else failures.push(`FAIL: ${message}`);
+  };
+
+  const allRows = [...cardRows, ...deckRows];
+
+  // 1. IDs de escenario únicos.
+  const ids = new Set();
+  for (const row of allRows) {
+    check(!ids.has(row.scenarioId), `IDs de escenario duplicados: ${row.scenarioId}`);
+    ids.add(row.scenarioId);
+  }
+
+  // 2. Conteos de filas esperados (7 escenarios × 4 tamaños × 4 contratos de
+  // tarjetas; 4 escenarios × 3 tamaños × 5 contratos de listas).
+  const expectedCardRows = cardScenarios.length * cardCounts.length * 4;
+  const expectedDeckRows = deckScenarios.length * deckCounts.length * 5;
+  check(cardRows.length === expectedCardRows,
+    `Conteo de filas de tarjetas: esperadas ${expectedCardRows}, obtenidas ${cardRows.length}`);
+  check(deckRows.length === expectedDeckRows,
+    `Conteo de filas de mazos: esperadas ${expectedDeckRows}, obtenidas ${deckRows.length}`);
+
+  // 3. Sin NaN, Infinity ni negativos en valores numéricos.
+  for (const row of allRows) {
+    for (const [key, value] of Object.entries(row)) {
+      if (typeof value !== 'number') continue;
+      check(Number.isFinite(value), `Número no finito en ${row.scenarioId}.${key} (${value})`);
+      check(value >= 0, `Número negativo en ${row.scenarioId}.${key} (${value})`);
+    }
+  }
+
+  // 4. Invariantes estructurales por escenario/contrato de tarjetas.
+  for (const count of cardCounts) {
+    for (const scenario of cardScenarios) {
+      const expected = expectedImageCounts(scenario, count);
+      const scenarioRows = cardRows.filter((r) => r.imageScenario === scenario && r.cardCount === count);
+      for (const row of scenarioRows) {
+        const tag = row.scenarioId;
+        if (row.contract === 'normalized') {
+          check(row.dictionaryCount === expected.backgrounds,
+            `${tag}: dictionaryCount esperado ${expected.backgrounds}, obtenido ${row.dictionaryCount}`);
+          check(row.uniqueContentCount === expected.content,
+            `${tag}: fondos de contenido únicos esperados ${expected.content}, obtenidos ${row.uniqueContentCount}`);
+          check(row.uniqueImageCount === expected.backgrounds + expected.content,
+            `${tag}: uniqueImageCount esperado ${expected.backgrounds + expected.content}, obtenido ${row.uniqueImageCount}`);
+          if (expected.backgrounds + expected.content > 0) {
+            check(row.imageUtf8Bytes > 0, `${tag}: JSON incluye Data URL pero imageUtf8Bytes es 0`);
+          } else {
+            check(row.imageUtf8Bytes === 0, `${tag}: sin imágenes pero imageUtf8Bytes > 0`);
+          }
+          check(row.requestsColdAssets === 0, `${tag}: normalized no debería tener requests externos`);
+        }
+        if (row.contract === 'hybrid') {
+          check(row.thumbnailCount === expected.backgrounds,
+            `${tag}: thumbnailCount esperado ${expected.backgrounds}, obtenido ${row.thumbnailCount}`);
+          check(row.uniqueBackgroundCount === expected.backgrounds,
+            `${tag}: fondos únicos esperados ${expected.backgrounds}, obtenidos ${row.uniqueBackgroundCount}`);
+          check(row.requestsColdAssets === expected.backgrounds + expected.content,
+            `${tag}: requests fríos esperados ${expected.backgrounds + expected.content}, obtenidos ${row.requestsColdAssets}`);
+          if (expected.backgrounds > 0) {
+            check(row.uniqueImageCount === expected.backgrounds, `${tag}: miniaturas en JSON deben ser una por fondo único`);
+            check(row.imageUtf8Bytes > 0, `${tag}: hay miniaturas en JSON pero imageUtf8Bytes es 0`);
+          } else {
+            check(row.thumbnailCount === 0 && row.uniqueImageCount === 0, `${tag}: sin fondos, sin miniaturas`);
+          }
+        }
+        if (row.contract === 'referenced') {
+          check(row.uniqueAssetCount === expected.backgrounds + expected.content,
+            `${tag}: uniqueAssetCount esperado ${expected.backgrounds + expected.content}, obtenido ${row.uniqueAssetCount}`);
+          check(row.requestsColdAssets === row.uniqueAssetCount,
+            `${tag}: requests fríos deben coincidir con assets únicos`);
+          check(row.imageUtf8Bytes === 0, `${tag}: referenced no incluye bytes de imagen en JSON`);
+          check(row.externalAssetBytes > 0 === (expected.backgrounds + expected.content > 0),
+            `${tag}: bytes externos deben existir sólo si hay imágenes`);
+        }
+        if (row.contract === 'current') {
+          const totalUnique = expected.backgrounds + expected.content;
+          check(row.uniqueImageCount === totalUnique,
+            `${tag}: uniqueImageCount esperado ${totalUnique}, obtenido ${row.uniqueImageCount}`);
+          if (totalUnique > 0) check(row.imageUtf8Bytes > 0, `${tag}: JSON incluye Data URL pero imageUtf8Bytes es 0`);
+          if (scenario.startsWith('shared_') && count > 1) {
+            check(row.repeatedImageUtf8Bytes > 0, `${tag}: fondo compartido debe repetirse en current`);
+          }
+        }
+      }
+    }
+  }
+
+  // 5. Índices válidos en los constructores (fuera de rango o -1 con fondo).
+  for (const count of cardCounts) {
+    for (const scenario of cardScenarios) {
+      const normalized = buildNormalizedCards(count, scenario);
+      const hybrid = buildHybridCards(count, scenario);
+      const tag = `cards-${count}-${scenario}`;
+      for (const card of normalized.cards) {
+        check(card.bgImageIndex >= -1 && card.bgImageIndex < normalized.backgrounds.length,
+          `${tag} normalized: bgImageIndex ${card.bgImageIndex} fuera de rango (diccionario ${normalized.backgrounds.length})`);
+        const hasBg = Boolean(cardImagesFor(scenario, Number(card.id.split('-')[1])).bgImage);
+        check(!hasBg || card.bgImageIndex >= 0,
+          `${tag} normalized: tarjeta con fondo esperado pero índice -1 (${card.id})`);
+      }
+      for (const card of hybrid.cards) {
+        check(card.bgImageIndex >= -1 && card.bgImageIndex < hybrid.backgrounds.length,
+          `${tag} hybrid: bgImageIndex ${card.bgImageIndex} fuera de rango (diccionario ${hybrid.backgrounds.length})`);
+      }
+      const hybridIds = hybrid.backgrounds.map((b) => b.id);
+      check(new Set(hybridIds).size === hybridIds.length,
+        `${tag} hybrid: IDs de fondos distintos repetidos`);
+      if (scenario === 'distinct_backgrounds') {
+        check(hybrid.backgrounds.length === count, `${tag} hybrid: debe haber una miniatura por fondo distinto`);
+      }
+      if (scenario.startsWith('shared_')) {
+        check(normalized.backgrounds.length === 1, `${tag} normalized: fondo compartido debe ser 1 único`);
+        check(hybrid.backgrounds.length === 1, `${tag} hybrid: fondo compartido debe ser 1 única miniatura`);
+      }
+      if (scenario === 'no_image') {
+        check(normalized.backgrounds.length === 0, `${tag} normalized: sin imágenes, diccionario vacío`);
+        check(hybrid.backgrounds.length === 0, `${tag} hybrid: sin imágenes, cero miniaturas`);
+      }
+    }
+  }
+
+  // 6. Invariantes de listas de mazos.
+  for (const count of deckCounts) {
+    for (const scenario of deckScenarios) {
+      const variants = buildDeckListVariants(count, scenario);
+      check(variants.current.every((d) => d.coverImage || d.cardBackgrounds.length > 0 || scenario === 'no_images'),
+        `decks-${count}-${scenario}: current no debería quedar sin imágenes en escenarios con imágenes`);
+      check(variants.without_backgrounds.every((d) => !('cardBackgrounds' in d)),
+        `decks-${count}-${scenario}: without_backgrounds conserva cardBackgrounds`);
+      check(variants.without_backgrounds.every((d, i) => d.coverImage === variants.current[i].coverImage),
+        `decks-${count}-${scenario}: without_backgrounds debe conservar coverImage completa`);
+      check(variants.metadata_only.every((d) => !('coverImage' in d) && !('cardBackgrounds' in d)),
+        `decks-${count}-${scenario}: metadata_only conserva imágenes`);
+      check(variants.migration_dual.every((d) => Array.isArray(d.cardBackgroundAssetIds) && d.cardBackgroundAssetIds.length === d.cardBackgrounds.length),
+        `decks-${count}-${scenario}: migration_dual debe tener un id por fondo heredado`);
+    }
+  }
+
+  return { passed, failures };
+}
+
 async function main() {
   const startedAt = new Date().toISOString();
   const cardScenarios = ['no_image', 'shared_small', 'shared_medium', 'shared_large', 'distinct_backgrounds', 'content_10pct', 'content_all'];
@@ -525,7 +833,8 @@ async function main() {
   const cardRows = [];
   for (const count of cardCounts) {
     for (const scenario of cardScenarios) {
-      cardRows.push(...(await runCardScenario(count, scenario)));
+      const { rows } = await runCardScenario(count, scenario);
+      cardRows.push(...rows);
     }
   }
   const deckRows = [];
@@ -535,13 +844,17 @@ async function main() {
     }
   }
 
+  const bsonRows = measureBsonAssets();
+  const invariants = verifyInvariants({ cardRows, deckRows, cardScenarios, cardCounts, deckScenarios, deckCounts });
+
   const output = {
-    schemaVersion: '1.1.0',
-    phase: '1B image-delivery',
+    schemaVersion: '1.2.0',
+    phase: '1B image-delivery (corrección 1)',
     commit: COMMIT,
     generatedAt: startedAt,
     evidenceClasses: ['MEASURED', 'STATICALLY CONFIRMED', 'MODELED', 'ESTIMATED', 'BLOCKED', 'PENDING — DEVICE REQUIRED'],
-    contractsCompared: ['current', 'normalized', 'referenced', 'hybrid'],
+    cardContracts: ['current', 'normalized', 'referenced', 'hybrid'],
+    deckListContracts: ['current', 'without_backgrounds', 'metadata_only', 'thumbnail_summary', 'migration_dual'],
     profiles,
     cardScenarios,
     cardCounts,
@@ -550,25 +863,44 @@ async function main() {
     summary: {
       cardScenarioRows: cardRows.length,
       deckScenarioRows: deckRows.length,
-      bsonRows: 3,
+      bsonRows: bsonRows.length,
+      invariantsChecked: invariants.passed.length + invariants.failures.length,
+      invariantsPassed: invariants.passed.length,
+      invariantsFailed: invariants.failures.length,
     },
     thumbProfileEvidence: 'ESTIMATED: binaryBytes = 32 KiB × (256×144)/(320×180) escalado del perfil small medido en la Fase 1A.',
     results: {
       cardResponses: cardRows,
       deckLists: deckRows,
-      bson: measureBsonAssets(),
+      bson: bsonRows,
+    },
+    invariants: {
+      passed: invariants.passed,
+      failures: invariants.failures,
     },
   };
 
   fs.writeFileSync(OUTPUT, JSON.stringify(output, null, 2));
+
   console.log(JSON.stringify({
-    status: 'PASS',
+    status: invariants.failures.length ? 'FAIL' : 'PASS',
     output: OUTPUT,
     cardRows: cardRows.length,
     deckRows: deckRows.length,
-    bsonRows: output.results.bson.length,
+    bsonRows: bsonRows.length,
+    invariantsChecked: invariants.passed.length + invariants.failures.length,
+    invariantsFailed: invariants.failures.length,
     bytes: fs.statSync(OUTPUT).size,
   }, null, 2));
+
+  if (invariants.failures.length > 0) {
+    console.error(`\n=== INVARIANTES FALLIDAS (${invariants.failures.length}) ===`);
+    for (const failure of invariants.failures) console.error(failure);
+    process.exit(1);
+  }
+
+  console.log(`\n=== INVARIANTES APROBADAS (${invariants.passed.length}) ===`);
+  for (const p of invariants.passed) console.log(p);
 }
 
 main().catch((error) => {

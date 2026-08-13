@@ -12,15 +12,20 @@
 
 | Métrica | Hoy | Con A | Fuente |
 |---|---:|---:|---|
-| 1000 tarjetas, fondo grande compartido, JSON | 911.87 MiB | 0.375 MiB (−99.96%) | [quantitative-results.md](./quantitative-results.md) §1 |
-| Ídem, gzip | 686.81 MiB | 0.008 MiB | §1 |
-| Lista 500 mazos portada+fondos, JSON | 83.62 MiB | 0.22 MiB (−99.7%) | §4 |
-| `JSON.stringify` lista 500 (App + localStorage) | 375.79 ms | 0.43 ms | §5 |
+| 1000 tarjetas, fondo grande **compartido**, JSON | 911.87 MiB | 1.285 MiB (−99.86%; incluye 0.911 MiB de la copia única real) | [quantitative-results.md](./quantitative-results.md) §1 |
+| Ídem, gzip | 686.81 MiB | 0.695 MiB | §1 |
+| 1000 tarjetas, 1000 fondos **distintos**, JSON | 333.74 MiB | 333.74 MiB (sin ahorro; cada fondo es único) | §1 |
+| Lista 500 mazos portada+fondos, JSON | 83.61 MiB | 21.06 MiB (−74.8%; portada completa conservada, `without_backgrounds`) | §4 |
+| Ídem, control sin ninguna imagen | 83.61 MiB | 0.207 MiB (no es el contrato propuesto) | §4 |
+| Ídem, portada en miniatura (Corte 2, ESTIMADO) | 83.61 MiB | 13.56 MiB | §4 |
+| `JSON.stringify` lista 500 (App + localStorage) | 368.60 ms | 81.98 ms | §5 |
 | Requests | 1 | 1 (sin cambios) | §7 |
 | Migración de datos | — | ninguna | — |
 | Coste de infraestructura | — | cero | — |
 
-El 99.86% del JSON de tarjetas con fondo compartido es la misma cadena repetida; `cardBackgrounds` en la lista de mazos pesa ~63 MiB de 83 MiB con 500 mazos y **no tiene consumidores en el frontend** (IDL-001, [current-image-contract.md](./current-image-contract.md) §10). El cuello es el serializador, no el almacenamiento: por eso la solución de menor riesgo no toca MongoDB ni añade proveedores.
+El 99.86% del JSON de tarjetas con fondo compartido es la misma cadena repetida; `cardBackgrounds` en la lista de mazos pesa ~62.5 MiB de 83.6 MiB con 500 mazos y **no tiene consumidores en el frontend** (IDL-001, [current-image-contract.md](./current-image-contract.md) §10). El cuello es el serializador, no el almacenamiento: por eso la solución de menor riesgo no toca MongoDB ni añade proveedores.
+
+**Honestidad por escenario.** El beneficio de A es alto cuando los fondos se comparten entre tarjetas (el patrón normal de un mazo con estilo común) y en la lista de mazos (bytes sin consumidores). Con fondos únicos por tarjeta, A no reduce las imágenes —sólo evita su repetición— y la reducción de Library depende de la decisión de portada: completa (21.06 MiB), miniatura (13.56 MiB) o ninguna (0.207 MiB, control).
 
 ## Arquitectura objetivo (onda 1, sin cambios de almacenamiento)
 
@@ -58,7 +63,7 @@ El 99.86% del JSON de tarjetas con fondo compartido es la misma cadena repetida;
 | Export/import JSON | Ya indexado | Sin cambios |
 | PDF | Necesita cadena completa | El cliente resuelve el diccionario antes de `exportDeckToPDF` |
 | Offline | Sin nuevas peticiones | Sin cambios (los datos locales siguen siendo cadenas) |
-| `safeLocalStorage` | Contrato resumen | Menor stringify/parse y cuota (−99.7% caracteres) |
+| `safeLocalStorage` | Contrato resumen | Menor stringify/parse y cuota (500 mazos: 87.7 M → 22.1 M caracteres con portadas completas; −74.8%) |
 
 ## Qué está confirmado y qué sigue bloqueado
 

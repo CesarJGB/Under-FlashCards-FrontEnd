@@ -9,7 +9,7 @@ La tarjeta conserva `bgImageIndex`; la respuesta de tarjetas incluye un dicciona
 | Dimensión | Evaluación |
 |---|---|
 | Bytes almacenados | Igual que hoy (1 copia por fondo + `contentImage` por tarjeta) |
-| Bytes JSON/transferidos | 1000 tarjetas, fondo grande: **911.87 → 0.375 MiB** (−99.96%); gzip 686.81 → 0.008 MiB. Lista de 500 mazos con portada+fondos: 83.62 → 0.22 MiB (−99.7%); gzip 62.99 → 0.004 MiB |
+| Bytes JSON/transferidos | Fondo compartido: 1000 tarjetas con fondo grande pasan de **911.87 → 1.285 MiB** (−99.86%) conservando una copia real; gzip 686.81 → 0.695 MiB. Fondo **distinto**: sin ahorro (333.7 MiB en ambos). Lista de 500 mazos con portada+fondos: `without_backgrounds` (Corte 1, portada completa) **83.61 → 21.06 MiB** (−74.8%); control sin imágenes 0.207 MiB |
 | Requests | Sin cambios (misma cantidad de endpoints; 0 requests adicionales) |
 | Caché navegador/HTTP | Sin mejora para las imágenes (siguen siendo cadenas embebidas); mejora todo el resto (JSON más pequeño, parse más barato) |
 | Cold/warm load | Ambos mejoran vía payload/parse; la imagen sigue decodificándose de la cadena |
@@ -17,7 +17,7 @@ La tarjeta conserva `bgImageIndex`; la respuesta de tarjetas incluye un dicciona
 | Compresión/formatos | Sin cambios (JPEG/PNG del usuario) |
 | Miniaturas | No en esta familia (diferida a D) |
 | Calidad visual | Idéntica (se muestra la misma cadena) |
-| CPU/memoria cliente | `JSON.parse` y heap caen drásticamente: 0.375 MiB frente a 911.87 MiB por respuesta |
+| CPU/memoria cliente | `JSON.parse` y heap caen drásticamente en fondos compartidos: 1.285 MiB frente a 911.87 MiB por respuesta a 1000 tarjetas; con fondos distintos el beneficio es marginal |
 | CPU/memoria servidor | Serialización sin expansión por tarjeta; `JSON.stringify` de la lista 500 mazos cae de 375.79 ms a 0.43 ms (MEASURED, Node/V8) |
 | Coste de infraestructura | Cero (sin servicios nuevos) |
 | Backup/restauración | Sin cambios (mismo Mongo) |
@@ -111,7 +111,7 @@ Miniatura optimizada para Library/materias/grids + recurso de mayor resolución 
 | Dimensión | Evaluación |
 |---|---|
 | Bytes almacenados | Diccionario de miniaturas + full; más que A si se guardan ambos, menos que hoy si se migra |
-| Bytes JSON/transferidos | Menor que A en superficies de resumen (sólo miniaturas): 500 mazos portadas thumb → 13.58 MiB (frente a 83.62 con portadas+fondos; ESTIMADO con perfil thumb) |
+| Bytes JSON/transferidos | Menor que A en superficies de resumen (sólo miniaturas): 500 mazos portadas thumb → 13.56 MiB (frente a 83.61 con portadas+fondos y 21.06 sin fondos con portada completa; ESTIMADO con perfil thumb); 1000 fondos distintos → 27.19 MiB de miniaturas frente a 333.7 MiB |
 | Requests | +1 por miniatura única; full bajo demanda |
 | Caché navegador/HTTP | Sí para miniaturas (recurso reutilizable) si se sirven como URL |
 | Cold/warm load | Cold ligera en resúmenes; full bajo demanda en cara/PDF |
@@ -139,7 +139,7 @@ Miniatura optimizada para Library/materias/grids + recurso de mayor resolución 
 
 | Objetivo | A | B | C | D |
 |---|---|---|---|---|
-| Rapidez percibida Library/materias | Alta (payload −99.7%) | Alta (referencias) | Alta (referencias/CDN) | Alta (miniaturas) |
+| Rapidez percibida Library/materias | Alta en fondos compartidos (payload −99.86% en tarjetas; −74.8% en lista conservando portadas) | Alta (referencias) | Alta (referencias/CDN) | Alta (miniaturas) |
 | Evitar duplicación masiva | Sí (transporte y lógica) | Sí | Sí | Sí |
 | Mantener mazos existentes | Sin migración | Migración necesaria | Migración necesaria | Sin migración en onda 1 |
 | No perder calidad visible | Idéntica | Controlable | Controlable | Full intacta |
@@ -149,7 +149,8 @@ Miniatura optimizada para Library/materias/grids + recurso de mayor resolución 
 
 ## Valoración
 
-- **A domina** en coste/riesgo/impacto inmediato: captura el 99.7–99.96% del peso repetido sin migración ni infraestructura.
-- **D es la evolución natural** y el único camino que además reduce raster en grids y transporta miniaturas a resúmenes; su primera mitad coincide con A.
+- **A domina** en coste/riesgo/impacto inmediato para el patrón dominante (fondo compartido): elimina la expansión por tarjeta (−99.86% con un fondo grande a 1000 tarjetas) y los bytes sin consumidores de la lista (−74.8% conservando portadas), sin migración ni infraestructura.
+- **A no reduce fondos distintos**: cada fondo único debe viajar una vez; el ahorro es de repetición, no de contenido. Si un mazo usa muchos fondos distintos, la mejora es pequeña y la decisión de producto pasa a ser miniaturas (D) o referencias (C).
+- **D es la evolución natural**: sólo transporta miniaturas en resúmenes/grids (27.19 MiB con 1000 fondos distintos frente a 333.7 MiB) y full bajo demanda; su primera mitad coincide con A.
 - **B y C** resuelven caché HTTP real y variantes de formato, pero sólo compensan cuando el problema de contrato ya esté resuelto; añaden GC, autorización, consistencia, offline y portabilidad de exportación. No hay evidencia de que el problema actual los exija.
 - **«Guardar URLs» como solución completa queda descartada**: externalizar sin resolver el contrato de salida (diccionario/índice) mantendría la expansión por tarjeta y añadiría N descargas.
