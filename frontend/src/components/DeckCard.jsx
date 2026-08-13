@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Pencil, Trash2, Star, MoreHorizontal, Globe, Eye, Check } from 'lucide-react';
 import ActionSheet from './common/ActionSheet';
 import { getReadableTextColor } from '../lib/materiaColors';
+import { resolveDeckCover } from '../lib/imageDelivery';
 
 export default function DeckCard({ 
   deck, 
@@ -27,12 +28,15 @@ export default function DeckCard({
   const canModify = isOwner || deck.isDefault === true;
 
   const coverColor = deck.coverColor || '#ffffff';
-  const hasCoverImage = Boolean(deck.coverImage);
+  // Corte 2: la portada se resuelve como coverImageThumb || coverImage; si
+  // ambas faltan, se aplica el color de fallback. Sin peticiones adicionales.
+  const resolvedCover = resolveDeckCover(deck);
+  const hasCoverImage = Boolean(resolvedCover);
   const cardTextColor = hasCoverImage ? '#ffffff' : getReadableTextColor(coverColor);
   const bgStyle = hasCoverImage
     ? {
         backgroundColor: coverColor,
-        backgroundImage: `url(${deck.coverImage})`,
+        backgroundImage: `url(${resolvedCover})`,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
       }

@@ -82,7 +82,7 @@ function DashboardScreen({ user, onLogout, onInviteRequired }) {
   const loadDecks = useCallback(async (showSpinner = false, signal) => {
     if (showSpinner) setLoading(true);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/decks/${user.id}?t=${Date.now()}&contract=indexed`, {
+      const res = await fetch(`${BACKEND_URL}/api/decks/${user.id}?t=${Date.now()}&contract=indexed&cover=thumbnail`, {
         signal,
         headers: {
           'X-User-Id': user.id

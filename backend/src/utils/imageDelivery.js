@@ -27,6 +27,61 @@ function isIndexedContractRequest(req) {
   return Boolean(req && req.query && req.query.contract === 'indexed');
 }
 
+// ---------------------------------------------------------------------------
+// Corte 2 — contrato ligero de lista de mazos (coverImageThumb opcional)
+// ---------------------------------------------------------------------------
+
+// Límite de caracteres de una miniatura de portada aceptada en escritura.
+// El presupuesto de generación es ~24 KiB de Data URL; se acepta hasta
+// 64 KiB (65536 caracteres) para tolerar el esfuerzo final del cliente sin
+// admitir cadenas excesivas. Superarlo normaliza a '' (sin miniatura).
+const COVER_THUMB_MAX_LENGTH = 64 * 1024;
+
+// Miniaturas válidas: Data URL de imagen raster (png/jpeg/webp), con payload.
+function isValidCoverThumb(value) {
+  return (
+    typeof value === 'string' &&
+    value.length > 26 &&
+    value.length <= COVER_THUMB_MAX_LENGTH &&
+    /^data:image\/(png|jpe?g|webp);base64,/.test(value)
+  );
+}
+
+// Normaliza una miniatura entrante: cadena válida intacta; cualquier otra
+// cosa => '' (sin miniatura). Los clientes que no envían el campo no se ven
+// afectados: el valor por defecto del modelo sigue siendo ''.
+function sanitizeCoverThumb(value) {
+  return isValidCoverThumb(value) ? value : '';
+}
+
+// Contrato de lista de mazos resuelto a partir de la petición:
+//   'legacy'     — sin contract=indexed (o con otro valor): contrato congelado.
+//   'indexed'    — contract=indexed exacto: resumen del Corte 1 (sin
+//                  cardBackgrounds, coverImage completa). Cualquier valor de
+//                  cover distinto de 'thumbnail' conserva este contrato.
+//   'thumbnail'  — contract=indexed&cover=thumbnail: contrato del Corte 2
+//                  (coverImageThumb si existe, coverImage como fallback,
+//                  nunca cardBackgrounds).
+function resolveDeckListContract(req) {
+  if (!isIndexedContractRequest(req)) return 'legacy';
+  return req.query.cover === 'thumbnail' ? 'thumbnail' : 'indexed';
+}
+
+// Campos de imagen a escribir en creación/actualización parcial de mazo.
+// Sólo se incluye cada campo si el body lo envía como cadena; la miniatura se
+// normaliza (inválida o excesiva => ''). Un body sin campos de imagen devuelve
+// {} y, por tanto, no modifica nada almacenado (título/color/estrella/jerarquía
+// únicamente). La eliminación explícita de portada envía ambas cadenas vacías
+// y aquí se conservan como '' para limpiar ambos campos.
+function buildDeckImageFields(body) {
+  const fields = {};
+  if (body && typeof body.coverImage === 'string') fields.coverImage = body.coverImage;
+  if (body && typeof body.coverImageThumb === 'string') {
+    fields.coverImageThumb = sanitizeCoverThumb(body.coverImageThumb);
+  }
+  return fields;
+}
+
 // Devuelve la cadena de fondo almacenada referenciada por la tarjeta, o ''
 // si el índice es -1, no entero, fuera de rango o la entrada no es cadena.
 function storedBackgroundFor(card, storedBackgrounds) {
@@ -80,6 +135,10 @@ function buildIndexedSessionPayload(cards, storedBackgrounds = []) {
 
 module.exports = {
   isIndexedContractRequest,
+  resolveDeckListContract,
+  isValidCoverThumb,
+  sanitizeCoverThumb,
+  buildDeckImageFields,
   buildIndexedCardPayload,
   buildIndexedSessionPayload,
 };

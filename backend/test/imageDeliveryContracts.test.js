@@ -8,6 +8,10 @@
 // Corte 1 — pruebas del normalizador productivo (backend/src/utils/imageDelivery.js),
 // de los serializadores nuevos (Flashcard.serializeIndexed, Deck.serializeSummary)
 // y presupuestos de aceptación con la implementación real.
+//
+// Corte 2 — pruebas del contrato ligero de lista de mazos
+// (`?contract=indexed&cover=thumbnail`), de la validación de coverImageThumb,
+// de las escrituras parciales de imagen y del presupuesto de 500 mazos.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -16,6 +20,10 @@ const Flashcard = require('../src/models/Flashcard');
 const Deck = require('../src/models/Deck');
 const {
   isIndexedContractRequest,
+  resolveDeckListContract,
+  isValidCoverThumb,
+  sanitizeCoverThumb,
+  buildDeckImageFields,
   buildIndexedCardPayload,
   buildIndexedSessionPayload,
 } = require('../src/utils/imageDelivery');
@@ -601,4 +609,235 @@ test('budget C: deck list summary of 500 decks with cover and backgrounds meets 
   assert.ok(jsonBytes <= 22 * 1024 * 1024, `JSON del resumen ${jsonBytes} bytes <= 22 MiB`);
   assert.ok(gzipBytes <= 17 * 1024 * 1024, `gzip ${gzipBytes} bytes <= 17 MiB`);
   assert.ok(reductionPercent >= 70, `reducción ${reductionPercent.toFixed(2)}% >= 70% frente al contrato actual modelado`);
+});
+
+// ===========================================================================
+// CORTE 2 — contrato ligero de lista de mazos (coverImageThumb opcional)
+// ===========================================================================
+
+// Miniatura sintética válida: Data URL image/webp cercana al presupuesto de
+// ~24 KiB (24_576 caracteres de payload base64 + prefijo).
+const COVER_THUMB = `data:image/webp;base64,${'A'.repeat(24576)}`;
+// Portada completa sintética (~43 KiB de Data URL).
+const FULL_COVER = mixedDataUrl(900, 32 * 1024);
+
+function deckDocWithCover(overrides = {}) {
+  return new Deck({
+    userId: '000000000000000000000001',
+    title: 'Mazo sintético',
+    coverColor: '#4f46e5',
+    coverImage: FULL_COVER,
+    cardBackgrounds: [BG_RED, BG_GREEN],
+    ...overrides,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Negociación del contrato de lista de mazos
+// ---------------------------------------------------------------------------
+
+test('cut2: resolveDeckListContract maps requests to the three frozen list contracts', () => {
+  assert.equal(resolveDeckListContract(undefined), 'legacy');
+  assert.equal(resolveDeckListContract({ query: {} }), 'legacy');
+  assert.equal(resolveDeckListContract({ query: { contract: 'legacy' } }), 'legacy');
+  assert.equal(resolveDeckListContract({ query: { contract: 'indexed ' } }), 'legacy');
+  assert.equal(resolveDeckListContract({ query: { contract: 'indexed' } }), 'indexed');
+  assert.equal(resolveDeckListContract({ query: { contract: 'indexed', t: '1' } }), 'indexed');
+  assert.equal(resolveDeckListContract({ query: { contract: 'indexed', cover: 'full' } }), 'indexed', 'valor desconocido de cover conserva el Corte 1');
+  assert.equal(resolveDeckListContract({ query: { contract: 'indexed', cover: '' } }), 'indexed');
+  assert.equal(resolveDeckListContract({ query: { contract: 'indexed', cover: 'THUMBNAIL' } }), 'indexed', 'el valor de cover es sensible a mayúsculas');
+  assert.equal(resolveDeckListContract({ query: { contract: 'indexed', cover: 'thumbnail' } }), 'thumbnail');
+  assert.equal(resolveDeckListContract({ query: { cover: 'thumbnail' } }), 'legacy', 'cover sin contract=indexed sigue siendo legacy');
+});
+
+// ---------------------------------------------------------------------------
+// serializeLightSummary — contrato `contract=indexed&cover=thumbnail`
+// ---------------------------------------------------------------------------
+
+test('cut2: a deck with a valid thumbnail ships coverImageThumb and omits full coverImage', () => {
+  const deck = deckDocWithCover({ coverImageThumb: COVER_THUMB, isStarred: true });
+  const summary = deck.serializeLightSummary(7);
+
+  assert.equal('cardBackgrounds' in summary, false, 'nunca incluye cardBackgrounds');
+  assert.equal('coverImage' in summary, false, 'la portada completa no viaja cuando hay miniatura');
+  assert.equal(summary.coverImageThumb, COVER_THUMB);
+  assert.equal(summary.cardCount, 7);
+  assert.equal(summary.title, 'Mazo sintético');
+  assert.equal(summary.isStarred, true);
+});
+
+test('cut2: a deck without thumbnail falls back to the full coverImage and invents nothing', () => {
+  const deck = deckDocWithCover({ coverImageThumb: '' });
+  const summary = deck.serializeLightSummary(3);
+
+  assert.equal('coverImageThumb' in summary, false, 'no inventa una miniatura');
+  assert.equal(summary.coverImage, FULL_COVER, 'fallback a la portada completa');
+  assert.equal('cardBackgrounds' in summary, false);
+});
+
+test('cut2: an invalid stored thumbnail falls back to the full coverImage', () => {
+  const deck = deckDocWithCover({ coverImageThumb: 'https://example.com/not-a-data-url.png' });
+  const summary = deck.serializeLightSummary(3);
+
+  assert.equal('coverImageThumb' in summary, false);
+  assert.equal(summary.coverImage, FULL_COVER);
+  assert.equal('cardBackgrounds' in summary, false);
+});
+
+test('cut2: the frozen legacy and Corte 1 contracts never leak coverImageThumb', () => {
+  const deck = deckDocWithCover({ coverImageThumb: COVER_THUMB });
+
+  const legacy = deck.serialize(3);
+  const indexed = deck.serializeSummary(3);
+
+  assert.equal('coverImageThumb' in legacy, false, 'contrato legacy congelado sin miniaturas');
+  assert.deepEqual(legacy.cardBackgrounds, [BG_RED, BG_GREEN], 'legacy conserva cardBackgrounds');
+  assert.equal(legacy.coverImage, FULL_COVER);
+  assert.equal('coverImageThumb' in indexed, false, 'contrato indexed del Corte 1 sin miniaturas');
+  assert.equal(indexed.coverImage, FULL_COVER, 'Corte 1 conserva la portada completa');
+  assert.equal('cardBackgrounds' in indexed, false);
+});
+
+test('cut2: export path (Deck.serialize) keeps the full cover and ignores the thumbnail', () => {
+  const deck = deckDocWithCover({ coverImageThumb: COVER_THUMB });
+  const exported = deck.serialize(12);
+
+  assert.equal(exported.coverImage, FULL_COVER, 'la exportación mantiene la portada completa');
+  assert.equal('coverImageThumb' in exported, false);
+});
+
+// ---------------------------------------------------------------------------
+// Validación y normalización de la miniatura
+// ---------------------------------------------------------------------------
+
+test('cut2: isValidCoverThumb accepts only raster image data URLs within the length cap', () => {
+  assert.equal(isValidCoverThumb(COVER_THUMB), true);
+  assert.equal(isValidCoverThumb('data:image/jpeg;base64,AAAAAA=='), true);
+  assert.equal(isValidCoverThumb('data:image/png;base64,BBBBBBBB'), true);
+
+  assert.equal(isValidCoverThumb(''), false);
+  assert.equal(isValidCoverThumb(null), false);
+  assert.equal(isValidCoverThumb(undefined), false);
+  assert.equal(isValidCoverThumb(42), false);
+  assert.equal(isValidCoverThumb('https://example.com/img.png'), false);
+  assert.equal(isValidCoverThumb('data:image/svg+xml;base64,PHN2Zz4='), false);
+  assert.equal(isValidCoverThumb('data:text/html;base64,AAAA'), false);
+  assert.equal(isValidCoverThumb('data:image/webp;base64,'), false, 'sin payload');
+  assert.equal(isValidCoverThumb(`data:image/webp;base64,${'A'.repeat(200 * 1024)}`), false, 'excesiva');
+});
+
+test('cut2: sanitizeCoverThumb normalizes invalid or excessive input to "" without touching absent fields', () => {
+  assert.equal(sanitizeCoverThumb(COVER_THUMB), COVER_THUMB);
+  assert.equal(sanitizeCoverThumb(''), '');
+  assert.equal(sanitizeCoverThumb(undefined), '');
+  assert.equal(sanitizeCoverThumb('data:image/svg+xml;base64,AAAA'), '');
+  assert.equal(sanitizeCoverThumb(`data:image/webp;base64,${'A'.repeat(200 * 1024)}`), '');
+});
+
+// ---------------------------------------------------------------------------
+// Escrituras: creación, actualización parcial y eliminación explícita
+// ---------------------------------------------------------------------------
+
+test('cut2: buildDeckImageFields maps both image fields when the body sends them', () => {
+  const fields = buildDeckImageFields({ coverImage: FULL_COVER, coverImageThumb: COVER_THUMB });
+  assert.deepEqual(fields, { coverImage: FULL_COVER, coverImageThumb: COVER_THUMB });
+});
+
+test('cut2: a partial update without image fields modifies nothing stored', () => {
+  const fields = buildDeckImageFields({ title: 'Nuevo título', isStarred: true, coverColor: '#000000' });
+  assert.deepEqual(fields, {}, 'sin campos de imagen => sin cambios de portada');
+  assert.deepEqual(buildDeckImageFields(undefined), {});
+  assert.deepEqual(buildDeckImageFields(null), {});
+});
+
+test('cut2: explicit cover removal clears both fields', () => {
+  const fields = buildDeckImageFields({ coverImage: '', coverImageThumb: '' });
+  assert.deepEqual(fields, { coverImage: '', coverImageThumb: '' });
+});
+
+test('cut2: thumb-only or cover-only bodies update just that field', () => {
+  assert.deepEqual(buildDeckImageFields({ coverImage: FULL_COVER }), { coverImage: FULL_COVER });
+  assert.deepEqual(buildDeckImageFields({ coverImageThumb: COVER_THUMB }), { coverImageThumb: COVER_THUMB });
+});
+
+test('cut2: a non-string image field is ignored and an invalid thumbnail is normalized', () => {
+  assert.deepEqual(buildDeckImageFields({ coverImage: 42 }), {});
+  assert.deepEqual(buildDeckImageFields({ coverImageThumb: 42 }), {});
+  assert.deepEqual(buildDeckImageFields({ coverImageThumb: 'https://no.data.url' }), { coverImageThumb: '' });
+});
+
+test('cut2: Deck documents default coverImageThumb to "" and keep both fields when provided', () => {
+  const plain = deckDocWithCover();
+  assert.equal(plain.coverImageThumb, '');
+
+  const deck = deckDocWithCover({ coverImage: FULL_COVER, coverImageThumb: COVER_THUMB });
+  assert.equal(deck.coverImage, FULL_COVER);
+  assert.equal(deck.coverImageThumb, COVER_THUMB);
+});
+
+test('cut2: import payload with a valid thumbnail keeps it; without it the field stays ""', () => {
+  assert.equal(sanitizeCoverThumb({ coverImageThumb: COVER_THUMB }.coverImageThumb), COVER_THUMB);
+  assert.equal(sanitizeCoverThumb(undefined), '', 'payload sin miniatura => sin miniatura');
+  const imported = deckDocWithCover({ coverImageThumb: sanitizeCoverThumb(undefined) });
+  assert.equal(imported.coverImageThumb, '');
+  assert.equal(imported.coverImage, FULL_COVER, 'la portada completa viaja por coverImage, no por la miniatura');
+});
+
+// ---------------------------------------------------------------------------
+// Presupuesto del Corte 2 — 500 mazos con miniatura (implementación productiva)
+// ---------------------------------------------------------------------------
+
+test('cut2 budget: 500 decks with valid thumbnails meet the light summary budget', () => {
+  const thumb = `data:image/webp;base64,${mixedDataUrl(701, 18 * 1024).split(',')[1]}`;
+  const decks = Array.from({ length: 500 }, (_, i) => deckDocWithCover({
+    title: `Mazo sintético ${i}`,
+    coverImage: FULL_COVER,
+    coverImageThumb: thumb,
+  }));
+
+  const summaries = decks.map((deck) => deck.serializeLightSummary(100));
+  const json = JSON.stringify(summaries);
+  const jsonBytes = Buffer.byteLength(json, 'utf8');
+  const gzipBytes = gzipSync(json).length;
+
+  const stringifyMs = [];
+  for (let run = 0; run < 9; run += 1) {
+    const started = performance.now();
+    JSON.stringify(summaries);
+    stringifyMs.push(performance.now() - started);
+  }
+  stringifyMs.sort((a, b) => a - b);
+  const median = stringifyMs[Math.floor(stringifyMs.length / 2)];
+
+  console.log(`[cut2 budget] json=${jsonBytes} bytes, gzip=${gzipBytes} bytes, stringify mediana=${median.toFixed(1)}ms (${stringifyMs.map((m) => m.toFixed(1)).join(',')})`);
+
+  assert.ok(summaries.every((deck) => !('cardBackgrounds' in deck)), 'cardBackgrounds completamente ausente');
+  assert.ok(summaries.every((deck) => !('coverImage' in deck)), 'coverImage completa ausente en mazos con miniatura');
+  assert.ok(summaries.every((deck) => deck.coverImageThumb === thumb), 'coverImageThumb presente y válido');
+  assert.ok(summaries.every((deck) => deck.cardCount === 100 && deck.title.startsWith('Mazo sintético')), 'metadatos y conteo intactos');
+  assert.ok(jsonBytes <= 15 * 1024 * 1024, `JSON ligero ${jsonBytes} bytes <= 15 MiB`);
+});
+
+test('cut2 measure: 500 legacy decks without thumbnail and a mixed profile are logged honestly', () => {
+  const thumb = `data:image/webp;base64,${mixedDataUrl(702, 18 * 1024).split(',')[1]}`;
+  const legacyDecks = Array.from({ length: 500 }, (_, i) => deckDocWithCover({ title: `Mazo legacy ${i}`, coverImageThumb: '' }));
+  const mixedDecks = Array.from({ length: 500 }, (_, i) => deckDocWithCover({
+    title: `Mazo mixto ${i}`,
+    coverImageThumb: i % 2 === 0 ? thumb : '',
+  }));
+
+  for (const [label, decks] of [['legacy', legacyDecks], ['mixed', mixedDecks]]) {
+    const summaries = decks.map((deck) => deck.serializeLightSummary(100));
+    const json = JSON.stringify(summaries);
+    const jsonBytes = Buffer.byteLength(json, 'utf8');
+    const stringifyMs = [];
+    for (let run = 0; run < 9; run += 1) {
+      const started = performance.now();
+      JSON.stringify(summaries);
+      stringifyMs.push(performance.now() - started);
+    }
+    stringifyMs.sort((a, b) => a - b);
+    console.log(`[cut2 measure:${label}] json=${jsonBytes} bytes, gzip=${gzipSync(json).length} bytes, stringify mediana=${stringifyMs[Math.floor(stringifyMs.length / 2)].toFixed(1)}ms, conMinatura=${summaries.filter((d) => 'coverImageThumb' in d).length}/500, conPortadaCompleta=${summaries.filter((d) => 'coverImage' in d).length}/500`);
+    assert.ok(summaries.every((deck) => !('cardBackgrounds' in deck)));
+  }
 });

@@ -40,25 +40,27 @@ Esta fase **recomienda** implementar la [arquitectura recomendada](./recommended
 ## Qué debe pasar para continuar la implementación
 
 - César aprobó los puntos 1–4 para el Corte 1 (negociación por `?contract=indexed`, `contentImage` por tarjeta, miniaturas diferidas, caché diferido) y el Corte 1 está **TERMINADO** (Fase 1D).
-- **Corte 2 y siguientes**: requieren aprobación humana de los puntos 3 (miniaturas), 4 (política de caché), 5 (GC de fondos huérfanos) y 6 (almacenamiento de assets) antes de ejecutarse.
-- Se confirma que las suites existentes siguen verdes en el HEAD de trabajo (Fase 1D: manual-editor 58/58, schedule 44/44, pdf-extraction 8/8, build OK).
+- César autorizó el **Corte 2** (miniaturas generadas en el frontend, almacenadas como campo opcional `coverImageThumb`, sin migración ni backfill) y el Corte 2 está **TERMINADO** (Fase 1E).
+- **Corte 3 y siguientes**: requieren aprobación humana de los puntos 4 (política de caché), 5 (GC de fondos huérfanos) y 6 (almacenamiento de assets) antes de ejecutarse.
+- Se confirma que las suites existentes siguen verdes en el HEAD de trabajo (Fase 1E: contratos 51/51 backend y 57/57 frontend; manual-editor 58/58, schedule 44/44, pdf-extraction 8/8, build OK).
 - No se requiere cierre de IMG-RENDER (PENDING — DEVICE REQUIRED) para los cortes 1–2, que no cambian render ni efectos: se documenta que el beneficio de rendimiento percibido se validará después con dispositivo físico.
 
-## Estado del Corte 0 (Fase 1C) y del Corte 1 (Fase 1D)
+## Estado del Corte 0 (Fase 1C), del Corte 1 (Fase 1D) y del Corte 2 (Fase 1E)
 
 - **Corte 0 — TERMINADO** ([phase-1c-cut-0-report.md](./phase-1c-cut-0-report.md)): contratos legacy y objetivo congelados mediante fixtures; 36/36 contract tests en verde (18 backend + 18 frontend); resolver cliente de referencia dentro del árbol de pruebas; sin cambios productivos. Suites de caracterización del plan: manual-editor 58/58, schedule 44/44, pdf-extraction 8/8.
 - **Corrección de precedencia aplicada (post-cierre)**: el resolver de referencia usa `bgImageIndex` cuando la tarjeta lo posee e ignora `bgImage`; `bgImage` es fallback exclusivo para shapes sin `bgImageIndex`, coincidiendo con [migration-rollout-rollback.md](./migration-rollout-rollback.md) (§Convivivencia dual). Fixtures legacy sin `bgImageIndex`; pruebas duales A–F añadidas.
 - **Corte 1 — TERMINADO** ([phase-1d-cut-1-report.md](./phase-1d-cut-1-report.md)): lecturas negociadas con `?contract=indexed` (`getCardsByDeck`, `continuous-session`, `normal-session`, `all-cards`, lista de mazos sin `cardBackgrounds`); utilidad productiva única `backend/src/utils/imageDelivery.js` y resolver `frontend/src/lib/imageDelivery.js`; contrato legacy intacto por defecto; escrituras sin cambios; 34+36 contract tests en verde; presupuestos A/B/C cumplidos con la implementación productiva.
-- Bloqueo preexistente documentado: 5 tests backend (`aiService.test.js`, `deckRecovery.test.js`) fallan por configuración de modelo IA del entorno, idénticos en el HEAD anterior `b0b36e6` y sin cambios en `e4d86aa` ni en la Fase 1D.
-- **Cortes 2–5 — NO implementados** (requieren aprobación humana de los puntos pendientes). IMG-RENDER permanece PARTIAL — PENDING — DEVICE REQUIRED.
+- **Corte 2 — TERMINADO** ([phase-1e-cut-2-report.md](./phase-1e-cut-2-report.md)): contrato ligero de lista `?contract=indexed&cover=thumbnail` con `coverImageThumb` opcional; miniaturas generadas en el frontend (`frontend/src/lib/coverThumbnail.js`, canvas/WebP, presupuesto ~24 KiB, sin dependencias nuevas); campo opcional `coverImageThumb` en `Deck` sin migración ni backfill; fallback a `coverImage` para mazos antiguos; protección del flujo de edición (`buildDeckCoverPayload`, `coverChanged`); presupuesto de 500 mazos con miniatura cumplido (11.91 MiB ≤ 15 MiB; mediana stringify 43.81 ms ≤ 60 ms) con la implementación productiva; 51 contract tests backend y 57 frontend en verde.
+- Bloqueo preexistente documentado: 5 tests backend (`aiService.test.js`, `deckRecovery.test.js`) fallan por configuración de modelo IA del entorno, idénticos en el HEAD anterior `b0b36e6` y sin cambios en `e4d86aa`, `0921717` ni en la Fase 1E.
+- **Cortes 3–5 — NO implementados** (requieren aprobación humana de los puntos pendientes). IMG-RENDER permanece PARTIAL — PENDING — DEVICE REQUIRED.
 
 ## Estado final de esta fase
 
 | Item | Estado |
 |---|---|
 | IMG-DATA | GO (heredado) |
-| IMG-RENDER | PARTIAL — PENDING — DEVICE REQUIRED (sin cambios; no se cierra en la Fase 1D) |
-| IMG-CACHE | PARTIAL (sin cambios; política TTL/invalidación pendiente) |
-| IMG-STORAGE | PARTIAL (sin cambios; almacenamiento intacto en el Corte 1) |
+| IMG-RENDER | PARTIAL — PENDING — DEVICE REQUIRED (sin cambios; no se cierra en la Fase 1E) |
+| IMG-CACHE | PARTIAL (sin cambios; política TTL/invalidación pendiente; `?t=` intacto) |
+| IMG-STORAGE | PARTIAL (sin cambios; almacenamiento intacto en el Corte 2) |
 | Investigación de entrega | COMPLETA |
-| Implementación | Corte 1 TERMINADO (Fase 1D); Cortes 2–5 pendientes de aprobación humana |
+| Implementación | Cortes 0, 1 y 2 TERMINADOS (Fases 1C/1D/1E); Cortes 3–5 pendientes de aprobación humana |

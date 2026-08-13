@@ -2,6 +2,7 @@
 const mongoose = require('mongoose');
 const knowledgeMetricsSchema = require('./subdocuments/KnowledgeMetrics');
 const { getRandomDeckColor } = require('../utils/deckColors');
+const { isValidCoverThumb } = require('../utils/imageDelivery');
 
 const deckSchema = new mongoose.Schema(
   {
@@ -9,6 +10,7 @@ const deckSchema = new mongoose.Schema(
     title: { type: String, required: true, trim: true },
     coverColor: { type: String, default: () => getRandomDeckColor() },
     coverImage: { type: String, default: '' },
+    coverImageThumb: { type: String, default: '' },
     cardBackgrounds: { type: [String], default: [] },
     isStarred: { type: Boolean, default: false },
     isDefault: { type: Boolean, default: false },
@@ -70,10 +72,28 @@ deckSchema.methods.serialize = function (cardCount) {
  * Resumen del mazo para la lista versionada (Corte 1, `?contract=indexed`):
  * idéntico a serialize() salvo que excluye por completo `cardBackgrounds`
  * (sin consumidores en el frontend). coverImage se conserva completa.
+ * No incluye coverImageThumb: el contrato del Corte 1 no depende de que el
+ * frontend entienda miniaturas.
  */
 deckSchema.methods.serializeSummary = function (cardCount) {
   const summary = this.serialize(cardCount);
   delete summary.cardBackgrounds;
+  return summary;
+};
+
+/**
+ * Resumen ligero del mazo (Corte 2, `?contract=indexed&cover=thumbnail`):
+ * nunca incluye cardBackgrounds. Si la miniatura almacenada es válida,
+ * transporta coverImageThumb y omite coverImage completa; si no, conserva
+ * coverImage completa como fallback y no inventa miniatura. La validación
+ * vive en imageDelivery.js (fuente única).
+ */
+deckSchema.methods.serializeLightSummary = function (cardCount) {
+  const summary = this.serializeSummary(cardCount);
+  if (isValidCoverThumb(this.coverImageThumb)) {
+    delete summary.coverImage;
+    summary.coverImageThumb = this.coverImageThumb;
+  }
   return summary;
 };
 

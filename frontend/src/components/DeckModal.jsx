@@ -1,8 +1,10 @@
 // ARCHIVO: frontend/src/components/DeckModal.jsx
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { X, Loader2, Check, Sparkles, Upload, ChevronLeft } from 'lucide-react';
 import { useKeyboardHeight } from '../hooks/useKeyboardHeight';
 import { DECK_COLOR_SWATCHES } from '../lib/deckColors';
+import { generateCoverThumbnail } from '../lib/coverThumbnail';
+import { buildDeckCoverPayload } from '../lib/imageDelivery';
 
 const fileToBase64 = (file) =>
   new Promise((resolve, reject) => {
@@ -13,17 +15,28 @@ const fileToBase64 = (file) =>
   });
 
 export default function DeckModal({ initial, onClose, onSave, nameOnly = false, entityLabel = 'mazo' }) {
+  const isEditing = Boolean(initial);
   const [title, setTitle] = useState(initial?.title || '');
   const [coverColor, setCoverColor] = useState(initial?.coverColor || '#ffffff');
   const [coverColorTouched, setCoverColorTouched] = useState(false);
+  // coverImage guarda SIEMPRE la portada completa (para escrituras); la
+  // miniatura es un campo aparte. En edición puede no existir portada completa
+  // (el resumen ligero sólo trae coverImageThumb): la previsualización usa
+  // coverImage || coverThumb y, si la portada no se toca, los campos de imagen
+  // se omiten del payload para no sobrescribir la portada almacenada.
   const [coverImage, setCoverImage] = useState(initial?.coverImage || '');
+  const [coverThumb, setCoverThumb] = useState(initial?.coverImageThumb || '');
+  const [coverChanged, setCoverChanged] = useState(false);
+  const fileTokenRef = useRef(0);
+  const pendingThumbRef = useRef(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [step, setStep] = useState('main'); // 'main' | 'customization'
 
   const keyboardHeight = useKeyboardHeight();
   const hasInitialCoverColor = typeof initial?.coverColor === 'string' && Boolean(initial.coverColor.trim());
-  const hasConfiguredCover = coverColorTouched || hasInitialCoverColor || Boolean(coverImage);
+  const previewCover = coverImage || coverThumb;
+  const hasConfiguredCover = coverColorTouched || hasInitialCoverColor || Boolean(previewCover);
 
   const handleFile = async (e) => {
     const file = e.target.files?.[0];
@@ -33,12 +46,31 @@ export default function DeckModal({ initial, onClose, onSave, nameOnly = false, 
       return;
     }
     setError('');
+    const token = fileTokenRef.current + 1;
+    fileTokenRef.current = token;
     try {
+      // La portada completa queda disponible de inmediato; la miniatura se
+      // genera después sin bloquear la previsualización.
       const base64 = await fileToBase64(file);
+      if (token !== fileTokenRef.current) return;
       setCoverImage(base64);
+      setCoverThumb('');
+      setCoverChanged(true);
+      const thumbPromise = generateCoverThumbnail(file).then((thumb) => {
+        if (token === fileTokenRef.current) setCoverThumb(thumb);
+        return thumb;
+      });
+      pendingThumbRef.current = thumbPromise;
+      await thumbPromise;
     } catch {
       setError('Error al procesar la imagen.');
     }
+  };
+
+  const handleRemoveCover = () => {
+    setCoverImage('');
+    setCoverThumb('');
+    setCoverChanged(true);
   };
 
   const handleSubmit = async (e) => {
@@ -47,9 +79,21 @@ export default function DeckModal({ initial, onClose, onSave, nameOnly = false, 
     setSaving(true);
     setError('');
     try {
-      const payload = { title: title.trim(), coverImage };
+      if (nameOnly) {
+        await onSave({ title: title.trim() });
+        return;
+      }
+      const payload = { title: title.trim() };
       if (coverColorTouched) payload.coverColor = coverColor;
-      await onSave(nameOnly ? { title: title.trim() } : payload);
+      let thumb = coverThumb;
+      if (coverChanged && pendingThumbRef.current) {
+        thumb = await pendingThumbRef.current.catch(() => '');
+      }
+      Object.assign(
+        payload,
+        buildDeckCoverPayload({ isEditing, coverChanged, coverImage, coverThumb: thumb }),
+      );
+      await onSave(payload);
     } catch (err) {
       setError(err.message || `No se pudo guardar el ${entityLabel}.`);
       setSaving(false);
@@ -244,15 +288,15 @@ export default function DeckModal({ initial, onClose, onSave, nameOnly = false, 
                     </label>
                     <label className="flex items-center justify-center gap-2 cursor-pointer rounded-xl border-2 border-dashed border-slate-300 px-4 py-3 text-sm font-medium text-slate-600 hover:border-indigo-400 hover:bg-indigo-50/30 hover:text-indigo-600 transition-all duration-200">
                       <Upload className="w-5 h-5" />
-                      {coverImage ? 'Cambiar imagen' : 'Subir imagen'}
+                      {previewCover ? 'Cambiar imagen' : 'Subir imagen'}
                       <input type="file" accept="image/*" onChange={handleFile} className="hidden" />
                     </label>
-                    {coverImage && (
+                    {previewCover && (
                       <div className="mt-3 flex items-center gap-3">
-                        <img src={coverImage} alt="portada" className="w-14 h-14 rounded-xl object-cover border-2 border-white shadow-sm" />
+                        <img src={previewCover} alt="portada" className="w-14 h-14 rounded-xl object-cover border-2 border-white shadow-sm" />
                         <button
                           type="button"
-                          onClick={() => setCoverImage('')}
+                          onClick={handleRemoveCover}
                           className="text-sm text-red-600 font-medium hover:underline"
                         >
                           Quitar imagen

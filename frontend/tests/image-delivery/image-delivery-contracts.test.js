@@ -33,6 +33,8 @@ import {
   extractAndResolveCards,
   stripCardBackgrounds,
   sanitizeDeckSummaries,
+  resolveDeckCover,
+  buildDeckCoverPayload,
 } from '../../src/lib/imageDelivery.js';
 
 function deepFreeze(value) {
@@ -537,4 +539,128 @@ test('cut1: production sanitization keeps the legacy deck list contract intact o
   const { cardBackgrounds: _removed, ...expected } = deck;
 
   assert.deepEqual(sanitized, expected, 'el resumen es el contrato legacy menos cardBackgrounds');
+});
+
+// ===========================================================================
+// CORTE 2 — contrato ligero de lista de mazos (coverImageThumb opcional)
+// ===========================================================================
+
+const COVER_THUMB = `data:image/webp;base64,${'A'.repeat(2000)}`;
+const COVER_FULL = `data:image/jpeg;base64,${'B'.repeat(4000)}`;
+
+function deckSummaryWithCover(overrides = {}) {
+  return {
+    ...deckSummaryFixture({ coverImage: COVER_FULL, cardBackgrounds: [BG_RED] }),
+    ...overrides,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Resolver de portada: coverImageThumb || coverImage || ''
+// ---------------------------------------------------------------------------
+
+test('cut2: resolveDeckCover prefers coverImageThumb over the full coverImage', () => {
+  assert.equal(resolveDeckCover(deckSummaryWithCover({ coverImageThumb: COVER_THUMB })), COVER_THUMB);
+});
+
+test('cut2: resolveDeckCover falls back to coverImage when the thumbnail is absent or empty', () => {
+  assert.equal(resolveDeckCover(deckSummaryWithCover()), COVER_FULL);
+  assert.equal(resolveDeckCover(deckSummaryWithCover({ coverImageThumb: '' })), COVER_FULL);
+});
+
+test('cut2: resolveDeckCover returns "" when both fields are missing and DeckCard applies the color', () => {
+  assert.equal(resolveDeckCover(deckSummaryWithCover({ coverImage: '', coverImageThumb: '' })), '');
+  assert.equal(resolveDeckCover(deckSummaryWithCover({ coverImage: undefined, coverImageThumb: undefined })), '');
+  assert.equal(resolveDeckCover(null), '');
+  assert.equal(resolveDeckCover(undefined), '');
+  assert.equal(resolveDeckCover(42), '');
+});
+
+// ---------------------------------------------------------------------------
+// Resúmenes legacy, Corte 1 y Corte 2 aceptados; caché antiguo y nuevo
+// ---------------------------------------------------------------------------
+
+test('cut2: legacy, Corte 1 and Corte 2 summaries are all accepted by sanitizeDeckSummaries', () => {
+  const legacySummary = deckSummaryFixture(); // coverImage completa + cardBackgrounds
+  const cut1Summary = deckSummaryWithCover({ id: 'deck-cut1' });
+  const { cardBackgrounds: _removed, ...cut1Clean } = cut1Summary; // contrato del Corte 1 real
+  const cut2Summary = deckSummaryWithCover({ id: 'deck-cut2', coverImageThumb: COVER_THUMB, coverImage: '' }); // sólo miniatura
+
+  const sanitized = sanitizeDeckSummaries([legacySummary, cut1Clean, cut2Summary]);
+
+  assert.ok(sanitized.every((deck) => !('cardBackgrounds' in deck)));
+  assert.equal(sanitized[0].coverImage, BG_SHARED, 'legacy conserva la portada completa');
+  assert.equal(sanitized[1].coverImage, COVER_FULL, 'Corte 1 conserva la portada completa');
+  assert.equal('coverImageThumb' in sanitized[1], false);
+  assert.equal(sanitized[2].coverImageThumb, COVER_THUMB, 'Corte 2 conserva la miniatura');
+});
+
+test('cut2: sanitizeDeckSummaries keeps coverImageThumb and the fallback coverImage, and strips cardBackgrounds', () => {
+  const decks = [deckSummaryWithCover({ coverImageThumb: COVER_THUMB })];
+  const decksBefore = structuredClone(decks);
+
+  const sanitized = sanitizeDeckSummaries(deepFreeze(decks));
+
+  assert.equal(sanitized[0].coverImageThumb, COVER_THUMB);
+  assert.equal(sanitized[0].coverImage, COVER_FULL, 'la portada completa recibida como fallback se conserva');
+  assert.equal('cardBackgrounds' in sanitized[0], false);
+  assert.deepEqual(decks, decksBefore, 'el array y los mazos originales no cambian');
+});
+
+test('cut2: an old cache with only coverImage keeps working', () => {
+  const cached = [deckSummaryWithCover({ coverImageThumb: undefined })];
+  assert.equal(resolveDeckCover(cached[0]), COVER_FULL);
+  assert.ok(sanitizeDeckSummaries(cached)[0].coverImage === COVER_FULL);
+});
+
+test('cut2: a new cache with only coverImageThumb keeps working', () => {
+  const cached = [deckSummaryWithCover({ coverImage: '', coverImageThumb: COVER_THUMB })];
+  assert.equal(resolveDeckCover(cached[0]), COVER_THUMB);
+  assert.equal('coverImage' in cached[0], true, 'el campo puede estar vacío en el caché');
+});
+
+// ---------------------------------------------------------------------------
+// Protección del flujo de edición (buildDeckCoverPayload)
+// ---------------------------------------------------------------------------
+
+test('cut2: editing only the title sends no image fields', () => {
+  const payload = buildDeckCoverPayload({ isEditing: true, coverChanged: false, coverImage: '', coverThumb: COVER_THUMB });
+  assert.deepEqual(payload, {}, 'la miniatura nunca sustituye a la portada completa en escrituras');
+});
+
+test('cut2: selecting a new cover sends full + thumbnail', () => {
+  const payload = buildDeckCoverPayload({ isEditing: true, coverChanged: true, coverImage: COVER_FULL, coverThumb: COVER_THUMB });
+  assert.deepEqual(payload, { coverImage: COVER_FULL, coverImageThumb: COVER_THUMB });
+});
+
+test('cut2: explicit cover removal sends both fields empty', () => {
+  const payload = buildDeckCoverPayload({ isEditing: true, coverChanged: true, coverImage: '', coverThumb: '' });
+  assert.deepEqual(payload, { coverImage: '', coverImageThumb: '' });
+});
+
+test('cut2: creation always sends both available values, even when empty', () => {
+  assert.deepEqual(
+    buildDeckCoverPayload({ isEditing: false, coverChanged: false, coverImage: COVER_FULL, coverThumb: COVER_THUMB }),
+    { coverImage: COVER_FULL, coverImageThumb: COVER_THUMB },
+  );
+  assert.deepEqual(
+    buildDeckCoverPayload({ isEditing: false, coverChanged: false, coverImage: '', coverThumb: '' }),
+    { coverImage: '', coverImageThumb: '' },
+  );
+});
+
+test('cut2: a failed thumbnail generation still sends the full cover and never blocks saving', () => {
+  // Si generateCoverThumbnail devuelve '' (canvas/decodificación no disponible),
+  // el payload conserva la portada completa y el guardado continúa.
+  const payload = buildDeckCoverPayload({ isEditing: true, coverChanged: true, coverImage: COVER_FULL, coverThumb: '' });
+  assert.equal(payload.coverImage, COVER_FULL);
+  assert.equal(payload.coverImageThumb, '');
+});
+
+test('cut2: a thumbnail-only edit summary never replaces the stored full cover on save', () => {
+  // Resumen ligero del Corte 2: sólo coverImageThumb en el estado inicial del
+  // modal. Al guardar sin tocar la portada, el payload no lleva campos de
+  // imagen y el backend conserva la portada completa almacenada.
+  const payload = buildDeckCoverPayload({ isEditing: true, coverChanged: false, coverImage: '', coverThumb: COVER_THUMB });
+  assert.deepEqual(payload, {});
 });

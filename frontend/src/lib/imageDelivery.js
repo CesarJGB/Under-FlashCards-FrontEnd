@@ -75,3 +75,33 @@ export function sanitizeDeckSummaries(decks) {
   if (!Array.isArray(decks)) return decks;
   return decks.map((deck) => stripCardBackgrounds(deck));
 }
+
+// ---------------------------------------------------------------------------
+// Corte 2 — contrato ligero de lista de mazos (coverImageThumb opcional)
+// ---------------------------------------------------------------------------
+
+// Portada resuelta de un resumen de mazo (legacy, Corte 1 o Corte 2):
+//   coverImageThumb válida  => miniatura (Corte 2);
+//   si no, coverImage        => portada completa como fallback (legacy/Corte 1
+//                               y mazos antiguos sin miniatura);
+//   si ninguna              => '' (DeckCard aplica el color de fallback).
+// Nunca muta el mazo recibido.
+export function resolveDeckCover(deck) {
+  if (deck == null || typeof deck !== 'object') return '';
+  if (typeof deck.coverImageThumb === 'string' && deck.coverImageThumb) return deck.coverImageThumb;
+  if (typeof deck.coverImage === 'string' && deck.coverImage) return deck.coverImage;
+  return '';
+}
+
+// Campos de imagen del payload de creación/edición de mazo (protección del
+// flujo de edición):
+//   edición sin tocar la portada  => {} (el backend conserva lo almacenado;
+//                                    la miniatura NUNCA sustituye a la portada
+//                                    completa en escrituras);
+//   portada nueva seleccionada    => { coverImage: full, coverImageThumb: thumb };
+//   eliminación explícita         => { coverImage: '', coverImageThumb: '' };
+//   creación                      => ambos valores disponibles.
+export function buildDeckCoverPayload({ isEditing = false, coverChanged = false, coverImage = '', coverThumb = '' } = {}) {
+  if (isEditing && !coverChanged) return {};
+  return { coverImage: coverImage ?? '', coverImageThumb: coverThumb ?? '' };
+}

@@ -32,6 +32,7 @@ Las entradas no rastreadas no se modificaron, no se leyeron como evidencia y no 
 - [implementation-readiness.md](./implementation-readiness.md): gates de implementación y autorizaciones pendientes.
 - [phase-1c-cut-0-report.md](./phase-1c-cut-0-report.md): cierre de la Fase 1C — Corte 0 terminado (contratos y pruebas de caracterización; 36/36 contract tests verdes, sin cambios productivos).
 - [phase-1d-cut-1-report.md](./phase-1d-cut-1-report.md): cierre de la Fase 1D — Corte 1 terminado (contrato indexado `?contract=indexed` en lecturas, resumen de mazo sin `cardBackgrounds`, resolver productivo en el frontend; contrato legacy intacto por defecto).
+- [phase-1e-cut-2-report.md](./phase-1e-cut-2-report.md): cierre de la Fase 1E — Corte 2 terminado (contrato ligero `?contract=indexed&cover=thumbnail` con `coverImageThumb` opcional generada en el frontend y fallback a `coverImage`; protección del flujo de edición; sin migración ni backfill).
 - [raw-results.json](./raw-results.json): esquema `1.2.0`, 175 resultados de contrato (112 respuestas de tarjetas, 60 listas de mazos, 3 BSON) con 40,002 invariantes aprobadas y 0 fallidas. Sólo tamaños y tiempos; no contiene Base64.
 
 El harness está en `frontend/tests/performance/image-delivery/run-delivery-baseline.mjs` (no productivo; sin dependencias nuevas; reutiliza la `bson` ya instalada en `backend/node_modules`).
@@ -46,7 +47,7 @@ La duplicación de imágenes no es un problema de almacenamiento sino de **contr
 
 **Recomendación**: adoptar la **Alternativa A (diccionario de fondos + índice en la respuesta de tarjetas y resumen de mazo sin `cardBackgrounds`)** como primera onda de implementación, conservando el almacenamiento actual (Data URL en MongoDB). **Respaldo**: la **Alternativa D (híbrida)**, añadiendo miniaturas y referencias de asset cuando Library necesite menos bytes aún o el render lo exija. B (assets en backend) y C (object storage) quedan documentadas como opciones futuras de mayor coste y riesgo, sin decisión de proveedor.
 
-Los detalles, cifras y matices por alternativa están en [recommended-architecture.md](./recommended-architecture.md). El **Corte 1 está implementado** (Fase 1D, [phase-1d-cut-1-report.md](./phase-1d-cut-1-report.md)): lecturas negociadas con `?contract=indexed`, contrato legacy intacto por defecto, resolver productivo en el frontend y resumen de mazo sin `cardBackgrounds`. Los Cortes 2–5 (miniaturas, almacenamiento externo, migración, GC y limpieza del contrato heredado) siguen pendientes de aprobación humana.
+Los detalles, cifras y matices por alternativa están en [recommended-architecture.md](./recommended-architecture.md). El **Corte 1 está implementado** (Fase 1D, [phase-1d-cut-1-report.md](./phase-1d-cut-1-report.md)): lecturas negociadas con `?contract=indexed`, contrato legacy intacto por defecto, resolver productivo en el frontend y resumen de mazo sin `cardBackgrounds`. El **Corte 2 está implementado** (Fase 1E, [phase-1e-cut-2-report.md](./phase-1e-cut-2-report.md)): contrato ligero `?contract=indexed&cover=thumbnail` con `coverImageThumb` opcional (generada en el frontend, sin migración ni backfill; fallback a `coverImage` para mazos antiguos). Los Cortes 3–5 (almacenamiento externo, migración, GC y limpieza del contrato heredado) siguen pendientes de aprobación humana.
 
 ## Gates de la fase
 

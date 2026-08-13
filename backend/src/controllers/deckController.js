@@ -3,7 +3,11 @@
 const Deck = require('../models/Deck');
 const Flashcard = require('../models/Flashcard');
 const { resolveDeckCoverColor } = require('../utils/deckColors');
-const { isIndexedContractRequest } = require('../utils/imageDelivery');
+const {
+  resolveDeckListContract,
+  sanitizeCoverThumb,
+  buildDeckImageFields,
+} = require('../utils/imageDelivery');
 
 exports.getDecks = async (req, res) => {
   try {
@@ -35,7 +39,11 @@ exports.getDecks = async (req, res) => {
     ]);
     
     const countMap = Object.fromEntries(counts.map((c) => [String(c._id), c.count]));
-    if (isIndexedContractRequest(req)) {
+    const contract = resolveDeckListContract(req);
+    if (contract === 'thumbnail') {
+      return res.json(decks.map((d) => d.serializeLightSummary(countMap[String(d._id)] || 0)));
+    }
+    if (contract === 'indexed') {
       return res.json(decks.map((d) => d.serializeSummary(countMap[String(d._id)] || 0)));
     }
     return res.json(decks.map((d) => d.serialize(countMap[String(d._id)] || 0)));
@@ -48,7 +56,7 @@ exports.getDecks = async (req, res) => {
 exports.createDeck = async (req, res) => {
   try {
     const { 
-      userId, title, coverColor, coverImage, 
+      userId, title, coverColor, coverImage, coverImageThumb,
       materiaId, parcialNumber, temaId, subtemaId 
     } = req.body || {};
 
@@ -65,6 +73,7 @@ exports.createDeck = async (req, res) => {
       title: title.trim(),
       coverColor: resolveDeckCoverColor(coverColor),
       coverImage: coverImage || '',
+      coverImageThumb: sanitizeCoverThumb(coverImageThumb),
       // Asignaciones de la nueva jerarquía académica
       materiaId: materiaId || null,
       parcialNumber: parcialNumber ? Number(parcialNumber) : null,
@@ -83,14 +92,14 @@ exports.updateDeck = async (req, res) => {
   try {
     const { id } = req.params;
     const { 
-      title, coverColor, coverImage, isStarred,
+      title, coverColor, coverImage, coverImageThumb, isStarred,
       materiaId, parcialNumber, temaId, subtemaId
     } = req.body || {};
 
     const update = {};
     if (typeof title === 'string') update.title = title.trim();
     if (typeof coverColor === 'string') update.coverColor = coverColor;
-    if (typeof coverImage === 'string') update.coverImage = coverImage;
+    Object.assign(update, buildDeckImageFields({ coverImage, coverImageThumb }));
     if (typeof isStarred === 'boolean') update.isStarred = isStarred;
 
     // Permite reubicar o desvincular el mazo dentro de la jerarquía académica
@@ -214,6 +223,7 @@ exports.importDeck = async (req, res) => {
       title: deck.title.trim(),
       coverColor: resolveDeckCoverColor(deck.coverColor),
       coverImage: typeof deck.coverImage === 'string' ? deck.coverImage : '',
+      coverImageThumb: sanitizeCoverThumb(deck.coverImageThumb),
       cardBackgrounds: Array.isArray(deck.cardBackgrounds) ? deck.cardBackgrounds : [],
       materiaId: deck.materiaId || null,
       parcialNumber: deck.parcialNumber ? Number(deck.parcialNumber) : null,
