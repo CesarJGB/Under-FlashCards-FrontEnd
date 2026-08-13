@@ -21,10 +21,10 @@ No se modificaron ni se leyeron como evidencia las entradas no rastreadas preexi
 | Archivo | Acción | Contenido |
 |---|---|---|
 | `backend/test/imageDeliveryFixtures.js` | creado | fixtures sintéticos (Data URLs pequeñas deterministas) y helpers de referencia (`buildIndexedCards`, `resolveBackground`); no productivo |
-| `backend/test/imageDeliveryContracts.test.js` | creado | 13 contract tests: caracterización de `Flashcard.serialize()` (F), contrato legacy expandido (E) e invariantes del contrato objetivo (A–D) |
+| `backend/test/imageDeliveryContracts.test.js` | creado | 18 contract tests: caracterización de `Flashcard.serialize()` (F), contrato legacy expandido (E) e invariantes del contrato objetivo (A–D), precedencia dual (A–E) |
 | `frontend/tests/image-delivery/fixtures.js` | creado | fixtures ESM sintéticos, `legacyPayloadFixture` (shape congelado del payload legacy) |
 | `frontend/tests/image-delivery/reference.js` | creado | resolver de referencia `resolveBackgrounds`/`resolveCardBackground` y normalizador `buildIndexedCards`; no productivo |
-| `frontend/tests/image-delivery/image-delivery-contracts.test.js` | creado | 12 contract tests del resolver y del contrato normalizado (escenarios A–E) |
+| `frontend/tests/image-delivery/image-delivery-contracts.test.js` | creado | 18 contract tests del resolver y del contrato normalizado (escenarios A–E y precedencia dual A–F) |
 | `frontend/package.json` | modificado | script `test:image-delivery` para ejecutar los contract tests del frontend |
 | `docs/performance-audit/research/image-delivery/phase-1c-cut-0-report.md` | creado | este reporte |
 | `docs/performance-audit/research/image-delivery/README.md` | modificado | enlace al reporte de la Fase 1C |

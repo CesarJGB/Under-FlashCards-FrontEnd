@@ -79,4 +79,34 @@ flashcardSchema.methods.serialize = function (cardBackgrounds = []) {
   };
 };
 
+/**
+ * Serializador del contrato indexado (Corte 1): mismo contrato que serialize()
+ * pero con bgImageIndex en lugar de bgImage expandido. No invoca a serialize()
+ * para no materializar la Data URL completa por tarjeta. El índice debe venir
+ * remapeado por backend/src/utils/imageDelivery.js contra el diccionario de
+ * respuesta; este método sólo inyecta el campo.
+ */
+flashcardSchema.methods.serializeIndexed = function (bgImageIndex) {
+  return {
+    id: this._id,
+    userId: this.userId,
+    deckId: this.deckId,
+    question: this.question,
+    answer: this.answer,
+    easeFactor: this.easeFactor,
+    bgImageIndex,
+    textAlign: this.textAlign,
+    fontSize: this.fontSize,
+    contentImage: this.contentImage || '',
+    imageSide: this.imageSide || '',
+
+    difficulty: this.difficulty ?? 0.3,
+    totalReviews: this.totalReviews ?? 0,
+    consecutiveErrors: this.consecutiveErrors ?? 0,
+    lastReviewedAt: this.lastReviewedAt || null,
+
+    createdAt: this.createdAt,
+  };
+};
+
 module.exports = mongoose.model('Flashcard', flashcardSchema);

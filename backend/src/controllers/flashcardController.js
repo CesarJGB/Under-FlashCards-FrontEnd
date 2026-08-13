@@ -2,6 +2,7 @@
 const Flashcard = require('../models/Flashcard');
 const Deck = require('../models/Deck');
 const { generateAiCardsPipeline } = require('./flashcard/aiDeckGenerator');
+const { isIndexedContractRequest, buildIndexedCardPayload } = require('../utils/imageDelivery');
 
 // Helper interno para resolver índices de fondo
 async function getOrCreateBgIndex(deckId, bgImageString) {
@@ -25,6 +26,9 @@ exports.getCardsByDeck = async (req, res) => {
     const backgrounds = deck ? deck.cardBackgrounds : [];
 
     const cards = await Flashcard.find({ deckId }).sort({ createdAt: -1 });
+    if (isIndexedContractRequest(req)) {
+      return res.json(buildIndexedCardPayload(cards, backgrounds));
+    }
     return res.json(cards.map((c) => c.serialize(backgrounds)));
   } catch (err) {
     console.error('[flashcards:get-deck] error:', err.message);

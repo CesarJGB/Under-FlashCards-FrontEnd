@@ -18,6 +18,7 @@ import InviteGateScreen from './components/InviteGateScreen';
 import PublicMateriaPage from './components/PublicMateriaPage';
 import { getPublicMateriaShareId } from './lib/publicMateria';
 import { preloadStaticIllustrations } from './lib/staticIllustrations';
+import { sanitizeDeckSummaries } from './lib/imageDelivery';
 
 const DebugPanel = lazy(() => import('./components/DebugPanel'));
 
@@ -58,7 +59,7 @@ function DashboardScreen({ user, onLogout, onInviteRequired }) {
   // Estado puente para navegación Home → Library
   const [pendingLibraryNav, setPendingLibraryNav] = useState(null);
 
-  const [decks, setDecks] = useState(() => getJSON(`decks_${user.id}`) || []);
+  const [decks, setDecks] = useState(() => sanitizeDeckSummaries(getJSON(`decks_${user.id}`) || []));
 
   const [materias, setMaterias] = useState(() => getJSON(`materias_${user.id}`) || []);
 
@@ -81,14 +82,14 @@ function DashboardScreen({ user, onLogout, onInviteRequired }) {
   const loadDecks = useCallback(async (showSpinner = false, signal) => {
     if (showSpinner) setLoading(true);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/decks/${user.id}?t=${Date.now()}`, { 
+      const res = await fetch(`${BACKEND_URL}/api/decks/${user.id}?t=${Date.now()}&contract=indexed`, {
         signal,
         headers: {
           'X-User-Id': user.id
         }
       });
       if (!res.ok) throw new Error();
-      const data = await res.json();
+      const data = sanitizeDeckSummaries(await res.json());
       setDecks(data);
       setJSON(`decks_${user.id}`, data);
     } catch {

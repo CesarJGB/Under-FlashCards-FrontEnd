@@ -66,4 +66,15 @@ deckSchema.methods.serialize = function (cardCount) {
   };
 };
 
+/**
+ * Resumen del mazo para la lista versionada (Corte 1, `?contract=indexed`):
+ * idéntico a serialize() salvo que excluye por completo `cardBackgrounds`
+ * (sin consumidores en el frontend). coverImage se conserva completa.
+ */
+deckSchema.methods.serializeSummary = function (cardCount) {
+  const summary = this.serialize(cardCount);
+  delete summary.cardBackgrounds;
+  return summary;
+};
+
 module.exports = mongoose.model('Deck', deckSchema);

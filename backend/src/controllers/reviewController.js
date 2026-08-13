@@ -7,6 +7,7 @@ const Tema = require('../models/Tema');
 const Materia = require('../models/Materia');
 const StudySession = require('../models/StudySession');
 const { enqueueForUser, flushUserQueue } = require('../utils/userQueue');
+const { isIndexedContractRequest, buildIndexedSessionPayload } = require('../utils/imageDelivery');
 const { calculateRadarMetrics, WEIGHTS, TARGETS, getFluidityScore, getRetentionScore, getVolumeScore, getResilienceScore } = require('../utils/radarMetrics');
 
 const STUDY_MODES = new Set(['continuous', 'normal']);
@@ -230,6 +231,9 @@ exports.getContinuousSessionCards = async (req, res) => {
       [combined[i], combined[j]] = [combined[j], combined[i]];
     }
 
+    if (isIndexedContractRequest(req)) {
+      return res.status(200).json(buildIndexedSessionPayload(combined, cardBackgrounds));
+    }
     return res.status(200).json({
       success: true,
       cards: combined.map(card => card.serialize(cardBackgrounds))
@@ -276,6 +280,9 @@ exports.getNormalSessionCards = async (req, res) => {
       [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
 
+    if (isIndexedContractRequest(req)) {
+      return res.status(200).json(buildIndexedSessionPayload(shuffled, cardBackgrounds));
+    }
     return res.status(200).json({
       success: true,
       cards: shuffled.map(card => card.serialize(cardBackgrounds))
@@ -313,6 +320,9 @@ exports.getAllSessionCards = async (req, res) => {
     const deck = await Deck.findById(deckId);
     const cardBackgrounds = deck?.cardBackgrounds || [];
 
+    if (isIndexedContractRequest(req)) {
+      return res.status(200).json(buildIndexedSessionPayload(allCards, cardBackgrounds));
+    }
     return res.status(200).json({
       success: true,
       cards: allCards.map(card => card.serialize(cardBackgrounds))

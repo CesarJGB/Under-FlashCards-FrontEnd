@@ -7,6 +7,7 @@ import FastDeleteMode from './FastDeleteMode';
 import SessionPlayer from './SessionPlayer'; 
 import usePdfExport from '../hooks/usePdfExport';
 import PdfExportOverlay from './PdfExportOverlay';
+import { extractAndResolveCards } from '../lib/imageDelivery';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
@@ -60,9 +61,9 @@ export default function DeckInterior({ deck, userId, authToken, onBack, initialM
     setLoading(true);
     setError('');
     try {
-      const res = await fetch(`${BACKEND_URL}/api/flashcards/deck/${deck.id}`, { signal });
+      const res = await fetch(`${BACKEND_URL}/api/flashcards/deck/${deck.id}?contract=indexed`, { signal });
       if (!res.ok) throw new Error('No se pudieron cargar las tarjetas.');
-      const nextCards = await res.json();
+      const nextCards = extractAndResolveCards(await res.json());
       if (signal?.aborted) return false;
       setCards(nextCards);
       setCardsLoaded(true);

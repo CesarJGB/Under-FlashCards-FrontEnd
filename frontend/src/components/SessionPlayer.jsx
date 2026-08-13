@@ -5,6 +5,7 @@ import FlipCard from './FlipCard';
 import { parseCardStyles } from '../lib/utils';
 import { buildContinuousBatch, buildNormalBatch, applyLocalAnswer, getCardId, getInitialFragileGap, growFragileGap, insertFragileRetries } from '../lib/batchBuilder';
 import { getJSON, setJSON } from '../lib/safeLocalStorage';
+import { extractAndResolveCards } from '../lib/imageDelivery';
 import useImmersiveScrollGuard from '../hooks/useImmersiveScrollGuard';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
@@ -373,15 +374,15 @@ export default function SessionPlayer({ deckId, userId, onExit, mode = 'continuo
     try {
       setLoading(true);
       setError('');
-      const response = await makeFetch(`${BACKEND_URL}/api/decks/${deckId}/all-cards?userId=${userId}`);
+      const response = await makeFetch(`${BACKEND_URL}/api/decks/${deckId}/all-cards?userId=${userId}&contract=indexed`);
       if (!response || !response.ok) throw new Error('No se pudo cargar el mazo.');
 
-      const data = await response.json();
-      if (!data.cards || data.cards.length === 0) {
+      const nextCards = extractAndResolveCards(await response.json());
+      if (!nextCards || nextCards.length === 0) {
         throw new Error('Este mazo no tiene tarjetas para repasar.');
       }
 
-      allCardsRef.current = data.cards;
+      allCardsRef.current = nextCards;
       startNewBatch();
     } catch (err) {
       setError(err.message);

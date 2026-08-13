@@ -9,6 +9,7 @@ import StudyModesList from './study/StudyModesList';
 import ExamFoldersView from './study/ExamFoldersView';
 import usePdfExport from '../hooks/usePdfExport';
 import PdfExportOverlay from './PdfExportOverlay';
+import { extractAndResolveCards } from '../lib/imageDelivery';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
@@ -87,9 +88,9 @@ export default function StudySection({ decks, materias, userId, userEmail, onOpe
       deck,
       type: selectedFeature.id,
       loadCards: async (signal) => {
-        const response = await fetch(`${BACKEND_URL}/api/flashcards/deck/${deck.id}`, { signal });
+        const response = await fetch(`${BACKEND_URL}/api/flashcards/deck/${deck.id}?contract=indexed`, { signal });
         if (!response.ok) throw new Error('No se pudieron cargar las tarjetas del mazo.');
-        return response.json();
+        return extractAndResolveCards(await response.json());
       },
     });
   };

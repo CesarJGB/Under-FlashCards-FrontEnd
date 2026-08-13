@@ -3,6 +3,7 @@
 const Deck = require('../models/Deck');
 const Flashcard = require('../models/Flashcard');
 const { resolveDeckCoverColor } = require('../utils/deckColors');
+const { isIndexedContractRequest } = require('../utils/imageDelivery');
 
 exports.getDecks = async (req, res) => {
   try {
@@ -34,6 +35,9 @@ exports.getDecks = async (req, res) => {
     ]);
     
     const countMap = Object.fromEntries(counts.map((c) => [String(c._id), c.count]));
+    if (isIndexedContractRequest(req)) {
+      return res.json(decks.map((d) => d.serializeSummary(countMap[String(d._id)] || 0)));
+    }
     return res.json(decks.map((d) => d.serialize(countMap[String(d._id)] || 0)));
   } catch (err) {
     console.error('[decks:get] error:', err.message);
