@@ -92,6 +92,25 @@ La negociación vive en una única utilidad productiva (`backend/src/utils/image
 
 **Sin cambios** en UI, textos, backend, contratos, tamaños, calidad, almacenamiento ni comportamiento ajeno. El commit es `fix: cancel stale deck cover thumbnails`.
 
+## Corrección final post-cierre — Abortar guardados obsoletos durante la espera de la miniatura
+
+**Problema confirmado**: en el commit `85ff452`, `handleSubmit` esperaba la miniatura pendiente y descartaba la miniatura si el token cambiaba (`thumb = ''`), pero seguía construyendo el payload con `coverImage`/`coverChanged` del closure que inició el guardado y ejecutaba `onSave` igualmente. Si el usuario eliminaba o reemplazaba la portada durante `await pendingThumbnail`, se podía guardar una portada que acababa de eliminar o reemplazar.
+
+**Corrección implementada**:
+
+- Nueva función pura `resolveSubmitThumbnail(tracker, submitToken, fallbackThumb)` en `frontend/src/lib/coverThumbnailTracker.js`: espera únicamente la promesa pendiente correspondiente al token del guardado; si el token cambió durante la espera, devuelve `{ aborted: true }`.
+- `DeckModal.handleSubmit`:
+  - captura el token vigente al comenzar (`submitToken`);
+  - espera sólo la promesa de ese token (vía `resolveSubmitThumbnail`);
+  - si la espera devuelve `aborted: true`, **aborta por completo**: no construye payload de portada, no llama a `onSave` y restablece `saving = false` para que el usuario pueda guardar de nuevo el estado actual;
+  - sin cambio de token, el guardado normal continúa con la miniatura resuelta.
+- Mientras `saving = true` se desactivan los controles capaces de modificar la portada: navegación a Personalización, selector de archivo y "Quitar imagen" (`disabled` + `pointer-events-none`). La comprobación del token se mantiene para cubrir eventos ya iniciados o intercalaciones extremadamente rápidas.
+- Se conserva la corrección anterior: eliminar invalida la generación; A→B ignora A; las promesas obsoletas no actualizan `coverThumb`; editar metadatos sigue omitiendo ambos campos de imagen.
+
+**Pruebas nuevas (deterministas, `node --test`, sin jsdom/Jest/Vitest)**: 6 pruebas en `frontend/tests/image-delivery/cover-thumbnail.test.js` (sección submit) — seleccionar A → Guardar → eliminar mientras espera ⇒ `onSave` no se ejecuta; seleccionar A → Guardar → seleccionar B mientras espera ⇒ el guardado de A se aborta; tras el aborto un nuevo guardado envía B correctamente; sin cambio de token el guardado normal continúa; eliminar antes de guardar sigue enviando ambos campos vacíos; A→B antes de guardar sigue ignorando A. `npm run test:image-delivery` pasa de 62 a **68 tests, 68 pass, 0 fail**.
+
+**Sin cambios** en backend, contratos, UI visual, textos, calidad, tamaños, almacenamiento ni dependencias. El commit es `fix: abort stale deck cover saves`.
+
 ## Compatibilidad frontend/backend en ambas direcciones
 
 - **Frontend nuevo + backend anterior**: el backend ignora `cover=thumbnail` (sirve el contrato legacy o el del Corte 1); `resolveDeckCover` usa `coverImage`; `sanitizeDeckSummaries` acepta ambos shapes. Sin cambios en caché/almacenamiento.
@@ -175,11 +194,11 @@ No destructivo y sin migración inversa:
 
 ## Veredicto
 
-**PASS** (reafirmado tras la corrección puntual de cancelación de miniaturas pendientes)
+**PASS** (reafirmado tras las correcciones puntuales de cancelación de miniaturas pendientes y de aborto de guardados obsoletos)
 
 - Tres variantes de contrato coexistiendo exactamente como se exigió, negociadas por una única utilidad productiva; legacy y Corte 1 congelados (verificados por tests).
 - Miniaturas generadas en el frontend con presupuesto de ~24 KiB, sin dependencias nuevas y sin bloquear el guardado ante fallos de canvas/decodificación.
-- Protección del flujo de edición implementada y probada: editar metadatos no toca imágenes; la miniatura nunca sustituye a la portada completa; la carrera asíncrona de eliminación con miniatura pendiente quedó corregida y cubierta por pruebas deterministas (token invalidation + neutralización de la promesa).
+- Protección del flujo de edición implementada y probada: editar metadatos no toca imágenes; la miniatura nunca sustituye a la portada completa; la carrera de eliminación con miniatura pendiente quedó corregida (token + neutralización de promesa) y la carrera de guardado durante la espera quedó corregida con aborto completo del intento obsoleto (sin payload ni `onSave`), ambas cubiertas por pruebas deterministas.
 - Presupuesto de 500 mazos con miniatura cumplido con la implementación productiva (11.91 MiB ≤ 15 MiB; mediana stringify 43.81 ms ≤ 60 ms); perfiles legacy y mixto medidos y documentados honestamente.
-- Suites completas tras la corrección: backend 51/51 de contratos; 87/92 total con los mismos 5 fallos preexistentes; frontend 62/62, 58/58, 44/44, 8/8; build OK; `git diff --check` limpio.
+- Suites completas tras las correcciones: backend 51/51 de contratos; 87/92 total con los mismos 5 fallos preexistentes; frontend 68/68, 58/58, 44/44, 8/8; build OK; `git diff --check` limpio.
 - Sin cambios de almacenamiento, caché, TTL, navegación, búsqueda/orden, jerarquía académica, editor de tarjetas, repaso, sesiones, PDF ni dependencias. Cortes 3–5 sin implementar.

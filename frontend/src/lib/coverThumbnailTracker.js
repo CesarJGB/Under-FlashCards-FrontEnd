@@ -48,3 +48,18 @@ export function cancelThumbnailGeneration(tracker) {
 export function getPendingThumbnail(tracker) {
   return tracker.pending;
 }
+
+// Espera la promesa de miniatura pendiente para un guardado iniciado con
+// submitToken y decide si ese guardado sigue siendo válido:
+// - Sin promesa pendiente: continúa con thumb = fallbackThumb.
+// - Con promesa pendiente: espera su resultado; si la portada cambió durante
+//   la espera (token distinto al del guardado), el guardado quedó obsoleto y
+//   debe abortarse por completo (sin construir payload de portada ni llamar a
+//   onSave). El usuario podrá guardar de nuevo el estado actual.
+export async function resolveSubmitThumbnail(tracker, submitToken, fallbackThumb = '') {
+  const pending = getPendingThumbnail(tracker);
+  if (!pending) return { aborted: false, thumb: fallbackThumb };
+  const thumb = await pending.catch(() => '');
+  if (tracker.token !== submitToken) return { aborted: true, thumb };
+  return { aborted: false, thumb };
+}

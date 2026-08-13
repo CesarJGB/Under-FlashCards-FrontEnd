@@ -26,6 +26,7 @@ import {
   isCurrentThumbnailToken,
   cancelThumbnailGeneration,
   getPendingThumbnail,
+  resolveSubmitThumbnail,
 } from '../../src/lib/coverThumbnailTracker.js';
 import { buildDeckCoverPayload } from '../../src/lib/imageDelivery.js';
 
@@ -183,4 +184,111 @@ test('tracker: a fresh tracker starts with no token activity and no pending prom
   assert.equal(tracker.token, 0);
   assert.equal(getPendingThumbnail(tracker), null);
   assert.equal(isCurrentThumbnailToken(tracker, 0), true);
+});
+
+// ===========================================================================
+// CORRECCIÓN FINAL POST-CORTE 2 — abortar guardados obsoletos durante la espera
+// ===========================================================================
+
+// Espejo determinista del handleSubmit del componente: si resolveSubmitThumbnail
+// aborta, no se construye payload ni se llama a onSave (el componente hace
+// setSaving(false) y retorna antes de onSave).
+async function simulateSubmit(tracker, submitToken, fallbackThumb, coverImage, coverChanged = true) {
+  const result = await resolveSubmitThumbnail(tracker, submitToken, fallbackThumb);
+  if (result.aborted) return { aborted: true };
+  return {
+    aborted: false,
+    payload: buildDeckCoverPayload({ isEditing: true, coverChanged, coverImage, coverThumb: result.thumb }),
+  };
+}
+
+test('submit: select A, save, remove while waiting — onSave is never executed', async () => {
+  const tracker = createCoverThumbnailTracker();
+  const tokenA = beginThumbnailGeneration(tracker);
+  let resolveA;
+  const promiseA = new Promise((resolve) => { resolveA = resolve; });
+  trackThumbnailPromise(tracker, tokenA, promiseA);
+
+  const savePromise = simulateSubmit(tracker, tokenA, '', 'full-A');
+  cancelThumbnailGeneration(tracker); // el usuario elimina la portada durante la espera
+  resolveA(THUMB_A);
+
+  const outcome = await savePromise;
+  assert.equal(outcome.aborted, true, 'el guardado de A se aborta: no hay payload ni onSave');
+});
+
+test('submit: select A, save, select B while waiting — the A save is aborted', async () => {
+  const tracker = createCoverThumbnailTracker();
+  const tokenA = beginThumbnailGeneration(tracker);
+  let resolveA;
+  const promiseA = new Promise((resolve) => { resolveA = resolve; });
+  trackThumbnailPromise(tracker, tokenA, promiseA);
+
+  const savePromise = simulateSubmit(tracker, tokenA, '', 'full-A');
+  beginThumbnailGeneration(tracker); // el usuario selecciona B durante la espera
+  resolveA(THUMB_A);
+
+  const outcome = await savePromise;
+  assert.equal(outcome.aborted, true, 'el token cambió: el guardado de A queda obsoleto');
+});
+
+test('submit: after an abort, a new save can send B correctly', async () => {
+  const tracker = createCoverThumbnailTracker();
+  const tokenA = beginThumbnailGeneration(tracker);
+  let resolveA;
+  const promiseA = new Promise((resolve) => { resolveA = resolve; });
+  trackThumbnailPromise(tracker, tokenA, promiseA);
+  const first = simulateSubmit(tracker, tokenA, '', 'full-A');
+
+  const tokenB = beginThumbnailGeneration(tracker);
+  const promiseB = Promise.resolve(THUMB_B);
+  trackThumbnailPromise(tracker, tokenB, promiseB);
+  resolveA(THUMB_A);
+  assert.equal((await first).aborted, true, 'el intento de A quedó abortado');
+
+  const second = await simulateSubmit(tracker, tokenB, '', 'full-B');
+  assert.equal(second.aborted, false, 'el nuevo guardado continúa');
+  assert.deepEqual(second.payload, { coverImage: 'full-B', coverImageThumb: THUMB_B }, 'envía B correctamente');
+});
+
+test('submit: no token change during the wait — the normal save continues', async () => {
+  const tracker = createCoverThumbnailTracker();
+  const token = beginThumbnailGeneration(tracker);
+  const promise = Promise.resolve(THUMB_A);
+  trackThumbnailPromise(tracker, token, promise);
+
+  const outcome = await simulateSubmit(tracker, token, '', 'full-A');
+  assert.equal(outcome.aborted, false);
+  assert.deepEqual(outcome.payload, { coverImage: 'full-A', coverImageThumb: THUMB_A });
+});
+
+test('submit: remove before saving still sends both image fields empty', async () => {
+  const tracker = createCoverThumbnailTracker();
+  beginThumbnailGeneration(tracker);
+  cancelThumbnailGeneration(tracker); // eliminar antes de guardar
+
+  const outcome = await simulateSubmit(tracker, tracker.token, '', '');
+  assert.equal(outcome.aborted, false);
+  assert.deepEqual(outcome.payload, { coverImage: '', coverImageThumb: '' });
+});
+
+test('submit: A then B before saving still ignores A for state and payload', async () => {
+  const tracker = createCoverThumbnailTracker();
+  const tokenA = beginThumbnailGeneration(tracker);
+  let resolveA;
+  const promiseA = new Promise((resolve) => { resolveA = resolve; });
+  trackThumbnailPromise(tracker, tokenA, promiseA);
+
+  const tokenB = beginThumbnailGeneration(tracker);
+  const promiseB = Promise.resolve(THUMB_B);
+  trackThumbnailPromise(tracker, tokenB, promiseB);
+  resolveA(THUMB_A);
+  await promiseA;
+
+  const stateThumb = isCurrentThumbnailToken(tracker, tokenA) ? THUMB_A : '';
+  assert.equal(stateThumb, '', 'A sigue ignorado en el estado');
+
+  const outcome = await simulateSubmit(tracker, tokenB, '', 'full-B');
+  assert.equal(outcome.aborted, false);
+  assert.deepEqual(outcome.payload, { coverImage: 'full-B', coverImageThumb: THUMB_B }, 'sólo B puede guardarse');
 });

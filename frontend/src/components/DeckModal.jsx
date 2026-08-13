@@ -10,7 +10,7 @@ import {
   trackThumbnailPromise,
   isCurrentThumbnailToken,
   cancelThumbnailGeneration,
-  getPendingThumbnail,
+  resolveSubmitThumbnail,
 } from '../lib/coverThumbnailTracker';
 import { buildDeckCoverPayload } from '../lib/imageDelivery';
 
@@ -103,16 +103,25 @@ export default function DeckModal({ initial, onClose, onSave, nameOnly = false, 
         await onSave({ title: title.trim() });
         return;
       }
-      const payload = { title: title.trim() };
-      if (coverColorTouched) payload.coverColor = coverColor;
+      // Token vigente al iniciar el guardado: define el snapshot válido.
       const tracker = thumbTrackerRef.current;
       const submitToken = tracker.token;
       let thumb = coverThumb;
-      const pending = getPendingThumbnail(tracker);
-      if (coverChanged && pending) {
-        thumb = await pending.catch(() => '');
-        if (tracker.token !== submitToken) thumb = ''; // la portada cambió durante la espera
+      if (coverChanged) {
+        // Espera únicamente la promesa correspondiente a ese token. Si la
+        // portada cambió durante la espera, el snapshot quedó obsoleto y el
+        // intento se aborta por completo: no se construye payload de portada
+        // ni se llama a onSave; el usuario puede guardar de nuevo el estado
+        // actual (saving vuelve a false).
+        const result = await resolveSubmitThumbnail(tracker, submitToken, coverThumb);
+        if (result.aborted) {
+          setSaving(false);
+          return;
+        }
+        thumb = result.thumb;
       }
+      const payload = { title: title.trim() };
+      if (coverColorTouched) payload.coverColor = coverColor;
       Object.assign(
         payload,
         buildDeckCoverPayload({ isEditing, coverChanged, coverImage, coverThumb: thumb }),
@@ -194,7 +203,8 @@ export default function DeckModal({ initial, onClose, onSave, nameOnly = false, 
                     <button
                       type="button"
                       onClick={() => setStep('customization')}
-                      className="w-full flex items-center justify-between p-4 border-2 border-slate-200 rounded-2xl hover:border-indigo-300 hover:bg-indigo-50/30 transition-all duration-200"
+                      disabled={saving}
+                      className="w-full flex items-center justify-between p-4 border-2 border-slate-200 rounded-2xl hover:border-indigo-300 hover:bg-indigo-50/30 transition-all duration-200 disabled:opacity-50 disabled:pointer-events-none"
                     >
                       <div className="flex items-center gap-3">
                         <div className="w-9 h-9 bg-gradient-to-br from-indigo-100 to-violet-100 rounded-lg flex items-center justify-center flex-shrink-0">
@@ -310,10 +320,10 @@ export default function DeckModal({ initial, onClose, onSave, nameOnly = false, 
                     <label className="block text-sm font-semibold text-slate-700 mb-3">
                       Imagen de portada <span className="text-slate-400 font-normal">(opcional)</span>
                     </label>
-                    <label className="flex items-center justify-center gap-2 cursor-pointer rounded-xl border-2 border-dashed border-slate-300 px-4 py-3 text-sm font-medium text-slate-600 hover:border-indigo-400 hover:bg-indigo-50/30 hover:text-indigo-600 transition-all duration-200">
+                    <label className={`flex items-center justify-center gap-2 cursor-pointer rounded-xl border-2 border-dashed border-slate-300 px-4 py-3 text-sm font-medium text-slate-600 hover:border-indigo-400 hover:bg-indigo-50/30 hover:text-indigo-600 transition-all duration-200 ${saving ? 'pointer-events-none opacity-50' : ''}`}>
                       <Upload className="w-5 h-5" />
                       {previewCover ? 'Cambiar imagen' : 'Subir imagen'}
-                      <input type="file" accept="image/*" onChange={handleFile} className="hidden" />
+                      <input type="file" accept="image/*" onChange={handleFile} disabled={saving} className="hidden" />
                     </label>
                     {previewCover && (
                       <div className="mt-3 flex items-center gap-3">
@@ -321,7 +331,8 @@ export default function DeckModal({ initial, onClose, onSave, nameOnly = false, 
                         <button
                           type="button"
                           onClick={handleRemoveCover}
-                          className="text-sm text-red-600 font-medium hover:underline"
+                          disabled={saving}
+                          className="text-sm text-red-600 font-medium hover:underline disabled:opacity-50 disabled:pointer-events-none"
                         >
                           Quitar imagen
                         </button>
