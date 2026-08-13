@@ -30,7 +30,7 @@ Las entradas no rastreadas no se modificaron, no se leyeron como evidencia y no 
 - [migration-rollout-rollback.md](./migration-rollout-rollback.md): migración gradual, convivencia dual y rollback.
 - [implementation-cuts.md](./implementation-cuts.md): plan por cortes (Corte 0 a Corte 5) con contratos, pruebas, métricas de aceptación, rollback y riesgos.
 - [implementation-readiness.md](./implementation-readiness.md): gates de implementación y autorizaciones pendientes.
-- [raw-results.json](./raw-results.json): esquema `1.1.0`, 163 resultados de contrato (112 respuestas de tarjetas, 48 listas de mazos, 3 BSON). Sólo tamaños y tiempos; no contiene Base64.
+- [raw-results.json](./raw-results.json): esquema `1.2.0`, 175 resultados de contrato (112 respuestas de tarjetas, 60 listas de mazos, 3 BSON) con 40,002 invariantes aprobadas y 0 fallidas. Sólo tamaños y tiempos; no contiene Base64.
 
 El harness está en `frontend/tests/performance/image-delivery/run-delivery-baseline.mjs` (no productivo; sin dependencias nuevas; reutiliza la `bson` ya instalada en `backend/node_modules`).
 
@@ -38,7 +38,7 @@ El harness está en `frontend/tests/performance/image-delivery/run-delivery-base
 
 La duplicación de imágenes no es un problema de almacenamiento sino de **contrato de salida**:
 
-1. **El fondo compartido se expande por tarjeta en la respuesta.** Con el contrato actual, 1000 tarjetas con un fondo grande compartido son **911.87 MiB JSON / 686.81 MiB gzip**, de los que 99.86% son la misma cadena repetida. Con un diccionario de fondos + índice (Alternativa A) la respuesta conserva **una copia real del fondo** y baja a **1.285 MiB JSON / 0.695 MiB gzip** (−99.86% / −99.0%). El ahorro existe sólo cuando hay fondos compartidos: con 1000 fondos **distintos**, `normalized` queda en 333.74 MiB (igual que `current`), porque cada fondo es único y debe viajar una vez.
+1. **El fondo compartido se expande por tarjeta en la respuesta.** Con el contrato actual, 1000 tarjetas con un fondo grande compartido son **911.87 MiB JSON / 686.81 MiB gzip**, de los que 99.86% son la misma cadena repetida. Con un diccionario de fondos + índice (Alternativa A) la respuesta conserva **una copia real del fondo** y baja a **1.285 MiB JSON / 0.695 MiB gzip** (−99.86% / −99.9%). El ahorro existe sólo cuando hay fondos compartidos: con 1000 fondos **distintos**, `normalized` queda en 333.74 MiB (igual que `current`), porque cada fondo es único y debe viajar una vez.
 2. **La lista de mazos transporta campos que ningún consumidor usa.** `cardBackgrounds` no tiene **ningún** consumidor en el frontend (verificado estáticamente; sólo aparece en el harness de pruebas). `Deck.serialize()` lo incluye igualmente en `GET /api/decks/:userId`, que App además copia a `safeLocalStorage`. Con 500 mazos con portada + 3 fondos, eliminar sólo `cardBackgrounds` (Corte 1, portada completa conservada) baja de **83.61 MiB JSON / 62.98 MiB gzip** a **21.06 MiB / 15.85 MiB**; el control sin ninguna imagen queda en **0.207 MiB** y una portada en miniatura (Corte 2, ESTIMADO) en **13.56 MiB**.
 3. **El cambio mínimo con mayor impacto es de serialización, no de infraestructura.** No requiere S3, GridFS, miniaturas servidas ni nuevos endpoints para eliminar la duplicación de fondos compartidos y los bytes sin consumidores.
 

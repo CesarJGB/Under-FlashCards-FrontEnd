@@ -31,7 +31,11 @@ Dependencias estrictas: `C0 → C1 → C2 → C3/C4 → C5`. C1 no puede omitir 
 - Contratos: lectura de tarjetas y sesiones → `{backgrounds, cards}`; lista de mazos → resumen sin `cardBackgrounds`; escritura/ACK → expandido (dual) para no romper el editor.
 - Migración: ninguna de datos. Compatibilidad dual: campo `bgImage` (expandido) sólo para clientes sin cabecera de versión; servidor dual.
 - Pruebas: contract tests C0 en verde; matriz funcional editor/repaso/sesión/PDF/import/export; harness `image-delivery` como verificación (el shape `normalized` es el producido).
-- Métricas de aceptación: 1000 tarjetas fondo grande ⇒ respuesta < 1 MiB (presupuesto: ≤ 0.5 MiB); lista 500 mazos portada+fondos ⇒ < 0.5 MiB; duplicación de fondo = 0% en shape nuevo; 0 errores de resolución en logs; sin regresiones funcionales.
+- Métricas de aceptación: presupuestos separados por escenario y contrato (sintéticos/modelados con margen, no SLO reales de producción):
+  - Respuesta de tarjetas — 1000 tarjetas con fondo grande **compartido** (`normalized`): JSON ≤ 1.5 MiB; gzip ≤ 0.8 MiB; una sola copia del fondo; `dictionaryCount = 1`; duplicación repetida = 0.
+  - Respuesta de tarjetas — 1000 fondos **distintos** (`normalized`): no exigir reducción relevante; `dictionaryCount = 1000`; cada imagen aparece una vez; ningún índice fuera de rango.
+  - Lista 500 mazos portada+fondos (`without_backgrounds`): JSON ≤ 22 MiB; gzip ≤ 17 MiB; reducción mínima de 70% respecto al contrato actual; `cardBackgrounds` ausente; `coverImage` conservada; `JSON.stringify` Node/V8 ≤ 100 ms como presupuesto modelado, no como garantía de producción.
+  - duplicación de fondo = 0% en shape nuevo; 0 errores de resolución en logs; sin regresiones funcionales.
 - Rollback: desplegar backend previo (vuelve a expandir); el cliente nuevo sigue funcionando con el shape expandido.
 - Riesgos: consumidor que olvide resolver (fallback a color sólido, degradación no catastrófica); `contentImage` no se deduplica (alcance aprobado).
 - Dependencias: C0.
@@ -44,7 +48,7 @@ Dependencias estrictas: `C0 → C1 → C2 → C3/C4 → C5`. C1 no puede omitir 
 - Contratos: resumen de mazo ligero; detalle bajo demanda con diccionario (C1).
 - Migración: ninguna (campo nuevo opcional). Compatibilidad: `coverImageThumb` ausente → `coverImage`.
 - Pruebas: contract tests resumen; tests de `DeckCard` con/sin miniatura; matriz Home/Library/búsqueda/orden/persistencia.
-- Métricas: lista 500 mazos con portada ≤ presupuesto aprobado (referencia: 13.58 MiB thumb vs 83.62 MiB actual — ESTIMADO); stringify/parse de `decks_<user>` ≤ 50 ms; sin regresiones de búsqueda/orden.
+- Métricas (Corte 2, presupuesto modelado, no SLO de producción): lista 500 mazos con portada en miniatura ⇒ JSON ≤ 15 MiB (referencia: 13.56 MiB `thumbnail_summary` vs 83.61 MiB actual — ESTIMADO); `JSON.stringify` Node/V8 de `decks_<user>` ≤ 60 ms; sujeto a aprobación de calidad visual y generación de miniaturas; sin regresiones de búsqueda/orden.
 - Rollback: ignorar `coverImageThumb` (el código ya tiene fallback).
 - Riesgos: fidelidad de portada en grid (decisión humana de presupuesto visual); dependencia de generación de miniaturas (cliente o servidor — decisión pendiente).
 - Dependencias: C1.
@@ -99,4 +103,11 @@ Dependencias estrictas: `C0 → C1 → C2 → C3/C4 → C5`. C1 no puede omitir 
 | 4 | GC/migración de datos | **no** | backup | C1/C3 |
 | 5 | contrato final | sí | no limpio | C1-C4 |
 
-Presupuestos por contrato (propuestos; sujetos a aprobación): respuesta de tarjetas ≤ 1 MiB en el peor perfil actual (1000 tarjetas fondo grande); lista de mazos ≤ 1 MiB; `decks_<user>` stringify ≤ 50 ms. Estos umbrales son hipótesis de aceptación, no mediciones de producción.
+Presupuestos por contrato (propuestos; sujetos a aprobación), separados por escenario:
+
+- Respuesta de tarjetas — 1000 tarjetas con fondo grande compartido (`normalized`): JSON ≤ 1.5 MiB; gzip ≤ 0.8 MiB; `dictionaryCount = 1`; una sola copia del fondo; duplicación repetida = 0.
+- Respuesta de tarjetas — 1000 fondos distintos (`normalized`): sin exigir reducción relevante; `dictionaryCount = 1000`; cada imagen aparece una vez; ningún índice fuera de rango.
+- Lista de 500 mazos con portada y fondos (`without_backgrounds`, Corte 1): JSON ≤ 22 MiB; gzip ≤ 17 MiB; reducción mínima de 70% respecto al contrato actual; `cardBackgrounds` ausente; `coverImage` conservada; `JSON.stringify` Node/V8 ≤ 100 ms.
+- Portada en miniatura (`thumbnail_summary`, Corte 2): JSON ≤ 15 MiB; `JSON.stringify` Node/V8 ≤ 60 ms; sujeto a aprobación de calidad visual y generación de miniaturas.
+
+Estos umbrales son presupuestos sintéticos/modelados con margen, no SLO reales de producción ni mediciones de tráfico real.

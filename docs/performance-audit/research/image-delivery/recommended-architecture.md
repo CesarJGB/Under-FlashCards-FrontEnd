@@ -75,7 +75,7 @@ El 99.86% del JSON de tarjetas con fondo compartido es la misma cadena repetida;
 
 ## Cambio mínimo de mayor mejora con menor riesgo
 
-**Corte 1**: dejar de enviar `cardBackgrounds` en la lista de mazos + devolver diccionario+índice en las respuestas de tarjetas, con resolución en el cliente y `bgImage` dual para clientes antiguos. Captura el ~99.7–99.96% del peso sin tocar modelos, almacenamiento, export, PDF, import ni offline. Ver [implementation-cuts.md](./implementation-cuts.md).
+**Corte 1**: dejar de enviar `cardBackgrounds` en la lista de mazos + devolver diccionario+índice en las respuestas de tarjetas, con resolución en el cliente y `bgImage` dual para clientes antiguos. La captura no es uniforme entre perfiles: aproximadamente **99.86%** de reducción JSON en el escenario de fondo grande compartido, aproximadamente **74.8%** en Library conservando la portada completa, y ahorro **prácticamente nulo** con fondos distintos (cada imagen única debe viajar una vez). Las miniaturas quedan como **Corte 2**, no como parte automática del Corte 1. La Alternativa A continúa recomendada porque elimina duplicación con bajo riesgo, no porque resuelva todos los perfiles de imagen. Sin tocar modelos, almacenamiento, export, PDF, import ni offline. Ver [implementation-cuts.md](./implementation-cuts.md).
 
 ## Decisiones que requieren aprobación humana
 
