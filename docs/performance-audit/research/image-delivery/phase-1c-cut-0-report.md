@@ -56,8 +56,9 @@ Ningún archivo productivo (`backend/src/`, `frontend/src/`) fue tocado.
 ### Compatibilidad del futuro resolver cliente (referencia en `frontend/tests/image-delivery/reference.js`)
 
 - Acepta el contrato normalizado (`resolveBackgrounds(cards, backgrounds)` → copias con `bgImage` materializado).
-- Fallback legacy: una tarjeta con `bgImage` expandido se conserva tal cual (incluso con diccionario ausente o distinto).
-- Índice inválido (negativo distinto de `-1`, fuera de rango, no-entero) → `bgImage: ""`, nunca excepción.
+- **Precedencia (corregida)**: si la tarjeta posee `bgImageIndex`, se trata como contrato indexado — índice entero no negativo dentro del diccionario → `backgrounds[bgImageIndex]`; `-1`, índice inválido, no entero o fuera de rango → `""`, nunca excepción. `bgImage` **no** se usa como rescate para estas tarjetas.
+- `bgImage` se usa **únicamente** cuando la tarjeta no tiene la propiedad `bgImageIndex` (shape verdaderamente legacy sin indexar).
+- Tarjeta nula o inválida → `""`.
 - No muta las tarjetas ni el diccionario recibidos (verificado con objetos congelados y `deepEqual`).
 - Conserva todos los demás campos de la tarjeta.
 
@@ -77,16 +78,16 @@ Ningún archivo productivo (`backend/src/`, `frontend/src/`) fue tocado.
 | Comando | Resultado |
 |---|---|
 | `git fetch origin` | OK; sin drift |
-| `node --test test/imageDeliveryContracts.test.js` (backend) | **13 tests, 13 pass, 0 fail** |
-| `npm test` (backend, suite completa) | **54 tests, 49 pass, 5 fail** — los 5 fallos son preexistentes (ver bloqueos) |
+| `node --test test/imageDeliveryContracts.test.js` (backend) | **18 tests, 18 pass, 0 fail** |
+| `npm test` (backend, suite completa) | **59 tests, 54 pass, 5 fail** — los 5 fallos son los mismos preexistentes (ver bloqueos) |
 | `node --test test/aiService.test.js test/deckRecovery.test.js` (en worktree limpio del HEAD base `e0081b2`) | **10 tests, 5 pass, 5 fail** — idénticos a los 5 fallos de la suite: confirmado preexistente |
-| `npm run test:image-delivery` (frontend, nuevo) | **12 tests, 12 pass, 0 fail** |
+| `npm run test:image-delivery` (frontend, nuevo) | **18 tests, 18 pass, 0 fail** |
 | `npm run test:manual-editor:unit` (frontend) | **58 tests, 58 pass, 0 fail** (gate del plan: 58/58) |
 | `npm run test:schedule` (frontend) | **44 tests, 44 pass, 0 fail** (gate del plan: 44/44) |
 | `npm run test:pdf-extraction` (frontend) | **8 tests, 8 pass, 0 fail** (gate del plan: 8/8) |
 | `git diff --check` | limpio |
 
-Total de contract tests nuevos de esta fase: **25 (13 backend + 12 frontend), 25/25 pass**.
+Total de contract tests de esta fase: **36 (18 backend + 18 frontend), 36/36 pass** (25 del cierre inicial + 11 de la corrección de precedencia).
 
 ## Bloqueos y limitaciones
 
@@ -114,14 +115,48 @@ Total de contract tests nuevos de esta fase: **25 (13 backend + 12 frontend), 25
 
 Eliminar los archivos nuevos (`backend/test/imageDeliveryFixtures.js`, `backend/test/imageDeliveryContracts.test.js`, `frontend/tests/image-delivery/`, el script `test:image-delivery` de `frontend/package.json` y los párrafos añadidos a `README.md`/`implementation-readiness.md`). No hay código productivo que deshacer. Revertir el commit devuelve el árbol al HEAD `e0081b2`.
 
+## Corrección puntual de precedencia (post-cierre)
+
+### Error encontrado
+
+El resolver de referencia `resolveCardBackground` en `frontend/tests/image-delivery/reference.js` (y su espejo `resolveBackground` en `backend/test/imageDeliveryFixtures.js`) devolvía `bgImage` primero cuando era una cadena. Esto contradice [migration-rollout-rollback.md](./migration-rollout-rollback.md) (§Convivivencia dual): durante el campo dual el cliente nuevo recibe `backgrounds` + `bgImageIndex` y **ignora `bgImage`**; `bgImage` sirve únicamente como fallback para un shape verdaderamente legacy que **no** tenga `bgImageIndex`.
+
+Además, los fixtures legacy (`legacyCardFixture` en frontend, `legacyCard` en backend) heredaban accidentalmente `bgImageIndex: -1` del fixture base, de modo que ninguna tarjeta legacy era realmente "sin índice" y el fallback de `bgImage` quedaba inalcanzable en las pruebas.
+
+### Corrección aplicada
+
+- `frontend/tests/image-delivery/reference.js` — `resolveCardBackground` con precedencia correcta:
+  - la tarjeta posee `bgImageIndex` → contrato indexado: índice entero no negativo dentro de `backgrounds` → `backgrounds[bgImageIndex]`; `-1`, inválido, no entero o fuera de rango → `""`; sin rescate de `bgImage`;
+  - `bgImage` se usa sólo cuando la tarjeta **no** tiene la propiedad `bgImageIndex`;
+  - tarjeta nula o inválida → `""`; sin mutación de tarjetas ni diccionario.
+- `backend/test/imageDeliveryFixtures.js` — `resolveBackground` alineado con la misma precedencia.
+- `frontend/tests/image-delivery/fixtures.js` y `backend/test/imageDeliveryFixtures.js` — los fixtures legacy ahora eliminan `bgImageIndex` explícitamente; sólo se incluye si el caller lo pasa (tarjeta dual para pruebas de precedencia). Los fixtures del contrato objetivo conservan `bgImageIndex`.
+- Nuevas pruebas de precedencia dual: frontend 6 (A–F), backend 5 (A–E), incluyendo la aserción explícita `assert.equal('bgImageIndex' in legacyFixture, false)` y la inmutabilidad con tarjetas duales congeladas.
+
+### Nuevos conteos reales
+
+| Suite | Antes | Después |
+|---|---:|---:|
+| `backend/test/imageDeliveryContracts.test.js` | 13/13 | **18/18** |
+| `frontend` `test:image-delivery` | 12/12 | **18/18** |
+| Total contract tests Corte 0 | 25/25 | **36/36** |
+| `npm test` backend completo | 54 (49+5 preexistentes) | **59 (54+5 preexistentes)** |
+| `test:manual-editor:unit` / `test:schedule` / `test:pdf-extraction` | 58/58, 44/44, 8/8 | **sin cambios** |
+
+Los 5 fallos preexistentes del backend (`aiService.test.js` ×2, `deckRecovery.test.js` ×3) son exactamente los mismos del HEAD anterior `b0b36e6`; no se corrigieron (fuera de alcance) y no impiden el veredicto del Corte 0.
+
+### Alineación documental
+
+El resolver de referencia ahora coincide con [migration-rollout-rollback.md](./migration-rollout-rollback.md): cliente nuevo usa `backgrounds + bgImageIndex` e ignora `bgImage`; `bgImage` es fallback exclusivo para shapes sin `bgImageIndex`. Las cifras y conclusiones de la Fase 1B no cambian.
+
 ## Veredicto final del Corte 0
 
-**PASS** con bloqueo preexistente documentado:
+**PASS** (corregido) con bloqueo preexistente documentado:
 
-- Contract tests nuevos: 25/25 verdes (obligatorios, cumplidos).
-- Escenarios A–F: cubiertos con fixtures claros en ambos árboles.
+- Contract tests nuevos: 36/36 verdes (obligatorios, cumplidos; precedencia dual alineada con el plan de migración).
+- Escenarios A–F: cubiertos con fixtures claros en ambos árboles; fixtures legacy sin `bgImageIndex`; inmutabilidad verificada también con tarjetas duales.
 - Ningún cambio productivo; ningún endpoint ni comportamiento visible modificado.
-- Ningún test previamente verde falla por esta fase (los 5 fallos backend son idénticos en el HEAD base).
+- Ningún test previamente verde falla por esta fase (los 5 fallos backend son los mismos del HEAD anterior).
 - Suites de caracterización del plan: 58/58, 44/44, 8/8 verdes.
 - `git diff --check` limpio.
 

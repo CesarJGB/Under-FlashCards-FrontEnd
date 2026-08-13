@@ -31,16 +31,25 @@ export function buildIndexedCards(cards) {
 }
 
 // Fondo resuelto de una sola tarjeta contra el diccionario.
-// - Tarjeta legacy con `bgImage` expandido: se conserva tal cual (fallback).
-// - Tarjeta indexada: `backgrounds[index]`; índice inválido o ausente =>
-//   cadena vacía, nunca una excepción.
+// Precedencia (alineada con migration-rollout-rollback.md: durante el campo
+// dual el cliente nuevo recibe `backgrounds` + `bgImageIndex` e ignora
+// `bgImage`):
+// - Si la tarjeta posee `bgImageIndex`, se trata como contrato indexado:
+//   índice entero no negativo dentro del diccionario => `backgrounds[index]`;
+//   `-1`, índice inválido, no entero o fuera de rango => cadena vacía, nunca
+//   una excepción. `bgImage` no se usa como rescate para estas tarjetas.
+// - `bgImage` se usa únicamente cuando la tarjeta NO tiene `bgImageIndex`
+//   (shape verdaderamente legacy sin indexar).
 export function resolveCardBackground(card, dictionary = []) {
   if (card == null || typeof card !== 'object') return '';
-  if (typeof card.bgImage === 'string') return card.bgImage;
-  const index = card.bgImageIndex;
-  if (Number.isInteger(index) && index >= 0 && index < dictionary.length) {
-    return dictionary[index];
+  if (Object.prototype.hasOwnProperty.call(card, 'bgImageIndex')) {
+    const index = card.bgImageIndex;
+    if (Number.isInteger(index) && index >= 0 && index < dictionary.length) {
+      return dictionary[index];
+    }
+    return '';
   }
+  if (typeof card.bgImage === 'string') return card.bgImage;
   return '';
 }
 

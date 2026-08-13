@@ -43,13 +43,18 @@ function baseCard(seed, overrides = {}) {
 }
 
 // Tarjeta con bgImage expandido (shape legacy entregado por la API actual).
+// Una tarjeta legacy contiene `bgImage` y NO contiene `bgImageIndex`. Sólo
+// si el caller pasa `bgImageIndex` explícitamente se genera una tarjeta dual
+// (para las pruebas de precedencia), nunca por herencia del fixture base.
 function legacyCard(seed, overrides = {}) {
   const { bgImage, bgImageIndex, ...rest } = { ...overrides };
-  return {
+  const card = {
     ...baseCard(seed, rest),
     bgImage: bgImage ?? '',
-    ...('bgImageIndex' in overrides ? { bgImageIndex } : {}),
   };
+  delete card.bgImageIndex;
+  if ('bgImageIndex' in overrides) card.bgImageIndex = bgImageIndex;
+  return card;
 }
 
 // Referencia del contrato objetivo (Alternativa A): convierte tarjetas con
@@ -76,16 +81,25 @@ function buildIndexedCards(cards) {
   return { backgrounds, cards: indexed };
 }
 
-// Resolver de referencia del cliente futuro: un índice inválido o la ausencia
-// de fondo producen cadena vacía, nunca una excepción. Espejo del resolver en
-// frontend/tests/image-delivery/reference.js.
+// Resolver de referencia del cliente futuro. Precedencia (alineada con
+// migration-rollout-rollback.md: durante el campo dual el cliente nuevo
+// recibe `backgrounds` + `bgImageIndex` e ignora `bgImage`):
+// - Si la tarjeta posee `bgImageIndex`, se trata como contrato indexado:
+//   índice entero no negativo dentro del diccionario => `backgrounds[index]`;
+//   `-1`, índice inválido, no entero o fuera de rango => cadena vacía, nunca
+//   una excepción. `bgImage` no se usa como rescate para estas tarjetas.
+// - `bgImage` se usa únicamente cuando la tarjeta NO tiene `bgImageIndex`.
+// Espejo del resolver en frontend/tests/image-delivery/reference.js.
 function resolveBackground(card, dictionary = []) {
   if (card == null || typeof card !== 'object') return '';
-  if (typeof card.bgImage === 'string') return card.bgImage;
-  const index = card.bgImageIndex;
-  if (Number.isInteger(index) && index >= 0 && index < dictionary.length) {
-    return dictionary[index];
+  if (Object.prototype.hasOwnProperty.call(card, 'bgImageIndex')) {
+    const index = card.bgImageIndex;
+    if (Number.isInteger(index) && index >= 0 && index < dictionary.length) {
+      return dictionary[index];
+    }
+    return '';
   }
+  if (typeof card.bgImage === 'string') return card.bgImage;
   return '';
 }
 

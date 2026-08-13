@@ -46,8 +46,9 @@ Esta fase **recomienda** implementar la [arquitectura recomendada](./recommended
 
 ## Estado del Corte 0 (Fase 1C)
 
-- **Corte 0 — TERMINADO** ([phase-1c-cut-0-report.md](./phase-1c-cut-0-report.md)): contratos legacy y objetivo congelados mediante fixtures; 25/25 contract tests nuevos en verde (13 backend + 12 frontend); resolver cliente de referencia dentro del árbol de pruebas; sin cambios productivos. Suites de caracterización del plan: manual-editor 58/58, schedule 44/44, pdf-extraction 8/8.
-- Bloqueo preexistente documentado: 5 tests backend (`aiService.test.js`, `deckRecovery.test.js`) fallan por configuración de modelo IA del entorno, idénticos en el HEAD base.
+- **Corte 0 — TERMINADO** ([phase-1c-cut-0-report.md](./phase-1c-cut-0-report.md)): contratos legacy y objetivo congelados mediante fixtures; 36/36 contract tests en verde (18 backend + 18 frontend); resolver cliente de referencia dentro del árbol de pruebas; sin cambios productivos. Suites de caracterización del plan: manual-editor 58/58, schedule 44/44, pdf-extraction 8/8.
+- **Corrección de precedencia aplicada (post-cierre)**: el resolver de referencia usa `bgImageIndex` cuando la tarjeta lo posee e ignora `bgImage`; `bgImage` es fallback exclusivo para shapes sin `bgImageIndex`, coincidiendo con [migration-rollout-rollback.md](./migration-rollout-rollback.md) (§Convivivencia dual). Fixtures legacy sin `bgImageIndex`; pruebas duales A–F añadidas.
+- Bloqueo preexistente documentado: 5 tests backend (`aiService.test.js`, `deckRecovery.test.js`) fallan por configuración de modelo IA del entorno, idénticos en el HEAD anterior `b0b36e6`.
 - **Corte 1 — NO implementado** (requiere aprobación humana de los puntos 1–6). IMG-RENDER permanece PARTIAL — PENDING — DEVICE REQUIRED.
 
 ## Estado final de esta fase

@@ -210,3 +210,53 @@ test('E: the resolver preserves all other card fields', () => {
   assert.equal(resolved.bgImage, BG_SHARED);
   assert.deepEqual(rest, expected, 'todos los campos restantes se conservan idénticos');
 });
+
+// ---------------------------------------------------------------------------
+// Precedencia dual (corrección puntual) — bgImageIndex manda cuando existe;
+// bgImage es fallback exclusivo de tarjetas sin bgImageIndex.
+// Alineado con migration-rollout-rollback.md (campo dual: el cliente nuevo
+// usa backgrounds + bgImageIndex e ignora bgImage).
+// ---------------------------------------------------------------------------
+
+test('dual A: an indexed card with both fields resolves from backgrounds, not bgImage', () => {
+  const dual = legacyCardFixture(1, { bgImageIndex: 0, bgImage: BG_BLUE });
+
+  assert.equal('bgImageIndex' in dual, true);
+  assert.equal(resolveCardBackground(dual, [BG_RED]), BG_RED, 'el índice manda sobre bgImage');
+});
+
+test('dual B: bgImageIndex -1 with a populated bgImage resolves to empty', () => {
+  const dual = legacyCardFixture(1, { bgImageIndex: -1, bgImage: BG_BLUE });
+
+  assert.equal(resolveCardBackground(dual, [BG_RED]), '', 'sin fondo indexado => "" aunque bgImage esté poblado');
+});
+
+test('dual C: an out-of-range index with a populated bgImage resolves to empty', () => {
+  const dual = legacyCardFixture(1, { bgImageIndex: 99, bgImage: BG_BLUE });
+
+  assert.equal(resolveCardBackground(dual, [BG_RED]), '', 'índice inválido => "" sin rescate de bgImage');
+});
+
+test('dual D: a truly legacy card without bgImageIndex resolves its bgImage', () => {
+  const legacy = legacyCardFixture(1, { bgImage: BG_BLUE });
+
+  assert.equal(resolveCardBackground(legacy, [BG_RED]), BG_BLUE, 'shape sin indexar usa bgImage como fallback');
+});
+
+test('dual E: the legacy fixture never carries bgImageIndex', () => {
+  assert.equal('bgImageIndex' in legacyCardFixture(1, { bgImage: BG_SHARED }), false);
+  assert.equal('bgImageIndex' in legacyCardFixture(2), false);
+});
+
+test('dual F: the resolver remains immutable with dual-shape cards', () => {
+  const cards = [legacyCardFixture(1, { bgImageIndex: 0, bgImage: BG_BLUE })];
+  const backgrounds = [BG_RED];
+  const cardsBefore = structuredClone(cards);
+  const backgroundsBefore = structuredClone(backgrounds);
+
+  const resolved = resolveBackgrounds(deepFreeze(cards), deepFreeze(backgrounds));
+
+  assert.equal(resolved[0].bgImage, BG_RED);
+  assert.deepEqual(cards, cardsBefore, 'las tarjetas originales no cambian');
+  assert.deepEqual(backgrounds, backgroundsBefore, 'el diccionario no cambia');
+});

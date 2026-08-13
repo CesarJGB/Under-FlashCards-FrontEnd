@@ -41,13 +41,18 @@ export function cardFixture(seed, overrides = {}) {
 }
 
 // Tarjeta con bgImage expandido (shape legacy entregado por la API actual).
+// Una tarjeta legacy contiene `bgImage` y NO contiene `bgImageIndex`. Sólo
+// si el caller pasa `bgImageIndex` explícitamente se genera una tarjeta dual
+// (para las pruebas de precedencia), nunca por herencia del fixture base.
 export function legacyCardFixture(seed, overrides = {}) {
   const { bgImage, bgImageIndex, ...rest } = { ...overrides };
-  return {
+  const card = {
     ...cardFixture(seed, rest),
     bgImage: bgImage ?? '',
-    ...('bgImageIndex' in overrides ? { bgImageIndex } : {}),
   };
+  delete card.bgImageIndex;
+  if ('bgImageIndex' in overrides) card.bgImageIndex = bgImageIndex;
+  return card;
 }
 
 // Payload legacy sintético: shape exacto que devuelve Flashcard.serialize()
