@@ -5,6 +5,10 @@
 // (generateCoverThumbnail devuelve '' sin lanzar cuando no puede producir una
 // miniatura); aquí se cubre la geometría, el plan de intentos y la validación
 // de la Data URL.
+//
+// Corrección puntual post-cierre — pruebas deterministas del rastreador de
+// generaciones (frontend/src/lib/coverThumbnailTracker.js): cancelación segura
+// al eliminar la portada e intercalación de selecciones A/B.
 
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -15,6 +19,15 @@ import {
   targetThumbDimensions,
   planThumbnailAttempts,
 } from '../../src/lib/coverThumbnail.js';
+import {
+  createCoverThumbnailTracker,
+  beginThumbnailGeneration,
+  trackThumbnailPromise,
+  isCurrentThumbnailToken,
+  cancelThumbnailGeneration,
+  getPendingThumbnail,
+} from '../../src/lib/coverThumbnailTracker.js';
+import { buildDeckCoverPayload } from '../../src/lib/imageDelivery.js';
 
 test('thumb: THUMB_BUDGET_CHARS is the ~24 KiB data URL target', () => {
   assert.equal(THUMB_BUDGET_CHARS, 24 * 1024);
@@ -83,4 +96,91 @@ test('thumb: isReasonableImageDataUrl rejects non-raster, empty or oversized val
   assert.equal(isReasonableImageDataUrl('data:text/html;base64,AAAA'), false);
   assert.equal(isReasonableImageDataUrl('data:image/webp;base64,'), false);
   assert.equal(isReasonableImageDataUrl(`data:image/webp;base64,${'A'.repeat(300 * 1024)}`), false);
+});
+
+// ===========================================================================
+// CORRECCIÓN PUNTUAL POST-CORTE 2 — cancelación segura de miniaturas pendientes
+// ===========================================================================
+
+const THUMB_A = `data:image/webp;base64,${'A'.repeat(2000)}`;
+const THUMB_B = `data:image/webp;base64,${'B'.repeat(2000)}`;
+
+// Espejo determinista del guard del componente: sólo el token vigente puede
+// escribir coverThumb (misma condición que DeckModal usa en el .then).
+function applyThumbResult(tracker, token, thumb) {
+  return isCurrentThumbnailToken(tracker, token) ? thumb : '';
+}
+
+test('tracker: select then remove before finishing — the late completion never restores the thumbnail', async () => {
+  const tracker = createCoverThumbnailTracker();
+  const token = beginThumbnailGeneration(tracker);
+  const late = Promise.resolve(THUMB_A);
+  assert.equal(trackThumbnailPromise(tracker, token, late), true);
+  assert.equal(getPendingThumbnail(tracker), late, 'la generación vigente está pendiente');
+
+  cancelThumbnailGeneration(tracker); // usuario pulsa "Quitar imagen"
+  assert.equal(isCurrentThumbnailToken(tracker, token), false, 'el token quedó invalidado');
+
+  const finished = await late; // la generación termina DESPUÉS de eliminar
+  const coverThumb = applyThumbResult(tracker, token, finished);
+  assert.equal(coverThumb, '', 'la finalización tardía no restaura la miniatura');
+  assert.equal(getPendingThumbnail(tracker), null, 'la promesa vieja no puede ser esperada por el guardado');
+
+  const payload = buildDeckCoverPayload({ isEditing: true, coverChanged: true, coverImage: '', coverThumb });
+  assert.deepEqual(payload, { coverImage: '', coverImageThumb: '' }, 'eliminar → guardar envía ambos campos vacíos');
+});
+
+test('tracker: select A then select B before A finishes — A is ignored and only B can update or be saved', async () => {
+  const tracker = createCoverThumbnailTracker();
+  const tokenA = beginThumbnailGeneration(tracker);
+  let resolveA;
+  const promiseA = new Promise((resolve) => { resolveA = resolve; });
+  assert.equal(trackThumbnailPromise(tracker, tokenA, promiseA), true);
+
+  const tokenB = beginThumbnailGeneration(tracker); // B se selecciona antes de terminar A
+  assert.equal(isCurrentThumbnailToken(tracker, tokenA), false);
+  assert.equal(getPendingThumbnail(tracker), null, 'comenzar B neutraliza la pendiente de A');
+  assert.equal(trackThumbnailPromise(tracker, tokenA, Promise.resolve(THUMB_A)), false, 'A ya no puede registrar su promesa');
+
+  resolveA(THUMB_A);
+  await promiseA; // A termina después
+  let coverThumb = applyThumbResult(tracker, tokenA, THUMB_A);
+  assert.equal(coverThumb, '', 'A termina después y se ignora');
+
+  const promiseB = Promise.resolve(THUMB_B);
+  assert.equal(trackThumbnailPromise(tracker, tokenB, promiseB), true);
+  assert.equal(getPendingThumbnail(tracker), promiseB, 'sólo la generación vigente puede ser esperada');
+
+  await promiseB;
+  coverThumb = applyThumbResult(tracker, tokenB, THUMB_B);
+  assert.equal(coverThumb, THUMB_B, 'sólo B actualiza el estado');
+
+  const payload = buildDeckCoverPayload({ isEditing: true, coverChanged: true, coverImage: 'full', coverThumb });
+  assert.deepEqual(payload, { coverImage: 'full', coverImageThumb: THUMB_B }, 'sólo B puede guardarse');
+});
+
+test('tracker: remove then save sends the exact payload with both image fields empty', () => {
+  const tracker = createCoverThumbnailTracker();
+  beginThumbnailGeneration(tracker);
+  cancelThumbnailGeneration(tracker);
+  assert.equal(getPendingThumbnail(tracker), null);
+
+  // El componente conserva coverChanged = true tras cancelar.
+  const payload = buildDeckCoverPayload({ isEditing: true, coverChanged: true, coverImage: '', coverThumb: '' });
+  assert.deepEqual(payload, { coverImage: '', coverImageThumb: '' });
+});
+
+test('tracker: editing metadata only still omits both image fields after the fix', () => {
+  const tracker = createCoverThumbnailTracker();
+  beginThumbnailGeneration(tracker);
+  const payload = buildDeckCoverPayload({ isEditing: true, coverChanged: false, coverImage: '', coverThumb: THUMB_A });
+  assert.deepEqual(payload, {}, 'la miniatura nunca sustituye a la portada completa en escrituras');
+  assert.equal(getPendingThumbnail(tracker), null, 'sin cambio de portada no hay promesa que esperar');
+});
+
+test('tracker: a fresh tracker starts with no token activity and no pending promise', () => {
+  const tracker = createCoverThumbnailTracker();
+  assert.equal(tracker.token, 0);
+  assert.equal(getPendingThumbnail(tracker), null);
+  assert.equal(isCurrentThumbnailToken(tracker, 0), true);
 });

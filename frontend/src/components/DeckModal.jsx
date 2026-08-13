@@ -4,6 +4,14 @@ import { X, Loader2, Check, Sparkles, Upload, ChevronLeft } from 'lucide-react';
 import { useKeyboardHeight } from '../hooks/useKeyboardHeight';
 import { DECK_COLOR_SWATCHES } from '../lib/deckColors';
 import { generateCoverThumbnail } from '../lib/coverThumbnail';
+import {
+  createCoverThumbnailTracker,
+  beginThumbnailGeneration,
+  trackThumbnailPromise,
+  isCurrentThumbnailToken,
+  cancelThumbnailGeneration,
+  getPendingThumbnail,
+} from '../lib/coverThumbnailTracker';
 import { buildDeckCoverPayload } from '../lib/imageDelivery';
 
 const fileToBase64 = (file) =>
@@ -27,8 +35,12 @@ export default function DeckModal({ initial, onClose, onSave, nameOnly = false, 
   const [coverImage, setCoverImage] = useState(initial?.coverImage || '');
   const [coverThumb, setCoverThumb] = useState(initial?.coverImageThumb || '');
   const [coverChanged, setCoverChanged] = useState(false);
-  const fileTokenRef = useRef(0);
-  const pendingThumbRef = useRef(null);
+  // Rastreador puro de generaciones de miniatura en curso: garantiza que una
+  // generación obsoleta no escriba coverThumb ni sea esperada por el guardado.
+  const thumbTrackerRef = useRef(null);
+  if (thumbTrackerRef.current === null) {
+    thumbTrackerRef.current = createCoverThumbnailTracker();
+  }
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [step, setStep] = useState('main'); // 'main' | 'customization'
@@ -46,28 +58,36 @@ export default function DeckModal({ initial, onClose, onSave, nameOnly = false, 
       return;
     }
     setError('');
-    const token = fileTokenRef.current + 1;
-    fileTokenRef.current = token;
+    // Cada selección invalida cualquier generación anterior: sólo la última
+    // puede actualizar el estado o guardarse.
+    const token = beginThumbnailGeneration(thumbTrackerRef.current);
     try {
       // La portada completa queda disponible de inmediato; la miniatura se
       // genera después sin bloquear la previsualización.
       const base64 = await fileToBase64(file);
-      if (token !== fileTokenRef.current) return;
+      if (!isCurrentThumbnailToken(thumbTrackerRef.current, token)) return;
       setCoverImage(base64);
       setCoverThumb('');
       setCoverChanged(true);
       const thumbPromise = generateCoverThumbnail(file).then((thumb) => {
-        if (token === fileTokenRef.current) setCoverThumb(thumb);
+        if (isCurrentThumbnailToken(thumbTrackerRef.current, token)) setCoverThumb(thumb);
         return thumb;
       });
-      pendingThumbRef.current = thumbPromise;
+      trackThumbnailPromise(thumbTrackerRef.current, token, thumbPromise);
       await thumbPromise;
     } catch {
-      setError('Error al procesar la imagen.');
+      if (isCurrentThumbnailToken(thumbTrackerRef.current, token)) {
+        setError('Error al procesar la imagen.');
+      }
     }
   };
 
   const handleRemoveCover = () => {
+    // Cancelación segura: invalida el token (la finalización tardía de una
+    // miniatura pendiente no podrá restaurar coverThumb) y neutraliza la
+    // promesa pendiente (el guardado no la esperará). coverChanged se
+    // conserva true para que el payload envíe ambos campos vacíos.
+    cancelThumbnailGeneration(thumbTrackerRef.current);
     setCoverImage('');
     setCoverThumb('');
     setCoverChanged(true);
@@ -85,9 +105,13 @@ export default function DeckModal({ initial, onClose, onSave, nameOnly = false, 
       }
       const payload = { title: title.trim() };
       if (coverColorTouched) payload.coverColor = coverColor;
+      const tracker = thumbTrackerRef.current;
+      const submitToken = tracker.token;
       let thumb = coverThumb;
-      if (coverChanged && pendingThumbRef.current) {
-        thumb = await pendingThumbRef.current.catch(() => '');
+      const pending = getPendingThumbnail(tracker);
+      if (coverChanged && pending) {
+        thumb = await pending.catch(() => '');
+        if (tracker.token !== submitToken) thumb = ''; // la portada cambió durante la espera
       }
       Object.assign(
         payload,

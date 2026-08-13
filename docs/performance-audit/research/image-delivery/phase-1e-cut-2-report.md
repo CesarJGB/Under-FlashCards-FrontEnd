@@ -75,6 +75,23 @@ La negociación vive en una única utilidad productiva (`backend/src/utils/image
 - La miniatura nunca se usa como sustituto del archivo completo en escrituras, exportación o edición.
 - Backend: `updateDeck` sólo escribe los campos de imagen presentes en el body (`buildDeckImageFields`); una actualización de metadatos no modifica ninguna imagen; la miniatura inválida o excesiva se normaliza a `''` sin afectar clientes que no envían el campo.
 
+## Corrección puntual post-cierre — Cancelación segura de miniaturas pendientes
+
+**Problema confirmado**: en el commit `ae29297`, `handleRemoveCover()` vaciaba `coverImage` y `coverThumb` pero no invalidaba el token ni neutralizaba la promesa pendiente de `generateCoverThumbnail`. Una miniatura que terminara después de pulsar "Quitar imagen" podía restaurar `coverThumb` y el guardado podía enviar `{ coverImage: '', coverImageThumb: <miniatura anterior> }`, violando el contrato del Corte 2 (eliminar debe limpiar ambos campos).
+
+**Corrección implementada**:
+
+- Nueva utilidad pura `frontend/src/lib/coverThumbnailTracker.js` (sin React ni APIs del navegador): `beginThumbnailGeneration`, `trackThumbnailPromise`, `isCurrentThumbnailToken`, `cancelThumbnailGeneration`, `getPendingThumbnail`.
+- `DeckModal.jsx` usa el rastreador en un ref:
+  - Seleccionar archivo: `beginThumbnailGeneration` invalida cualquier generación anterior; la promesa se registra sólo si su token sigue vigente; el `.then` escribe `coverThumb` sólo con token vigente; el error de una generación obsoleta tampoco toca el estado.
+  - Eliminar portada (`handleRemoveCover`): `cancelThumbnailGeneration` invalida el token y neutraliza la promesa; vacía `coverImage` y `coverThumb`; conserva `coverChanged = true` (payload con ambos campos vacíos).
+  - Guardar (`handleSubmit`): espera únicamente la promesa pendiente vigente (`getPendingThumbnail`); si la portada cambió durante la espera (token distinto), descarta la miniatura obsoleta. Tras una eliminación no hay promesa que esperar y el payload es exactamente `{ coverImage: '', coverImageThumb: '' }`.
+- Intercalación A/B verificada: seleccionar B antes de terminar A invalida A (token + promesa); A no puede actualizar el estado ni registrarse ni guardarse; sólo B lo hace.
+
+**Pruebas nuevas (deterministas, `node --test`, sin jsdom/Jest/Vitest)**: 5 pruebas en `frontend/tests/image-delivery/cover-thumbnail.test.js` (sección tracker) — seleccionar→eliminar→la finalización tardía no restaura la miniatura y el guardado envía ambos vacíos; A→B con A terminando después se ignora y sólo B puede actualizarse/guardarse; eliminar→guardar con payload exacto de ambos campos vacíos; editar sólo metadatos sigue omitiendo ambos campos; tracker fresco sin actividad. `npm run test:image-delivery` pasa de 57 a **62 tests, 62 pass, 0 fail**.
+
+**Sin cambios** en UI, textos, backend, contratos, tamaños, calidad, almacenamiento ni comportamiento ajeno. El commit es `fix: cancel stale deck cover thumbnails`.
+
 ## Compatibilidad frontend/backend en ambas direcciones
 
 - **Frontend nuevo + backend anterior**: el backend ignora `cover=thumbnail` (sirve el contrato legacy o el del Corte 1); `resolveDeckCover` usa `coverImage`; `sanitizeDeckSummaries` acepta ambos shapes. Sin cambios en caché/almacenamiento.
@@ -158,11 +175,11 @@ No destructivo y sin migración inversa:
 
 ## Veredicto
 
-**PASS**
+**PASS** (reafirmado tras la corrección puntual de cancelación de miniaturas pendientes)
 
 - Tres variantes de contrato coexistiendo exactamente como se exigió, negociadas por una única utilidad productiva; legacy y Corte 1 congelados (verificados por tests).
 - Miniaturas generadas en el frontend con presupuesto de ~24 KiB, sin dependencias nuevas y sin bloquear el guardado ante fallos de canvas/decodificación.
-- Protección del flujo de edición implementada y probada: editar metadatos no toca imágenes; la miniatura nunca sustituye a la portada completa.
+- Protección del flujo de edición implementada y probada: editar metadatos no toca imágenes; la miniatura nunca sustituye a la portada completa; la carrera asíncrona de eliminación con miniatura pendiente quedó corregida y cubierta por pruebas deterministas (token invalidation + neutralización de la promesa).
 - Presupuesto de 500 mazos con miniatura cumplido con la implementación productiva (11.91 MiB ≤ 15 MiB; mediana stringify 43.81 ms ≤ 60 ms); perfiles legacy y mixto medidos y documentados honestamente.
-- Suites completas: backend 51/51 de contratos; 87/92 total con los mismos 5 fallos preexistentes; frontend 57/57, 58/58, 44/44, 8/8; build OK; `git diff --check` limpio.
+- Suites completas tras la corrección: backend 51/51 de contratos; 87/92 total con los mismos 5 fallos preexistentes; frontend 62/62, 58/58, 44/44, 8/8; build OK; `git diff --check` limpio.
 - Sin cambios de almacenamiento, caché, TTL, navegación, búsqueda/orden, jerarquía académica, editor de tarjetas, repaso, sesiones, PDF ni dependencias. Cortes 3–5 sin implementar.
