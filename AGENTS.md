@@ -1,41 +1,190 @@
-# AGENTS.md
+# Under Flashcards
 
-Flashcard app (Spanish-language codebase). Two independent npm packages — no root scripts, no linter, no typecheck, no CI. Do not invent commands that don't exist.
+Spanish-language flashcard application. The repository contains two independent npm packages. There are no root scripts, no configured linter, no TypeScript typecheck, and no CI workflow. Do not invent commands that do not exist.
 
-## Layout
+## Repository layout
 
-- `backend/` — Node >=18, CommonJS, Express + Mongoose (MongoDB). Entry `src/server.js` (port `8001`, env `PORT`); all routes mount under `/api` there. Controllers in `src/controllers`, pure logic in `src/utils`, AI pipeline in `src/services/aiService.js`.
-- `frontend/` — React 18 + Vite 5 + Tailwind 3, ESM. Entry `src/main.jsx`. Dev server runs on port **3000** (strictPort), not 5173 (README is stale). `@` alias → `frontend/src`. `src/components/ui/` are shadcn-style (Radix + cva).
-- `docs/platform-limitations/README.md` — **mandatory reading before any mobile UI change** (viewport, keyboard, focus, overlays, scroll): `ScheduleCalendar`, `ManualCardEditorModal`, `ActionSheet`, textareas. It maps each component to the specialist docs to read first.
-- Root `*.md` files (`Hola.md`, `cambios.md`, `ideas.md`, ...) are old agent-conversation logs — ignore. `README.md` is only partially current; its "AI generation tuning" section is accurate. `frontend/README.md` is CRA boilerplate — ignore.
+- `backend/` — Node.js >=18, CommonJS, Express and Mongoose. Entry point: `src/server.js`. Default port: `8001`, configurable with `PORT`. Routes mount under `/api`.
+- `backend/src/controllers/` — HTTP controllers.
+- `backend/src/utils/` — reusable and preferably pure logic.
+- `backend/src/services/aiService.js` — AI generation pipeline.
+- `frontend/` — React 18, Vite 5, Tailwind 3 and ESM.
+- `frontend/src/main.jsx` — frontend entry point.
+- `frontend/src/components/ui/` — shadcn-style components built with Radix and cva.
+- `@` resolves to `frontend/src`.
+- The frontend development server uses port `3000` with `strictPort`; references to port 5173 in old documentation may be stale.
 
-## Commands
+## Authoritative documentation
 
-Backend (`workdir backend/`):
+Before modifying mobile UI behavior involving viewport, keyboard, focus, overlays, scrolling, textareas, `ScheduleCalendar`, `ManualCardEditorModal`, or `ActionSheet`, read:
 
-- `npm start` / `npm run dev` (node --watch). Needs `backend/.env` (gitignored; no committed `.env.example`).
-- `npm test` = `node --test test/*.test.js` — pure unit tests, **no DB or network needed**. **Currently 87/92 pass; 5 known stale failures** in `test/aiService.test.js` and `test/deckRecovery.test.js` asserting the old `deepseek-chat` / separate generate-then-audit pipeline. Production now pins OpenRouter `deepseek/deepseek-v4-flash-0731` with a combined generate+audit call. Update those tests; they are not regressions.
-- Tests colocated under `src/` (e.g. `src/services/semantic/semantic.test.js`) are **not** picked up by `npm test` — run explicitly: `node --test src/services/semantic/semantic.test.js`.
-- One-off Mongo migrations: `npm run migrate:materia-share-index`, `npm run migrate:schedule-attendance`.
-- `npm run benchmark:ai` / `benchmark:ai-v2` hit the real LLM provider — require env keys and `BENCHMARK_USER_ID`; they cost tokens.
+- `docs/platform-limitations/README.md`
 
-Frontend (`workdir frontend/`):
+Follow the component-specific documents referenced from that index.
 
-- `npm run dev` (port 3000), `npm run build` (works; chunk-size warnings are benign), `npm run preview`.
-- Unit suites (`node --test`, colocated `*.test.js`) — all currently pass: `npm run test:schedule`, `npm run test:manual-editor:unit`, `npm run test:image-delivery`, `npm run test:pdf-extraction`.
-- E2E: `npm run test:manual-editor` (Playwright) — `playwright.config.js` auto-starts a Vite harness on `127.0.0.1:4174` (`tests/manual-editor/`), runs chromium/webkit/firefox at mobile viewports, locale `es-MX`. Browsers already installed (`npx playwright install` if not). `npm run test:manual-editor:all` = unit + e2e.
+Root Markdown files such as `Hola.md`, `cambios.md`, and `ideas.md` are old agent-conversation logs and are not authoritative.
 
-## Env & auth
+The root `README.md` is only partially current. Its AI generation tuning section remains relevant.
 
-- Frontend needs `VITE_GOOGLE_CLIENT_ID` (without it, `App` renders nothing) and `VITE_BACKEND_URL`, from `frontend/.env.local`. `vite.config.js` accepts both `VITE_` and `REACT_APP_` prefixes. **Never hardcode the backend URL or add fallbacks/redirects — it breaks auth** (comment in `vite.config.js`).
-- Backend CORS allows only `FRONTEND_URL` entries (comma-separated) plus localhost:3000/5173. Google sign-in requires `GOOGLE_CLIENT_ID` and the dev origin registered in Google Cloud Console.
-- Dev auth bypass: with `ALLOW_DEV_USER_ID=true` in backend env, requests authenticate via an `x-user-id` header without any Google token (`authController.js` `protect`). Opt-in only — never in production.
-- New accounts need an invite code (`INVITE_REQUIRED` error); `InviteCodeManager` issues them.
-- AI generation: OpenRouter, pinned model `deepseek/deepseek-v4-flash-0731` (`backend/src/services/aiService.js`). Tune via `AI_*` env vars (full list and ranges in README "AI generation tuning"). Frontend `VITE_MAX_AI_CARDS` must match backend `AI_MAX_CARDS`; `VITE_AI_GENERATION_MODE=v1` rolls back to the legacy pipeline.
+`frontend/README.md` is CRA boilerplate and should not be treated as project documentation.
 
-## Conventions & gotchas
+## Backend commands
 
-- Code comments, docs, and commit messages are predominantly Spanish — match the surrounding language.
-- Image delivery payloads (`bgImage` / `coverImageThumb`, `?contract=indexed&cover=thumbnail`) are deliberately frozen and covered by contract tests on both sides (`backend/test/imageDeliveryContracts.test.js`, `frontend/tests/image-delivery/`) — change code and contracts together.
-- PDF export uses a Vite web worker (`frontend/src/utils/pdf/pdfExport.worker.js`); keep `worker.format: 'es'` in the vite configs.
-- `frontend/vite.config.js` sets HMR to `wss` on port 443 (Cloudflare Pages deploy); local dev works normally but don't "fix" it.
+Run these commands from `backend/`.
+
+- `npm start`
+- `npm run dev`
+- `npm test`
+- `node --test src/services/semantic/semantic.test.js`
+- `npm run migrate:materia-share-index`
+- `npm run migrate:schedule-attendance`
+- `npm run benchmark:ai`
+- `npm run benchmark:ai-v2`
+
+`npm test` runs:
+
+```text
+node --test test/*.test.js
+```
+
+These are unit tests and should not require MongoDB or network access.
+
+Some tests may still describe the previous `deepseek-chat` model or the separate generate-then-audit pipeline. Never assume a failure is stale. Reproduce it, compare it with current production behavior, and report evidence before modifying either code or tests.
+
+Tests colocated under `backend/src/` are not automatically included by `npm test`. Run the relevant file explicitly.
+
+The benchmark commands contact the real model provider, require credentials and `BENCHMARK_USER_ID`, and consume tokens. Do not run them unless explicitly requested.
+
+## Frontend commands
+
+Run these commands from `frontend/`.
+
+- `npm run dev`
+- `npm run build`
+- `npm run preview`
+- `npm run test:schedule`
+- `npm run test:manual-editor:unit`
+- `npm run test:image-delivery`
+- `npm run test:pdf-extraction`
+- `npm run test:manual-editor`
+- `npm run test:manual-editor:all`
+
+`npm run build` may produce chunk-size warnings. Do not treat them as build failures without additional evidence.
+
+The focused unit suites use Node's test runner and colocated `*.test.js` files.
+
+`npm run test:manual-editor` runs Playwright using `playwright.config.js`. It starts a Vite harness on `127.0.0.1:4174` and tests mobile viewports in Chromium, WebKit, and Firefox with locale `es-MX`.
+
+Playwright browser executables may be unavailable in the current environment. Do not install them automatically unless explicitly requested. Report the exact blocker and continue with available deterministic checks.
+
+`npm run test:manual-editor:all` runs the manual-editor unit and E2E checks.
+
+## Environment and authentication
+
+The backend requires `backend/.env`. It is gitignored and there is no committed `.env.example`.
+
+The frontend uses `frontend/.env.local` and requires:
+
+- `VITE_GOOGLE_CLIENT_ID`
+- `VITE_BACKEND_URL`
+
+Without `VITE_GOOGLE_CLIENT_ID`, `App` may render nothing.
+
+`vite.config.js` accepts both `VITE_` and `REACT_APP_` prefixes.
+
+Never hardcode a backend URL or introduce URL fallbacks or redirects. This can break authentication.
+
+Backend CORS accepts origins from `FRONTEND_URL`, separated by commas, in addition to the configured localhost origins.
+
+Google sign-in requires `GOOGLE_CLIENT_ID` and the development origin registered in Google Cloud Console.
+
+For development only, `ALLOW_DEV_USER_ID=true` allows authentication through the `x-user-id` header. Never enable or recommend this for production.
+
+New accounts may require an invitation code and return `INVITE_REQUIRED`. `InviteCodeManager` manages those codes.
+
+## AI generation
+
+AI generation uses OpenRouter. The production model is configured in:
+
+```text
+backend/src/services/aiService.js
+```
+
+The expected model is:
+
+```text
+deepseek/deepseek-v4-flash-0731
+```
+
+AI behavior is configured through `AI_*` environment variables documented in the root README under AI generation tuning.
+
+`VITE_MAX_AI_CARDS` must remain compatible with backend `AI_MAX_CARDS`.
+
+`VITE_AI_GENERATION_MODE=v1` enables the legacy pipeline.
+
+Do not change the model, generation pipeline, token limits, auditing behavior, or provider settings as part of an unrelated task.
+
+## Project conventions and protected contracts
+
+Comments, documentation, and commit messages are predominantly Spanish. Match the language used by the surrounding code.
+
+Image delivery payloads involving `bgImage`, `coverImageThumb`, `contract=indexed`, and `cover=thumbnail` are protected by contract tests on both frontend and backend.
+
+Relevant tests include:
+
+- `backend/test/imageDeliveryContracts.test.js`
+- `frontend/tests/image-delivery/`
+
+When intentionally modifying an image-delivery contract, update production code and the corresponding contract tests together. Do not change these contracts incidentally.
+
+PDF export uses a Vite web worker:
+
+```text
+frontend/src/utils/pdf/pdfExport.worker.js
+```
+
+Keep `worker.format: "es"` in the relevant Vite configurations.
+
+`frontend/vite.config.js` configures HMR with `wss` on port `443` for deployment behind Cloudflare. Do not change it as an unrelated local-development fix.
+
+## Working protocol
+
+Before editing:
+
+- Run `git status --short`.
+- Preserve unrelated changes already present in the worktree.
+- Identify the objective, scope, exclusions, and acceptance criteria.
+- Read the relevant implementation, consumers, tests, and authoritative documentation.
+- Treat assumptions as hypotheses until verified through code, tests, logs, or authoritative documentation.
+- For multi-step tasks, establish a compact plan before implementation.
+
+During implementation:
+
+- Make the smallest cohesive change that satisfies the request.
+- Stay within the explicitly authorized scope.
+- Avoid unrelated refactors, dependencies, abstractions, migrations, and compatibility layers.
+- Read a file before modifying it.
+- Search for consumers before moving, renaming, or deleting code.
+- Preserve existing behavior unless the requested change explicitly modifies it.
+- Do not repeat an identical failed command. Read the error and adjust the approach.
+- After three failures caused by the same blocker, stop and report the evidence.
+- Do not modify tests merely to make an implementation pass.
+
+Verification:
+
+- Run the narrowest relevant tests first.
+- Run broader suites or builds only when justified by the affected area.
+- Do not run network-dependent, credential-dependent, or token-consuming commands unless explicitly requested.
+- Run `git diff --check`.
+- Inspect `git status --short`.
+- Review the complete relevant diff before finishing.
+- Never claim that a check passed unless the command actually completed successfully.
+- Distinguish verified behavior, inferred behavior, and unverified behavior.
+
+Delivery:
+
+- Explain what changed and why.
+- List every modified file.
+- Report the exact verification commands and their results.
+- Disclose blockers, remaining risks, and unverified behavior.
+- Do not commit or push unless explicitly requested.
