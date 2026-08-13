@@ -30,6 +30,7 @@ Las entradas no rastreadas no se modificaron, no se leyeron como evidencia y no 
 - [migration-rollout-rollback.md](./migration-rollout-rollback.md): migración gradual, convivencia dual y rollback.
 - [implementation-cuts.md](./implementation-cuts.md): plan por cortes (Corte 0 a Corte 5) con contratos, pruebas, métricas de aceptación, rollback y riesgos.
 - [implementation-readiness.md](./implementation-readiness.md): gates de implementación y autorizaciones pendientes.
+- [phase-1c-cut-0-report.md](./phase-1c-cut-0-report.md): cierre de la Fase 1C — Corte 0 terminado (contratos y pruebas de caracterización; 25/25 contract tests verdes, sin cambios productivos).
 - [raw-results.json](./raw-results.json): esquema `1.2.0`, 175 resultados de contrato (112 respuestas de tarjetas, 60 listas de mazos, 3 BSON) con 40,002 invariantes aprobadas y 0 fallidas. Sólo tamaños y tiempos; no contiene Base64.
 
 El harness está en `frontend/tests/performance/image-delivery/run-delivery-baseline.mjs` (no productivo; sin dependencias nuevas; reutiliza la `bson` ya instalada en `backend/node_modules`).

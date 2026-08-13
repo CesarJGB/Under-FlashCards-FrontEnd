@@ -44,6 +44,12 @@ Esta fase **recomienda** implementar la [arquitectura recomendada](./recommended
 - Se confirma que las suites existentes siguen verdes en el HEAD de trabajo.
 - No se requiere cierre de IMG-RENDER (PENDING — DEVICE REQUIRED) para los cortes 1–2, que no cambian render ni efectos: se documenta que el beneficio de rendimiento percibido se validará después con dispositivo físico.
 
+## Estado del Corte 0 (Fase 1C)
+
+- **Corte 0 — TERMINADO** ([phase-1c-cut-0-report.md](./phase-1c-cut-0-report.md)): contratos legacy y objetivo congelados mediante fixtures; 25/25 contract tests nuevos en verde (13 backend + 12 frontend); resolver cliente de referencia dentro del árbol de pruebas; sin cambios productivos. Suites de caracterización del plan: manual-editor 58/58, schedule 44/44, pdf-extraction 8/8.
+- Bloqueo preexistente documentado: 5 tests backend (`aiService.test.js`, `deckRecovery.test.js`) fallan por configuración de modelo IA del entorno, idénticos en el HEAD base.
+- **Corte 1 — NO implementado** (requiere aprobación humana de los puntos 1–6). IMG-RENDER permanece PARTIAL — PENDING — DEVICE REQUIRED.
+
 ## Estado final de esta fase
 
 | Item | Estado |
