@@ -111,6 +111,24 @@ La negociación vive en una única utilidad productiva (`backend/src/utils/image
 
 **Sin cambios** en backend, contratos, UI visual, textos, calidad, tamaños, almacenamiento ni dependencias. El commit es `fix: abort stale deck cover saves`.
 
+## Cierre final — Proteger la lectura inicial de la portada
+
+**Problema confirmado**: en el commit `fdf6ec2`, `handleFile` iniciaba el token y esperaba `fileToBase64(file)`. Durante esa espera `coverChanged` seguía en `false`, no existía `pendingThumbnail` registrada y el usuario podía pulsar Listo y Guardar: `handleSubmit` guardaba los metadatos **sin** la portada seleccionada.
+
+**Corrección implementada**:
+
+- Nuevo estado `processingCover` (inicial `false`) en `DeckModal`, espejo de render del campo `processing` del rastreador puro (`coverThumbnailTracker.js`), que es la fuente autoritativa de la lógica.
+- Rastreador: `beginThumbnailGeneration` marca `processing = true`; `cancelThumbnailGeneration` lo libera; nuevas funciones puras `isCoverProcessing(tracker)` y `releaseCoverProcessing(tracker, token)` (libera sólo si el token sigue vigente).
+- `handleFile`: activa el procesamiento **antes** de `fileToBase64`; lo mantiene durante la lectura completa y la generación de la miniatura; lo libera únicamente si el token correspondiente sigue vigente; una operación obsoleta no puede terminar el procesamiento de una más reciente; un error vigente libera el procesamiento y conserva el mensaje; un error obsoleto no altera el estado de la operación nueva.
+- `handleRemoveCover`: libera también el procesamiento (sincronización defensiva del estado de render).
+- `handleSubmit`: defensa adicional — si `isCoverProcessing(tracker)` es verdadero, no construye payload ni llama a `onSave` y restablece `saving = false` (no depende del atributo `disabled`).
+- Controles deshabilitados mientras `processingCover = true` (además del bloqueo existente de `saving`): botón Guardar, botón Listo, selector de archivo y Quitar imagen.
+- Se conservan todas las garantías anteriores: token obsoleto no actualiza estado; A→B sólo permite B; guardar durante la espera de miniatura aborta si cambia el token; eliminar envía ambos campos vacíos; editar sólo metadatos omite ambos campos.
+
+**Pruebas nuevas (deterministas, `node --test`, sin jsdom/Jest/Vitest)**: 6 pruebas en `frontend/tests/image-delivery/cover-thumbnail.test.js` (sección processing) — seleccionar archivo con FileReader pendiente ⇒ Guardar bloqueado (sin payload ni `onSave`); terminar la lectura vigente ⇒ el guardado vuelve a estar permitido; lectura A pendiente → seleccionar B → A termina ⇒ A no libera el procesamiento de B; error vigente ⇒ libera el procesamiento; error obsoleto ⇒ no altera el estado de B; tracker fresco sin procesamiento y cancelar lo libera. `npm run test:image-delivery` pasa de 68 a **74 tests, 74 pass, 0 fail** (las 68 anteriores intactas).
+
+**Sin cambios** en backend, contratos, textos, calidad, dimensiones, almacenamiento ni dependencias. El commit es `fix: guard pending deck cover reads`.
+
 ## Compatibilidad frontend/backend en ambas direcciones
 
 - **Frontend nuevo + backend anterior**: el backend ignora `cover=thumbnail` (sirve el contrato legacy o el del Corte 1); `resolveDeckCover` usa `coverImage`; `sanitizeDeckSummaries` acepta ambos shapes. Sin cambios en caché/almacenamiento.
@@ -194,11 +212,11 @@ No destructivo y sin migración inversa:
 
 ## Veredicto
 
-**PASS** (reafirmado tras las correcciones puntuales de cancelación de miniaturas pendientes y de aborto de guardados obsoletos)
+**PASS** (reafirmado tras las correcciones de cancelación de miniaturas pendientes, de aborto de guardados obsoletos y de protección de la lectura inicial de la portada)
 
 - Tres variantes de contrato coexistiendo exactamente como se exigió, negociadas por una única utilidad productiva; legacy y Corte 1 congelados (verificados por tests).
 - Miniaturas generadas en el frontend con presupuesto de ~24 KiB, sin dependencias nuevas y sin bloquear el guardado ante fallos de canvas/decodificación.
-- Protección del flujo de edición implementada y probada: editar metadatos no toca imágenes; la miniatura nunca sustituye a la portada completa; la carrera de eliminación con miniatura pendiente quedó corregida (token + neutralización de promesa) y la carrera de guardado durante la espera quedó corregida con aborto completo del intento obsoleto (sin payload ni `onSave`), ambas cubiertas por pruebas deterministas.
+- Protección del flujo de edición implementada y probada: editar metadatos no toca imágenes; la miniatura nunca sustituye a la portada completa; las carreras de eliminación, guardado durante la espera y guardado durante la lectura inicial de la portada quedaron corregidas con estado explícito y pruebas deterministas (token + neutralización de promesa + procesamiento bloqueante con defensa en el handler).
 - Presupuesto de 500 mazos con miniatura cumplido con la implementación productiva (11.91 MiB ≤ 15 MiB; mediana stringify 43.81 ms ≤ 60 ms); perfiles legacy y mixto medidos y documentados honestamente.
-- Suites completas tras las correcciones: backend 51/51 de contratos; 87/92 total con los mismos 5 fallos preexistentes; frontend 68/68, 58/58, 44/44, 8/8; build OK; `git diff --check` limpio.
+- Suites completas tras las correcciones: backend 51/51 de contratos; 87/92 total con los mismos 5 fallos preexistentes; frontend 74/74, 58/58, 44/44, 8/8; build OK; `git diff --check` limpio.
 - Sin cambios de almacenamiento, caché, TTL, navegación, búsqueda/orden, jerarquía académica, editor de tarjetas, repaso, sesiones, PDF ni dependencias. Cortes 3–5 sin implementar.

@@ -13,14 +13,16 @@
 //   restaura la miniatura y el guardado envía ambos campos vacíos.
 
 export function createCoverThumbnailTracker() {
-  return { token: 0, pending: null };
+  return { token: 0, pending: null, processing: false };
 }
 
 // Inicia una generación: invalida cualquier generación anterior (token +1,
-// pendiente neutralizada) y devuelve el nuevo token vigente.
+// pendiente neutralizada) y marca el procesamiento de la portada (lectura
+// FileReader + generación de miniatura) como activo. Devuelve el nuevo token.
 export function beginThumbnailGeneration(tracker) {
   tracker.token += 1;
   tracker.pending = null;
+  tracker.processing = true;
   return tracker.token;
 }
 
@@ -37,11 +39,26 @@ export function isCurrentThumbnailToken(tracker, token) {
 }
 
 // Cancela cualquier generación pendiente (eliminación explícita de portada):
-// invalida el token y neutraliza la promesa. La finalización tardía no podrá
-// volver a escribir coverThumb ni ser esperada por el guardado.
+// invalida el token, neutraliza la promesa y libera el procesamiento. La
+// finalización tardía no podrá volver a escribir coverThumb ni ser esperada
+// por el guardado.
 export function cancelThumbnailGeneration(tracker) {
   tracker.token += 1;
   tracker.pending = null;
+  tracker.processing = false;
+}
+
+// ¿Hay una lectura/generación de portada en curso? (bloquea Guardar/Listo).
+export function isCoverProcessing(tracker) {
+  return Boolean(tracker.processing);
+}
+
+// Libera el estado de procesamiento sólo si el token sigue vigente: una
+// operación obsoleta no puede terminar el procesamiento de una más reciente.
+export function releaseCoverProcessing(tracker, token) {
+  if (tracker.token !== token) return false;
+  tracker.processing = false;
+  return true;
 }
 
 // Promesa pendiente vigente (o null). Tras cancelar es siempre null.

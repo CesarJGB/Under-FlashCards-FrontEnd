@@ -10,6 +10,8 @@ import {
   trackThumbnailPromise,
   isCurrentThumbnailToken,
   cancelThumbnailGeneration,
+  isCoverProcessing,
+  releaseCoverProcessing,
   resolveSubmitThumbnail,
 } from '../lib/coverThumbnailTracker';
 import { buildDeckCoverPayload } from '../lib/imageDelivery';
@@ -35,6 +37,11 @@ export default function DeckModal({ initial, onClose, onSave, nameOnly = false, 
   const [coverImage, setCoverImage] = useState(initial?.coverImage || '');
   const [coverThumb, setCoverThumb] = useState(initial?.coverImageThumb || '');
   const [coverChanged, setCoverChanged] = useState(false);
+  // Procesamiento de portada en curso (lectura FileReader + generación de la
+  // miniatura): bloquea Guardar/Listo/selector hasta terminar o fallar. El
+  // espejo autoritativo de la lógica vive en el rastreador (ref); el estado
+  // React sólo se usa para re-renderizar los controles.
+  const [processingCover, setProcessingCover] = useState(false);
   // Rastreador puro de generaciones de miniatura en curso: garantiza que una
   // generación obsoleta no escriba coverThumb ni sea esperada por el guardado.
   const thumbTrackerRef = useRef(null);
@@ -59,26 +66,33 @@ export default function DeckModal({ initial, onClose, onSave, nameOnly = false, 
     }
     setError('');
     // Cada selección invalida cualquier generación anterior: sólo la última
-    // puede actualizar el estado o guardarse.
-    const token = beginThumbnailGeneration(thumbTrackerRef.current);
+    // puede actualizar el estado o guardarse. El procesamiento se mantiene
+    // activo durante la lectura completa y la generación de la miniatura.
+    const tracker = thumbTrackerRef.current;
+    const token = beginThumbnailGeneration(tracker);
+    setProcessingCover(true);
     try {
       // La portada completa queda disponible de inmediato; la miniatura se
       // genera después sin bloquear la previsualización.
       const base64 = await fileToBase64(file);
-      if (!isCurrentThumbnailToken(thumbTrackerRef.current, token)) return;
+      if (!isCurrentThumbnailToken(tracker, token)) return; // obsoleta: no toca estado ni procesamiento de B
       setCoverImage(base64);
       setCoverThumb('');
       setCoverChanged(true);
       const thumbPromise = generateCoverThumbnail(file).then((thumb) => {
-        if (isCurrentThumbnailToken(thumbTrackerRef.current, token)) setCoverThumb(thumb);
+        if (isCurrentThumbnailToken(tracker, token)) setCoverThumb(thumb);
         return thumb;
       });
-      trackThumbnailPromise(thumbTrackerRef.current, token, thumbPromise);
+      trackThumbnailPromise(tracker, token, thumbPromise);
       await thumbPromise;
+      if (releaseCoverProcessing(tracker, token)) setProcessingCover(false);
     } catch {
-      if (isCurrentThumbnailToken(thumbTrackerRef.current, token)) {
+      // Error vigente: conserva el mensaje y libera el procesamiento; un
+      // error obsoleto no altera el estado de la operación más reciente.
+      if (isCurrentThumbnailToken(tracker, token)) {
         setError('Error al procesar la imagen.');
       }
+      if (releaseCoverProcessing(tracker, token)) setProcessingCover(false);
     }
   };
 
@@ -88,6 +102,7 @@ export default function DeckModal({ initial, onClose, onSave, nameOnly = false, 
     // promesa pendiente (el guardado no la esperará). coverChanged se
     // conserva true para que el payload envíe ambos campos vacíos.
     cancelThumbnailGeneration(thumbTrackerRef.current);
+    setProcessingCover(false);
     setCoverImage('');
     setCoverThumb('');
     setCoverChanged(true);
@@ -96,6 +111,13 @@ export default function DeckModal({ initial, onClose, onSave, nameOnly = false, 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!title.trim()) return;
+    if (isCoverProcessing(thumbTrackerRef.current)) {
+      // Defensa: aunque Guardar esté deshabilitado, si el evento llega al
+      // handler durante la lectura/generación no se construye payload ni se
+      // llama a onSave; el usuario podrá guardar cuando termine.
+      setSaving(false);
+      return;
+    }
     setSaving(true);
     setError('');
     try {
@@ -241,7 +263,7 @@ export default function DeckModal({ initial, onClose, onSave, nameOnly = false, 
                     </button>
                     <button
                       type="submit"
-                      disabled={saving || !title.trim()}
+                      disabled={saving || processingCover || !title.trim()}
                       className="flex-1 h-12 bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-semibold rounded-2xl hover:from-indigo-700 hover:to-violet-700 active:scale-[0.98] transition-all duration-200 cursor-pointer shadow-lg shadow-indigo-500/25 disabled:opacity-50 flex items-center justify-center gap-2"
                     >
                       {saving ? (
@@ -320,10 +342,10 @@ export default function DeckModal({ initial, onClose, onSave, nameOnly = false, 
                     <label className="block text-sm font-semibold text-slate-700 mb-3">
                       Imagen de portada <span className="text-slate-400 font-normal">(opcional)</span>
                     </label>
-                    <label className={`flex items-center justify-center gap-2 cursor-pointer rounded-xl border-2 border-dashed border-slate-300 px-4 py-3 text-sm font-medium text-slate-600 hover:border-indigo-400 hover:bg-indigo-50/30 hover:text-indigo-600 transition-all duration-200 ${saving ? 'pointer-events-none opacity-50' : ''}`}>
+                    <label className={`flex items-center justify-center gap-2 cursor-pointer rounded-xl border-2 border-dashed border-slate-300 px-4 py-3 text-sm font-medium text-slate-600 hover:border-indigo-400 hover:bg-indigo-50/30 hover:text-indigo-600 transition-all duration-200 ${(saving || processingCover) ? 'pointer-events-none opacity-50' : ''}`}>
                       <Upload className="w-5 h-5" />
                       {previewCover ? 'Cambiar imagen' : 'Subir imagen'}
-                      <input type="file" accept="image/*" onChange={handleFile} disabled={saving} className="hidden" />
+                      <input type="file" accept="image/*" onChange={handleFile} disabled={saving || processingCover} className="hidden" />
                     </label>
                     {previewCover && (
                       <div className="mt-3 flex items-center gap-3">
@@ -331,7 +353,7 @@ export default function DeckModal({ initial, onClose, onSave, nameOnly = false, 
                         <button
                           type="button"
                           onClick={handleRemoveCover}
-                          disabled={saving}
+                          disabled={saving || processingCover}
                           className="text-sm text-red-600 font-medium hover:underline disabled:opacity-50 disabled:pointer-events-none"
                         >
                           Quitar imagen
@@ -344,7 +366,8 @@ export default function DeckModal({ initial, onClose, onSave, nameOnly = false, 
                   <button
                     type="button"
                     onClick={() => setStep('main')}
-                    className="w-full h-12 bg-slate-900 text-white font-semibold rounded-2xl hover:bg-slate-800 active:scale-[0.98] transition-all duration-200 cursor-pointer mt-2"
+                    disabled={saving || processingCover}
+                    className="w-full h-12 bg-slate-900 text-white font-semibold rounded-2xl hover:bg-slate-800 active:scale-[0.98] transition-all duration-200 cursor-pointer mt-2 disabled:opacity-50 disabled:pointer-events-none"
                   >
                     Listo
                   </button>

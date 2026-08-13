@@ -26,6 +26,8 @@ import {
   isCurrentThumbnailToken,
   cancelThumbnailGeneration,
   getPendingThumbnail,
+  isCoverProcessing,
+  releaseCoverProcessing,
   resolveSubmitThumbnail,
 } from '../../src/lib/coverThumbnailTracker.js';
 import { buildDeckCoverPayload } from '../../src/lib/imageDelivery.js';
@@ -291,4 +293,87 @@ test('submit: A then B before saving still ignores A for state and payload', asy
   const outcome = await simulateSubmit(tracker, tokenB, '', 'full-B');
   assert.equal(outcome.aborted, false);
   assert.deepEqual(outcome.payload, { coverImage: 'full-B', coverImageThumb: THUMB_B }, 'sólo B puede guardarse');
+});
+
+// ===========================================================================
+// CIERRE FINAL DEL CORTE 2 — proteger la lectura inicial de la portada
+// ===========================================================================
+
+// Espejo determinista del handleSubmit definitivo: el guardado queda bloqueado
+// si hay una lectura/generación de portada en curso (sin payload y sin onSave);
+// si no, se resuelve la miniatura y se construye el payload como el componente.
+async function simulateSaveAttempt(tracker, submitToken, fallbackThumb, coverImage, coverChanged = true) {
+  if (isCoverProcessing(tracker)) return { blocked: true };
+  const result = await resolveSubmitThumbnail(tracker, submitToken, fallbackThumb);
+  if (result.aborted) return { aborted: true };
+  return {
+    aborted: false,
+    payload: buildDeckCoverPayload({ isEditing: true, coverChanged, coverImage, coverThumb: result.thumb }),
+  };
+}
+
+test('processing: select file, FileReader pending — a save attempt is blocked', async () => {
+  const tracker = createCoverThumbnailTracker();
+  const tokenA = beginThumbnailGeneration(tracker); // handleFile inicia la lectura
+  assert.equal(isCoverProcessing(tracker), true, 'el procesamiento comienza antes de la lectura');
+
+  const attempt = await simulateSaveAttempt(tracker, tokenA, '', 'full-A');
+  assert.equal(attempt.blocked, true, 'Guardar queda bloqueado: sin payload ni onSave');
+  assert.equal('payload' in attempt, false, 'no se construye payload durante la lectura');
+});
+
+test('processing: the current read finishes — saving is allowed again', async () => {
+  const tracker = createCoverThumbnailTracker();
+  const tokenA = beginThumbnailGeneration(tracker);
+  trackThumbnailPromise(tracker, tokenA, Promise.resolve(THUMB_A));
+
+  assert.equal(releaseCoverProcessing(tracker, tokenA), true, 'la operación vigente libera el procesamiento');
+  assert.equal(isCoverProcessing(tracker), false);
+
+  const attempt = await simulateSaveAttempt(tracker, tokenA, '', 'full-A');
+  assert.equal(attempt.aborted, false, 'el guardado vuelve a estar permitido');
+  assert.deepEqual(attempt.payload, { coverImage: 'full-A', coverImageThumb: THUMB_A });
+});
+
+test('processing: pending read A, select B, A finishes — A does not release B processing', () => {
+  const tracker = createCoverThumbnailTracker();
+  const tokenA = beginThumbnailGeneration(tracker);
+  const tokenB = beginThumbnailGeneration(tracker); // B se selecciona (intercalación extrema)
+  assert.equal(isCoverProcessing(tracker), true, 'B sigue en procesamiento');
+
+  assert.equal(isCurrentThumbnailToken(tracker, tokenA), false, 'A quedó obsoleto');
+  assert.equal(releaseCoverProcessing(tracker, tokenA), false, 'A no puede liberar el procesamiento de B');
+  assert.equal(isCoverProcessing(tracker), true, 'el procesamiento de B permanece activo');
+
+  assert.equal(releaseCoverProcessing(tracker, tokenB), true, 'sólo B libera su propio procesamiento');
+  assert.equal(isCoverProcessing(tracker), false);
+});
+
+test('processing: a current error releases the processing state', () => {
+  const tracker = createCoverThumbnailTracker();
+  const tokenA = beginThumbnailGeneration(tracker);
+
+  assert.equal(isCurrentThumbnailToken(tracker, tokenA), true, 'el error es vigente');
+  assert.equal(releaseCoverProcessing(tracker, tokenA), true, 'el error vigente libera el procesamiento');
+  assert.equal(isCoverProcessing(tracker), false, 'Guardar vuelve a estar disponible');
+});
+
+test('processing: a stale error does not alter the newer operation state', () => {
+  const tracker = createCoverThumbnailTracker();
+  const tokenA = beginThumbnailGeneration(tracker);
+  const tokenB = beginThumbnailGeneration(tracker);
+
+  assert.equal(isCurrentThumbnailToken(tracker, tokenA), false, 'el error de A es obsoleto');
+  assert.equal(releaseCoverProcessing(tracker, tokenA), false, 'un error obsoleto no altera el estado de B');
+  assert.equal(isCoverProcessing(tracker), true, 'B sigue procesando');
+});
+
+test('processing: a fresh tracker starts without processing and cancel clears it', () => {
+  const tracker = createCoverThumbnailTracker();
+  assert.equal(isCoverProcessing(tracker), false);
+
+  beginThumbnailGeneration(tracker);
+  assert.equal(isCoverProcessing(tracker), true);
+  cancelThumbnailGeneration(tracker);
+  assert.equal(isCoverProcessing(tracker), false, 'cancelar libera el procesamiento');
 });
