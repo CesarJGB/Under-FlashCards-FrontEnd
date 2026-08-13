@@ -86,3 +86,8 @@ android-sdk/
 credentials.json
 *.key
 .credentials
+
+# Generated artifacts (frontend E2E + stray root lockfile)
+/frontend/playwright-report/
+/frontend/test-results/
+/package-lock.json

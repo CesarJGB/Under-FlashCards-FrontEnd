@@ -100,7 +100,7 @@ Google sign-in requires `GOOGLE_CLIENT_ID` and the development origin registered
 
 For development only, `ALLOW_DEV_USER_ID=true` allows authentication through the `x-user-id` header. Never enable or recommend this for production.
 
-New accounts may require an invitation code and return `INVITE_REQUIRED`. `InviteCodeManager` manages those codes.
+New accounts may require an invitation code and return `INVITE_REQUIRED`. The frontend `InviteCodeManager` manages them through backend `generateInviteCode` in `backend/src/controllers/authController.js`, backed by the `InviteCode` model in `backend/src/models/InviteCode.js`.
 
 ## AI generation
 
