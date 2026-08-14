@@ -22,6 +22,11 @@ const THUMBNAIL_COVER = 'thumbnail';
 const ALLOWED_METHOD = 'GET';
 // Máximo de solicitudes secuenciales por caso (regla del encargo).
 const MAX_SAMPLES_PER_CASE = 5;
+// Límite máximo de maxTimeMS para CUALQUIER consulta MongoDB del harness.
+// Impuesto por construcción: ningún find/aggregate/explain recibe más de
+// 5000 ms, aunque el wrapper local de la promesa pueda añadir un margen de
+// cierre propio (ver withTimeout en el harness).
+const MAX_TIME_MS = 5000;
 // Alias públicos usados en cualquier resultado persistido.
 const PERF_USER_ALIAS = 'real-user-A';
 // Distancia relativa máxima para aceptar un mazo como C20/C100/C500-real
@@ -384,18 +389,81 @@ function summarizeSamples(samples) {
 }
 
 /**
+ * Valida un valor de maxTimeMS para consultas MongoDB: debe ser un entero
+ * entre 1 y MAX_TIME_MS (5000). Devuelve el valor como Number o lanza un
+ * Error. Cualquier consulta del harness (find/aggregate/explain) se ejecuta
+ * con este límite; el margen adicional de cierre del wrapper de promesas es
+ * local y nunca llega a MongoDB.
+ */
+function validateMaxTimeMs(value) {
+  const ms = Number(value);
+  if (!Number.isInteger(ms) || ms < 1 || ms > MAX_TIME_MS) {
+    throw new Error(`maxTimeMS inválido: ${value} (entero entre 1 y ${MAX_TIME_MS} requerido)`);
+  }
+  return ms;
+}
+
+/**
  * Opciones de cursor para una agregación con límite de tiempo.
  * Mongoose 9 no expone Aggregate.maxTimeMS() y MongoDB Atlas rechaza la
  * etapa $maxTimeMS; la forma portátil es la opción del cursor
- * { maxTimeMS } vía Aggregate.option(). Rechaza valores no enteros
- * positivos.
+ * { maxTimeMS } vía Aggregate.option(). Rechaza valores fuera de
+ * 1..MAX_TIME_MS (5000): ninguna consulta recibe más de 5000 ms.
  */
 function buildAggregateOptions(maxTimeMS) {
-  const ms = Number(maxTimeMS);
-  if (!Number.isInteger(ms) || ms < 1) {
-    throw new Error(`maxTimeMS inválido: ${maxTimeMS} (entero ≥ 1 requerido)`);
+  return { maxTimeMS: validateMaxTimeMs(maxTimeMS) };
+}
+
+// ---------------------------------------------------------------------------
+// Estado de la sección api (puro)
+// ---------------------------------------------------------------------------
+
+// Casos que la sección api DEBE medir para declararse MEASURED por completo:
+// la lista de mazos y la apertura de los tres mazos seleccionados.
+const API_EXPECTED_CASES = ['deck-list', 'C20-real', 'C100-real', 'C500-real'];
+
+/**
+ * Clasifica el estado global de la sección api a partir de los casos
+ * resueltos. La sección sólo es MEASURED cuando TODOS los casos esperados
+ * (deck-list + C20/C100/C500-real) tienen al menos una muestra correcta
+ * (samplesOk > 0). Cualquier caso esperado ausente o sin muestras degrada
+ * la sección a BLOCKED; si hubo éxito parcial se marca partialResults: true
+ * para no presentar la sección como completamente medida. Nunca inventa
+ * resultados.
+ *
+ * `cases` replica la forma de runApi(): `deck-list` plano y `deck-cards`
+ * anidado por alias (o { status: 'NOT RUN' } cuando no hubo selección).
+ */
+function classifyApiSectionStatus(cases) {
+  const flat = {};
+  if (cases && cases['deck-list'] && typeof cases['deck-list'] === 'object') {
+    flat['deck-list'] = cases['deck-list'];
   }
-  return { maxTimeMS: ms };
+  const deckCards = cases && cases['deck-cards'];
+  if (deckCards && typeof deckCards === 'object' && !deckCards.status) {
+    for (const alias of ['C20-real', 'C100-real', 'C500-real']) {
+      const c = deckCards[alias];
+      if (c && typeof c === 'object') flat[alias] = c;
+    }
+  }
+
+  const present = API_EXPECTED_CASES.filter((name) => flat[name]);
+  const ok = present.filter((name) => Number(flat[name].samplesOk) > 0);
+
+  if (present.length === 0) {
+    return { status: 'BLOCKED', reason: 'sin casos de API resueltos (configuración o selección ausente)' };
+  }
+  if (present.length === API_EXPECTED_CASES.length && ok.length === present.length) {
+    return { status: 'MEASURED' };
+  }
+  if (ok.length > 0) {
+    return {
+      status: 'BLOCKED',
+      partialResults: true,
+      reason: `éxito parcial: ${ok.length} de ${API_EXPECTED_CASES.length} casos esperados con muestras correctas`,
+    };
+  }
+  return { status: 'BLOCKED', reason: 'ningún caso esperado con muestras correctas (sin resultados inventados)' };
 }
 
 // ---------------------------------------------------------------------------
@@ -471,6 +539,7 @@ module.exports = {
   THUMBNAIL_COVER,
   ALLOWED_METHOD,
   MAX_SAMPLES_PER_CASE,
+  MAX_TIME_MS,
   PERF_USER_ALIAS,
   BASELINE_RELATIVE_DISTANCE,
   percentileSorted,
@@ -497,6 +566,9 @@ module.exports = {
   summarizeSamples,
   summarizeWinningPlan,
   buildAggregateOptions,
+  validateMaxTimeMs,
+  API_EXPECTED_CASES,
+  classifyApiSectionStatus,
   sumStringLengths,
   countNonEmptyStrings,
 };

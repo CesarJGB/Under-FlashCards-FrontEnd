@@ -379,7 +379,7 @@
           "keysExamined": 0,
           "executionTimeMillis": 0
         },
-        "deck-counts-aggregate": {
+        "deck-counts-selected-sample": {
           "status": "ok",
           "winningPlanStages": [
             "GROUP",

@@ -21,7 +21,7 @@
 //   BASE_URL          / --base-url  URL de la API (obligatoria para la sección api)
 //   MONGO_URL|MONGO_URI / --mongo-url  cadena de conexión Mongo (obligatoria para inventory/explain)
 //   --samples <1..5>               máx. solicitudes secuenciales por caso (default 5)
-//   --max-time-ms <ms>             límite por consulta/petición (default 5000)
+//   --max-time-ms <1..5000>        límite por consulta/petición (default 5000; máx. 5000)
 //   --sections <lista>             inventory,api,explain (default: todas)
 //   --out <path>                   archivo JSON de resultados seguros (opcional)
 //   --help                          esta ayuda
@@ -44,6 +44,7 @@ const { performance } = require('perf_hooks');
 const {
   INDEXED_CONTRACT,
   MAX_SAMPLES_PER_CASE,
+  MAX_TIME_MS,
   deckCountStats,
   bucketCardCounts,
   selectBaselineDecks,
@@ -59,6 +60,8 @@ const {
   summarizeSamples,
   summarizeWinningPlan,
   buildAggregateOptions,
+  validateMaxTimeMs,
+  classifyApiSectionStatus,
   sumStringLengths,
   countNonEmptyStrings,
 } = require('./libraryScaleBaselineUtils');
@@ -82,7 +85,7 @@ Opciones:
   --base-url <url>      URL base de la API (env: BASE_URL; sección api)
   --mongo-url <url>     URI de MongoDB (env: MONGO_URL o MONGO_URI; inventory/explain)
   --samples <n>         Solicitudes por caso, 1..5 (default 5; el límite es 5)
-  --max-time-ms <ms>    Timeout por consulta/petición (default 5000)
+  --max-time-ms <ms>    Timeout por consulta/petición (default ${MAX_TIME_MS}; máximo ${MAX_TIME_MS} por consulta MongoDB)
   --sections <lista>    inventory,api,explain separadas por coma (default todas)
   --out <path>          Escribe resultados seguros JSON en <path> (opcional)
   --help                Muestra esta ayuda y termina
@@ -148,10 +151,9 @@ function validateArgs(args) {
     }
   }
   if (args.maxTimeMs !== undefined) {
-    const n = Number(args.maxTimeMs);
-    if (!Number.isInteger(n) || n < 1 || n > 60000) {
-      throw new Error('--max-time-ms debe ser un entero entre 1 y 60000');
-    }
+    // Límite impuesto por construcción: entero entre 1 y MAX_TIME_MS (5000).
+    // Ninguna consulta MongoDB recibe más de 5000 ms.
+    args.maxTimeMs = validateMaxTimeMs(args.maxTimeMs);
   }
   if (args.sections !== undefined) {
     const parts = String(args.sections).split(',').map((s) => s.trim()).filter(Boolean);
@@ -336,6 +338,9 @@ async function runApi({ baseUrl, userId, samples, maxTimeMs, inventorySelected }
     const rawSamples = [];
     for (let attempt = 1; attempt <= samples; attempt += 1) {
       try {
+        // El límite real de la petición es maxTimeMs (≤ MAX_TIME_MS). El
+        // margen extra del wrapper (+1000 ms) es sólo cierre local de la
+        // promesa; ninguna consulta MongoDB recibe más de 5000 ms.
         const response = await withTimeout(httpGetMeasured(url, { timeoutMs: maxTimeMs }), maxTimeMs + 1000);
         rawSamples.push({
           attempt,
@@ -463,6 +468,9 @@ async function runExplain({ userId, maxTimeMs, selectedDecks }) {
 
   const runQuery = async (name, task) => {
     try {
+      // maxTimeMs se aplica dentro de la consulta (find/aggregate/explain con
+      // .maxTimeMS()/.option()); el margen extra del wrapper (+2000 ms) es
+      // sólo cierre local de la promesa, nunca llega a MongoDB.
       const doc = await withTimeout(task(), maxTimeMs + 2000);
       results.queries[name] = { status: 'ok', ...extractExplain(doc) };
     } catch (err) {
@@ -482,7 +490,10 @@ async function runExplain({ userId, maxTimeMs, selectedDecks }) {
   );
 
   const deckIds = (selectedDecks || []).map((s) => new (require('mongoose').Types.ObjectId)(s.deckId));
-  await runQuery('deck-counts-aggregate', () =>
+  // Muestra de conteos: SOLO los tres mazos seleccionados (C20/C100/C500-real).
+  // No es el aggregate completo del endpoint de Library (29 mazos visibles):
+  // ese explain no se midió y queda NOT MEASURED (ver reporte Fase 2A).
+  await runQuery('deck-counts-selected-sample', () =>
     Flashcard.aggregate([
       { $match: { deckId: { $in: deckIds } } },
       { $group: { _id: '$deckId', count: { $sum: 1 } } },
@@ -530,7 +541,7 @@ async function main() {
   }
 
   const userId = args.userId;
-  const maxTimeMs = args.maxTimeMs !== undefined ? Number(args.maxTimeMs) : 5000;
+  const maxTimeMs = args.maxTimeMs !== undefined ? Number(args.maxTimeMs) : MAX_TIME_MS;
   const samples = clampSamples(args.samples !== undefined ? Number(args.samples) : MAX_SAMPLES_PER_CASE);
 
   const report = {
@@ -589,10 +600,13 @@ async function main() {
     } else {
       try {
         const api = await runApi({ baseUrl: args.baseUrl, userId, samples, maxTimeMs, inventorySelected });
-        const measuredCases = Object.values(api.cases).filter((c) => c && c.samplesRequested !== undefined);
-        const anyOk = measuredCases.some((c) => c.samplesOk > 0);
-        api.status = anyOk ? 'MEASURED' : 'BLOCKED';
-        if (!anyOk) api.reason = 'todas las peticiones fallaron o expiraron (sin resultados inventados)';
+        // La sección sólo es MEASURED cuando TODOS los casos esperados
+        // (deck-list + C20/C100/C500-real) tienen muestras correctas; un
+        // éxito parcial queda BLOCKED con partialResults: true.
+        const statusInfo = classifyApiSectionStatus(api.cases);
+        api.status = statusInfo.status;
+        if (statusInfo.partialResults) api.partialResults = true;
+        if (statusInfo.reason) api.reason = statusInfo.reason;
         report.sections.api = api;
       } catch (err) {
         report.sections.api = {
@@ -672,4 +686,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { main };
+module.exports = { main, validateArgs };

@@ -6,9 +6,12 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('fs');
+const path = require('path');
 const {
   INDEXED_CONTRACT,
   MAX_SAMPLES_PER_CASE,
+  MAX_TIME_MS,
   PERF_USER_ALIAS,
   BASELINE_RELATIVE_DISTANCE,
   percentileSorted,
@@ -34,9 +37,12 @@ const {
   summarizeSamples,
   summarizeWinningPlan,
   buildAggregateOptions,
+  validateMaxTimeMs,
+  classifyApiSectionStatus,
   sumStringLengths,
   countNonEmptyStrings,
 } = require('../scripts/performance/libraryScaleBaselineUtils');
+const { validateArgs } = require('../scripts/performance/libraryScaleBaseline');
 
 // ---------------------------------------------------------------------------
 // Estadística: mínimo, mediana, p95 y máximo
@@ -404,9 +410,124 @@ test('pipeline: buildAggregateOptions devuelve maxTimeMS como opción de cursor'
   assert.deepEqual(buildAggregateOptions(1), { maxTimeMS: 1 });
 });
 
-test('pipeline: rechaza maxTimeMS inválidos', () => {
-  for (const bad of [0, -1, 'x', 1.5, null, undefined]) {
+test('pipeline: acepta enteros 1 y 5000 (límites del rango MAX_TIME_MS)', () => {
+  assert.equal(MAX_TIME_MS, 5000);
+  assert.equal(validateMaxTimeMs(1), 1);
+  assert.equal(validateMaxTimeMs(5000), 5000);
+  assert.deepEqual(buildAggregateOptions(1), { maxTimeMS: 1 });
+  assert.deepEqual(buildAggregateOptions(5000), { maxTimeMS: 5000 });
+});
+
+test('pipeline: rechaza 0, 5001, 60000, negativos, decimales y texto', () => {
+  for (const bad of [0, 5001, 60000, -1, -5000, 1.5, 4999.9, 'x', '5001', '', null, undefined, NaN, []]) {
+    assert.throws(() => validateMaxTimeMs(bad), /maxTimeMS inválido/);
     assert.throws(() => buildAggregateOptions(bad), /maxTimeMS inválido/);
+  }
+});
+
+test('pipeline: validateArgs aplica el mismo límite máximo de 5000', () => {
+  const base = { userId: 'a'.repeat(24), baseUrl: 'https://api.example.com', mongoUrl: undefined, samples: '5', maxTimeMs: undefined, sections: undefined, out: undefined, help: false };
+  const ok = validateArgs({ ...base, maxTimeMs: '5000' });
+  assert.equal(ok.maxTimeMs, 5000);
+  assert.equal(validateArgs({ ...base, maxTimeMs: '1' }).maxTimeMs, 1);
+  for (const bad of ['0', '5001', '60000', '-5', '1.5', 'abc']) {
+    assert.throws(() => validateArgs({ ...base, maxTimeMs: bad }), /maxTimeMS inválido/);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Estado parcial de la sección api
+// ---------------------------------------------------------------------------
+
+const okCase = (samplesOk = 5) => ({ samplesRequested: 5, samplesOk });
+const failCase = () => ({ samplesRequested: 5, samplesOk: 0, blockedReason: 'all-requests-failed' });
+
+test('api-status: MEASURED sólo cuando todos los casos esperados tienen muestras correctas', () => {
+  const cases = {
+    'deck-list': okCase(),
+    'deck-cards': { 'C20-real': okCase(), 'C100-real': okCase(), 'C500-real': okCase() },
+  };
+  const result = classifyApiSectionStatus(cases);
+  assert.equal(result.status, 'MEASURED');
+  assert.equal(result.partialResults, undefined);
+});
+
+test('api-status: sólo deck-list correcto queda BLOCKED con partialResults', () => {
+  const cases = {
+    'deck-list': okCase(),
+    'deck-cards': { status: 'NOT RUN', reason: 'sin selección de mazos' },
+  };
+  const result = classifyApiSectionStatus(cases);
+  assert.equal(result.status, 'BLOCKED');
+  assert.equal(result.partialResults, true);
+});
+
+test('api-status: un deck-cards fallido degrada la sección aunque deck-list esté OK', () => {
+  const cases = {
+    'deck-list': okCase(),
+    'deck-cards': { 'C20-real': okCase(), 'C100-real': okCase(), 'C500-real': failCase() },
+  };
+  const result = classifyApiSectionStatus(cases);
+  assert.equal(result.status, 'BLOCKED');
+  assert.equal(result.partialResults, true);
+});
+
+test('api-status: todos los casos presentes fallidos quedan BLOCKED sin partialResults', () => {
+  const cases = {
+    'deck-list': failCase(),
+    'deck-cards': { 'C20-real': failCase(), 'C100-real': failCase(), 'C500-real': failCase() },
+  };
+  const result = classifyApiSectionStatus(cases);
+  assert.equal(result.status, 'BLOCKED');
+  assert.equal(result.partialResults, undefined);
+});
+
+test('api-status: casos ausentes o entrada inválida quedan BLOCKED', () => {
+  assert.equal(classifyApiSectionStatus({}).status, 'BLOCKED');
+  assert.equal(classifyApiSectionStatus(null).status, 'BLOCKED');
+  assert.equal(classifyApiSectionStatus(undefined).status, 'BLOCKED');
+  assert.equal(classifyApiSectionStatus({ 'deck-list': okCase() }).status, 'BLOCKED');
+});
+
+// ---------------------------------------------------------------------------
+// Evidencia persistida: raw-results.json (determinista, sin red)
+// ---------------------------------------------------------------------------
+
+test('raw: explain de conteos persistido con nombre de muestra y valores originales', () => {
+  const raw = JSON.parse(fs.readFileSync(
+    path.join(__dirname, '..', '..', 'docs', 'performance-audit', 'research', 'library-scale', 'raw-results.json'),
+    'utf8'
+  ));
+  const queries = raw.sections.explain.queries;
+  assert.ok(queries['deck-counts-selected-sample'], 'la clave renombrada debe existir');
+  assert.ok(!('deck-counts-aggregate' in queries), 'la clave antigua debe desaparecer');
+  const counts = queries['deck-counts-selected-sample'];
+  assert.equal(counts.nReturned, 3);
+  assert.equal(counts.keysExamined, 620);
+  assert.equal(counts.docsExamined, 0);
+  assert.equal(counts.indexName, 'deckId_1');
+  assert.equal(counts.keyPattern, '{"deckId":1}');
+  assert.equal(counts.winningPlanStages.join('>'), 'GROUP>PROJECTION_COVERED>IXSCAN');
+});
+
+test('raw: estadísticas de latencia recalculadas desde samplesDetail (2 decimales)', () => {
+  const raw = JSON.parse(fs.readFileSync(
+    path.join(__dirname, '..', '..', 'docs', 'performance-audit', 'research', 'library-scale', 'raw-results.json'),
+    'utf8'
+  ));
+  const api = raw.sections.api.cases;
+  const cases = { 'deck-list': api['deck-list'], ...api['deck-cards'] };
+  const round2 = (n) => Number(n.toFixed(2));
+  for (const [name, c] of Object.entries(cases)) {
+    const times = c.samplesDetail
+      .filter((s) => Number.isFinite(s.totalMs))
+      .map((s) => s.totalMs)
+      .sort((a, b) => a - b);
+    const median = round2(times[Math.floor(times.length / 2)]);
+    assert.equal(median, round2(c.latency.medianMs), `${name}: mediana`);
+    assert.equal(round2(times[0]), round2(c.latency.minMs), `${name}: mínimo`);
+    assert.equal(round2(times[times.length - 1]), round2(c.latency.maxMs), `${name}: máximo`);
+    assert.equal(c.latency.p95Ms, 'NOT MEASURED', `${name}: p95`);
   }
 });
 
