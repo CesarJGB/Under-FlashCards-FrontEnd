@@ -80,17 +80,19 @@ Dependencias estrictas: `C0 → C1 → C2 → C3/C4 → C5`. C1 no puede omitir 
 - Riesgos: GC borra un fondo aún referenciado (mitigado por recuento real de referencias).
 - Dependencias: C1/C3 según el origen de los datos.
 
-## Corte 5 — Limpieza del contrato heredado
+## Corte 5 — Limpieza del contrato heredado (dividido en 5A y 5B)
 
-**Objetivo**: eliminar el campo `bgImage` expandido del shape y el legacy `cardBackgrounds` de la lista cuando no haya consumidores.
+**Corte 5A — Observabilidad del contrato legacy (TERMINADO, Fase 1G — [phase-1g-cut-5a-report.md](./phase-1g-cut-5a-report.md))**: telemetría temporal y segura que clasifica el contrato negociado por las cinco lecturas (`deck-list`, `deck-cards`, `continuous-session`, `normal-session`, `all-cards`) y emite una línea JSON estable por petición (`image_delivery_contract_usage`, schemaVersion 1, con `at` ISO UTC y clasificaciones `indexed`/`legacy-missing`/`legacy-other` y `thumbnail`/`absent`/`other`/`not-applicable`). Sin PII, sin contadores en memoria, sin base de datos ni dependencias; el logger nunca rompe la petición. **No elimina compatibilidad ni cambia respuestas.** La ventana de observación de 14 días está **OBSERVATION NOT STARTED**: comienza sólo tras desplegar el SHA del 5A; cualquier petición legacy produce **NO-GO** y reinicia la ventana; la ausencia total de tráfico no demuestra readiness.
 
-- Archivos probables: `Flashcard.serialize` (eliminar expansión), `Deck.serialize` (eliminar `cardBackgrounds` del resumen), campo dual del servidor (retirar), consumidores que resuelven diccionario (ya en C1).
-- Migración: ninguna (sólo contrato). Compatibilidad: **fin de soporte de clientes viejos** — requiere métricas sostenidas de tráfico legacy ≈ 0.
+**Corte 5B — Limpieza del contrato heredado (BLOCKED hasta aprobar los 14 días)**: eliminar el campo `bgImage` expandido del shape y el legacy `cardBackgrounds` de la lista cuando no haya consumidores legacy.
+
+- Archivos probables: `Flashcard.serialize` (eliminar expansión), `Deck.serialize` (eliminar `cardBackgrounds` del resumen), campo dual del servidor (retirar), consumidores que resuelven diccionario (ya en C1), ACK de crear/actualizar/lote al envelope indexado, pipeline IA V1, fallback legacy del resolver frontend, telemetría del 5A.
+- Migración: ninguna (sólo contrato). Compatibilidad: **fin de soporte de clientes viejos** — requiere métricas sostenidas de tráfico legacy = 0 durante 14 días con tráfico real representativo.
 - Pruebas: contract tests del shape final; suite completa.
-- Métricas: 0 requests con cabecera legacy durante N días (N aprobado); suite verde.
-- Rollback: **no limpio** (no borra datos pero sí el shape); por eso se exige el periodo de observación.
+- Métricas: 0 requests con contrato legacy durante 14 días (N aprobado); suite verde.
+- Rollback: **no limpio** (no borra datos pero sí el shape); por eso se exige el periodo de observación del 5A.
 - Riesgos: cliente no actualizado pierde fondos (visible como color sólido).
-- Dependencias: C1-C4.
+- Dependencias: C1-C4 y aprobación de la ventana del 5A.
 
 ## Resumen de dependencias y presupuestos
 
@@ -101,7 +103,8 @@ Dependencias estrictas: `C0 → C1 → C2 → C3/C4 → C5`. C1 no puede omitir 
 | 2 | resumen + thumbnails | sí | sí | C1 |
 | 3 | assets (sólo si se aprueba) | **no** | parcial | C2 + decisión humana |
 | 4 | GC/migración de datos | **no** | backup | C1/C3 |
-| 5 | contrato final | sí | no limpio | C1-C4 |
+| 5A | observabilidad del contrato legacy (telemetría) | sí | sí | C1-C4 |
+| 5B | contrato final (limpieza) | sí | no limpio | C1-C4 + ventana 5A aprobada |
 
 Presupuestos por contrato (propuestos; sujetos a aprobación), separados por escenario:
 

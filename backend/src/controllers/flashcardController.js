@@ -3,6 +3,7 @@ const Flashcard = require('../models/Flashcard');
 const Deck = require('../models/Deck');
 const { generateAiCardsPipeline } = require('./flashcard/aiDeckGenerator');
 const { isIndexedContractRequest, buildIndexedCardPayload } = require('../utils/imageDelivery');
+const { logImageDeliveryContractUsage } = require('../utils/imageContractTelemetry');
 
 // Helper interno para resolver índices de fondo
 async function getOrCreateBgIndex(deckId, bgImageString) {
@@ -20,6 +21,8 @@ async function getOrCreateBgIndex(deckId, bgImageString) {
 }
 
 exports.getCardsByDeck = async (req, res) => {
+  // Corte 5A — observabilidad temporal del contrato legacy (una línea por petición).
+  logImageDeliveryContractUsage({ surface: 'deck-cards', req });
   try {
     const { deckId } = req.params;
     const deck = await Deck.findById(deckId);

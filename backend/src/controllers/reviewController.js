@@ -8,6 +8,7 @@ const Materia = require('../models/Materia');
 const StudySession = require('../models/StudySession');
 const { enqueueForUser, flushUserQueue } = require('../utils/userQueue');
 const { isIndexedContractRequest, buildIndexedSessionPayload } = require('../utils/imageDelivery');
+const { logImageDeliveryContractUsage } = require('../utils/imageContractTelemetry');
 const { calculateRadarMetrics, WEIGHTS, TARGETS, getFluidityScore, getRetentionScore, getVolumeScore, getResilienceScore } = require('../utils/radarMetrics');
 
 const STUDY_MODES = new Set(['continuous', 'normal']);
@@ -156,6 +157,8 @@ async function runCascade(deckId, currentReviewContext) {
 // GENERADOR DE COLA INTELIGENTE PARA REPASO CONTINUO (Weighted Shuffle, 60/40)
 // =========================================================================
 exports.getContinuousSessionCards = async (req, res) => {
+  // Corte 5A — observabilidad temporal del contrato legacy (una línea por petición).
+  logImageDeliveryContractUsage({ surface: 'continuous-session', req });
   const { deckId } = req.params;
   const { userId } = req.query; // Al ser GET, viaja en la URL (?userId=...)
 
@@ -253,6 +256,8 @@ exports.getContinuousSessionCards = async (req, res) => {
 // algorítmica de "debilidades". Al agotarse el mazo, el frontend vuelve a
 // pedir esta misma cola, que entrega un shuffle nuevo de las mismas tarjetas.
 exports.getNormalSessionCards = async (req, res) => {
+  // Corte 5A — observabilidad temporal del contrato legacy (una línea por petición).
+  logImageDeliveryContractUsage({ surface: 'normal-session', req });
   const { deckId } = req.params;
   const { userId } = req.query;
 
@@ -303,6 +308,8 @@ exports.getNormalSessionCards = async (req, res) => {
 // (cardBackgrounds resueltos) en cada recarga de cola, que era el cuello de
 // botella real de performance en mazos con fondos/imágenes grandes.
 exports.getAllSessionCards = async (req, res) => {
+  // Corte 5A — observabilidad temporal del contrato legacy (una línea por petición).
+  logImageDeliveryContractUsage({ surface: 'all-cards', req });
   const { deckId } = req.params;
   const { userId } = req.query;
 

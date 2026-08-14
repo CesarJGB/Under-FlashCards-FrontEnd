@@ -8,8 +8,11 @@ const {
   sanitizeCoverThumb,
   buildDeckImageFields,
 } = require('../utils/imageDelivery');
+const { logImageDeliveryContractUsage } = require('../utils/imageContractTelemetry');
 
 exports.getDecks = async (req, res) => {
+  // Corte 5A — observabilidad temporal del contrato legacy (una línea por petición).
+  logImageDeliveryContractUsage({ surface: 'deck-list', req });
   try {
     const { userId } = req.params;
     // Captura de filtros de la nueva jerarquía académica desde la query string
