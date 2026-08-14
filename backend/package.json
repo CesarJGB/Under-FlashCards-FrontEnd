@@ -11,7 +11,8 @@
     "benchmark:ai": "node scripts/benchmarkAiDeck.js",
     "benchmark:ai-v2": "node test/benchmarkV2.js",
     "migrate:materia-share-index": "node scripts/migrateMateriaShareIdIndex.js",
-    "migrate:schedule-attendance": "node scripts/migrateScheduleAttendance.js"
+    "migrate:schedule-attendance": "node scripts/migrateScheduleAttendance.js",
+    "migrate:image-backgrounds": "node scripts/migrateImageBackgrounds.js"
   },
   "engines": {
     "node": ">=18"

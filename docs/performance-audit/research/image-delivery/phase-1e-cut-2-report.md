@@ -142,7 +142,7 @@ La negociación vive en una única utilidad productiva (`backend/src/utils/image
 |---|---|
 | `node --test test/imageDeliveryContracts.test.js` (backend) | **51 tests, 51 pass, 0 fail** (34 del Corte 0/1 + 17 del Corte 2) |
 | `npm test` (backend, suite completa) | **92 tests, 87 pass, 5 fail** — los 5 fallos son exactamente los preexistentes documentados (`aiService.test.js` ×2, `deckRecovery.test.js` ×3); no aumentó el número de fallos; ninguna prueba relacionada con imágenes, mazos, contratos, Home, Library o persistencia falla |
-| `npm run test:image-delivery` (frontend) | **57 tests, 57 pass, 0 fail** (36 del Corte 0/1 + 13 del Corte 2 en contratos + 8 de la utilidad de miniaturas) |
+| `npm run test:image-delivery` (frontend) | **74 tests, 74 pass, 0 fail** (49 del Corte 0/1 y 2 en `image-delivery-contracts.test.js` + 25 de la utilidad de miniaturas en `cover-thumbnail.test.js`: 8 utilidad + 5 tracker + 6 submit + 6 processing) |
 | `npm run test:manual-editor:unit` (frontend) | **58 tests, 58 pass, 0 fail** |
 | `npm run test:schedule` (frontend) | **44 tests, 44 pass, 0 fail** |
 | `npm run test:pdf-extraction` (frontend) | **8 tests, 8 pass, 0 fail** |
