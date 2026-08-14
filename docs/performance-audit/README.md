@@ -106,6 +106,7 @@ Existe drift posterior al último commit documental registrado allí (`36c77a741
 - [prioritized-roadmap.md](./prioritized-roadmap.md): orden de investigación futura, riesgos, aceptación y “No hacer todavía”.
 - [experiments/image-baseline/](./experiments/image-baseline/README.md): Fase 1A experimental para `PERF-IMG-001` y `PERF-IMG-003`, medida sobre el commit que publicó esta auditoría. `IMG-DATA = GO`; `IMG-RENDER = PARTIAL`.
 - [research/image-delivery/](./research/image-delivery/README.md): Fase 1B — investigación y recomendación de arquitectura de entrega de imágenes sobre el baseline de la Fase 1A: contrato actual, matriz de consumidores, alternativas A/B/C/D, mediciones, migración, cortes y gates. `IMG-DATA = GO`; `IMG-RENDER = PARTIAL` (sin cambio); implementación recomendada, no autorizada.
+- [research/library-scale/](./research/library-scale/README.md): Fase 2A — baseline real de escala de Library y apertura de mazos (`backend/scripts/performance/libraryScaleBaseline.js` + 45 pruebas). **MEASURED** sobre el entorno productivo autorizado (HEAD `ef8c4d0`): 29 mazos/5.877 tarjetas (máx. 545), API indexada 9.4–304 KB con 134–255 ms de mediana (5 muestras/caso, p95 NOT MEASURED), explain con COLLSCAN en la lista y sort en memoria por mazo; cero eventos legacy; `raw-results.json` sanitizado.
 
 ## Comandos ejecutados y resultados relevantes
 
@@ -181,3 +182,11 @@ El commit, su HEAD resultante y el push se ejecutan necesariamente después de f
 - El límite de documento de MongoDB y la cuota de almacenamiento del navegador son riesgos de plataforma; la distancia real al límite requiere muestras de datos.
 - El build prueba composición, no ejecución en frío, caché caliente ni interacción.
 - Los umbrales de la matriz son hipótesis de aceptación y deben calibrarse con telemetría y dispositivos reales.
+
+## Estado de la Fase 2A (baseline de Library) y de los cortes de imagen
+
+- **Fase 2A — [research/library-scale/](./research/library-scale/README.md)**: el baseline real de escala de Library y apertura de mazos se ejecutó con éxito sobre el entorno productivo autorizado (contenedor backend vía Docker con la URI como variable temporal; dominio documentado como `production-backend-A`). Resultados **MEASURED** (HEAD `ef8c4d0`, `raw-results.json` sanitizado): 29 mazos propios / 5.877 tarjetas (mediana 100, p95 519.5, máx. 545; 9 mazos ≥500); API indexada 9.433–303.769 B con 134–255 ms de mediana y 5 muestras por caso (p95 NOT MEASURED); explain con COLLSCAN+sort en memoria en la lista de mazos, covered query de conteos sobre `deckId_1` y apertura por mazo indexada con sort en memoria. Cero eventos legacy en la telemetría del 5A. Tres defectos del harness detectados en ejecución real se corrigieron con pruebas (45/45). Quedan sin medir los costes de navegador (render, storage, parseo real del cliente).
+- **Corte 5A**: continúa desplegado y en observación (ventana de 14 días). La Fase 2A emitió exclusivamente peticiones indexadas (cero `legacy-missing`/`legacy-other`).
+- **Corte 5B**: continúa **BLOCKED** hasta aprobar la ventana con cero peticiones legacy.
+- **Migración del Corte 4** (`migrate:image-backgrounds`): continúa **NOT RUN**.
+- La Fase 2A **no implementa optimizaciones productivas** ni modificó frontend, backend productivo, contratos, pruebas existentes ni dependencias.

@@ -1,0 +1,450 @@
+{
+  "sha": "ef8c4d0c257b70f4d4167a2c3b232b6ed89086fa",
+  "measuredAtUtc": "2026-08-14T22:08:50.633Z",
+  "user": "real-user-A",
+  "sections": {
+    "inventory": {
+      "section": "inventory",
+      "user": "real-user-A",
+      "own": {
+        "decks": 29,
+        "totalDecks": 29,
+        "totalCards": 5877,
+        "min": 0,
+        "median": 100,
+        "p95": 519.5,
+        "max": 545,
+        "buckets": [
+          {
+            "range": "0-20",
+            "count": 6
+          },
+          {
+            "range": "21-100",
+            "count": 11
+          },
+          {
+            "range": "101-499",
+            "count": 3
+          },
+          {
+            "range": "500+",
+            "count": 9
+          }
+        ],
+        "images": {
+          "withCoverImage": 2,
+          "withCoverImageThumb": 0,
+          "coverImageLength": 290398,
+          "withCardBackgrounds": 5,
+          "cardBackgroundsEntries": 8,
+          "cardBackgroundsLength": 1375528
+        }
+      },
+      "visible": {
+        "decks": 29,
+        "totalDecks": 29,
+        "totalCards": 5877,
+        "min": 0,
+        "median": 100,
+        "p95": 519.5,
+        "max": 545
+      },
+      "cards": {
+        "totalCards": 5879,
+        "withContentImage": 6,
+        "contentImageLength": 390374
+      },
+      "selectedDecks": [
+        {
+          "alias": "C20-real",
+          "cardCount": 20,
+          "distance": 0
+        },
+        {
+          "alias": "C100-real",
+          "cardCount": 100,
+          "distance": 0
+        },
+        {
+          "alias": "C500-real",
+          "cardCount": 500,
+          "distance": 0
+        }
+      ],
+      "status": "MEASURED"
+    },
+    "api": {
+      "section": "api",
+      "baseUrl": "<base-url>",
+      "contract": "indexed",
+      "cases": {
+        "deck-list": {
+          "surface": "deck-list",
+          "contract": "indexed",
+          "samplesRequested": 5,
+          "samplesOk": 5,
+          "statuses": [
+            200,
+            200,
+            200,
+            200,
+            200
+          ],
+          "elements": 29,
+          "wireBytesMin": 303769,
+          "wireBytesMedian": 303769,
+          "wireBytesMax": 303769,
+          "contentEncoding": [
+            null
+          ],
+          "latency": {
+            "samples": 5,
+            "medianMs": 235.85666800000035,
+            "minMs": 231.29003000000012,
+            "maxMs": 665.4852740000001,
+            "p95Ms": "NOT MEASURED"
+          },
+          "samplesDetail": [
+            {
+              "attempt": 1,
+              "status": 200,
+              "ttfbMs": 660.37,
+              "totalMs": 665.49,
+              "parseMs": 0.97,
+              "wireBytes": 303769
+            },
+            {
+              "attempt": 2,
+              "status": 200,
+              "ttfbMs": 229.63,
+              "totalMs": 231.29,
+              "parseMs": 0.44,
+              "wireBytes": 303769
+            },
+            {
+              "attempt": 3,
+              "status": 200,
+              "ttfbMs": 231.98,
+              "totalMs": 233.87,
+              "parseMs": 0.5,
+              "wireBytes": 303769
+            },
+            {
+              "attempt": 4,
+              "status": 200,
+              "ttfbMs": 238.26,
+              "totalMs": 240.66,
+              "parseMs": 0.42,
+              "wireBytes": 303769
+            },
+            {
+              "attempt": 5,
+              "status": 200,
+              "ttfbMs": 233.74,
+              "totalMs": 235.86,
+              "parseMs": 0.39,
+              "wireBytes": 303769
+            }
+          ]
+        },
+        "deck-cards": {
+          "C20-real": {
+            "surface": "deck-cards:C20-real",
+            "contract": "indexed",
+            "samplesRequested": 5,
+            "samplesOk": 5,
+            "statuses": [
+              200,
+              200,
+              200,
+              200,
+              200
+            ],
+            "elements": 20,
+            "wireBytesMin": 9433,
+            "wireBytesMedian": 9433,
+            "wireBytesMax": 9433,
+            "contentEncoding": [
+              null
+            ],
+            "latency": {
+              "samples": 5,
+              "medianMs": 145.5494719999997,
+              "minMs": 137.17591899999934,
+              "maxMs": 437.6035609999999,
+              "p95Ms": "NOT MEASURED"
+            },
+            "samplesDetail": [
+              {
+                "attempt": 1,
+                "status": 200,
+                "ttfbMs": 144.18,
+                "totalMs": 144.81,
+                "parseMs": 0.13,
+                "wireBytes": 9433
+              },
+              {
+                "attempt": 2,
+                "status": 200,
+                "ttfbMs": 149.58,
+                "totalMs": 149.93,
+                "parseMs": 0.08,
+                "wireBytes": 9433
+              },
+              {
+                "attempt": 3,
+                "status": 200,
+                "ttfbMs": 437.08,
+                "totalMs": 437.6,
+                "parseMs": 0.08,
+                "wireBytes": 9433
+              },
+              {
+                "attempt": 4,
+                "status": 200,
+                "ttfbMs": 136.15,
+                "totalMs": 137.18,
+                "parseMs": 0.08,
+                "wireBytes": 9433
+              },
+              {
+                "attempt": 5,
+                "status": 200,
+                "ttfbMs": 145.08,
+                "totalMs": 145.55,
+                "parseMs": 0.12,
+                "wireBytes": 9433
+              }
+            ]
+          },
+          "C100-real": {
+            "surface": "deck-cards:C100-real",
+            "contract": "indexed",
+            "samplesRequested": 5,
+            "samplesOk": 5,
+            "statuses": [
+              200,
+              200,
+              200,
+              200,
+              200
+            ],
+            "elements": 100,
+            "wireBytesMin": 48474,
+            "wireBytesMedian": 48474,
+            "wireBytesMax": 48474,
+            "contentEncoding": [
+              null
+            ],
+            "latency": {
+              "samples": 5,
+              "medianMs": 148.08015100000011,
+              "minMs": 143.09175200000027,
+              "maxMs": 160.68700100000024,
+              "p95Ms": "NOT MEASURED"
+            },
+            "samplesDetail": [
+              {
+                "attempt": 1,
+                "status": 200,
+                "ttfbMs": 146.81,
+                "totalMs": 148.08,
+                "parseMs": 0.43,
+                "wireBytes": 48474
+              },
+              {
+                "attempt": 2,
+                "status": 200,
+                "ttfbMs": 143.93,
+                "totalMs": 144.83,
+                "parseMs": 0.26,
+                "wireBytes": 48474
+              },
+              {
+                "attempt": 3,
+                "status": 200,
+                "ttfbMs": 152.73,
+                "totalMs": 153.41,
+                "parseMs": 0.34,
+                "wireBytes": 48474
+              },
+              {
+                "attempt": 4,
+                "status": 200,
+                "ttfbMs": 142.44,
+                "totalMs": 143.09,
+                "parseMs": 0.25,
+                "wireBytes": 48474
+              },
+              {
+                "attempt": 5,
+                "status": 200,
+                "ttfbMs": 160.07,
+                "totalMs": 160.69,
+                "parseMs": 0.2,
+                "wireBytes": 48474
+              }
+            ]
+          },
+          "C500-real": {
+            "surface": "deck-cards:C500-real",
+            "contract": "indexed",
+            "samplesRequested": 5,
+            "samplesOk": 5,
+            "statuses": [
+              200,
+              200,
+              200,
+              200,
+              200
+            ],
+            "elements": 500,
+            "wireBytesMin": 261005,
+            "wireBytesMedian": 261005,
+            "wireBytesMax": 261005,
+            "contentEncoding": [
+              null
+            ],
+            "latency": {
+              "samples": 5,
+              "medianMs": 245.74363300000005,
+              "minMs": 236.286513,
+              "maxMs": 261.84544899999946,
+              "p95Ms": "NOT MEASURED"
+            },
+            "samplesDetail": [
+              {
+                "attempt": 1,
+                "status": 200,
+                "ttfbMs": 245.9,
+                "totalMs": 247.45,
+                "parseMs": 1.2,
+                "wireBytes": 261005
+              },
+              {
+                "attempt": 2,
+                "status": 200,
+                "ttfbMs": 260.46,
+                "totalMs": 261.85,
+                "parseMs": 0.89,
+                "wireBytes": 261005
+              },
+              {
+                "attempt": 3,
+                "status": 200,
+                "ttfbMs": 241.38,
+                "totalMs": 243.16,
+                "parseMs": 1.17,
+                "wireBytes": 261005
+              },
+              {
+                "attempt": 4,
+                "status": 200,
+                "ttfbMs": 244.53,
+                "totalMs": 245.74,
+                "parseMs": 0.65,
+                "wireBytes": 261005
+              },
+              {
+                "attempt": 5,
+                "status": 200,
+                "ttfbMs": 234.93,
+                "totalMs": 236.29,
+                "parseMs": 0.84,
+                "wireBytes": 261005
+              }
+            ]
+          }
+        }
+      },
+      "status": "MEASURED"
+    },
+    "explain": {
+      "section": "explain",
+      "queries": {
+        "deck-list": {
+          "status": "ok",
+          "winningPlanStages": [
+            "SUBPLAN",
+            "SORT",
+            "COLLSCAN"
+          ],
+          "indexName": null,
+          "keyPattern": null,
+          "sortPattern": "{\"createdAt\":-1}",
+          "hasSortStage": true,
+          "nReturned": 29,
+          "docsExamined": 36,
+          "keysExamined": 0,
+          "executionTimeMillis": 0
+        },
+        "deck-counts-aggregate": {
+          "status": "ok",
+          "winningPlanStages": [
+            "GROUP",
+            "PROJECTION_COVERED",
+            "IXSCAN"
+          ],
+          "indexName": "deckId_1",
+          "keyPattern": "{\"deckId\":1}",
+          "sortPattern": null,
+          "hasSortStage": false,
+          "nReturned": 3,
+          "docsExamined": 0,
+          "keysExamined": 620,
+          "executionTimeMillis": 0
+        },
+        "deck-cards:C20-real": {
+          "status": "ok",
+          "winningPlanStages": [
+            "SORT",
+            "FETCH",
+            "IXSCAN"
+          ],
+          "indexName": "deckId_1",
+          "keyPattern": "{\"deckId\":1}",
+          "sortPattern": "{\"createdAt\":-1}",
+          "hasSortStage": true,
+          "nReturned": 20,
+          "docsExamined": 20,
+          "keysExamined": 20,
+          "executionTimeMillis": 0
+        },
+        "deck-cards:C100-real": {
+          "status": "ok",
+          "winningPlanStages": [
+            "SORT",
+            "FETCH",
+            "IXSCAN"
+          ],
+          "indexName": "deckId_1",
+          "keyPattern": "{\"deckId\":1}",
+          "sortPattern": "{\"createdAt\":-1}",
+          "hasSortStage": true,
+          "nReturned": 100,
+          "docsExamined": 100,
+          "keysExamined": 100,
+          "executionTimeMillis": 0
+        },
+        "deck-cards:C500-real": {
+          "status": "ok",
+          "winningPlanStages": [
+            "SORT",
+            "FETCH",
+            "IXSCAN"
+          ],
+          "indexName": "deckId_1",
+          "keyPattern": "{\"deckId\":1}",
+          "sortPattern": "{\"createdAt\":-1}",
+          "hasSortStage": true,
+          "nReturned": 500,
+          "docsExamined": 500,
+          "keysExamined": 500,
+          "executionTimeMillis": 1
+        }
+      },
+      "status": "MEASURED"
+    }
+  }
+}

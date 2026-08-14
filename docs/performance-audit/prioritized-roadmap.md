@@ -38,6 +38,8 @@ Criterio para avanzar: presupuesto por superficie y endpoint, con peor caso sopo
 
 IDs: PERF-LIB-001, PERF-LIB-002, PERF-DECK-001, PERF-API-001, PERF-API-002.
 
+Estado tras [Fase 2A](./research/library-scale/phase-2a-real-baseline.md): baseline **MEASURED** sobre el entorno productivo autorizado (HEAD `ef8c4d0`): 29 mazos / 5.877 tarjetas (máx. 545; 9 mazos ≥500); API indexada 9.4–304 KB con 134–255 ms de mediana (5 muestras/caso, p95 NOT MEASURED); explain: lista con COLLSCAN + sort en memoria (36 docs examinados), conteos en covered query `deckId_1`, apertura por mazo indexada con sort en memoria (`{deckId, createdAt}` ausente). Quedan sin medir los costes de navegador (render/storage/parseo real) y la curva con D100/D500 sintéticos.
+
 Ejecutar D10/100/500 y C20/100/500/1000, separar red/backend/browser y capturar `explain`. Confirmar el punto donde summary completo, conteos, filtros O(F×D), DOM o serialización dominan.
 
 Criterio para avanzar: curva y punto de quiebre por dispositivo objetivo; inventario campo→consumidor para contratos de resumen/detalle.
