@@ -65,13 +65,20 @@ Clasificaciones (únicas permitidas):
 
 ## Superficies observadas
 
-| Superficie | Ruta | Handler |
-|---|---|---|
-| `deck-list` | `GET /api/decks/:userId` | `deckController.getDecks` |
-| `deck-cards` | `GET /api/flashcards/deck/:deckId` | `flashcardController.getCardsByDeck` |
-| `continuous-session` | `GET /api/decks/:deckId/continuous-session` | `reviewController.getContinuousSessionCards` |
-| `normal-session` | `GET /api/decks/:deckId/normal-session` | `reviewController.getNormalSessionCards` |
-| `all-cards` | `GET /api/decks/:deckId/all-cards` | `reviewController.getAllSessionCards` |
+La instrumentación cubre exactamente las cinco lecturas negociadas, clasificadas por su consumo en el frontend productivo:
+
+| Superficie | Tipo | Ruta | Handler |
+|---|---|---|---|
+| `deck-list` | **activa** | `GET /api/decks/:userId` | `deckController.getDecks` |
+| `deck-cards` | **activa** | `GET /api/flashcards/deck/:deckId` | `flashcardController.getCardsByDeck` |
+| `continuous-session` | dormida | `GET /api/decks/:deckId/continuous-session` | `reviewController.getContinuousSessionCards` |
+| `normal-session` | dormida | `GET /api/decks/:deckId/normal-session` | `reviewController.getNormalSessionCards` |
+| `all-cards` | **activa** | `GET /api/decks/:deckId/all-cards` | `reviewController.getAllSessionCards` |
+
+Clasificación verificada por consumidores en el frontend productivo (HEAD del 5A):
+
+- **Activas** — el frontend vigente las solicita directamente: `deck-list` desde `App.jsx` (Home/Library: `GET /api/decks/:userId?...&contract=indexed&cover=thumbnail`); `deck-cards` desde `DeckInterior.jsx` y `StudySection.jsx` (`GET /api/flashcards/deck/:deckId?contract=indexed`, abrir mazo y datos de exportación PDF); `all-cards` desde `SessionPlayer.jsx` (`GET /api/decks/:deckId/all-cards?userId=...&contract=indexed`), que sirve a **ambos** modos de repaso: normal y continuo.
+- **Dormidas** — `continuous-session` y `normal-session` siguen existiendo en el backend como rutas de compatibilidad (`backend/src/routes/deckRoutes.js`) y conservan su instrumentación, pero **no tienen consumidores frontend productivos**: no hay ninguna referencia a esas rutas en `frontend/src` (sólo aparecen en el backend, en pruebas y en documentación). El uso normal del producto no las ejercita.
 
 La línea se registra en la **primera línea de cada handler**, antes de cualquier retorno normal, 404 o fallo posterior. No se instrumentan escrituras ni rutas ajenas. Una superficie fuera del conjunto permitido no registra nada.
 
@@ -116,15 +123,20 @@ Ningún comando de este corte asume un nombre concreto de contenedor: se enumera
 ## Ventana de observación (14 días)
 
 - La ventana de 14 días **sólo comienza después de desplegar el SHA** de este corte: `inicio = primer evento observado tras el despliegue` (o la marca de despliegue); `fin = inicio + 14 días`.
-- **Cualquier petición legacy** (`legacy-missing` o `legacy-other`) durante la ventana produce **NO-GO** y **reinicia la ventana** desde ese evento.
+- **Cualquier petición legacy** (`legacy-missing` o `legacy-other`) en **cualquiera de las cinco superficies** durante la ventana produce **NO-GO** y **reinicia la ventana** desde ese evento.
 - **La ausencia total de tráfico no demuestra readiness**: una ventana sin eventos es inconclusa; se requiere tráfico real representativo.
-- Aprobación del Corte 5B sólo con una ventana completa de 14 días con cero peticiones legacy y tráfico real representativo de los flujos normales.
+- **Evidencia exigida por tipo de superficie**:
+  - **Activas** (`deck-list`, `deck-cards`, `all-cards`): tráfico indexado **positivo y representativo** durante la ventana; el uso normal del producto debe ejercerlas.
+  - **Dormidas** (`continuous-session`, `normal-session`): **no se exige tráfico indexado**. El gate exige (a) una búsqueda estática al cierre confirmando que siguen sin consumidores productivos en `frontend/src` y (b) cero peticiones legacy. Una petición indexada eventual en una superficie dormida puede registrarse, pero no es una precondición para aprobar.
+- Aprobación del Corte 5B sólo con una ventana completa de 14 días con cero peticiones legacy en las cinco superficies y tráfico indexado positivo en las tres superficies activas.
 
 ## Tabla de observación (se rellena tras el despliegue; vacía hoy)
 
 | SHA desplegado | Inicio UTC | Fin UTC | deck-list | deck-cards | continuous-session | normal-session | all-cards | Peticiones legacy | Veredicto |
 |---|---|---|---|---|---|---|---|---|---|
 | _pendiente de despliegue_ | — | — | — | — | — | — | — | — | — |
+
+Evidencia esperada por columna: para las superficies **activas** (`deck-list`, `deck-cards`, `all-cards`) se registra tráfico indexado positivo y representativo; para las **dormidas** (`continuous-session`, `normal-session`) **no se exige tráfico** — el gate exige la búsqueda estática de consumidores al cierre y cero peticiones legacy. La tabla se rellena únicamente con métricas reales de la ventana; no se registran conteos inventados.
 
 ## Estado inicial
 
@@ -134,7 +146,13 @@ Ningún comando de este corte asume un nombre concreto de contenedor: se enumera
 
 ## Flujos que deben usarse normalmente durante la ventana
 
-Para que la observación sea representativa, la operación normal del producto debe ejercer (al menos una vez durante la ventana): Home/Library (lista de mazos), abrir un mazo (detalle), crear/editar/borrar una tarjeta, lote/importación, repaso normal y repaso continuo, y exportación PDF. Esos flujos ejercen las cinco superficies observadas y las escrituras que el Corte 5B convertirá al envelope indexado.
+Para que la observación sea representativa, la operación normal del producto debe ejercer (al menos una vez durante la ventana): Home/Library (lista de mazos), abrir un mazo (detalle), repaso normal, repaso continuo y exportación PDF. Eventos 5A que produce cada flujo:
+
+- **Home/Library** → `deck-list`: `App.jsx` solicita `GET /api/decks/:userId?...&contract=indexed&cover=thumbnail`.
+- **Abrir un mazo y exportar su PDF** → `deck-cards`: `DeckInterior.jsx`/`StudySection.jsx` solicitan `GET /api/flashcards/deck/:deckId?contract=indexed`; la exportación PDF reutiliza esas tarjetas ya cargadas (no añade una superficie 5A propia).
+- **Repaso normal y repaso continuo** → `all-cards`: ambos modos montan `SessionPlayer.jsx`, que solicita `GET /api/decks/:deckId/all-cards?userId=...&contract=indexed` y arma los lotes en memoria. **Ninguno de los dos modos llama a `continuous-session` ni a `normal-session`.**
+
+**Escrituras no instrumentadas**: crear, editar, borrar, importar y crear lotes son escrituras; la telemetría del 5A sólo observa las cinco lecturas y **no genera eventos 5A para ellas**. Durante la ventana deben probarse funcionalmente (el Corte 5B convertirá sus ACK al envelope indexado), pero no aportan líneas de observación.
 
 ## Pruebas ejecutadas y resultados reales
 
