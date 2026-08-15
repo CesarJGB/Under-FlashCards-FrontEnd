@@ -19,6 +19,7 @@ import PublicMateriaPage from './components/PublicMateriaPage';
 import { getPublicMateriaShareId } from './lib/publicMateria';
 import { preloadStaticIllustrations } from './lib/staticIllustrations';
 import { sanitizeDeckSummaries } from './lib/imageDelivery';
+import { perfLibraryProfile } from './lib/perfLibraryProfile';
 
 const DebugPanel = lazy(() => import('./components/DebugPanel'));
 
@@ -43,6 +44,7 @@ function AppLoadingScreen() {
 }
 
 function DashboardScreen({ user, onLogout, onInviteRequired }) {
+  perfLibraryProfile.renderCount('DashboardScreen');
   const [tab, setTab] = useState('home');
   const [homeKey, setHomeKey] = useState(0);
   const [studyKey, setStudyKey] = useState(0);
@@ -80,6 +82,7 @@ function DashboardScreen({ user, onLogout, onInviteRequired }) {
   const isEditingDeck = tab === 'library' && currentDeck !== null && initialMode === 'edit';
 
   const loadDecks = useCallback(async (showSpinner = false, signal) => {
+    const perfInv = perfLibraryProfile.beginLoader('loadDecks', { showSpinner, signal });
     if (showSpinner) setLoading(true);
     try {
       const res = await fetch(`${BACKEND_URL}/api/decks/${user.id}?t=${Date.now()}&contract=indexed&cover=thumbnail`, {
@@ -92,14 +95,17 @@ function DashboardScreen({ user, onLogout, onInviteRequired }) {
       const data = sanitizeDeckSummaries(await res.json());
       setDecks(data);
       setJSON(`decks_${user.id}`, data);
+      perfInv.end('ok');
     } catch {
       /* fallback silencioso a caché local */
+      perfInv.end('error');
     } finally {
       setLoading(false);
     }
   }, [user.id]);
 
   const loadMaterias = useCallback(async (showSpinner = false, signal) => {
+    const perfInv = perfLibraryProfile.beginLoader('loadMaterias', { showSpinner, signal });
     if (showSpinner) setLoading(true);
     try {
       const res = await fetch(`${BACKEND_URL}/api/academic/materias/${user.id}?t=${Date.now()}`, { 
@@ -112,8 +118,10 @@ function DashboardScreen({ user, onLogout, onInviteRequired }) {
       const data = await res.json();
       setMaterias(data);
       setJSON(`materias_${user.id}`, data);
+      perfInv.end('ok');
     } catch {
       /* fallback silencioso a caché local */
+      perfInv.end('error');
     } finally {
       setLoading(false);
     }
@@ -506,3 +514,8 @@ export default function App() {
     </GoogleOAuthProvider>
   );
 }
+
+// Export nombrado mínimo para el harness de investigación de la Fase 2B
+// (frontend/tests/performance/library-browser). No altera el flujo normal:
+// el entry productivo sigue consumiendo el default export.
+export { DashboardScreen };

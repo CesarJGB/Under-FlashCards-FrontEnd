@@ -13,6 +13,8 @@
     "test:manual-editor:harness": "vite --config tests/manual-editor/vite.harness.config.js --host 127.0.0.1 --port 4174 --strictPort",
     "test:manual-editor:unit": "node --test src/components/creator/manual-editor/manualEditorSession.test.js src/components/creator/manual-editor/editorGeometry.test.js src/components/creator/manual-editor/editorLayerStack.test.js src/components/creator/manual-editor/editorActivation.test.js src/components/creator/manual-editor/colorUtils.test.js src/components/common/actionSheetGestureGuard.test.js src/components/common/overlays/overlayRegistry.test.js tests/manual-editor/manual-editor-contracts.test.js",
     "test:image-delivery": "node --test tests/image-delivery/image-delivery-contracts.test.js tests/image-delivery/cover-thumbnail.test.js",
+    "test:library-browser": "node --test tests/performance/library-browser/library-browser-profile.test.js",
+    "perf:library-browser": "node tests/performance/library-browser/run-browser-profile.mjs",
     "test:manual-editor": "playwright test tests/manual-editor/manual-editor-current.spec.js",
     "test:manual-editor:chromium": "playwright test tests/manual-editor/manual-editor-current.spec.js --project=chromium",
     "test:manual-editor:all": "npm run test:manual-editor:unit && npm run test:manual-editor",
