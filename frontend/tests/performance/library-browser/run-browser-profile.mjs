@@ -25,9 +25,18 @@
 //   VITE_BACKEND_URL         URL base del backend (obligatoria)
 //   PERF_BUILD_MODE          production | profiling (default production)
 //   PERF_SAMPLES             repeticiones por escenario, 1..5 (default 5)
+//   PERF_HARNESS_SHA         SHA completo del Commit A (harness) — se registra
+//                            como harnessSha; default: git rev-parse HEAD
+//   PERF_APPLICATION_BASE_SHA SHA de la aplicación medida (default: origin/main)
+//   PERF_ALLOW_DIRTY=1       permite medir con cambios rastreados (sólo debug)
 //   --out <path>             salida JSON sanitizada (default raw-results-2b.json)
 //   --no-trace               omite la traza CDP (no recomendado)
 //   --help                   esta ayuda
+//
+// Reproducibilidad (flujo de dos commits): los runs finales deben ejecutarse
+// desde el Commit A con el árbol limpio (cambios rastreados); el runner se
+// niega a medir en caso contrario. Los artefactos declaran por separado
+// applicationBaseSha (aplicación productiva) y harnessSha (Commit A).
 //
 // Códigos de salida: 0 (PASS), 2 (argumentos), 3 (BLOCKED), 1 (fallo).
 
@@ -40,16 +49,22 @@ import { chromium } from 'playwright';
 import {
   assertRequestGuard,
   buildAliases,
+  buildPageTimings,
   classifyContractValue,
   classifySurface,
+  correlateCdpNetwork,
   countElements,
   groupEquivalentRequests,
   isProtectedSurface,
   normalizeRequestUrl,
   pathnameToPattern,
+  redactUrlIds,
   redactUrlOrigin,
   sanitizeResults,
   selectBaselineDecks,
+  summarizeCommits,
+  summarizeLongTasks,
+  summarizeNetworkSamples,
   summarizeValues,
 } from './libraryBrowserProfileUtils.mjs';
 
@@ -82,12 +97,15 @@ Obligatorio:
 Opciones:
   PERF_BUILD_MODE=production|profiling   build a medir (default production)
   PERF_SAMPLES=1..5                      repeticiones por escenario (default 5)
+  PERF_HARNESS_SHA=<sha>                 SHA completo del Commit A (harnessSha)
+  PERF_APPLICATION_BASE_SHA=<sha>        SHA de la aplicación medida
   --out <path>                           salida JSON sanitizada
   --no-trace                             omite la traza CDP
   --help                                 esta ayuda
 
 Sólo emite GET; guardia fail-fast sobre el contrato indexado; resultados
-persistidos sanitizados (aliases real-user-A, C20-real, C100-real, C500-real).`;
+persistidos sanitizados (aliases real-user-A, C20-real, C100-real, C500-real).
+Reproducibilidad: el run exige árbol limpio (Commit A) salvo PERF_ALLOW_DIRTY=1.`;
 
 function fatal(message) {
   console.error(message);
@@ -119,9 +137,13 @@ const state = {
   backendUrl: (process.env.VITE_BACKEND_URL || '').replace(/\/+$/, ''),
   currentWindow: null,
   currentEntry: null,
+  currentPhase: null,       // 'first' | 'warm' | null (aperturas de mazos)
   pageCrashedAt: null,
   lastCrashWindow: null,
   traceEnabled: true,
+  seqCounter: 0,            // secuencia causal de solicitudes observadas
+  cdpSeqCounter: 0,         // secuencia causal de entradas CDP
+  cdpPreflights: 0,         // preflights OPTIONS observadas por CDP (no son solicitudes de aplicación)
   requests: [],            // todas las solicitudes backend observadas
   violations: [],          // violaciones de la guardia (fatales)
   fatalViolation: null,
@@ -146,6 +168,10 @@ async function setupBuildAndServer() {
   // productivo queda sin instrumentación (perfLibraryProfile inerte).
   if (state.buildMode === 'profiling') process.env.VITE_PERF_LIBRARY_PROFILE = '1';
   else delete process.env.VITE_PERF_LIBRARY_PROFILE;
+  // Instrumentación de la PÁGINA del harness (body/JSON.parse/transformación):
+  // ambos builds de medición la definen; el build productivo normal de la
+  // aplicación no incluye la página del harness.
+  process.env.VITE_PERF_HARNESS_INSTRUMENT = '1';
   const viteConfig = {
     root: FRONTEND_ROOT,
     logLevel: 'error',
@@ -214,6 +240,8 @@ function attachGuard(page) {
     }
     if (classification.kind !== 'preflight') {
       state.requests.push({
+        seq: state.seqCounter++,
+        phase: state.currentPhase,
         normalizedUrl,
         pathPattern: pathnameToPattern(pathname),
         method: request.method().toUpperCase(),
@@ -230,6 +258,8 @@ function attachGuard(page) {
         ttfbMs: null,
         downloadMs: null,
         durationMs: null,
+        correlation: null,
+        correlationBasis: null,
       });
     }
     return route.continue();
@@ -295,15 +325,24 @@ function mergeResourceTiming(snapshot, windowLabel) {
  * CDP Network domain: tamaños reales, Content-Encoding y TTFB/descarga sin
  * depender de Timing-Allow-Origin (el backend no envía cabecera de timing, por
  * lo que Resource Timing viene enmascarado). Se activa por contexto.
+ * Las preflights OPTIONS del navegador se identifican por tipo CDP
+ * ('Preflight') y se descartan: no son solicitudes de aplicación y, si se
+ * conservaran, romperían la correlación uno a uno (cada GET generaría una
+ * entrada CDP extra).
  */
 function attachCdpNetwork(client) {
   client.on('Network.responseReceived', (event) => {
+    if (event.type === 'Preflight') {
+      state.cdpPreflights += 1;
+      return;
+    }
     const req = event.response;
     if (!req || !req.url || !req.url.startsWith(state.backendUrl)) return;
     const { normalizedUrl } = normalizeRequestUrl(req.url);
     const timing = req.timing || {};
     const t0 = timing.requestTime ? timing.requestTime * 1000 : null;
     state.cdpNetwork.set(event.requestId, {
+      seq: state.cdpSeqCounter++,
       window: state.currentWindow,
       normalizedUrl,
       status: req.status,
@@ -332,18 +371,48 @@ function attachCdpNetwork(client) {
   });
 }
 
-/** Aplica los metadatos CDP a las solicitudes (última coincidencia por ventana). */
-function mergeCdpNetwork() {
+/**
+ * Correlación CDP uno a uno (corrección de la Fase 2B): aplica los metadatos
+ * CDP a las solicitudes observadas con `correlateCdpNetwork`, que garantiza
+ * que cada solicitud consume como máximo una entrada CDP y que cada entrada
+ * se asigna como máximo a una solicitud. El emparejamiento ordena por
+ * COMPLETACIÓN (las solicitudes abortadas/sin respuesta van al final y no
+ * consumen entradas). CDP es la fuente de verdad del status y de la duración
+ * (deltas internos del mismo reloj). Las solicitudes sin correlación segura
+ * quedan explícitamente como `unmatched` (nunca heredan métricas de otra) y
+ * se excluyen de los agregados.
+ */
+function applyCdpCorrelation() {
+  const entries = [...state.cdpNetwork.values()];
+  const { byRequest, summary } = correlateCdpNetwork(state.requests, entries);
+  // Las URLs de los grupos del resumen se redactan (IDs reales -> ':id');
+  // el origen se redacta después con redactUrlOrigin antes de persistir.
+  summary.groups = summary.groups.map((g) => ({
+    ...g,
+    normalizedUrl: g.normalizedUrl ? redactUrlIds(g.normalizedUrl) : g.normalizedUrl,
+  }));
+  state.correlation = summary;
   for (const req of state.requests) {
-    const entry = [...state.cdpNetwork.values()]
-      .filter((e) => e.window === req.window && e.normalizedUrl === req.normalizedUrl)
-      .at(-1);
-    if (!entry) continue;
+    const entry = byRequest.get(req);
+    if (!entry) {
+      req.correlation = 'unmatched';
+      req.correlationBasis = null;
+      continue;
+    }
+    req.correlation = 'matched';
+    req.correlationBasis = 'order';
     if (entry.sendStartMs !== null && entry.receiveHeadersEndMs !== null) {
       req.ttfbMs = Math.max(0, entry.receiveHeadersEndMs - entry.sendStartMs);
     }
     if (entry.receivedAtMs !== null && entry.finishedAtMs !== null) {
       req.downloadMs = Math.max(0, entry.finishedAtMs - entry.receivedAtMs);
+    }
+    // Status y duración reales desde CDP (mismo reloj monotónico del
+    // navegador): la marca `end` del listener puede estar intercambiada en
+    // solicitudes equivalentes simultáneas y no se usa para duración.
+    req.status = entry.status;
+    if (entry.finishedAtMs !== null && entry.sendStartMs !== null) {
+      req.durationMs = Math.max(0, entry.finishedAtMs - entry.sendStartMs);
     }
     req.contentEncoding = entry.contentEncoding || null;
     if (entry.transfer !== null) req.transferSize = entry.transfer;
@@ -903,17 +972,28 @@ async function runDeckScenario(browser, seed, { alias, target }) {
 
 async function openDeckOnce(entry, deck, target, kind, { skipSearch = false } = {}) {
   const t0 = Date.now();
+  state.currentPhase = kind;
   await ev(entry.page, (k) => window.__libraryBrowserHarness.mark(`deck-open:${k}`), kind);
   if (!skipSearch) {
     const searched = await searchDeckAndOpen(entry.page, deck);
-    if (!searched.ok) return { ok: false, reason: searched.reason, dump: redactDump(searched.dump) };
+    if (!searched.ok) {
+      state.currentPhase = null;
+      return { ok: false, reason: searched.reason, dump: redactDump(searched.dump) };
+    }
   }
   const card = await clickDeckCard(entry.page, deck.title, target);
-  if (!card.ok) return { ok: false, reason: card.reason };
+  if (!card.ok) {
+    state.currentPhase = null;
+    return { ok: false, reason: card.reason };
+  }
   await entry.page.locator('[data-testid="deck-interior"]').waitFor({ timeout: 15_000 });
   const collection = await openDeckCollection(entry.page, target);
-  if (!collection.ok) return { ok: false, reason: collection.reason };
+  if (!collection.ok) {
+    state.currentPhase = null;
+    return { ok: false, reason: collection.reason };
+  }
   await ev(entry.page, (k) => window.__libraryBrowserHarness.markEnd(`deck-open:${k}`), kind);
+  state.currentPhase = null;
   const durationMs = Date.now() - t0;
 
   // Verificación de cardinalidad exacta desde la respuesta indexada capturada.
@@ -935,6 +1015,68 @@ async function openDeckOnce(entry, deck, target, kind, { skipSearch = false } = 
 // Orquestación
 // ---------------------------------------------------------------------------
 
+/** Métricas de red persistidas como `*Aggregate` (una muestra por solicitud). */
+const NETWORK_METRICS = ['ttfbMs', 'downloadMs', 'durationMs', 'transferSize', 'encodedBodySize', 'decodedBodySize'];
+
+/** Resumen por repetición de una medición de hidratación (agregados, sin crudos). */
+function hydrationSummary(hydration) {
+  if (!hydration) return null;
+  const summarizeKey = (key) => {
+    const runs = hydration[key];
+    if (!Array.isArray(runs)) return { status: 'absent', runs: 0 };
+    return {
+      status: runs.every((r) => r.status === 'ok') ? 'ok' : [...new Set(runs.map((r) => r.status))].join(','),
+      runs: runs.length,
+      totalAggregate: summarizeValues(runs.map((r) => r.total)),
+      getItemAggregate: summarizeValues(runs.map((r) => r.getItem)),
+      parseAggregate: summarizeValues(runs.map((r) => r.parse)),
+      sanitizeAggregate: summarizeValues(runs.map((r) => r.sanitize)),
+    };
+  };
+  return { decks: summarizeKey('decks'), materias: summarizeKey('materias') };
+}
+
+/**
+ * Registro por repetición persistido de un snapshot de página: DOM, memoria,
+ * long tasks (con alcance de ventana), timings de body/parse/transformación y
+ * React (sólo profiling). Nunca contiene URLs, IDs, contenido ni stacks.
+ */
+function buildSnapshotRecord(snapshot, { scope = null } = {}) {
+  if (!snapshot) return null;
+  const record = {
+    dom: snapshot.dom || null,
+    memory: snapshot.memory || null,
+    longTasks: summarizeLongTasks(snapshot.longTasks, { scope, observed: snapshot.longTaskObserverActive !== false }),
+    markIntervals: (snapshot.markIntervals || []).map((m) => ({
+      // `mark`, no `name`: la serialización de resultados prohíbe la clave
+      // `name` (nombres reales); los identificadores de marcas no son
+      // sensibles pero se evita la colisión con la regla de sanitización.
+      mark: m.name,
+      start: Math.round(m.start),
+      end: m.end == null ? null : Math.round(m.end),
+    })),
+  };
+  const timings = buildPageTimings(snapshot.fetchRecords);
+  if (Object.keys(timings).length > 0) record.pageTimings = timings;
+  if (state.buildMode === 'profiling' && Array.isArray(snapshot.commits)) {
+    record.react = {
+      renderCounts: snapshot.perfProfile && snapshot.perfProfile.renderCounts ? snapshot.perfProfile.renderCounts : null,
+      loaderInvocations: snapshot.perfProfile && snapshot.perfProfile.loaderInvocations ? snapshot.perfProfile.loaderInvocations : null,
+      commitsSummary: summarizeCommits(snapshot.commits),
+      commits: snapshot.commits.map((c) => ({
+        id: c.id,
+        phase: c.phase,
+        actualDuration: c.actualDuration,
+        baseDuration: c.baseDuration,
+        startTime: c.startTime,
+        commitTime: c.commitTime,
+        bucket: c.bucket,
+      })),
+    };
+  }
+  return record;
+}
+
 async function main() {
   let args;
   try {
@@ -955,12 +1097,30 @@ async function main() {
     return fatal('VITE_BACKEND_URL ausente o inválida (URL http(s) obligatoria).');
   }
 
-  let appSha = process.env.PERF_APP_SHA || 'UNKNOWN';
+  let appBaseSha = process.env.PERF_APPLICATION_BASE_SHA || 'UNKNOWN';
   try {
-    appSha = execSync('git rev-parse HEAD', { encoding: 'utf8' }).trim();
-  } catch { /* sin git; se usa PERF_APP_SHA si está definido */ }
+    appBaseSha = process.env.PERF_APPLICATION_BASE_SHA
+      || execSync('git rev-parse origin/main', { encoding: 'utf8' }).trim()
+      || execSync('git rev-parse HEAD', { encoding: 'utf8' }).trim();
+  } catch { /* sin git; se usa PERF_APPLICATION_BASE_SHA si está definido */ }
+  let harnessSha = process.env.PERF_HARNESS_SHA || 'UNKNOWN';
+  try {
+    harnessSha = process.env.PERF_HARNESS_SHA || execSync('git rev-parse HEAD', { encoding: 'utf8' }).trim();
+  } catch { /* sin git; se usa PERF_HARNESS_SHA si está definido */ }
 
-  console.log(`[2B] buildMode=${state.buildMode} samples=${state.samples} appSha=${appSha}`);
+  // Reproducibilidad: los runs finales deben ejecutarse desde el Commit A con
+  // el árbol limpio (cambios rastreados; los archivos sin seguimiento ajenos
+  // no bloquean). PERF_ALLOW_DIRTY=1 desactiva la comprobación.
+  if (process.env.PERF_ALLOW_DIRTY !== '1') {
+    try {
+      const dirty = execSync('git status --porcelain --untracked-files=no', { encoding: 'utf8' }).trim();
+      if (dirty.length > 0) {
+        return fatal(`Árbol con cambios rastreados sin commitear; los resultados no serían reproducibles.\n${dirty}\n(Commit A obligatorio antes de medir; PERF_ALLOW_DIRTY=1 sólo para depuración.)`);
+      }
+    } catch { /* sin git: no se puede comprobar */ }
+  }
+
+  console.log(`[2B] buildMode=${state.buildMode} samples=${state.samples} applicationBaseSha=${appBaseSha} harnessSha=${harnessSha}`);
 
   const { server, temporaryBuildDirectory } = await setupBuildAndServer();
   console.log(`[2B] servidor listo en ${BASE_URL} (build productivo + página de harness)`);
@@ -982,18 +1142,23 @@ async function main() {
   };
 
   const results = {
-    schemaVersion: '2.0.0',
+    schemaVersion: '3.0.0',
     kind: 'under-flashcards-library-browser-profile',
     buildMode: state.buildMode,
-    appSha,
-    harnessSha: appSha,
+    mode: state.buildMode,
+    applicationBaseSha: appBaseSha,
+    harnessSha,
     measuredAtUtc: new Date().toISOString(),
     user: 'real-user-A',
     samplesRequested: state.samples,
+    samplesValid: 0,
     // Objetos con `samples` (los agregados no sobreviven en arrays JSON).
-    scenarios: { B1: { samples: [] }, B2: { samples: [] }, B3: { cold: [], warm: [] }, B4: [], B5: { samples: [] }, B6: { samples: [] }, B7: { samples: [] } },
+    scenarios: { B1: { samples: [] }, B2: { samples: [] }, B3: { cold: [], warm: [] }, B4: { ops: [], reps: [] }, B5: { samples: [] }, B6: { samples: [] }, B7: { samples: [] } },
     storage: {},
+    pageTimings: {},
+    longTasks: {},
     errors: [],
+    notMeasured: [],
   };
 
   let firstSeed = null;
@@ -1120,24 +1285,48 @@ async function main() {
   // -------------------------------------------------------------------------
 
   const okReps = state.perRep.filter((r) => !r.error);
+  const finiteSamples = (values) => values.filter((v) => Number.isFinite(v));
+  const aliasToKey = { 'C20-real': 'B5', 'C100-real': 'B6', 'C500-real': 'B7' };
 
   for (const rep of okReps) {
-    if (rep.b1) results.scenarios.B1.samples.push({ homeUsableMs: rep.b1.homeUsableMs });
-    if (rep.b2) results.scenarios.B2.samples.push({ homeUsableMs: rep.b2.homeUsableMs });
-    const pushB3 = (list, r) => {
+    if (rep.b1) {
+      results.scenarios.B1.samples.push({
+        homeUsableMs: rep.b1.homeUsableMs,
+        hydration: hydrationSummary(rep.b1.hydration),
+        snapshot: buildSnapshotRecord(rep.b1.snapshot, { scope: 'B1-cold-start' }),
+      });
+    }
+    if (rep.b2) {
+      results.scenarios.B2.samples.push({
+        homeUsableMs: rep.b2.homeUsableMs,
+        hydration: hydrationSummary(rep.b2.hydration),
+        snapshot: buildSnapshotRecord(rep.b2.snapshot, { scope: 'B2-warm-start' }),
+      });
+    }
+    const pushB3 = (list, r, scope) => {
       if (!r) { list.push(null); return; }
-      list.push({ interactionMs: r.toInteractionMs, contentMs: r.toContentMs, stableMs: r.toStableMs });
+      list.push({
+        interactionMs: r.toInteractionMs,
+        contentMs: r.toContentMs,
+        stableMs: r.toStableMs,
+        memoryBefore: r.memoryBefore,
+        memoryAfter: r.memoryAfter,
+        snapshot: buildSnapshotRecord(r.snapshot, { scope }),
+      });
     };
-    pushB3(results.scenarios.B3.cold, rep.b3cold);
-    pushB3(results.scenarios.B3.warm, rep.b3warm);
+    pushB3(results.scenarios.B3.cold, rep.b3cold, 'B3-cold-entry');
+    pushB3(results.scenarios.B3.warm, rep.b3warm, 'B3-warm-entry');
     if (rep.b4) {
+      results.scenarios.B4.reps.push({
+        memoryAfter: rep.b4.memoryAfter,
+        snapshot: buildSnapshotRecord(rep.b4.snapshot, { scope: 'B4-library-processing' }),
+      });
       for (const op of rep.b4.opResults) {
-        const entry = results.scenarios.B4.find((e) => e.op === op.op);
+        const entry = results.scenarios.B4.ops.find((e) => e.op === op.op);
         if (entry) entry.executions.push(op);
-        else results.scenarios.B4.push({ op: op.op, executions: [op] });
+        else results.scenarios.B4.ops.push({ op: op.op, executions: [op] });
       }
     }
-    const aliasToKey = { 'C20-real': 'B5', 'C100-real': 'B6', 'C500-real': 'B7' };
     for (const [alias, key] of Object.entries(aliasToKey)) {
       const r = rep[alias];
       if (!r) continue;
@@ -1151,12 +1340,15 @@ async function main() {
           verifiedElements: r.first.verifiedElements,
           cardinalityExact: r.first.cardinalityExact,
           backUsableMs: r.backUsable.ok ? r.backUsable.elapsedMs : null,
+          memoryFirstOpen: r.first.memoryAfter,
+          memoryWarmOpen: r.warm.ok ? r.warm.memoryAfter : null,
+          afterGcDiagnostic: r.afterGc,
+          snapshot: buildSnapshotRecord(r.snapshot, { scope: `B${key.slice(1)}-${alias}` }),
         });
       }
     }
   }
 
-  const finiteSamples = (values) => values.filter((v) => Number.isFinite(v));
   results.scenarios.B1.aggregate = summarizeValues(finiteSamples(okReps.map((r) => r.b1 && r.b1.homeUsableMs)));
   results.scenarios.B2.aggregate = summarizeValues(finiteSamples(okReps.map((r) => r.b2 && r.b2.homeUsableMs)));
   const summarizeB3 = (label, list, key) => {
@@ -1169,7 +1361,7 @@ async function main() {
   summarizeB3('warmStable', results.scenarios.B3.warm, 'stableMs');
   summarizeB3('warmInteraction', results.scenarios.B3.warm, 'interactionMs');
   summarizeB3('warmContent', results.scenarios.B3.warm, 'contentMs');
-  for (const opEntry of results.scenarios.B4) {
+  for (const opEntry of results.scenarios.B4.ops) {
     const okExecutions = opEntry.executions.filter((e) => e.status === 'ok');
     opEntry.aggregate = summarizeValues(okExecutions.map((e) => e.durationMs));
     opEntry.executionsCount = opEntry.executions.length;
@@ -1186,49 +1378,85 @@ async function main() {
     };
   }
 
-  // Almacenamiento (hidratación y escrituras) — primera repetición válida.
+  // Almacenamiento (hidratación y escrituras) — primera repetición válida;
+  // los resúmenes por repetición viven en las muestras de B1/B2.
   const firstOkRep = okReps[0];
   if (firstOkRep && firstOkRep.b1) {
     results.storage = {
       cold: { hydration: firstOkRep.b1.hydration, writes: firstOkRep.b1.storageWrites },
       warm: firstOkRep.b2 ? { hydration: firstOkRep.b2.hydration } : null,
       api: 'safeLocalStorage (getItem/JSON.parse/JSON.stringify/setItem medidos en página con las funciones productivas)',
+      note: 'El JSON.parse de la hidratación mide el parseo de localStorage, NO el de las respuestas de red; el parseo de red se mide aparte (pageTimings: parseMs).',
     };
   }
 
-  // Red por superficie: los metadatos reales (bytes, Content-Encoding, TTFB)
-  // provienen de CDP Network; las duraciones del runner usan sus propias
-  // marcas. Resource Timing cross-origin queda enmascarado sin
-  // Timing-Allow-Origin y ya no se usa como fuente de bytes/tiempos.
-  mergeCdpNetwork();
+  // -------------------------------------------------------------------------
+  // Red: correlación CDP uno a uno y agregados sin doble contabilización
+  // -------------------------------------------------------------------------
+
+  applyCdpCorrelation();
   const networkBySurface = {};
+  const networkSample = (req) => ({
+    contract: req.contract,
+    window: req.window,
+    phase: req.phase,
+    status: req.status,
+    durationMs: req.durationMs != null
+      ? req.durationMs
+      : req.end != null && req.start != null ? req.end - req.start : null,
+    ttfbMs: req.ttfbMs,
+    downloadMs: req.downloadMs,
+    transferSize: req.transferSize,
+    encodedBodySize: req.encodedBodySize,
+    decodedBodySize: req.decodedBodySize,
+    contentEncoding: req.contentEncoding ?? null,
+    correlation: req.correlation,
+    correlationBasis: req.correlationBasis,
+  });
   for (const req of state.requests) {
     const entry = networkBySurface[req.surface] || { count: 0, samples: [] };
     entry.count += 1;
-    entry.samples.push({
-      contract: req.contract,
-      window: req.window,
-      status: req.status,
-      durationMs: req.end != null && req.start != null ? req.end - req.start : null,
-      ttfbMs: req.ttfbMs,
-      downloadMs: req.downloadMs,
-      transferSize: req.transferSize,
-      encodedBodySize: req.encodedBodySize,
-      decodedBodySize: req.decodedBodySize,
-      contentEncoding: req.contentEncoding ?? null,
-    });
+    entry.samples.push(networkSample(req));
     networkBySurface[req.surface] = entry;
   }
-  for (const [surface, entry] of Object.entries(networkBySurface)) {
-    entry.ttfbAggregate = summarizeValues(entry.samples.map((s) => s.ttfbMs));
-    entry.downloadAggregate = summarizeValues(entry.samples.map((s) => s.downloadMs));
-    entry.durationAggregate = summarizeValues(entry.samples.map((s) => s.durationMs));
-    entry.transferSize = summarizeValues(entry.samples.map((s) => s.transferSize));
-    entry.encodedBodySize = summarizeValues(entry.samples.map((s) => s.encodedBodySize));
-    entry.decodedBodySize = summarizeValues(entry.samples.map((s) => s.decodedBodySize));
+  for (const entry of Object.values(networkBySurface)) {
+    // La clave `samples` del resumen es un conteo; se asignan campos
+    // explícitos para no sobrescribir el array de muestras.
+    const summary = summarizeNetworkSamples(entry.samples);
+    entry.matched = summary.matched;
+    entry.unmatched = summary.unmatched;
+    for (const metric of NETWORK_METRICS) {
+      entry[`${metric}Aggregate`] = summary[`${metric}Aggregate`];
+    }
     entry.contentEncodings = [...new Set(entry.samples.map((s) => s.contentEncoding))];
   }
-  results.network = { bySurface: networkBySurface, source: 'CDP Network (tamaños/TTFB/Content-Encoding) + marcas del runner (duración)' };
+  // deck-cards por colección (C20/C100/C500) y por apertura (first/warm):
+  // nunca se mezclan en un único agregado.
+  const networkByCollection = {};
+  for (const req of state.requests) {
+    if (req.surface !== 'deck-cards') continue;
+    const alias = req.window ? String(req.window).replace(/^B\d+-/, '') : null;
+    if (!alias) continue;
+    const phase = req.phase === 'warm' ? 'warm' : 'first';
+    if (!networkByCollection[alias]) networkByCollection[alias] = { first: { samples: [] }, warm: { samples: [] } };
+    networkByCollection[alias][phase].samples.push(networkSample(req));
+  }
+  for (const coll of Object.values(networkByCollection)) {
+    for (const phase of ['first', 'warm']) {
+      const summary = summarizeNetworkSamples(coll[phase].samples);
+      coll[phase].matched = summary.matched;
+      coll[phase].unmatched = summary.unmatched;
+      for (const metric of NETWORK_METRICS) {
+        coll[phase][`${metric}Aggregate`] = summary[`${metric}Aggregate`];
+      }
+    }
+  }
+  results.network = {
+    bySurface: networkBySurface,
+    byCollection: networkByCollection,
+    correlation: state.correlation,
+    source: 'CDP Network (tamaños/TTFB/Content-Encoding) + marcas del runner (duración); correlación uno a uno por (ventana, URL normalizada, orden causal)',
+  };
 
   // Guardia y solicitudes.
   const backendRequests = state.requests;
@@ -1236,11 +1464,15 @@ async function main() {
   results.guard = {
     totalIndexedEvents: protectedRequests.filter((r) => r.contract === 'indexed').length,
     legacyEvents: protectedRequests.filter((r) => r.contract !== 'indexed').length,
+    allCards: protectedRequests.filter((r) => r.surface === 'all-cards').length,
     protectedRequests: protectedRequests.length,
     otherRequests: backendRequests.filter((r) => !isProtectedSurface(r.surface)).length,
+    totalRequests: backendRequests.length,
+    writes: backendRequests.filter((r) => r.method !== 'GET').length + state.violations.filter((v) => v.code === 'non-get').length,
+    cdpPreflights: state.cdpPreflights,
     violations: state.violations,
     methods: [...new Set(backendRequests.map((r) => r.method))],
-    note: 'Las preflights OPTIONS no se cuentan como solicitudes de aplicación.',
+    note: 'Las preflights OPTIONS se identifican aparte (por el guard y por CDP) y no se cuentan como solicitudes de aplicación.',
   };
   results.requests = groupEquivalentRequests(
     backendRequests.map((r) => ({
@@ -1251,6 +1483,7 @@ async function main() {
       contract: r.contract,
       cover: r.cover,
       window: r.window,
+      phase: r.phase,
       initiator: r.window,
       start: r.start,
       end: r.end,
@@ -1261,10 +1494,12 @@ async function main() {
       ttfbMs: r.ttfbMs,
       downloadMs: r.downloadMs,
       contentEncoding: r.contentEncoding ?? null,
+      correlation: r.correlation,
+      correlationBasis: r.correlationBasis,
     }))
   );
 
-  // Memoria (primera repetición válida).
+  // Memoria (primera repetición válida; por repetición en las muestras).
   const memory = {};
   if (firstOkRep) {
     if (firstOkRep.b3cold) memory.libraryCold = { before: firstOkRep.b3cold.memoryBefore, after: firstOkRep.b3cold.memoryAfter };
@@ -1285,13 +1520,29 @@ async function main() {
   }
   results.memory = memory;
 
-  // React (sólo build de profiling) — primera repetición válida.
-  if (state.buildMode === 'profiling' && firstOkRep && firstOkRep.b1) {
+  // React (sólo build de profiling) — por escenario y repetición.
+  if (state.buildMode === 'profiling') {
+    const reactScenarios = {};
+    const collectReact = (key, samples) => {
+      const reps = (samples || []).filter((s) => s && s.snapshot && s.snapshot.react).map((s) => s.snapshot.react);
+      if (reps.length > 0) reactScenarios[key] = { reps };
+    };
+    collectReact('B1', results.scenarios.B1.samples);
+    collectReact('B2', results.scenarios.B2.samples);
+    collectReact('B3cold', results.scenarios.B3.cold);
+    collectReact('B3warm', results.scenarios.B3.warm);
+    collectReact('B4', results.scenarios.B4.reps);
+    collectReact('B5', results.scenarios.B5.samples);
+    collectReact('B6', results.scenarios.B6.samples);
+    collectReact('B7', results.scenarios.B7.samples);
+    const commitCounts = Object.values(reactScenarios)
+      .flatMap((s) => s.reps.map((r) => (r.commitsSummary ? r.commitsSummary.count : 0)));
     results.react = {
-      renderCounts: firstOkRep.b1.snapshot.perfProfile ? firstOkRep.b1.snapshot.perfProfile.renderCounts : null,
-      loaderInvocations: firstOkRep.b1.snapshot.perfProfile ? firstOkRep.b1.snapshot.perfProfile.loaderInvocations : null,
-      commitsB1FirstRep: firstOkRep.b1.snapshot.commits || null,
-      note: 'renders/commits del build de profiling; no mezclados con el build productivo.',
+      aliasVerified: commitCounts.some((c) => c > 0),
+      aliasEvidence: 'Profiler.onRender emitió commits; en un build productivo normal de React no se emiten. El alias react-dom -> react-dom/profiling se aplica ÚNICAMENTE en el build del harness (runner), nunca en vite.config.js ni en el build normal.',
+      components: ['DashboardScreen', 'HomeSection', 'LibrarySection', 'DeckInterior', 'FlashcardCollection', 'FlashcardGrid'],
+      scenarios: reactScenarios,
+      note: 'renders, invocaciones de loaders y commits por escenario y repetición (build de profiling; no mezclado con el productivo). Los commits llevan bucket (first-open/warm-open/library-entry) según los marks del harness.',
     };
   }
 
@@ -1306,35 +1557,81 @@ async function main() {
       const r = firstOkRep[alias];
       if (r && !r.blocked) cpu[alias] = r.trace;
     }
+    // B4: si la traza no produjo eventos de interés, NOT MEASURED explícito;
+    // nunca se infiere la atribución CPU de la duración total de las ops.
+    const b4Interesting = cpu.B4 && Object.keys(cpu.B4).some((k) => k !== 'droppedEvents' && k !== 'notMeasured');
+    if (firstOkRep.b4 && !b4Interesting) {
+      cpu.B4 = {
+        notMeasured: true,
+        droppedEvents: cpu.B4 ? cpu.B4.droppedEvents : 0,
+        reason: 'traza CDP sin eventos de interés en la ventana B4 (anomalía de captura headless); la atribución CPU de B4 no se infiere de la duración total de las operaciones',
+      };
+    }
   }
   results.cpuAttribution = {
     categories: [...INTERESTING_TRACE_EVENTS],
     traces: cpu,
-    note: 'CDP tracing headless; las categorías ausentes se registran como NOT MEASURED, no cero.',
+    note: 'CDP tracing headless (primera repetición válida); las categorías ausentes se registran como NOT MEASURED, no cero.',
   };
 
-  // DOM (primera repetición válida).
+  // DOM — resumen (primera repetición válida); por repetición en las muestras.
   results.dom = {
-    b1Home: firstOkRep && firstOkRep.b1 ? {
-      totalNodes: firstOkRep.b1.snapshot.dom.totalNodes,
-      articleCount: firstOkRep.b1.snapshot.dom.articleCount,
-      buttonCount: firstOkRep.b1.snapshot.dom.buttonCount,
-      imageCount: firstOkRep.b1.snapshot.dom.imageCount,
-    } : null,
-    libraryCold: firstOkRep && firstOkRep.b3cold ? firstOkRep.b3cold.snapshot.dom : null,
-    deckDelta: Object.fromEntries(['C20-real', 'C100-real', 'C500-real'].map((alias) => {
-      const r = firstOkRep && firstOkRep[alias];
-      return [alias, r && !r.blocked ? {
-        deckNodes: r.snapshot.dom.deckNodes,
-        deckArticleCount: r.snapshot.dom.deckArticleCount,
-        totalNodes: r.snapshot.dom.totalNodes,
-        inlineBackgroundImages: r.snapshot.dom.inlineBackgroundImages,
-      } : null];
-    })),
+    summary: {
+      b1Home: firstOkRep && firstOkRep.b1 ? {
+        totalNodes: firstOkRep.b1.snapshot.dom.totalNodes,
+        articleCount: firstOkRep.b1.snapshot.dom.articleCount,
+        buttonCount: firstOkRep.b1.snapshot.dom.buttonCount,
+        imageCount: firstOkRep.b1.snapshot.dom.imageCount,
+      } : null,
+      libraryCold: firstOkRep && firstOkRep.b3cold ? firstOkRep.b3cold.snapshot.dom : null,
+      deckDelta: Object.fromEntries(['C20-real', 'C100-real', 'C500-real'].map((alias) => {
+        const r = firstOkRep && firstOkRep[alias];
+        return [alias, r && !r.blocked ? {
+          deckNodes: r.snapshot.dom.deckNodes,
+          deckArticleCount: r.snapshot.dom.deckArticleCount,
+          totalNodes: r.snapshot.dom.totalNodes,
+          inlineBackgroundImages: r.snapshot.dom.inlineBackgroundImages,
+        } : null];
+      })),
+    },
+    note: 'El detalle por repetición (dom) está en scenarios.*.samples[].snapshot.dom.',
+  };
+
+  // Tareas largas — por escenario y repetición + agregados.
+  const longTaskScenarios = {};
+  const collectLongTasks = (key, samples) => {
+    const summaries = (samples || []).filter((s) => s && s.snapshot && s.snapshot.longTasks).map((s) => s.snapshot.longTasks);
+    if (summaries.length === 0) return;
+    longTaskScenarios[key] = {
+      reps: summaries,
+      aggregate: {
+        count: summarizeValues(finiteSamples(summaries.map((s) => s.count))),
+        totalMs: summarizeValues(finiteSamples(summaries.map((s) => s.totalMs))),
+        maxMs: summarizeValues(finiteSamples(summaries.map((s) => s.maxMs))),
+      },
+    };
+  };
+  collectLongTasks('B1', results.scenarios.B1.samples);
+  collectLongTasks('B2', results.scenarios.B2.samples);
+  collectLongTasks('B3cold', results.scenarios.B3.cold);
+  collectLongTasks('B3warm', results.scenarios.B3.warm);
+  collectLongTasks('B4', results.scenarios.B4.reps);
+  collectLongTasks('B5', results.scenarios.B5.samples);
+  collectLongTasks('B6', results.scenarios.B6.samples);
+  collectLongTasks('B7', results.scenarios.B7.samples);
+  results.longTasks = {
+    scenarios: longTaskScenarios,
+    note: 'PerformanceObserver longtask en página; offsets relativos sanitizados (ms desde timeOrigin) por repetición; cero sólo si la observación estuvo activa (zeroValid); si no, NOT MEASURED. Nunca se persisten stacks ni URLs.',
+  };
+
+  // Tiempos de página (body/parse/transformación) — por escenario y repetición.
+  results.pageTimings = {
+    note: 'bodyReadMs = lectura/decodificación del body (text()); parseMs = JSON.parse puro; transformMs = transformación replicada. Red = CDP (network.bySurface); el parse de localStorage no sustituye al de red. Detalle: scenarios.*.samples[].snapshot.pageTimings.',
   };
 
   // Errores y estado.
   results.samplesCompleted = okReps.length;
+  results.samplesValid = okReps.length;
   results.samplesFailed = state.samples - okReps.length;
   results.errors = results.errors.slice(0, 20);
   results.environment = {
@@ -1356,12 +1653,16 @@ async function main() {
   results.limitations = [
     'Headless Chromium en esta máquina; no equivale a Safari/GPU/compositor de dispositivo físico.',
     'El overlay artificial de 2.500 ms de FlashcardsApp no participa (se monta DashboardScreen real, sin el retardo configurado).',
-    'En el build productivo no hay Profiler: la atribución de commits proviene del build de profiling, nunca mezclada.',
-    'Las preflights OPTIONS del navegador se identifican aparte y no se cuentan como solicitudes de aplicación.',
+    'En el build productivo no hay Profiler: renders/commits provienen exclusivamente del build de profiling y nunca se mezclan.',
+    'Las preflights OPTIONS del navegador se identifican aparte (guard y CDP) y no se cuentan como solicitudes de aplicación.',
     'Con 5 muestras, p95 = NOT MEASURED (regla del encargo).',
+    'Los tiempos de las operaciones de B4 incluyen la interacción completa (UI, apertura/cierre del ActionSheet, espera de frames): no representan por sí solos el coste puro del filtrado/ordenamiento.',
+    'Los tiempos de red se miden con CDP sobre el backend productivo desde la máquina local (R0); no representan redes degradadas (R1/R2 quedan para investigación posterior).',
   ];
 
-  // Estado global del reporte.
+  // Estado global del reporte: PASS sólo si el contrato completo se midió
+  // válidamente; cualquier medición requerida legítimamente ausente (p95,
+  // atribución CPU de B4) => PASS PARCIAL con lista explícita.
   const coreOk = Boolean(
     results.scenarios.B3.coldStableAggregate && results.scenarios.B3.coldStableAggregate.samples > 0
     && results.scenarios.B3.warmStableAggregate && results.scenarios.B3.warmStableAggregate.samples > 0
@@ -1369,10 +1670,23 @@ async function main() {
     && results.scenarios.B6.aggregate && results.scenarios.B6.aggregate.samplesOk > 0
     && results.scenarios.B7.aggregate && results.scenarios.B7.aggregate.samplesOk > 0
   );
+  const notMeasured = [
+    { item: 'p95', reason: 'regla del encargo: con 5 muestras el p95 no se estima ni se presenta como dato estable' },
+  ];
+  if (cpu.B4 && cpu.B4.notMeasured) {
+    notMeasured.push({ item: 'cpuAttribution.B4', reason: cpu.B4.reason });
+  }
+  if (state.buildMode === 'profiling' && results.react && !results.react.aliasVerified) {
+    notMeasured.push({
+      item: 'react.commits',
+      reason: 'Profiler.onRender no emitió commits: el alias react-dom -> react-dom/profiling no se aplicó en este build; la evidencia de React no es válida',
+    });
+  }
+  results.notMeasured = notMeasured;
   if (state.fatalViolation || state.violations.length > 0) results.status = 'FAIL';
   else if (!coreOk) results.status = 'BLOCKED';
-  else if (results.samplesCompleted === state.samples && results.samplesFailed === 0) results.status = 'PASS';
-  else results.status = 'PASS PARCIAL';
+  else if (notMeasured.length > 0 || results.samplesFailed > 0) results.status = 'PASS PARCIAL';
+  else results.status = 'PASS';
 
   // Serialización segura: redacta el origen real, redacta IDs de URLs y
   // valida aliases/contenido. Los SHAs públicos del informe se permiten
@@ -1381,7 +1695,7 @@ async function main() {
   let safeJson;
   try {
     const redacted = redactUrlOrigin(results, state.backendUrl);
-    safeJson = sanitizeResults(redacted, aliases, { allowedHexTokens: [appSha, results.harnessSha] });
+    safeJson = sanitizeResults(redacted, aliases, { allowedHexTokens: [appBaseSha, harnessSha] });
   } catch (error) {
     console.error(`[2B] Los resultados no pasan la serialización segura: ${error.message}`);
     console.error('No se escribió ningún archivo.');
@@ -1393,7 +1707,12 @@ async function main() {
   fs.mkdirSync(path.dirname(path.resolve(outPath)), { recursive: true });
   fs.writeFileSync(outPath, `${safeJson}\n`, 'utf8');
   console.log(`[2B] resultados sanitizados escritos en ${outPath}`);
-  console.log(`[2B] estado: ${results.status} | muestras ok ${results.samplesCompleted}/${state.samples} | eventos indexados ${results.guard.totalIndexedEvents} | legacy ${results.guard.legacyEvents} | violaciones ${state.violations.length}`);
+  console.log(`[2B] estado: ${results.status} | muestras ok ${results.samplesCompleted}/${state.samples}`);
+  console.log(`[2B] guard 5A: indexadas ${results.guard.totalIndexedEvents} | legacy ${results.guard.legacyEvents} | all-cards ${results.guard.allCards} | métodos ${results.guard.methods.join(',')} | escrituras ${results.guard.writes} | violaciones ${state.violations.length} | preflights CDP ${results.guard.cdpPreflights}`);
+  console.log(`[2B] correlación CDP: ${state.correlation.matched} emparejadas / ${state.correlation.unmatched} sin correlación / ${state.correlation.mismatchedGroups} grupos con conteo desigual`);
+  if (notMeasured.length > 0) {
+    for (const nm of notMeasured) console.log(`[2B] NOT MEASURED: ${nm.item} — ${nm.reason}`);
+  }
   if (state.violations.length > 0) {
     console.error('[2B] VIOLACIÓN DE GUARDIA (FAIL):');
     for (const v of state.violations) console.error(`  [${v.code}] ${v.detail} (${v.pathPattern})`);

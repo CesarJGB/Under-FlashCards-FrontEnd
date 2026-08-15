@@ -222,6 +222,10 @@ export function groupEquivalentRequests(requests) {
         transferSize: r.transferSize ?? null,
         encodedBodySize: r.encodedBodySize ?? null,
         decodedBodySize: r.decodedBodySize ?? null,
+        ttfbMs: r.ttfbMs ?? null,
+        downloadMs: r.downloadMs ?? null,
+        correlation: r.correlation ?? null,
+        correlationBasis: r.correlationBasis ?? null,
       })),
     });
   }
@@ -372,6 +376,293 @@ export class SanitizationError extends Error {
     super(message);
     this.name = 'SanitizationError';
   }
+}
+
+// ---------------------------------------------------------------------------
+// Correlación CDP Network uno a uno (corrección Fase 2B)
+// ---------------------------------------------------------------------------
+//
+// La correlación es ESTRICTA: cada solicitud observada consume como máximo
+// una entrada CDP y cada entrada CDP se asigna como máximo a una solicitud.
+// Dentro de cada grupo (ventana, URL normalizada) ambos lados se ordenan por
+// sus marcas temporales (y secuencia de aparición) y se emparejan en orden,
+// preservando el orden causal y distinguiendo de forma estable varias
+// solicitudes simultáneas con la misma URL. Una solicitud sin correlación
+// segura queda explícitamente como `unmatched` (nunca hereda métricas ajenas);
+// una entrada CDP sin observación equivalente nunca se asigna.
+
+const CDP_GROUP_SEPARATOR = '\u0000';
+
+/** Ordena las solicitudes observadas dentro de un grupo por COMPLETACIÓN. */
+function requestTimeKey(request) {
+  // Las solicitudes completadas (con `end`) preceden a las abortadas/sin
+  // respuesta (end null): la entrada CDP de una URL corresponde a la
+  // solicitud que realmente recibió respuesta, no a la que fue abortada.
+  return [
+    request.end != null && Number.isFinite(request.end) ? request.end : Number.MAX_SAFE_INTEGER,
+    Number.isFinite(request.start) ? request.start : Number.MAX_SAFE_INTEGER,
+    request.seq || 0,
+  ];
+}
+
+/** Ordena las entradas CDP dentro de un grupo por finalización. */
+function cdpTimeKey(entry) {
+  const base = entry.finishedAtMs != null
+    ? entry.finishedAtMs
+    : entry.receivedAtMs != null
+      ? entry.receivedAtMs
+      : entry.sendStartMs != null
+        ? entry.sendStartMs
+        : Number.MAX_SAFE_INTEGER;
+  return [Number.isFinite(base) ? base : Number.MAX_SAFE_INTEGER, entry.seq || 0];
+}
+
+/**
+ * Empareja solicitudes observadas con entradas CDP uno a uno y de forma
+ * determinista. Devuelve `{ byRequest, summary }`:
+ * - `byRequest`: Map solicitud -> entrada CDP emparejada o null (unmatched).
+ * - `summary`: conteos globales y por grupo para el reporte.
+ */
+export function correlateCdpNetwork(requests, cdpEntries) {
+  const reqList = Array.isArray(requests) ? requests : [];
+  const entryList = Array.isArray(cdpEntries) ? cdpEntries : [];
+  const groups = new Map();
+  const groupOf = (windowLabel, normalizedUrl) => {
+    const key = `${windowLabel || ''}${CDP_GROUP_SEPARATOR}${normalizedUrl || ''}`;
+    if (!groups.has(key)) groups.set(key, { window: windowLabel || null, normalizedUrl: normalizedUrl || null, requests: [], entries: [] });
+    return groups.get(key);
+  };
+  for (const req of reqList) groupOf(req.window, req.normalizedUrl).requests.push(req);
+  // Los grupos se crean también desde las entradas CDP: una entrada sin
+  // observación equivalente (misma ventana y URL) nunca se asigna y queda
+  // contabilizada como unassignedEntries.
+  for (const entry of entryList) groupOf(entry.window, entry.normalizedUrl).entries.push(entry);
+
+  const byRequest = new Map();
+  const groupSummaries = [];
+  let matched = 0;
+  let unmatched = 0;
+  let mismatchedGroups = 0;
+  for (const group of groups.values()) {
+    const sortedRequests = [...group.requests].sort(
+      (a, b) => requestTimeKey(a)[0] - requestTimeKey(b)[0] || requestTimeKey(a)[1] - requestTimeKey(b)[1],
+    );
+    const sortedEntries = [...group.entries].sort(
+      (a, b) => cdpTimeKey(a)[0] - cdpTimeKey(b)[0] || cdpTimeKey(a)[1] - cdpTimeKey(b)[1],
+    );
+    const countMismatch = sortedRequests.length !== sortedEntries.length;
+    if (countMismatch) mismatchedGroups += 1;
+    const used = new Set();
+    for (const req of sortedRequests) {
+      const entry = sortedEntries.find((e) => !used.has(e));
+      if (!entry) {
+        byRequest.set(req, null);
+        unmatched += 1;
+        continue;
+      }
+      used.add(entry);
+      byRequest.set(req, entry);
+      matched += 1;
+    }
+    groupSummaries.push({
+      window: group.window,
+      normalizedUrl: group.normalizedUrl,
+      observedRequests: sortedRequests.length,
+      cdpEntries: sortedEntries.length,
+      matched: sortedRequests.length - Math.max(0, sortedRequests.length - sortedEntries.length),
+      unmatched: Math.max(0, sortedRequests.length - sortedEntries.length),
+      unassignedEntries: Math.max(0, sortedEntries.length - sortedRequests.length),
+      countMismatch,
+    });
+  }
+  return {
+    byRequest,
+    summary: {
+      totalObservedRequests: reqList.length,
+      totalCdpEntries: entryList.length,
+      matched,
+      unmatched,
+      mismatchedGroups,
+      groups: groupSummaries,
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Agregación de red sin doble contabilización
+// ---------------------------------------------------------------------------
+
+/**
+ * Agrega una lista de muestras de red (una muestra por solicitud observada,
+ * ya correlacionada uno a uno). Cada muestra contribuye como máximo una vez;
+ * los valores no finitos o ausentes (solicitudes `unmatched`) se excluyen del
+ * resumen y se cuentan aparte, de modo que los agregados de bytes, TTFB y
+ * descarga nunca duplican entradas CDP.
+ */
+export function summarizeNetworkSamples(samples) {
+  const list = Array.isArray(samples) ? samples : [];
+  const result = {
+    samples: list.length,
+    matched: list.filter((s) => s && s.correlation !== 'unmatched').length,
+    unmatched: list.filter((s) => s && s.correlation === 'unmatched').length,
+  };
+  for (const metric of ['ttfbMs', 'downloadMs', 'durationMs', 'transferSize', 'encodedBodySize', 'decodedBodySize']) {
+    const values = list.map((s) => s && s[metric]).filter((v) => Number.isFinite(v));
+    result[`${metric}Aggregate`] = summarizeValues(values);
+  }
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// Tareas largas (persistencia por escenario y repetición)
+// ---------------------------------------------------------------------------
+
+/**
+ * Resume las tareas largas observadas en la página. `tasks` es el array de
+ * entradas PerformanceObserver (startTime relativo a timeOrigin, duration).
+ * Nunca persiste stacks, URLs ni payloads: sólo conteos, duraciones y
+ * timestamps relativos sanitizados. Si el observador no estuvo activo, el
+ * resultado es `NOT MEASURED` con el motivo exacto (no se inventa un cero).
+ */
+export function summarizeLongTasks(tasks, { scope = null, observed = true } = {}) {
+  if (!Array.isArray(tasks)) {
+    return { scope, observed, status: 'NOT MEASURED', reason: 'observador de long tasks no disponible o no activo' };
+  }
+  const durations = tasks.map((t) => Number(t && t.duration)).filter(Number.isFinite);
+  const MAX_PERSISTED_OFFSETS = 200;
+  const offsets = tasks.map((t) => Math.round(Number(t && t.startTime) || 0));
+  return {
+    scope,
+    observed,
+    status: 'measured',
+    count: tasks.length,
+    totalMs: durations.reduce((sum, d) => sum + d, 0),
+    maxMs: durations.length ? Math.max(...durations) : 0,
+    zeroValid: observed,
+    // Timestamps relativos (ms desde timeOrigin), redondeados y sin contexto:
+    // suficientes para correlacionar con los marks del harness. Se acotan a
+    // los primeros MAX_PERSISTED_OFFSETS para limitar el tamaño del artefacto.
+    relativeStartOffsetsMs: offsets.slice(0, MAX_PERSISTED_OFFSETS),
+    relativeStartOffsetsCapped: offsets.length > MAX_PERSISTED_OFFSETS,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Commits de React (perfil por escenario y repetición)
+// ---------------------------------------------------------------------------
+
+/**
+ * Resume los commits de React capturados por Profiler (sólo build de
+ * profiling): conteo, fases emitidas, actualDuration/baseDuration totales y
+ * rango temporal relativo. Nunca serializa stacks ni identificadores reales.
+ */
+export function summarizeCommits(commits) {
+  const list = Array.isArray(commits) ? commits : [];
+  const phases = {};
+  let actualDurationTotalMs = 0;
+  let baseDurationTotalMs = 0;
+  let startTimeMinMs = null;
+  let commitTimeMaxMs = null;
+  for (const commit of list) {
+    const phase = String(commit && commit.phase || 'unknown');
+    phases[phase] = (phases[phase] || 0) + 1;
+    if (commit && Number.isFinite(commit.actualDuration)) actualDurationTotalMs += commit.actualDuration;
+    if (commit && Number.isFinite(commit.baseDuration)) baseDurationTotalMs += commit.baseDuration;
+    if (commit && Number.isFinite(commit.startTime)) {
+      startTimeMinMs = startTimeMinMs === null ? commit.startTime : Math.min(startTimeMinMs, commit.startTime);
+    }
+    if (commit && Number.isFinite(commit.commitTime)) {
+      commitTimeMaxMs = commitTimeMaxMs === null ? commit.commitTime : Math.max(commitTimeMaxMs, commit.commitTime);
+    }
+  }
+  return {
+    count: list.length,
+    phases,
+    actualDurationTotalMs,
+    baseDurationTotalMs,
+    startTimeMinMs,
+    commitTimeMaxMs,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Tiempos de página (red/body/parse/transform) por superficie
+// ---------------------------------------------------------------------------
+
+/**
+ * Convierte los `fetchRecords` de la página en agregados por superficie:
+ * tiempo de lectura/decodificación del body, `JSON.parse` puro y
+ * transformación, sin persistir jamás URLs ni contenido. El tiempo de red NO
+ * se estima aquí: proviene de CDP (source='CDP Network'). Las superficies sin
+ * muestras válidas quedan como NOT MEASURED con el motivo exacto.
+ */
+export function buildPageTimings(fetchRecords) {
+  const records = Array.isArray(fetchRecords) ? fetchRecords : [];
+  const NOT_MEASURED_SURFACES = [
+    'deck-list', 'deck-cards', 'all-cards', 'materias', 'temas', 'subtemas',
+    'preferences', 'balance', 'materia-domain-preview', 'health', 'other',
+  ];
+  const out = {};
+  for (const surface of NOT_MEASURED_SURFACES) {
+    out[surface] = {
+      surface,
+      count: 0,
+      notMeasured: true,
+      reason: 'sin muestras válidas (status 200) de esta superficie en esta ventana',
+      parseFallbacks: 0,
+      equivalence: { verified: 0, failed: 0, skipped: 0 },
+      bodyReadAggregate: { samples: 0, min: null, median: null, max: null, p95: 'NOT MEASURED', notMeasured: true },
+      parseAggregate: { samples: 0, min: null, median: null, max: null, p95: 'NOT MEASURED', notMeasured: true },
+      transformAggregate: { samples: 0, min: null, median: null, max: null, p95: 'NOT MEASURED', notMeasured: true },
+    };
+  }
+  const bySurface = new Map();
+  for (const record of records) {
+    if (!record || !record.isBackend) continue;
+    if (record.status !== 200) continue;
+    const { pathname } = normalizeRequestUrl(record.url);
+    const surface = classifySurface(pathname);
+    if (!bySurface.has(surface)) {
+      bySurface.set(surface, {
+        surface,
+        count: 0,
+        bodyReadMs: [],
+        parseMs: [],
+        transformMs: [],
+        parseFallbacks: 0,
+        equivalence: { verified: 0, failed: 0, skipped: 0 },
+      });
+    }
+    const entry = bySurface.get(surface);
+    entry.count += 1;
+    if (Number.isFinite(record.bodyReadMs)) entry.bodyReadMs.push(record.bodyReadMs);
+    if (Number.isFinite(record.parseMs)) entry.parseMs.push(record.parseMs);
+    if (Number.isFinite(record.transformMs)) entry.transformMs.push(record.transformMs);
+    if (record.parseFallback) entry.parseFallbacks += 1;
+    if (record.equivalence === 'verified') entry.equivalence.verified += 1;
+    else if (record.equivalence === 'mismatch') entry.equivalence.failed += 1;
+    else if (record.parseFallback) entry.equivalence.skipped += 1;
+  }
+  for (const entry of bySurface.values()) {
+    const base = {
+      surface: entry.surface,
+      count: entry.count,
+      notMeasured: false,
+      parseFallbacks: entry.parseFallbacks,
+      equivalence: entry.equivalence,
+    };
+    base.bodyReadAggregate = entry.bodyReadMs.length ? summarizeValues(entry.bodyReadMs) : {
+      samples: 0, min: null, median: null, max: null, p95: 'NOT MEASURED', notMeasured: true,
+    };
+    base.parseAggregate = entry.parseMs.length ? summarizeValues(entry.parseMs) : {
+      samples: 0, min: null, median: null, max: null, p95: 'NOT MEASURED', notMeasured: true,
+    };
+    base.transformAggregate = entry.transformMs.length ? summarizeValues(entry.transformMs) : {
+      samples: 0, min: null, median: null, max: null, p95: 'NOT MEASURED', notMeasured: true,
+    };
+    out[entry.surface] = base;
+  }
+  return out;
 }
 
 /**

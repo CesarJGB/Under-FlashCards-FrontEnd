@@ -22,6 +22,11 @@ import { perfLibraryProfile } from '../../../src/lib/perfLibraryProfile';
 import '../../../src/index.css';
 
 const PROFILE_MODE = import.meta.env.VITE_PERF_LIBRARY_PROFILE === '1';
+// Instrumentación de timings de la página del harness (body/parse/transform).
+// Sólo el runner la define (VITE_PERF_HARNESS_INSTRUMENT=1) para ambos builds
+// de medición; el build productivo normal de la aplicación (index.html) no
+// incluye esta página ni este código.
+const HARNESS_INSTRUMENT = import.meta.env.VITE_PERF_HARNESS_INSTRUMENT === '1';
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 const params = new URLSearchParams(window.location.search);
 const userId = params.get('userId') || '';
@@ -42,36 +47,64 @@ const longTasks = [];
 const layoutShifts = [];
 const paints = [];
 const measures = [];
+const observerStatus = { longtask: false, 'layout-shift': false, paint: false, measure: false };
 
 if (typeof PerformanceObserver !== 'undefined') {
   try {
     new PerformanceObserver((list) => {
       for (const entry of list.getEntries()) longTasks.push({ startTime: entry.startTime, duration: entry.duration });
     }).observe({ type: 'longtask', buffered: true });
+    observerStatus.longtask = true;
   } catch { /* categoría no disponible */ }
   try {
     new PerformanceObserver((list) => {
       for (const entry of list.getEntries()) layoutShifts.push({ startTime: entry.startTime, value: entry.value, hadRecentInput: entry.hadRecentInput });
     }).observe({ type: 'layout-shift', buffered: true });
+    observerStatus['layout-shift'] = true;
   } catch { /* categoría no disponible */ }
   try {
     new PerformanceObserver((list) => {
       for (const entry of list.getEntries()) paints.push({ name: entry.name, startTime: entry.startTime });
     }).observe({ type: 'paint', buffered: true });
+    observerStatus.paint = true;
   } catch { /* categoría no disponible */ }
   try {
     new PerformanceObserver((list) => {
       for (const entry of list.getEntries()) measures.push({ name: entry.name, startTime: entry.startTime, duration: entry.duration });
     }).observe({ type: 'measure', buffered: true });
+    observerStatus.measure = true;
   } catch { /* categoría no disponible */ }
 }
 
 // ===========================================================================
 // Patch de fetch (sólo observación; nunca altera solicitudes ni respuestas)
 // ===========================================================================
+//
+// Intervalos medidos (documentados con precisión):
+// - networkMs (aproximado, no autoritativo): desde el inicio de fetch hasta
+//   recibir las cabeceras. El tiempo de red AUTORITATIVO proviene de CDP
+//   Network (TTFB/descarga/tamaños) en el runner; este valor de página es una
+//   aproximación del mismo tramo y se etiqueta como tal.
+// - bodyReadMs: lectura y decodificación del body (`response.clone().text()`),
+//   sin parseo.
+// - parseMs: `JSON.parse(text)` PURO, sin lectura del body.
+// - transformMs: transformación productiva replicada (sanitizeDeckSummaries /
+//   extractAndResolveCards) con los mismos datos y las mismas funciones puras
+//   que ejecuta el código real inmediatamente después del parseo.
+// - Render/commit de React: Profiler (sólo build de profiling).
+// - Layout/paint posteriores: PerformanceObserver de paint + traza CDP.
+// - Tiempo total hasta utilizable: marcas del runner por escenario.
+//
+// La medición pura (text + JSON.parse) permanece detrás de la bandera de
+// instrumentación del harness: con la bandera desactivada se conserva el
+// comportamiento original (res.json() + parseDuration compuesto). La
+// verificación de equivalencia semántica con res.json() se ejecuta una sola
+// vez por URL única, en segundo plano, y nunca expone contenido: sólo
+// registra 'verified' | 'mismatch'.
 
 const fetchRecords = [];
 const originalFetch = window.fetch.bind(window);
+const verifiedEquivalenceUrls = new Set();
 
 window.fetch = async (input, init) => {
   const url = typeof input === 'string' ? input : (input && input.url) || '';
@@ -83,9 +116,12 @@ window.fetch = async (input, init) => {
     isBackend,
     requestStart: performance.now(),
     status: null,
-    parseStart: null,
-    parseDuration: null,
-    transformDuration: null,
+    networkMs: null,
+    bodyReadMs: null,
+    parseMs: null,
+    transformMs: null,
+    parseFallback: false,
+    equivalence: null,
     responseEnd: null,
     error: null,
   };
@@ -94,26 +130,74 @@ window.fetch = async (input, init) => {
   try {
     const res = await originalFetch(input, init);
     record.status = res.status;
+    record.networkMs = performance.now() - record.requestStart;
     const origJson = res.json.bind(res);
+    if (!HARNESS_INSTRUMENT) {
+      // Comportamiento original (parseo compuesto body+parse, sin text()).
+      res.json = async () => {
+        record.parseStart = performance.now();
+        const data = await origJson();
+        record.parseMs = performance.now() - record.parseStart;
+        record.responseEnd = performance.now();
+        measureTransform(record, url, data);
+        return data;
+      };
+      return res;
+    }
+    // Medición separada: lectura/decodificación del body y JSON.parse puro.
+    // `text()` + `JSON.parse(text)` reproduce el resultado semántico de
+    // `response.json()` (mismo decode UTF-8 y mismo parser del motor); si
+    // falla, se cae a res.json() original (parseFallback) preservando el
+    // comportamiento de la aplicación.
+    let textClone = null;
+    let verifyClone = null;
+    try {
+      textClone = res.clone();
+      verifyClone = res.clone();
+    } catch { /* body no clonable: se cae al comportamiento original */ }
+    if (!textClone) {
+      res.json = async () => {
+        record.parseStart = performance.now();
+        const data = await origJson();
+        record.parseMs = performance.now() - record.parseStart;
+        record.responseEnd = performance.now();
+        measureTransform(record, url, data);
+        return data;
+      };
+      return res;
+    }
     res.json = async () => {
-      record.parseStart = performance.now();
-      const data = await origJson();
-      record.parseDuration = performance.now() - record.parseStart;
-      record.responseEnd = performance.now();
-      // Transformación productiva replicada con los mismos datos y la misma
-      // función (pura) que ejecuta el código real inmediatamente después del
-      // parseo. No altera la respuesta entregada al llamador.
+      const t0 = performance.now();
+      const text = await textClone.text();
+      record.bodyReadMs = performance.now() - t0;
+      const t1 = performance.now();
+      let data;
       try {
-        if (/\/api\/decks\/[^/?]+(\?|$)/.test(url) && !/all-cards/.test(url) && Array.isArray(data)) {
-          const t0 = performance.now();
-          sanitizeDeckSummaries(data);
-          record.transformDuration = performance.now() - t0;
-        } else if (/\/api\/flashcards\/deck\//.test(url)) {
-          const t0 = performance.now();
-          extractAndResolveCards(data);
-          record.transformDuration = performance.now() - t0;
-        }
-      } catch { /* la transformación se mide, no se falla aquí */ }
+        data = JSON.parse(text);
+        record.parseMs = performance.now() - t1;
+      } catch (error) {
+        record.parseMs = performance.now() - t1;
+        record.parseFallback = true;
+        record.error = String(error);
+        data = await origJson();
+      }
+      record.responseEnd = performance.now();
+      measureTransform(record, url, data);
+      // Equivalencia semántica con response.json(): una vez por URL única,
+      // en segundo plano (no bloquea la medición ni el flujo).
+      const normalized = url.split('?')[0];
+      if (verifyClone && !verifiedEquivalenceUrls.has(normalized)) {
+        verifiedEquivalenceUrls.add(normalized);
+        verifyClone.json().then((expected) => {
+          try {
+            record.equivalence = JSON.stringify(data) === JSON.stringify(expected) ? 'verified' : 'mismatch';
+          } catch {
+            record.equivalence = 'mismatch';
+          }
+        }).catch(() => { record.equivalence = 'skipped'; });
+      } else if (record.equivalence === null) {
+        record.equivalence = 'skipped';
+      }
       return data;
     };
     return res;
@@ -123,13 +207,52 @@ window.fetch = async (input, init) => {
   }
 };
 
+/** Mide la transformación productiva replicada (nunca altera `data`). */
+function measureTransform(record, url, data) {
+  try {
+    if (/\/api\/decks\/[^/?]+(\?|$)/.test(url) && !/all-cards/.test(url) && Array.isArray(data)) {
+      const t0 = performance.now();
+      sanitizeDeckSummaries(data);
+      record.transformMs = performance.now() - t0;
+    } else if (/\/api\/flashcards\/deck\//.test(url)) {
+      const t0 = performance.now();
+      extractAndResolveCards(data);
+      record.transformMs = performance.now() - t0;
+    }
+  } catch { /* la transformación se mide, no se falla aquí */ }
+}
+
 // ===========================================================================
 // Commits de React (sólo build de profiling)
 // ===========================================================================
 
 const commits = [];
+// Intervalos de marcas del harness: permiten atribuir cada commit a la fase
+// de la interacción (primera apertura, apertura caliente, entrada a Library).
+const markIntervals = [];
 function onRender(id, phase, actualDuration, baseDuration, startTime, commitTime) {
   commits.push({ id, phase, actualDuration, baseDuration, startTime, commitTime });
+}
+
+const MARK_BUCKET_LABELS = {
+  'deck-open:first': 'first-open',
+  'deck-open:warm': 'warm-open',
+  'library-entry': 'library-entry',
+};
+
+/** Etiqueta el bucket de un commit según los intervalos de marca del harness. */
+function bucketOf(commit) {
+  let bucket = null;
+  let latestStart = -Infinity;
+  for (const interval of markIntervals) {
+    const overlaps = interval.start <= commit.commitTime && commit.startTime <= interval.end;
+    if (!overlaps) continue;
+    if (interval.start >= latestStart) {
+      latestStart = interval.start;
+      bucket = MARK_BUCKET_LABELS[interval.name] || `mark:${interval.name}`;
+    }
+  }
+  return bucket;
 }
 
 // ===========================================================================
@@ -276,6 +399,7 @@ const harness = {
 
   mark(name) {
     performance.mark(`2b:${name}:start`);
+    markIntervals.push({ name, start: performance.now(), end: null });
   },
 
   async markEnd(name) {
@@ -283,6 +407,8 @@ const harness = {
     try {
       performance.measure(`2b:${name}`, `2b:${name}:start`, `2b:${name}:end`);
     } catch { /* sin marca de inicio */ }
+    const interval = [...markIntervals].reverse().find((m) => m.name === name && m.end === null);
+    if (interval) interval.end = performance.now();
   },
 
   /** Diagnóstico para fallos de espera: estado visible de la página. */
@@ -347,13 +473,18 @@ const harness = {
       },
       memory: this.sampleMemory(),
       longTasks: longTasks.map((t) => ({ ...t })),
+      longTaskObserverActive: observerStatus.longtask,
       layoutShifts: layoutShifts.map((s) => ({ ...s })),
+      layoutShiftObserverActive: observerStatus['layout-shift'],
       paints: paints.map((p) => ({ ...p })),
+      paintObserverActive: observerStatus.paint,
       measures: measures.map((m) => ({ ...m })),
+      measureObserverActive: observerStatus.measure,
       resourceEntries,
-      commits: PROFILE_MODE ? commits.map((c) => ({ ...c })) : null,
+      commits: PROFILE_MODE ? commits.map((c) => ({ ...c, bucket: bucketOf(c) })) : null,
       perfProfile: perfLibraryProfile.snapshot(),
       fetchRecords: fetchRecords.map((r) => ({ ...r })),
+      markIntervals: markIntervals.map((m) => ({ ...m })),
     };
   },
 
