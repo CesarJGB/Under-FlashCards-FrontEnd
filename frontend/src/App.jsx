@@ -411,10 +411,10 @@ function FlashcardsApp() {
 
   usePendingReviewsFlush(user?.id);
 
-  const handleSuccess = async (credentialResponse) => {
+  const handleSuccess = async (credentialResponse, inviteCode = '') => {
     setError('');
     const credential = credentialResponse?.credential;
-    if (!credential) return;
+    if (!credential) return { error: 'Google no devolvió una credencial válida.' };
     try {
       jwtDecode(credential);
       const res = await fetch(`${BACKEND_URL}/api/auth/google`, {
@@ -422,21 +422,44 @@ function FlashcardsApp() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ credential }),
       });
-      if (!res.ok) throw new Error();
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Falló la verificación en el servidor.');
 
       if (data.needsInvite) {
+        const normalizedInviteCode = inviteCode.trim();
+        if (normalizedInviteCode) {
+          const inviteResponse = await fetch(`${BACKEND_URL}/api/auth/redeem-invite`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ credential, code: normalizedInviteCode }),
+          });
+          const inviteData = await inviteResponse.json().catch(() => ({}));
+          if (!inviteResponse.ok) {
+            return { inviteError: inviteData.error || 'No se pudo validar el código.' };
+          }
+
+          setUser({
+            ...data.user,
+            hasAccess: true,
+            needsInvite: false,
+            authToken: credential,
+          });
+          setIsAppLoading(true);
+          return { success: true };
+        }
         setPendingInvite({ credential, user: data.user });
-        return;
+        return { needsInvite: true };
       }
 
       setUser({ ...data.user, authToken: credential });
       setIsAppLoading(true);
-    } catch {
-      setError('Falló la verificación en el servidor.');
+      return { success: true };
+    } catch (requestError) {
+      const message = requestError.message || 'Falló la verificación en el servidor.';
+      setError(message);
+      return { error: message };
     }
   };
-
   const handleInviteRedeemed = () => {
     if (!pendingInvite) return;
 

@@ -1,123 +1,114 @@
-import { useState, useEffect } from 'react';
+import { useRef, useState } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
-import { Sparkles, ChevronUp } from 'lucide-react';
-import BottomSheet from './BottomSheet';
-import { lockBodyScroll, unlockBodyScroll } from '../lib/scrollLock';
+import { ChevronDown, Sparkles } from 'lucide-react';
+import ActionSheet from './common/ActionSheet';
+import PublicHomeCarousel from './PublicHomeCarousel';
 
 export default function LoginScreen({ onSuccess, onError, error }) {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [showInviteCode, setShowInviteCode] = useState(false);
+  const [inviteCode, setInviteCode] = useState('');
+  const [authenticating, setAuthenticating] = useState(false);
+  const [inviteError, setInviteError] = useState('');
+  const loginTriggerRef = useRef(null);
 
-  // --- CONTROL DINÁMICO DEL FONDO Y SCROLL (Anti-Leak) ---
-  useEffect(() => {
-    // Guardamos el color de fondo actual y lo reemplazamos solo para Login
-    const originalBg = document.body.style.backgroundColor;
-    document.body.style.backgroundColor = '#111827';
+  const handleClose = () => {
+    if (authenticating) return;
+    setIsAuthOpen(false);
+    setInviteError('');
+  };
 
-    // Pedimos el bloqueo de scroll con propietario único
-    lockBodyScroll('LoginScreen');
+  const handleGoogleSuccess = async (credentialResponse) => {
+    if (authenticating) return;
+    setAuthenticating(true);
+    setInviteError('');
+    const result = await onSuccess?.(credentialResponse, inviteCode);
+    if (result?.inviteError) setInviteError(result.inviteError);
+    setAuthenticating(false);
+  };
 
-    // Al salir del Login (desmontar), restauramos el background y liberamos el bloqueo
-    return () => {
-      document.body.style.backgroundColor = originalBg || '#f8fafc';
-      unlockBodyScroll('LoginScreen');
-    };
-  }, []);
-  // ----------------------------------------------
-
-  const handleGetStarted = () => setIsExpanded(true);
-  const handleClose = () => setIsExpanded(false);
-
-  const collapsedContent = (
-    <div>
-      <div className="text-center mb-8">
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">
-          ¡Bienvenido!
-        </h2>
-        <p className="text-gray-500">Inicia sesión para comenzar a estudiar</p>
-      </div>
-
-      <button
-        onClick={handleGetStarted}
-        className="w-full bg-gradient-to-r from-gray-800 via-gray-700 to-gray-600 text-white font-semibold py-4 px-8 rounded-2xl shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 flex items-center justify-center gap-2 group"
-      >
-        Comenzar
-        <ChevronUp className="w-5 h-5 group-hover:-translate-y-1 transition-transform duration-300" />
-      </button>
-
-      <p className="text-center text-xs text-gray-400 mt-6">
-        Al continuar aceptas nuestros términos y condiciones
-      </p>
-    </div>
-  );
-
-  const expandedContent = (
-    <div>
-      <div className="text-center mb-8">
-        <h2 className="text-3xl font-bold text-gray-900 mb-2">Iniciar Sesión</h2>
-        <p className="text-gray-500">Accede con tu cuenta de Google</p>
-      </div>
-
-      <div className="w-full flex justify-center min-h-[44px]" data-testid="google-login-button">
-        <GoogleLogin
-          onSuccess={onSuccess}
-          onError={onError}
-          theme="outline"
-          size="large"
-          shape="pill"
-          text="continue_with"
-          locale="es"
-        />
-      </div>
-
-      {error && (
-        <div className="mt-6 flex items-start gap-3 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl p-4">
-          <div className="w-5 h-5 rounded-full bg-red-100 flex items-center justify-center shrink-0 mt-0.5">
-            <span className="text-red-600 font-bold text-xs">!</span>
-          </div>
-          <span className="font-medium">{error}</span>
-        </div>
-      )}
-
-      <div className="mt-8 text-center">
-        <p className="text-xs text-gray-400">
-          ¿Problemas para iniciar sesión?{' '}
-          <button className="text-cyan-600 hover:text-cyan-700 font-semibold underline">
-            Contáctanos
-          </button>
-        </p>
-      </div>
-    </div>
-  );
+  const handleGoogleError = () => {
+    setAuthenticating(false);
+    onError?.();
+  };
 
   return (
-    <div className="h-[100dvh] w-full relative bg-gradient-to-b from-gray-900 via-gray-800 to-white overflow-hidden flex flex-col justify-start">
-      
-      {/* Área del logo autoadaptable */}
-      <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-6 pb-[280px]">
-        <div className="mb-6">
-          <div className="w-20 h-20 md:w-24 md:h-24 rounded-3xl bg-white shadow-2xl flex items-center justify-center transform hover:scale-105 transition-transform duration-300">
-            <Sparkles className="w-10 h-10 md:w-12 md:h-12 text-gray-900" />
-          </div>
+    <main className="min-h-[100dvh] overflow-y-auto bg-[#FBFAFF] px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-[calc(0.75rem+env(safe-area-inset-top))] text-slate-900 dark:bg-slate-950 dark:text-white sm:px-8">
+      <div className="mx-auto flex min-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-1.75rem)] w-full max-w-5xl flex-col">
+        <header className="flex shrink-0 items-center justify-center gap-2 py-1 sm:justify-start">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-600 shadow-sm shadow-violet-300/60">
+            <Sparkles className="h-5 w-5 text-white" aria-hidden="true" />
+          </span>
+          <span className="text-base font-extrabold tracking-tight sm:text-lg">Under Flashcards</span>
+        </header>
+
+        <div className="flex flex-1 items-center justify-center py-3 sm:py-5">
+          <PublicHomeCarousel />
         </div>
-        
-        <h1 className="text-4xl md:text-5xl font-bold text-white mb-2 tracking-tight drop-shadow-lg">
-          Flashcards
-        </h1>
-        <p className="text-gray-300 text-base md:text-lg text-center max-w-xs leading-relaxed">
-          Estudia de forma inteligente y alcanza tus metas
-        </p>
+
+        <div className="sticky bottom-0 z-10 mx-auto w-full max-w-md bg-gradient-to-t from-[#FBFAFF] via-[#FBFAFF] to-transparent pt-3 dark:from-slate-950 dark:via-slate-950">
+          <button
+            ref={loginTriggerRef}
+            type="button"
+            onClick={() => setIsAuthOpen(true)}
+            disabled={authenticating}
+            className="flex min-h-14 w-full items-center justify-center rounded-[1.25rem] bg-violet-600 px-6 py-4 text-base font-bold text-white shadow-[0_10px_28px_rgba(124,58,237,0.24)] transition-all hover:bg-violet-700 hover:shadow-[0_12px_32px_rgba(124,58,237,0.3)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-600 focus-visible:ring-offset-2 active:translate-y-0.5 active:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
+          >
+            Iniciar sesión
+          </button>
+        </div>
       </div>
 
-      {/* Bottom Sheet */}
-      <BottomSheet
-        isOpen={isExpanded}
-        onOpen={handleGetStarted}
-        onClose={handleClose}
-        collapsedContent={collapsedContent}
-        expandedContent={expandedContent}
-        collapsedHeight={280}
-        expandedHeight={62}
-      />
-    </div>
+      <ActionSheet open={isAuthOpen} title="Iniciar sesión" onClose={handleClose} returnTarget={loginTriggerRef.current}>
+        <div className="mx-auto w-full max-w-md pb-2">
+          <div className="pb-5 text-center">
+            <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-100 dark:bg-violet-500/20">
+              <Sparkles className="h-5 w-5 text-violet-700 dark:text-violet-300" aria-hidden="true" />
+            </div>
+            <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-300">Accede con tu cuenta de Google para continuar.</p>
+          </div>
+
+          <div className="relative flex min-h-14 w-full items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_2px_10px_rgba(15,23,42,0.06)] transition-shadow focus-within:ring-2 focus-within:ring-violet-600 focus-within:ring-offset-2 hover:shadow-md dark:border-slate-700 dark:bg-slate-800" data-testid="google-login-button" aria-busy={authenticating}>
+            <GoogleLogin onSuccess={handleGoogleSuccess} onError={handleGoogleError} theme="outline" size="large" shape="pill" text="continue_with" locale="es" width="360" useOneTap={false} />
+            {authenticating && <div className="absolute inset-0 flex items-center justify-center bg-white/95 text-sm font-semibold text-slate-700 dark:bg-slate-800/95 dark:text-slate-200">Iniciando sesión…</div>}
+          </div>
+
+          <div className="mt-4 rounded-2xl bg-violet-50/80 p-3 dark:bg-violet-500/10">
+            <button
+              type="button"
+              aria-expanded={showInviteCode}
+              aria-controls="invite-code-panel"
+              onClick={() => { setShowInviteCode((visible) => !visible); setInviteError(''); }}
+              className="flex min-h-11 w-full items-center justify-between gap-3 rounded-xl px-2 text-left text-sm font-semibold text-violet-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-600 dark:text-violet-200"
+            >
+              <span>¿Eres nuevo? Agrega tu código de invitación</span>
+              <ChevronDown className={`h-4 w-4 shrink-0 transition-transform motion-reduce:transition-none ${showInviteCode ? 'rotate-180' : ''}`} aria-hidden="true" />
+            </button>
+
+            {showInviteCode && (
+              <div id="invite-code-panel" className="px-2 pb-2 pt-2">
+                <label htmlFor="invite-code" className="mb-1.5 block text-xs font-bold text-slate-700 dark:text-slate-300">Código de invitación</label>
+                <input
+                  id="invite-code"
+                  name="code"
+                  type="text"
+                  value={inviteCode}
+                  onChange={(event) => { setInviteCode(event.target.value.toUpperCase()); setInviteError(''); }}
+                  autoCapitalize="characters"
+                  autoComplete="one-time-code"
+                  spellCheck="false"
+                  disabled={authenticating}
+                  className="min-h-12 w-full rounded-xl border border-violet-200 bg-white px-4 font-mono tracking-widest text-slate-900 outline-none transition-shadow placeholder:font-sans placeholder:tracking-normal placeholder:text-slate-400 focus:border-violet-500 focus:ring-2 focus:ring-violet-200 disabled:opacity-60 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+                  placeholder="Ingresa tu código"
+                  aria-describedby={inviteError ? 'invite-code-error' : undefined}
+                />
+              </div>
+            )}
+          </div>
+
+          {(inviteError || error) && <p id="invite-code-error" role="alert" className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">{inviteError || error}</p>}
+        </div>
+      </ActionSheet>
+    </main>
   );
 }
