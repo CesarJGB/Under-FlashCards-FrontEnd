@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="512" height="512" viewBox="0 0 512 512"
+     role="img" aria-labelledby="title desc">
+  <title id="title">Icono maskable de Under Flashcards</title>
+  <desc id="desc">Fondo morado completo y rostro de Lumi dentro de la zona segura.</desc>
+  <defs>
+    <linearGradient id="lumi-purple" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7948F2"/>
+      <stop offset="100%" stop-color="#6538DE"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" fill="url(#lumi-purple)"/>
+
+  <!-- Los rasgos importantes quedan dentro del círculo seguro central del 80%. -->
+  <g transform="translate(256 256) scale(.8) translate(-256 -256)">
+    <g transform="matrix(2.1333333 0 0 2.1333333 -85.333333 -85.333333)">
+      <g transform="translate(-23 -8)">
+        <path fill="#FFFFFF" d="
+          M100 190
+          C98 169 99 128 108 106
+          C111 98 118 97 126 103
+          L158 128
+          C173 122 193 122 208 128
+          L241 103
+          C249 97 256 98 259 106
+          C267 129 268 169 265 190
+          C261 222 235 238 183 238
+          C131 238 104 222 100 190 Z"/>
+        <circle cx="146" cy="184" r="15" fill="#10162F"/>
+        <circle cx="220" cy="184" r="15" fill="#10162F"/>
+        <path fill="#F7B83E" d="
+          M183 125
+          C186 140 192 147 208 152
+          C192 156 186 163 183 178
+          C179 163 173 156 158 152
+          C173 147 179 140 183 125 Z"/>
+      </g>
+    </g>
+  </g>
+</svg>
