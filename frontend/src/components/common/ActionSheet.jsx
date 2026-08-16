@@ -20,6 +20,16 @@ import useEditorGeometry from '../creator/manual-editor/useEditorGeometry';
 import { needsInitialEditorGeometryFallback } from '../creator/manual-editor/editorGeometry';
 import { OverlayScope, useOverlayScope } from './OverlayScope';
 import { installActionSheetGestureGuard } from './actionSheetGestureGuard';
+import {
+  ACTION_SHEET_SNAP_CLOSED,
+  ACTION_SHEET_SNAP_COMPACT,
+  ACTION_SHEET_SNAP_EXPANDED,
+  canActivateActionSheetDrag,
+  clampActionSheetTranslation,
+  getActionSheetSnapGeometry,
+  isActionSheetDragControl,
+  resolveActionSheetRelease,
+} from './actionSheetDrag';
 
 const EMPTY_SNAPSHOT = Object.freeze({ layers: [], topId: null, nextOrder: 1 });
 const EMPTY_SUBSCRIBE = () => () => {};
@@ -37,6 +47,11 @@ export default function ActionSheet({
   closeAction,
   portalTarget: portalTargetOverride,
   returnTarget: returnTargetOverride,
+  ariaLabel,
+  appearance = 'default',
+  draggable = false,
+  dragDisabled = false,
+  initialSnap = ACTION_SHEET_SNAP_COMPACT,
 }) {
   const parentScope = useOverlayScope();
   const sharedRegistryRef = useRef(null);
@@ -67,6 +82,8 @@ export default function ActionSheet({
   const actionTriggeredRef = useRef(false);
   const pendingTransitionRef = useRef(null);
   const wasTopRef = useRef(false);
+  const dragGestureRef = useRef(null);
+  const suppressHandleClickRef = useRef(false);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
   const id = useId();
@@ -77,6 +94,10 @@ export default function ActionSheet({
   const layerId = layerIdRef.current;
   const titleId = `${layerId}-title`;
   const [overlayRoot, setOverlayRoot] = useState(null);
+  const [dragSnap, setDragSnap] = useState(initialSnap);
+  const [dragTranslation, setDragTranslation] = useState(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [hasEntered, setHasEntered] = useState(!draggable);
   const ownGeometry = useEditorGeometry({ active: Boolean(open && !parentScope?.geometry) });
   const geometry = parentScope?.geometry || ownGeometry;
   const isInitialFallback = needsInitialEditorGeometryFallback(geometry);
@@ -93,6 +114,30 @@ export default function ActionSheet({
       : sharedSnapshot.topId === layerId
   ));
   const interaction = createLayerInteractionState(isTop);
+
+  useLayoutEffect(() => {
+    if (!open || !draggable || typeof window === 'undefined') {
+      setHasEntered(!draggable);
+      return undefined;
+    }
+    setDragSnap(initialSnap);
+    setDragTranslation(null);
+    setIsDragging(false);
+    dragGestureRef.current = null;
+    suppressHandleClickRef.current = false;
+
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+      setHasEntered(true);
+      return undefined;
+    }
+
+    setHasEntered(false);
+    const frameId = window.requestAnimationFrame(() => setHasEntered(true));
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      dragGestureRef.current = null;
+    };
+  }, [draggable, initialSnap, open]);
 
   useLayoutEffect(() => {
     if (!open || typeof document === 'undefined') return undefined;
@@ -216,6 +261,103 @@ export default function ActionSheet({
       ?? dismissTop?.(reason)
       ?? false;
   };
+  const availableSurfaceHeight = isInitialFallback
+    ? Math.min(720, window.innerHeight || 720)
+    : geometry.visual.height;
+  const dragGeometry = getActionSheetSnapGeometry(availableSurfaceHeight);
+  const settledTranslation = dragSnap === ACTION_SHEET_SNAP_EXPANDED
+    ? dragGeometry.expandedOffset
+    : dragGeometry.compactOffset;
+  const currentTranslation = hasEntered
+    ? (dragTranslation ?? settledTranslation)
+    : dragGeometry.closedOffset;
+  const resetDragGesture = () => {
+    dragGestureRef.current = null;
+    setDragTranslation(null);
+    setIsDragging(false);
+  };
+  const handleDragPointerDown = (event) => {
+    if (!draggable || dragDisabled || !isTop || !event.isPrimary || event.button > 0) return;
+    const fromHandle = Boolean(event.target.closest?.('[data-action-sheet-drag-region="true"]'));
+    const scrollRoot = event.target.closest?.('[data-action-sheet-scroll="true"]');
+    const blockedControl = !fromHandle && isActionSheetDragControl(event.target);
+    if (!fromHandle && (!scrollRoot || blockedControl)) return;
+
+    dragGestureRef.current = {
+      pointerId: event.pointerId,
+      startY: event.clientY,
+      lastY: event.clientY,
+      lastTime: event.timeStamp,
+      velocityY: 0,
+      originSnap: dragSnap,
+      originOffset: settledTranslation,
+      fromHandle,
+      scrollRoot,
+      blockedControl,
+      active: false,
+    };
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  };
+  const handleDragPointerMove = (event) => {
+    const gesture = dragGestureRef.current;
+    if (!gesture || gesture.pointerId !== event.pointerId || dragDisabled) return;
+    const deltaY = event.clientY - gesture.startY;
+    if (!gesture.active) {
+      gesture.active = canActivateActionSheetDrag({
+        fromHandle: gesture.fromHandle,
+        scrollTop: gesture.scrollRoot?.scrollTop || 0,
+        deltaY,
+        blockedControl: gesture.blockedControl,
+      });
+      if (!gesture.active) return;
+      suppressHandleClickRef.current = true;
+      setIsDragging(true);
+    }
+
+    const elapsed = Math.max(1, event.timeStamp - gesture.lastTime);
+    gesture.velocityY = (event.clientY - gesture.lastY) / elapsed;
+    gesture.lastY = event.clientY;
+    gesture.lastTime = event.timeStamp;
+    setDragTranslation(clampActionSheetTranslation(gesture.originOffset + deltaY, dragGeometry));
+    event.preventDefault();
+  };
+  const handleDragPointerEnd = (event, cancelled = false) => {
+    const gesture = dragGestureRef.current;
+    if (!gesture || gesture.pointerId !== event.pointerId) return;
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+    if (cancelled || !gesture.active || dragDisabled) {
+      if (cancelled) suppressHandleClickRef.current = false;
+      resetDragGesture();
+      return;
+    }
+
+    const releaseVelocity = event.timeStamp - gesture.lastTime <= 80
+      ? gesture.velocityY
+      : 0;
+    const destination = resolveActionSheetRelease({
+      originSnap: gesture.originSnap,
+      deltaY: event.clientY - gesture.startY,
+      velocityY: releaseVelocity,
+    });
+    resetDragGesture();
+    if (destination === ACTION_SHEET_SNAP_CLOSED) {
+      dismissSelf('drag');
+      return;
+    }
+    setDragSnap(destination);
+  };
+  const toggleDragSnap = () => {
+    if (!draggable || dragDisabled) return;
+    if (suppressHandleClickRef.current) {
+      suppressHandleClickRef.current = false;
+      return;
+    }
+    setDragSnap((current) => (
+      current === ACTION_SHEET_SNAP_EXPANDED
+        ? ACTION_SHEET_SNAP_COMPACT
+        : ACTION_SHEET_SNAP_EXPANDED
+    ));
+  };
   const closeControl = closeAction && !isValidElement(closeAction) ? (
     <button
       type="button"
@@ -251,11 +393,12 @@ export default function ActionSheet({
       data-action-sheet-geometry={geometry.source}
       data-action-sheet-scale={geometry.visual.scale}
       data-action-sheet-anchor={isViewportPortal ? 'viewport' : 'scope'}
+      data-action-sheet-draggable={draggable ? 'true' : 'false'}
     >
       <div
         role="presentation"
         aria-hidden="true"
-        className="absolute inset-0 z-0 touch-none cursor-default bg-slate-900/40 animate-[fadeIn_0.25s_ease-out]"
+        className={`absolute inset-0 z-0 touch-none cursor-default animate-[fadeIn_0.25s_ease-out] ${appearance === 'auth' ? 'bg-violet-950/35 backdrop-blur-[2px]' : 'bg-slate-900/40'}`}
         onPointerDown={(event) => {
           if (!isTop) return;
           event.preventDefault();
@@ -277,20 +420,48 @@ export default function ActionSheet({
         aria-modal={isTop ? 'true' : undefined}
         aria-hidden={interaction.ariaHidden}
         aria-labelledby={title ? titleId : undefined}
-        aria-label={title ? undefined : 'Acciones'}
+        aria-label={title ? undefined : (ariaLabel || 'Acciones')}
         inert={interaction.inert}
         tabIndex={-1}
-        className="absolute inset-x-0 bottom-0 z-10 flex flex-col overflow-hidden overscroll-none rounded-t-3xl bg-white shadow-2xl outline-none dark:bg-slate-900"
+        onPointerDown={draggable ? handleDragPointerDown : undefined}
+        onPointerMove={draggable ? handleDragPointerMove : undefined}
+        onPointerUp={draggable ? (event) => handleDragPointerEnd(event) : undefined}
+        onPointerCancel={draggable ? (event) => handleDragPointerEnd(event, true) : undefined}
+        className={`absolute inset-x-0 bottom-0 z-10 flex flex-col overflow-hidden overscroll-none outline-none ${
+          appearance === 'auth'
+            ? 'rounded-t-[2rem] bg-white shadow-[0_-18px_60px_rgba(46,16,101,0.2)]'
+            : 'rounded-t-3xl bg-white shadow-2xl dark:bg-slate-900'
+        } ${draggable ? `will-change-transform ${isDragging ? 'transition-none' : 'transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none'}` : ''}`}
         style={{
-          animation: 'slideUp 0.4s cubic-bezier(0.32, 0.72, 0, 1)',
+          animation: draggable ? undefined : 'slideUp 0.4s cubic-bezier(0.32, 0.72, 0, 1)',
           maxHeight: maxSurfaceHeight,
+          height: draggable ? `${dragGeometry.expandedHeight}px` : undefined,
+          transform: draggable ? `translate3d(0, ${currentTranslation}px, 0)` : undefined,
           left: 'env(safe-area-inset-left, 0px)',
           right: 'env(safe-area-inset-right, 0px)',
         }}
+        data-action-sheet-snap={draggable ? dragSnap : undefined}
+        data-action-sheet-dragging={isDragging ? 'true' : 'false'}
       >
-        <div className="flex touch-none select-none justify-center pt-3 pb-4" aria-hidden="true" data-action-sheet-handle="true">
-          <div className="w-10 h-1 rounded-full bg-slate-300 dark:bg-slate-600" />
-        </div>
+        {draggable ? (
+          <div className="shrink-0 touch-none select-none px-4 pt-2" data-action-sheet-drag-region="true">
+            <button
+              type="button"
+              onClick={toggleDragSnap}
+              disabled={dragDisabled}
+              aria-label={dragSnap === ACTION_SHEET_SNAP_EXPANDED ? 'Contraer panel' : 'Expandir panel'}
+              className="mx-auto flex h-9 w-20 cursor-grab items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-600 disabled:cursor-not-allowed disabled:opacity-50 active:cursor-grabbing"
+              data-action-sheet-drag-region="true"
+              data-action-sheet-handle="true"
+            >
+              <span className="h-1.5 w-12 rounded-full bg-slate-300" aria-hidden="true" />
+            </button>
+          </div>
+        ) : (
+          <div className="flex touch-none select-none justify-center pt-3 pb-4" aria-hidden="true" data-action-sheet-handle="true">
+            <div className="w-10 h-1 rounded-full bg-slate-300 dark:bg-slate-600" />
+          </div>
+        )}
 
         {title && (
           <h2 id={titleId} className="touch-none select-none px-4 pb-2 text-center text-sm font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500" data-action-sheet-title="true">
@@ -308,9 +479,14 @@ export default function ActionSheet({
           modalContentRef={dialogRef}
         >
           <div
-            className={`min-h-0 flex-1 overflow-y-auto overscroll-none px-4 ${hasFooter ? 'pb-2' : 'pb-[calc(1.25rem+env(safe-area-inset-bottom))]'}`}
+            className={`min-h-0 flex-1 overflow-y-auto overscroll-none ${appearance === 'auth' ? 'px-5 sm:px-6' : 'px-4'} ${hasFooter ? 'pb-2' : 'pb-[calc(1.25rem+env(safe-area-inset-bottom))]'}`}
             style={{ WebkitOverflowScrolling: 'touch' }}
             data-action-sheet-scroll="true"
+            onFocusCapture={draggable ? (event) => {
+              if (event.target.matches?.('input, textarea, select')) {
+                setDragSnap(ACTION_SHEET_SNAP_EXPANDED);
+              }
+            } : undefined}
           >
             {hasCustomContent && customContent}
 

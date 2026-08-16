@@ -61,6 +61,22 @@ test('UT-AS-STABLE-002 — the guard is layer-local, preserves ranges and cleans
   });
   assert.equal(prevented, 1);
 
+  const dragHandleTarget = {
+    closest(selector) {
+      if (selector === '[data-action-sheet-drag-region="true"]') return this;
+      return null;
+    },
+  };
+  listeners.get('touchstart').listener({
+    target: dragHandleTarget,
+    touches: [{ identifier: 4, clientX: 20, clientY: 100 }],
+  });
+  listeners.get('touchmove').listener({
+    touches: [{ identifier: 4, clientX: 20, clientY: 60 }],
+    preventDefault() { prevented += 1; },
+  });
+  assert.equal(prevented, 1);
+
   const rangeTarget = {
     closest(selector) {
       if (selector === '[data-action-sheet-scroll="true"]') return scrollRoot;

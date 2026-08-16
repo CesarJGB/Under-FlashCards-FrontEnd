@@ -1,19 +1,48 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
-import { ChevronDown, Sparkles } from 'lucide-react';
+import { LoaderCircle, Sparkles, X } from 'lucide-react';
 import ActionSheet from './common/ActionSheet';
 import PublicHomeCarousel from './PublicHomeCarousel';
+import { lockBodyScroll, unlockBodyScroll } from '../lib/scrollLock';
+
+const LOGIN_SCROLL_OWNER = 'LoginScreen';
 
 export default function LoginScreen({ onSuccess, onError, error }) {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
-  const [showInviteCode, setShowInviteCode] = useState(false);
   const [inviteCode, setInviteCode] = useState('');
   const [authenticating, setAuthenticating] = useState(false);
   const [inviteError, setInviteError] = useState('');
+  const [googleButtonWidth, setGoogleButtonWidth] = useState(300);
   const loginTriggerRef = useRef(null);
+  const googleContainerRef = useRef(null);
+
+  useEffect(() => {
+    const originalPaddingTop = document.body.style.paddingTop;
+    const originalPaddingBottom = document.body.style.paddingBottom;
+    document.body.style.paddingTop = '0px';
+    document.body.style.paddingBottom = '0px';
+    lockBodyScroll(LOGIN_SCROLL_OWNER);
+    return () => {
+      unlockBodyScroll(LOGIN_SCROLL_OWNER);
+      document.body.style.paddingTop = originalPaddingTop;
+      document.body.style.paddingBottom = originalPaddingBottom;
+    };
+  }, []);
+
+  useEffect(() => {
+    const container = googleContainerRef.current;
+    if (!isAuthOpen || !container || typeof ResizeObserver === 'undefined') return undefined;
+    const updateWidth = () => {
+      const nextWidth = Math.floor(container.getBoundingClientRect().width);
+      if (nextWidth > 0) setGoogleButtonWidth(Math.max(220, Math.min(400, nextWidth)));
+    };
+    updateWidth();
+    const observer = new ResizeObserver(updateWidth);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [isAuthOpen]);
 
   const handleClose = () => {
-    if (authenticating) return;
     setIsAuthOpen(false);
     setInviteError('');
   };
@@ -33,80 +62,123 @@ export default function LoginScreen({ onSuccess, onError, error }) {
   };
 
   return (
-    <main className="min-h-[100dvh] overflow-y-auto bg-[#FBFAFF] px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-[calc(0.75rem+env(safe-area-inset-top))] text-slate-900 dark:bg-slate-950 dark:text-white sm:px-8">
-      <div className="mx-auto flex min-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-1.75rem)] w-full max-w-5xl flex-col">
-        <header className="flex shrink-0 items-center justify-center gap-2 py-1 sm:justify-start">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-600 shadow-sm shadow-violet-300/60">
-            <Sparkles className="h-5 w-5 text-white" aria-hidden="true" />
-          </span>
-          <span className="text-base font-extrabold tracking-tight sm:text-lg">Under Flashcards</span>
-        </header>
+    <main className="fixed inset-0 grid h-[100dvh] w-full grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden overscroll-none bg-[#FBFAFF] px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-[calc(0.65rem+env(safe-area-inset-top))] text-slate-900 dark:bg-slate-950 dark:text-white sm:px-8 sm:pb-[calc(1rem+env(safe-area-inset-bottom))] sm:pt-[calc(1rem+env(safe-area-inset-top))]">
+      <header className="mx-auto flex w-full max-w-5xl shrink-0 items-center justify-center gap-2 py-0.5 sm:justify-start">
+        <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-violet-600 shadow-sm shadow-violet-300/60 sm:h-9 sm:w-9">
+          <Sparkles className="h-4 w-4 text-white sm:h-5 sm:w-5" aria-hidden="true" />
+        </span>
+        <span className="text-sm font-extrabold tracking-tight sm:text-lg">Under Flashcards</span>
+      </header>
 
-        <div className="flex flex-1 items-center justify-center py-3 sm:py-5">
-          <PublicHomeCarousel />
-        </div>
-
-        <div className="sticky bottom-0 z-10 mx-auto w-full max-w-md bg-gradient-to-t from-[#FBFAFF] via-[#FBFAFF] to-transparent pt-3 dark:from-slate-950 dark:via-slate-950">
-          <button
-            ref={loginTriggerRef}
-            type="button"
-            onClick={() => setIsAuthOpen(true)}
-            disabled={authenticating}
-            className="flex min-h-14 w-full items-center justify-center rounded-[1.25rem] bg-violet-600 px-6 py-4 text-base font-bold text-white shadow-[0_10px_28px_rgba(124,58,237,0.24)] transition-all hover:bg-violet-700 hover:shadow-[0_12px_32px_rgba(124,58,237,0.3)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-600 focus-visible:ring-offset-2 active:translate-y-0.5 active:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
-          >
-            Iniciar sesión
-          </button>
-        </div>
+      <div className="mx-auto flex min-h-0 w-full max-w-5xl items-stretch justify-center py-[clamp(0.2rem,1dvh,0.65rem)]">
+        <PublicHomeCarousel />
       </div>
 
-      <ActionSheet open={isAuthOpen} title="Iniciar sesión" onClose={handleClose} returnTarget={loginTriggerRef.current}>
-        <div className="mx-auto w-full max-w-md pb-2">
-          <div className="pb-5 text-center">
-            <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-100 dark:bg-violet-500/20">
-              <Sparkles className="h-5 w-5 text-violet-700 dark:text-violet-300" aria-hidden="true" />
-            </div>
-            <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-300">Accede con tu cuenta de Google para continuar.</p>
-          </div>
+      <div className="mx-auto w-full max-w-md shrink-0 pt-[clamp(0.25rem,0.8dvh,0.65rem)]">
+        <button
+          ref={loginTriggerRef}
+          type="button"
+          onClick={() => setIsAuthOpen(true)}
+          disabled={authenticating}
+          className="flex min-h-[clamp(3rem,7dvh,3.5rem)] w-full items-center justify-center rounded-[1.2rem] bg-violet-600 px-6 py-3 text-base font-extrabold text-white shadow-[0_9px_24px_rgba(124,58,237,0.24)] transition-[transform,background-color,box-shadow] hover:bg-violet-700 hover:shadow-[0_11px_28px_rgba(124,58,237,0.3)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-600 focus-visible:ring-offset-2 active:translate-y-0.5 active:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
+        >
+          Iniciar sesión
+        </button>
+      </div>
 
-          <div className="relative flex min-h-14 w-full items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_2px_10px_rgba(15,23,42,0.06)] transition-shadow focus-within:ring-2 focus-within:ring-violet-600 focus-within:ring-offset-2 hover:shadow-md dark:border-slate-700 dark:bg-slate-800" data-testid="google-login-button" aria-busy={authenticating}>
-            <GoogleLogin onSuccess={handleGoogleSuccess} onError={handleGoogleError} theme="outline" size="large" shape="pill" text="continue_with" locale="es" width="360" useOneTap={false} />
-            {authenticating && <div className="absolute inset-0 flex items-center justify-center bg-white/95 text-sm font-semibold text-slate-700 dark:bg-slate-800/95 dark:text-slate-200">Iniciando sesión…</div>}
-          </div>
-
-          <div className="mt-4 rounded-2xl bg-violet-50/80 p-3 dark:bg-violet-500/10">
+      <ActionSheet
+        open={isAuthOpen}
+        onClose={handleClose}
+        returnTarget={loginTriggerRef.current}
+        ariaLabel="Inicia sesión para continuar"
+        appearance="auth"
+        draggable
+        dragDisabled={authenticating}
+      >
+        <div className="mx-auto w-full max-w-md pb-2 text-slate-900">
+          <div className="relative pr-11">
+            <h2 className="text-[clamp(1.6rem,6vw,2rem)] font-black leading-tight tracking-[-0.03em] text-slate-950">
+              Inicia sesión para continuar
+            </h2>
+            <p className="mt-1.5 text-base leading-relaxed text-slate-600">
+              Accede con Google y conserva todo tu progreso.
+            </p>
             <button
               type="button"
-              aria-expanded={showInviteCode}
-              aria-controls="invite-code-panel"
-              onClick={() => { setShowInviteCode((visible) => !visible); setInviteError(''); }}
-              className="flex min-h-11 w-full items-center justify-between gap-3 rounded-xl px-2 text-left text-sm font-semibold text-violet-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-600 dark:text-violet-200"
+              onClick={handleClose}
+              disabled={authenticating}
+              aria-label="Cerrar inicio de sesión"
+              data-action-sheet-no-drag="true"
+              className="absolute -right-1 -top-1 flex h-10 w-10 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-600 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              <span>¿Eres nuevo? Agrega tu código de invitación</span>
-              <ChevronDown className={`h-4 w-4 shrink-0 transition-transform motion-reduce:transition-none ${showInviteCode ? 'rotate-180' : ''}`} aria-hidden="true" />
+              <X className="h-5 w-5" aria-hidden="true" />
             </button>
+          </div>
 
-            {showInviteCode && (
-              <div id="invite-code-panel" className="px-2 pb-2 pt-2">
-                <label htmlFor="invite-code" className="mb-1.5 block text-xs font-bold text-slate-700 dark:text-slate-300">Código de invitación</label>
-                <input
-                  id="invite-code"
-                  name="code"
-                  type="text"
-                  value={inviteCode}
-                  onChange={(event) => { setInviteCode(event.target.value.toUpperCase()); setInviteError(''); }}
-                  autoCapitalize="characters"
-                  autoComplete="one-time-code"
-                  spellCheck="false"
-                  disabled={authenticating}
-                  className="min-h-12 w-full rounded-xl border border-violet-200 bg-white px-4 font-mono tracking-widest text-slate-900 outline-none transition-shadow placeholder:font-sans placeholder:tracking-normal placeholder:text-slate-400 focus:border-violet-500 focus:ring-2 focus:ring-violet-200 disabled:opacity-60 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
-                  placeholder="Ingresa tu código"
-                  aria-describedby={inviteError ? 'invite-code-error' : undefined}
-                />
+          <div className="mt-5">
+            <div className="flex items-baseline justify-between gap-3">
+              <label htmlFor="invite-code" className="text-sm font-extrabold text-slate-900">
+                ¿Eres nuevo?
+              </label>
+              <span className="text-xs font-medium text-slate-500">Código de invitación</span>
+            </div>
+            <p className="mt-1 text-sm leading-snug text-slate-600">
+              Ingresa tu código de invitación antes de continuar.
+            </p>
+            <input
+              id="invite-code"
+              name="code"
+              type="text"
+              value={inviteCode}
+              onChange={(event) => {
+                setInviteCode(event.target.value.toUpperCase());
+                setInviteError('');
+              }}
+              autoCapitalize="characters"
+              autoComplete="one-time-code"
+              spellCheck="false"
+              disabled={authenticating}
+              placeholder="Código"
+              aria-label="Código de invitación"
+              aria-describedby={inviteError ? 'invite-code-error' : 'invite-code-helper'}
+              className="mt-2 min-h-12 w-full rounded-2xl border border-violet-200 bg-white px-4 text-base font-semibold tracking-wide text-slate-900 outline-none transition-[border-color,box-shadow] placeholder:font-normal placeholder:tracking-normal placeholder:text-slate-400 focus:border-violet-500 focus:ring-4 focus:ring-violet-100 disabled:opacity-60"
+            />
+            {inviteError ? (
+              <p id="invite-code-error" role="alert" className="mt-2 text-sm font-semibold text-red-700">
+                {inviteError}
+              </p>
+            ) : (
+              <p id="invite-code-helper" className="mt-1.5 text-xs leading-relaxed text-slate-500">
+                Si ya tienes acceso, puedes dejarlo vacío.
+              </p>
+            )}
+          </div>
+
+          <div ref={googleContainerRef} className="relative mt-5 flex min-h-14 w-full items-center justify-center" data-testid="google-login-button" aria-busy={authenticating}>
+            <GoogleLogin
+              onSuccess={handleGoogleSuccess}
+              onError={handleGoogleError}
+              theme="outline"
+              size="large"
+              shape="pill"
+              text="continue_with"
+              locale="es"
+              width={`${googleButtonWidth}`}
+              useOneTap={false}
+            />
+            {authenticating && (
+              <div className="absolute inset-0 flex cursor-wait items-center justify-center rounded-full bg-white/80 text-sm font-bold text-slate-700" aria-hidden="true">
+                <LoaderCircle className="mr-2 h-4 w-4 animate-spin motion-reduce:animate-none" />
+                Iniciando sesión…
               </div>
             )}
           </div>
 
-          {(inviteError || error) && <p id="invite-code-error" role="alert" className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">{inviteError || error}</p>}
+          {error && !inviteError && (
+            <p role="alert" className="mt-3 text-center text-sm font-semibold text-red-700">
+              {error}
+            </p>
+          )}
         </div>
       </ActionSheet>
     </main>

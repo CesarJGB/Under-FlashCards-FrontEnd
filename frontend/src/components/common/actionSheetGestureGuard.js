@@ -40,11 +40,12 @@ export function installActionSheetGestureGuard(layer) {
       lastY: touch.clientY,
       scrollRoot: findScrollRoot(layer, event.target),
       nativeRange: Boolean(event.target?.closest?.('input[type="range"]')),
+      dragOwner: Boolean(event.target?.closest?.('[data-action-sheet-drag-region="true"]')),
     };
   };
 
   const handleTouchMove = (event) => {
-    if (!gesture || event.touches?.length !== 1 || gesture.nativeRange) return;
+    if (!gesture || event.touches?.length !== 1 || gesture.nativeRange || gesture.dragOwner) return;
     const touch = findTouch(event.touches, gesture.identifier);
     if (!touch) return;
     const deltaX = touch.clientX - gesture.lastX;
