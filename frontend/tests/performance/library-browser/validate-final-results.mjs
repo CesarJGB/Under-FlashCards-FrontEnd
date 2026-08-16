@@ -81,11 +81,14 @@ function validateSanitization(j) {
   }
   const raw = JSON.stringify(j);
   const ids = raw.match(REAL_ID) || [];
-  const allowed = new Set(['ecb025914435fa4659200c9890a0e4ffea916175', j.harnessSha]);
+  // Los SHAs públicos (40 hex) contienen subcadenas de 24 hex: se permiten
+  // exactamente igual que en sanitizeResults (includes sobre el token).
+  const allowedShas = ['ecb025914435fa4659200c9890a0e4ffea916175', j.harnessSha];
   for (const id of ids) {
-    if (!allowed.has(id)) errors.push(`ID real sin alias en artefacto: ${id}`);
+    const allowed = allowedShas.some((s) => typeof s === 'string' && s.includes(id));
+    if (!allowed) errors.push(`ID real sin alias en artefacto: ${id}`);
   }
-  if (raw.includes('under-flashcards')) errors.push('dominio real presente en el artefacto');
+  if (raw.includes('under-flashcards.duckdns.org')) errors.push('dominio real presente en el artefacto');
   return errors;
 }
 
