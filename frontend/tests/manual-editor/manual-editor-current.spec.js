@@ -81,6 +81,17 @@ async function dispatchVerticalTouchPan(locator, { from = 140, to = 80 } = {}) {
   }, { from, to });
 }
 
+async function dragWithMouse(page, locator, deltaY) {
+  const box = await locator.boundingBox();
+  expect(box).not.toBeNull();
+  const x = box.x + box.width / 2;
+  const startY = box.y + box.height / 2;
+  await page.mouse.move(x, startY);
+  await page.mouse.down();
+  await page.mouse.move(x, startY + deltaY, { steps: 8 });
+  await page.mouse.up();
+}
+
 async function readInlineScrollState(page) {
   return page.evaluate(() => {
     const app = document.querySelector('[data-app-scroll-root]');
@@ -444,6 +455,64 @@ test('PW-AS-001 — opciones simples conservan foco, backdrop no tabbable y cier
   }))).toEqual({ tag: 'DIV', tabIndex: null });
   await page.keyboard.press('Escape');
   await expect(sheet).toHaveCount(0);
+});
+
+test('PW-AUTH-INVITE-001 — el código conserva foco, scroll y aislamiento de drag en móvil', async ({ page }) => {
+  await page.route('https://accounts.google.com/gsi/client', (route) => route.fulfill({
+    contentType: 'application/javascript',
+    body: 'window.google={accounts:{id:{initialize(){},renderButton(){},cancel(){}}}};',
+  }));
+  await openHarness(page, { touch: true });
+  const background = page.getByTestId('harness-app-scroll-root');
+  await background.evaluate((node) => { node.scrollTop = 180; });
+  await page.evaluate(() => window.__manualEditorHarness.openLoginScreen());
+
+  const loginScreen = page.locator('main.fixed.inset-0');
+  const loginScreenBefore = await loginScreen.boundingBox();
+  const backgroundScrollBefore = await background.evaluate((node) => node.scrollTop);
+  const windowScrollBefore = await page.evaluate(() => window.scrollY);
+  await loginScreen.getByRole('button', { name: 'Iniciar sesión', exact: true }).click();
+
+  const sheet = page.getByRole('dialog', { name: 'Iniciar sesión' });
+  const input = sheet.getByRole('textbox', { name: 'Código de invitación' });
+  await expect(sheet).toBeVisible();
+  await input.tap();
+  await expect(input).toBeFocused();
+  await input.fill('ab-c12');
+  await expect(input).toHaveValue('AB-C12');
+  await expect(sheet).toBeVisible();
+  await expect(sheet).toHaveAttribute('data-action-sheet-snap', 'expanded');
+
+  const fieldBox = await input.boundingBox();
+  const sheetBox = await sheet.boundingBox();
+  expect(fieldBox).not.toBeNull();
+  expect(sheetBox).not.toBeNull();
+  expect(fieldBox.y).toBeGreaterThanOrEqual(sheetBox.y);
+  expect(fieldBox.y + fieldBox.height).toBeLessThanOrEqual(
+    Math.min(sheetBox.y + sheetBox.height, 844),
+  );
+
+  const sheetBeforeFieldGesture = await sheet.boundingBox();
+  expect(await dispatchVerticalTouchPan(input, { from: 120, to: 190 })).toBe(false);
+  await dragWithMouse(page, input, 90);
+  await expect(sheet).toBeVisible();
+  await expect(sheet).toHaveAttribute('data-action-sheet-snap', 'expanded');
+  const sheetAfterFieldGesture = await sheet.boundingBox();
+  expectActionSheetRectStable(sheetBeforeFieldGesture, sheetAfterFieldGesture);
+  await expect(input).toHaveValue('AB-C12');
+
+  expect(await page.evaluate(() => window.scrollY)).toBe(windowScrollBefore);
+  expect(await background.evaluate((node) => node.scrollTop)).toBe(backgroundScrollBefore);
+  expectActionSheetRectStable(loginScreenBefore, await loginScreen.boundingBox());
+
+  const handle = sheet.locator('button[data-action-sheet-handle="true"]');
+  await dragWithMouse(page, handle, 70);
+  await expect(sheet).toHaveAttribute('data-action-sheet-snap', 'compact');
+  await dragWithMouse(page, handle, -70);
+  await expect(sheet).toHaveAttribute('data-action-sheet-snap', 'expanded');
+  await expect(sheet).toBeVisible();
+  expect(await page.evaluate(() => window.scrollY)).toBe(windowScrollBefore);
+  expect(await background.evaluate((node) => node.scrollTop)).toBe(backgroundScrollBefore);
 });
 
 test('PW-AS-002 — contenido custom/footer porta ColorPalette dentro del scope del sheet', async ({ page }) => {

@@ -18,7 +18,8 @@
     "test:manual-editor": "playwright test tests/manual-editor/manual-editor-current.spec.js",
     "test:manual-editor:chromium": "playwright test tests/manual-editor/manual-editor-current.spec.js --project=chromium",
     "test:manual-editor:all": "npm run test:manual-editor:unit && npm run test:manual-editor",
-    "qa:schedule-pdf": "node scripts/generateSchedulePdfSamples.mjs"
+    "qa:schedule-pdf": "node scripts/generateSchedulePdfSamples.mjs",
+    "test:public-home": "node --test src/components/publicHomeContracts.test.js"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.1",

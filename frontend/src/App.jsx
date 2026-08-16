@@ -20,24 +20,123 @@ import { getPublicMateriaShareId } from './lib/publicMateria';
 import { preloadStaticIllustrations } from './lib/staticIllustrations';
 import { sanitizeDeckSummaries } from './lib/imageDelivery';
 import { perfLibraryProfile } from './lib/perfLibraryProfile';
+import luaLoadingAnimation from '../media/svg/pantalla de secion/lua_loading_animation_60frames_5s.webp';
 
 const DebugPanel = lazy(() => import('./components/DebugPanel'));
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
-const INITIAL_APP_LOADING_DURATION = 2500;
+const INITIAL_APP_LOADING_DURATION = 5000;
+const APP_LOADING_IMAGE_SAFETY_TIMEOUT = 15000;
+const APP_LOADING_PHRASES = [
+  {
+    dark: 'No hay atajos para volverse fuerte;',
+    purple: 'la verdadera habilidad se construye repitiendo lo básico todos los días.',
+  },
+  {
+    dark: 'Un solo golpe no derriba un gran árbol,',
+    purple: 'pero miles de intentos constantes terminan por lograrlo.',
+  },
+];
 
-function AppLoadingScreen() {
+let luaLoadingPreloadImage = null;
+let luaLoadingPreloadPromise = null;
+
+function preloadLuaLoadingAnimation() {
+  if (typeof Image === 'undefined') return Promise.resolve(false);
+  if (luaLoadingPreloadPromise) return luaLoadingPreloadPromise;
+
+  luaLoadingPreloadImage = new Image();
+  luaLoadingPreloadImage.decoding = 'async';
+  if ('fetchPriority' in luaLoadingPreloadImage) {
+    luaLoadingPreloadImage.fetchPriority = 'low';
+  }
+
+  luaLoadingPreloadPromise = new Promise((resolve) => {
+    const settle = (loaded) => {
+      luaLoadingPreloadImage.onload = null;
+      luaLoadingPreloadImage.onerror = null;
+      resolve(loaded);
+    };
+    luaLoadingPreloadImage.onload = () => settle(true);
+    luaLoadingPreloadImage.onerror = () => settle(false);
+  });
+  luaLoadingPreloadImage.src = luaLoadingAnimation;
+
+  return luaLoadingPreloadPromise;
+}
+
+function AppLoadingScreen({ onComplete }) {
+  const [phrase] = useState(
+    () => APP_LOADING_PHRASES[Math.floor(Math.random() * APP_LOADING_PHRASES.length)]
+  );
+  const completionTimerRef = useRef(null);
+  const safetyTimerRef = useRef(null);
+  const completedRef = useRef(false);
+  const onCompleteRef = useRef(onComplete);
+
+  useEffect(() => {
+    onCompleteRef.current = onComplete;
+  }, [onComplete]);
+
+  const clearTimers = useCallback(() => {
+    if (completionTimerRef.current !== null) {
+      window.clearTimeout(completionTimerRef.current);
+      completionTimerRef.current = null;
+    }
+    if (safetyTimerRef.current !== null) {
+      window.clearTimeout(safetyTimerRef.current);
+      safetyTimerRef.current = null;
+    }
+  }, []);
+
+  const finishLoading = useCallback(() => {
+    if (completedRef.current) return;
+    completedRef.current = true;
+    clearTimers();
+    onCompleteRef.current?.();
+  }, [clearTimers]);
+
+  const startDisplayTimer = useCallback(() => {
+    if (completedRef.current || completionTimerRef.current !== null) return;
+    if (safetyTimerRef.current !== null) {
+      window.clearTimeout(safetyTimerRef.current);
+      safetyTimerRef.current = null;
+    }
+    completionTimerRef.current = window.setTimeout(finishLoading, INITIAL_APP_LOADING_DURATION);
+  }, [finishLoading]);
+
+  useEffect(() => {
+    safetyTimerRef.current = window.setTimeout(finishLoading, APP_LOADING_IMAGE_SAFETY_TIMEOUT);
+    return () => {
+      completedRef.current = true;
+      clearTimers();
+      onCompleteRef.current = null;
+    };
+  }, [clearTimers, finishLoading]);
+
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-white"
+      className="fixed inset-0 z-[100] flex items-center justify-center overflow-hidden bg-[#FBFAFF] px-5 py-4 sm:px-8 sm:py-8"
       role="status"
       aria-live="polite"
       data-testid="app-loading-screen"
     >
-      <div className="flex flex-col items-center gap-4 text-slate-700">
-        <Sparkles className="h-8 w-8 animate-pulse text-slate-900" aria-hidden="true" />
-        <p className="text-sm font-medium">Preparando tu espacio...</p>
+      <div className="flex h-full min-h-0 w-full max-w-5xl flex-col items-center justify-center gap-[clamp(0.75rem,3vh,2rem)]">
+        <img
+          src={luaLoadingAnimation}
+          alt=""
+          aria-hidden="true"
+          loading="eager"
+          decoding="async"
+          onLoad={startDisplayTimer}
+          onError={startDisplayTimer}
+          className="h-auto max-h-[58vh] w-[min(90vw,40rem)] max-w-full object-contain"
+        />
+        <p className="max-w-4xl text-center text-[clamp(1.25rem,4.5vw,2rem)] font-extrabold leading-[1.4]">
+          <span className="text-slate-950">{phrase.dark}</span>{' '}
+          <span className="text-violet-600">{phrase.purple}</span>
+        </p>
       </div>
     </div>
   );
@@ -408,21 +507,19 @@ function FlashcardsApp() {
   const [pendingInvite, setPendingInvite] = useState(null);
 
   useEffect(() => {
-    if (!isAppLoading) return undefined;
+    void preloadLuaLoadingAnimation();
+  }, []);
 
-    const timeoutId = window.setTimeout(() => {
-      setIsAppLoading(false);
-    }, INITIAL_APP_LOADING_DURATION);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [isAppLoading]);
+  const handleAppLoadingComplete = useCallback(() => {
+    setIsAppLoading(false);
+  }, []);
 
   usePendingReviewsFlush(user?.id);
 
-  const handleSuccess = async (credentialResponse) => {
+  const handleSuccess = async (credentialResponse, inviteCode = '') => {
     setError('');
     const credential = credentialResponse?.credential;
-    if (!credential) return;
+    if (!credential) return { error: 'Google no devolvió una credencial válida.' };
     try {
       jwtDecode(credential);
       const res = await fetch(`${BACKEND_URL}/api/auth/google`, {
@@ -430,21 +527,44 @@ function FlashcardsApp() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ credential }),
       });
-      if (!res.ok) throw new Error();
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Falló la verificación en el servidor.');
 
       if (data.needsInvite) {
+        const normalizedInviteCode = inviteCode.trim();
+        if (normalizedInviteCode) {
+          const inviteResponse = await fetch(`${BACKEND_URL}/api/auth/redeem-invite`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ credential, code: normalizedInviteCode }),
+          });
+          const inviteData = await inviteResponse.json().catch(() => ({}));
+          if (!inviteResponse.ok) {
+            return { inviteError: inviteData.error || 'No se pudo validar el código.' };
+          }
+
+          setUser({
+            ...data.user,
+            hasAccess: true,
+            needsInvite: false,
+            authToken: credential,
+          });
+          setIsAppLoading(true);
+          return { success: true };
+        }
         setPendingInvite({ credential, user: data.user });
-        return;
+        return { needsInvite: true };
       }
 
       setUser({ ...data.user, authToken: credential });
       setIsAppLoading(true);
-    } catch {
-      setError('Falló la verificación en el servidor.');
+      return { success: true };
+    } catch (requestError) {
+      const message = requestError.message || 'Falló la verificación en el servidor.';
+      setError(message);
+      return { error: message };
     }
   };
-
   const handleInviteRedeemed = () => {
     if (!pendingInvite) return;
 
@@ -493,7 +613,7 @@ function FlashcardsApp() {
           onLogout={handleLogout}
           onInviteRequired={handleInviteRequired}
         />
-        {isAppLoading && <AppLoadingScreen />}
+        {isAppLoading && <AppLoadingScreen onComplete={handleAppLoadingComplete} />}
       </>
     );
   }
