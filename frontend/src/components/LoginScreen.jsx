@@ -68,7 +68,7 @@ export default function LoginScreen({ onSuccess, onError, error }) {
         <img
           src={underFlashcardsLogo}
           alt="Under Flashcards"
-          className="h-[clamp(2rem,5vw,2.5rem)] w-auto max-w-full object-contain"
+          className="h-[clamp(3rem,7.5vw,3.75rem)] w-auto max-w-full object-contain [@media(max-height:600px)]:h-[clamp(2.75rem,7vw,3.25rem)]"
         />
       </header>
 

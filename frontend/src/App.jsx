@@ -26,6 +26,7 @@ const DebugPanel = lazy(() => import('./components/DebugPanel'));
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 const INITIAL_APP_LOADING_DURATION = 5000;
+const APP_LOADING_IMAGE_SAFETY_TIMEOUT = 15000;
 const APP_LOADING_PHRASES = [
   {
     dark: 'No hay atajos para volverse fuerte;',
@@ -37,10 +38,81 @@ const APP_LOADING_PHRASES = [
   },
 ];
 
-function AppLoadingScreen() {
+let luaLoadingPreloadImage = null;
+let luaLoadingPreloadPromise = null;
+
+function preloadLuaLoadingAnimation() {
+  if (typeof Image === 'undefined') return Promise.resolve(false);
+  if (luaLoadingPreloadPromise) return luaLoadingPreloadPromise;
+
+  luaLoadingPreloadImage = new Image();
+  luaLoadingPreloadImage.decoding = 'async';
+  if ('fetchPriority' in luaLoadingPreloadImage) {
+    luaLoadingPreloadImage.fetchPriority = 'low';
+  }
+
+  luaLoadingPreloadPromise = new Promise((resolve) => {
+    const settle = (loaded) => {
+      luaLoadingPreloadImage.onload = null;
+      luaLoadingPreloadImage.onerror = null;
+      resolve(loaded);
+    };
+    luaLoadingPreloadImage.onload = () => settle(true);
+    luaLoadingPreloadImage.onerror = () => settle(false);
+  });
+  luaLoadingPreloadImage.src = luaLoadingAnimation;
+
+  return luaLoadingPreloadPromise;
+}
+
+function AppLoadingScreen({ onComplete }) {
   const [phrase] = useState(
     () => APP_LOADING_PHRASES[Math.floor(Math.random() * APP_LOADING_PHRASES.length)]
   );
+  const completionTimerRef = useRef(null);
+  const safetyTimerRef = useRef(null);
+  const completedRef = useRef(false);
+  const onCompleteRef = useRef(onComplete);
+
+  useEffect(() => {
+    onCompleteRef.current = onComplete;
+  }, [onComplete]);
+
+  const clearTimers = useCallback(() => {
+    if (completionTimerRef.current !== null) {
+      window.clearTimeout(completionTimerRef.current);
+      completionTimerRef.current = null;
+    }
+    if (safetyTimerRef.current !== null) {
+      window.clearTimeout(safetyTimerRef.current);
+      safetyTimerRef.current = null;
+    }
+  }, []);
+
+  const finishLoading = useCallback(() => {
+    if (completedRef.current) return;
+    completedRef.current = true;
+    clearTimers();
+    onCompleteRef.current?.();
+  }, [clearTimers]);
+
+  const startDisplayTimer = useCallback(() => {
+    if (completedRef.current || completionTimerRef.current !== null) return;
+    if (safetyTimerRef.current !== null) {
+      window.clearTimeout(safetyTimerRef.current);
+      safetyTimerRef.current = null;
+    }
+    completionTimerRef.current = window.setTimeout(finishLoading, INITIAL_APP_LOADING_DURATION);
+  }, [finishLoading]);
+
+  useEffect(() => {
+    safetyTimerRef.current = window.setTimeout(finishLoading, APP_LOADING_IMAGE_SAFETY_TIMEOUT);
+    return () => {
+      completedRef.current = true;
+      clearTimers();
+      onCompleteRef.current = null;
+    };
+  }, [clearTimers, finishLoading]);
 
   return (
     <div
@@ -54,6 +126,10 @@ function AppLoadingScreen() {
           src={luaLoadingAnimation}
           alt=""
           aria-hidden="true"
+          loading="eager"
+          decoding="async"
+          onLoad={startDisplayTimer}
+          onError={startDisplayTimer}
           className="h-auto max-h-[58vh] w-[min(90vw,40rem)] max-w-full object-contain"
         />
         <p className="max-w-4xl text-center text-[clamp(1.25rem,4.5vw,2rem)] font-extrabold leading-[1.4]">
@@ -423,14 +499,12 @@ function FlashcardsApp() {
   const [pendingInvite, setPendingInvite] = useState(null);
 
   useEffect(() => {
-    if (!isAppLoading) return undefined;
+    void preloadLuaLoadingAnimation();
+  }, []);
 
-    const timeoutId = window.setTimeout(() => {
-      setIsAppLoading(false);
-    }, INITIAL_APP_LOADING_DURATION);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [isAppLoading]);
+  const handleAppLoadingComplete = useCallback(() => {
+    setIsAppLoading(false);
+  }, []);
 
   usePendingReviewsFlush(user?.id);
 
@@ -531,7 +605,7 @@ function FlashcardsApp() {
           onLogout={handleLogout}
           onInviteRequired={handleInviteRequired}
         />
-        {isAppLoading && <AppLoadingScreen />}
+        {isAppLoading && <AppLoadingScreen onComplete={handleAppLoadingComplete} />}
       </>
     );
   }
