@@ -19,24 +19,47 @@ import PublicMateriaPage from './components/PublicMateriaPage';
 import { getPublicMateriaShareId } from './lib/publicMateria';
 import { preloadStaticIllustrations } from './lib/staticIllustrations';
 import { sanitizeDeckSummaries } from './lib/imageDelivery';
+import luaLoadingAnimation from '../media/svg/pantalla de secion/lua_loading_animation_60frames_5s.webp';
 
 const DebugPanel = lazy(() => import('./components/DebugPanel'));
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
-const INITIAL_APP_LOADING_DURATION = 2500;
+const INITIAL_APP_LOADING_DURATION = 5000;
+const APP_LOADING_PHRASES = [
+  {
+    dark: 'No hay atajos para volverse fuerte;',
+    purple: 'la verdadera habilidad se construye repitiendo lo básico todos los días.',
+  },
+  {
+    dark: 'Un solo golpe no derriba un gran árbol,',
+    purple: 'pero miles de intentos constantes terminan por lograrlo.',
+  },
+];
 
 function AppLoadingScreen() {
+  const [phrase] = useState(
+    () => APP_LOADING_PHRASES[Math.floor(Math.random() * APP_LOADING_PHRASES.length)]
+  );
+
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-white"
+      className="fixed inset-0 z-[100] flex items-center justify-center overflow-hidden bg-[#FBFAFF] px-5 py-4 sm:px-8 sm:py-8"
       role="status"
       aria-live="polite"
       data-testid="app-loading-screen"
     >
-      <div className="flex flex-col items-center gap-4 text-slate-700">
-        <Sparkles className="h-8 w-8 animate-pulse text-slate-900" aria-hidden="true" />
-        <p className="text-sm font-medium">Preparando tu espacio...</p>
+      <div className="flex h-full min-h-0 w-full max-w-5xl flex-col items-center justify-center gap-[clamp(0.75rem,3vh,2rem)]">
+        <img
+          src={luaLoadingAnimation}
+          alt=""
+          aria-hidden="true"
+          className="h-auto max-h-[58vh] w-[min(90vw,40rem)] max-w-full object-contain"
+        />
+        <p className="max-w-4xl text-center text-[clamp(1.25rem,4.5vw,2rem)] font-extrabold leading-[1.4]">
+          <span className="text-slate-950">{phrase.dark}</span>{' '}
+          <span className="text-violet-600">{phrase.purple}</span>
+        </p>
       </div>
     </div>
   );
