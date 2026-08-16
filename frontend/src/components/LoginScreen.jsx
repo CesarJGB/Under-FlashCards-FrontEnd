@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
-import { LoaderCircle, Sparkles, X } from 'lucide-react';
+import { LoaderCircle, X } from 'lucide-react';
+import underFlashcardsLogo from '../../media/svg/logo/under-flashcards-logo 2.svg';
 import ActionSheet from './common/ActionSheet';
 import PublicHomeCarousel from './PublicHomeCarousel';
 import { lockBodyScroll, unlockBodyScroll } from '../lib/scrollLock';
@@ -63,11 +64,12 @@ export default function LoginScreen({ onSuccess, onError, error }) {
 
   return (
     <main className="fixed inset-0 grid h-[100dvh] w-full grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden overscroll-none bg-[#FBFAFF] px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-[calc(0.65rem+env(safe-area-inset-top))] text-slate-900 dark:bg-slate-950 dark:text-white sm:px-8 sm:pb-[calc(1rem+env(safe-area-inset-bottom))] sm:pt-[calc(1rem+env(safe-area-inset-top))]">
-      <header className="mx-auto flex w-full max-w-5xl shrink-0 items-center justify-center gap-2 py-0.5 sm:justify-start">
-        <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-violet-600 shadow-sm shadow-violet-300/60 sm:h-9 sm:w-9">
-          <Sparkles className="h-4 w-4 text-white sm:h-5 sm:w-5" aria-hidden="true" />
-        </span>
-        <span className="text-sm font-extrabold tracking-tight sm:text-lg">Under Flashcards</span>
+      <header className="mx-auto flex w-full max-w-5xl shrink-0 items-center justify-center py-0.5 sm:justify-start">
+        <img
+          src={underFlashcardsLogo}
+          alt="Under Flashcards"
+          className="h-[clamp(2rem,5vw,2.5rem)] w-auto max-w-full object-contain"
+        />
       </header>
 
       <div className="mx-auto flex min-h-0 w-full max-w-5xl items-stretch justify-center py-[clamp(0.2rem,1dvh,0.65rem)]">
