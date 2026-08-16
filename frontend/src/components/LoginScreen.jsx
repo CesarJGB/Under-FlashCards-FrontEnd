@@ -90,19 +90,16 @@ export default function LoginScreen({ onSuccess, onError, error }) {
         open={isAuthOpen}
         onClose={handleClose}
         returnTarget={loginTriggerRef.current}
-        ariaLabel="Inicia sesión para continuar"
+        ariaLabel="Iniciar sesión"
         appearance="auth"
         draggable
         dragDisabled={authenticating}
       >
-        <div className="mx-auto w-full max-w-md pb-2 text-slate-900">
+        <div className="mx-auto w-full max-w-md pb-1 text-slate-900">
           <div className="relative pr-11">
             <h2 className="text-[clamp(1.6rem,6vw,2rem)] font-black leading-tight tracking-[-0.03em] text-slate-950">
-              Inicia sesión para continuar
+              Iniciar sesión
             </h2>
-            <p className="mt-1.5 text-base leading-relaxed text-slate-600">
-              Accede con Google y conserva todo tu progreso.
-            </p>
             <button
               type="button"
               onClick={handleClose}
@@ -115,13 +112,10 @@ export default function LoginScreen({ onSuccess, onError, error }) {
             </button>
           </div>
 
-          <div className="mt-5">
-            <div className="flex items-baseline justify-between gap-3">
-              <label htmlFor="invite-code" className="text-sm font-extrabold text-slate-900">
-                ¿Eres nuevo?
-              </label>
-              <span className="text-xs font-medium text-slate-500">Código de invitación</span>
-            </div>
+          <div className="mt-4">
+            <label htmlFor="invite-code" className="text-sm font-extrabold text-slate-900">
+              ¿Eres nuevo?
+            </label>
             <p className="mt-1 text-sm leading-snug text-slate-600">
               Ingresa tu código de invitación antes de continuar.
             </p>
@@ -141,6 +135,7 @@ export default function LoginScreen({ onSuccess, onError, error }) {
               placeholder="Código"
               aria-label="Código de invitación"
               aria-describedby={inviteError ? 'invite-code-error' : 'invite-code-helper'}
+              data-action-sheet-no-drag="true"
               className="mt-2 min-h-12 w-full rounded-2xl border border-violet-200 bg-white px-4 text-base font-semibold tracking-wide text-slate-900 outline-none transition-[border-color,box-shadow] placeholder:font-normal placeholder:tracking-normal placeholder:text-slate-400 focus:border-violet-500 focus:ring-4 focus:ring-violet-100 disabled:opacity-60"
             />
             {inviteError ? (
@@ -154,23 +149,25 @@ export default function LoginScreen({ onSuccess, onError, error }) {
             )}
           </div>
 
-          <div ref={googleContainerRef} className="relative mt-5 flex min-h-14 w-full items-center justify-center" data-testid="google-login-button" aria-busy={authenticating}>
-            <GoogleLogin
-              onSuccess={handleGoogleSuccess}
-              onError={handleGoogleError}
-              theme="outline"
-              size="large"
-              shape="pill"
-              text="continue_with"
-              locale="es"
-              width={`${googleButtonWidth}`}
-              useOneTap={false}
-            />
-            {authenticating && (
-              <div className="absolute inset-0 flex cursor-wait items-center justify-center rounded-full bg-white/80 text-sm font-bold text-slate-700" aria-hidden="true">
+          <div ref={googleContainerRef} className="mx-auto mt-4 flex min-h-14 w-full max-w-[400px] items-center justify-center" data-testid="google-login-button" aria-busy={authenticating}>
+            {authenticating ? (
+              <div className="flex min-h-10 w-full cursor-wait items-center justify-center text-sm font-bold text-slate-700" role="status">
                 <LoaderCircle className="mr-2 h-4 w-4 animate-spin motion-reduce:animate-none" />
                 Iniciando sesión…
               </div>
+            ) : (
+              <GoogleLogin
+                onSuccess={handleGoogleSuccess}
+                onError={handleGoogleError}
+                theme="outline"
+                size="large"
+                shape="pill"
+                text="continue_with"
+                logo_alignment="left"
+                locale="es"
+                width={`${googleButtonWidth}`}
+                useOneTap={false}
+              />
             )}
           </div>
 

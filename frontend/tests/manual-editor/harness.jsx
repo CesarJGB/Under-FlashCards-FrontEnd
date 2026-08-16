@@ -8,7 +8,9 @@ import React, {
   useState,
 } from 'react';
 import { createRoot } from 'react-dom/client';
+import { GoogleOAuthProvider } from '@react-oauth/google';
 import '../../src/index.css';
+import LoginScreen from '../../src/components/LoginScreen';
 import ManualCardEditorModal from '../../src/components/creator/ManualCardEditorModal';
 import ActionSheet from '../../src/components/common/ActionSheet';
 import StylePanel from '../../src/components/creator/StylePanel';
@@ -455,6 +457,7 @@ function Harness() {
   const [transitionRootOpen, setTransitionRootOpen] = useState(false);
   const [transitionChildOpen, setTransitionChildOpen] = useState(false);
   const [transitionModalOpen, setTransitionModalOpen] = useState(false);
+  const [loginScreenOpen, setLoginScreenOpen] = useState(false);
   const [deckCardEditOpen, setDeckCardEditOpen] = useState(false);
   const [scheduleSwitcherOpen, setScheduleSwitcherOpen] = useState(false);
   const [scheduleCreateOpen, setScheduleCreateOpen] = useState(false);
@@ -547,6 +550,8 @@ function Harness() {
       chooseFixture: applyFixture,
       open: openEditor,
       close: closeEditor,
+      openLoginScreen: () => setLoginScreenOpen(true),
+      closeLoginScreen: () => setLoginScreenOpen(false),
       openSheet: () => setSheetOpen(true),
       closeSheet: () => setSheetOpen(false),
       openActionSheetCase(kind) {
@@ -797,6 +802,7 @@ function Harness() {
     footerSheetOpen,
     longSheetOpen,
     longFooterSheetOpen,
+    loginScreenOpen,
     lowerSheetOpen,
     open,
     openEditor,
@@ -945,6 +951,12 @@ function Harness() {
           resolveReturnFocus={resolveReturnFocus}
         />
       </Profiler>
+
+      {loginScreenOpen && (
+        <GoogleOAuthProvider clientId="playwright-login-harness">
+          <LoginScreen onSuccess={async () => ({})} onError={() => {}} />
+        </GoogleOAuthProvider>
+      )}
 
       <ActionSheet
         open={sheetOpen}
