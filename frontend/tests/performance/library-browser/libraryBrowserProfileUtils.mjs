@@ -495,19 +495,21 @@ export function correlateCdpNetwork(requests, cdpEntries) {
 /**
  * Agrega una lista de muestras de red (una muestra por solicitud observada,
  * ya correlacionada uno a uno). Cada muestra contribuye como máximo una vez;
- * los valores no finitos o ausentes (solicitudes `unmatched`) se excluyen del
- * resumen y se cuentan aparte, de modo que los agregados de bytes, TTFB y
- * descarga nunca duplican entradas CDP.
+ * sólo las muestras con correlación explícitamente segura (`matched`) entran
+ * en los agregados. Las solicitudes `unmatched` (incluso si conservaron
+ * métricas finitas del runner) se cuentan aparte, de modo que los agregados de
+ * bytes, TTFB, descarga y duración nunca incorporan datos no correlacionados.
  */
 export function summarizeNetworkSamples(samples) {
   const list = Array.isArray(samples) ? samples : [];
+  const matchedSamples = list.filter((sample) => sample?.correlation === 'matched');
   const result = {
     samples: list.length,
-    matched: list.filter((s) => s && s.correlation !== 'unmatched').length,
-    unmatched: list.filter((s) => s && s.correlation === 'unmatched').length,
+    matched: matchedSamples.length,
+    unmatched: list.length - matchedSamples.length,
   };
   for (const metric of ['ttfbMs', 'downloadMs', 'durationMs', 'transferSize', 'encodedBodySize', 'decodedBodySize']) {
-    const values = list.map((s) => s && s[metric]).filter((v) => Number.isFinite(v));
+    const values = matchedSamples.map((sample) => sample[metric]).filter((value) => Number.isFinite(value));
     result[`${metric}Aggregate`] = summarizeValues(values);
   }
   return result;

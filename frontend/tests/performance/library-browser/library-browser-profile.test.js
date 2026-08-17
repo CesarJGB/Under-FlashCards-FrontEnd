@@ -553,6 +553,50 @@ test('summarizeNetworkSamples agrega sin doble contabilización y separa unmatch
   assert.equal(agg.decodedBodySizeAggregate.samples, 2);
 });
 
+test('summarizeNetworkSamples excluye unmatched con métricas finitas de todos los agregados', () => {
+  const matched = {
+    correlation: 'matched',
+    durationMs: 100,
+    ttfbMs: 50,
+    downloadMs: 20,
+    transferSize: 500,
+    encodedBodySize: 500,
+    decodedBodySize: 1500,
+  };
+  const unmatched = {
+    correlation: 'unmatched',
+    durationMs: 9999,
+    ttfbMs: 8888,
+    downloadMs: 7777,
+    transferSize: 999999,
+    encodedBodySize: 888888,
+    decodedBodySize: 777777,
+  };
+
+  const agg = summarizeNetworkSamples([matched, unmatched]);
+
+  assert.equal(agg.samples, 2);
+  assert.equal(agg.matched, 1);
+  assert.equal(agg.unmatched, 1);
+  for (const metric of [
+    'durationMs',
+    'ttfbMs',
+    'downloadMs',
+    'transferSize',
+    'encodedBodySize',
+    'decodedBodySize',
+  ]) {
+    assert.deepEqual(agg[`${metric}Aggregate`], {
+      samples: 1,
+      min: matched[metric],
+      median: matched[metric],
+      max: matched[metric],
+      p95: 'NOT MEASURED',
+    });
+    assert.notEqual(agg[`${metric}Aggregate`].max, unmatched[metric]);
+  }
+});
+
 // ---------------------------------------------------------------------------
 // Commits de React y tareas largas (persistencia por escenario/repetición)
 // ---------------------------------------------------------------------------
