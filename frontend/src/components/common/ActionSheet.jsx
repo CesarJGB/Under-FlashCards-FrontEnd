@@ -30,6 +30,14 @@ import {
   isActionSheetDragControl,
   resolveActionSheetRelease,
 } from './actionSheetDrag';
+import {
+  createActionSheetInputFocusState,
+  endActionSheetInputFocus,
+  enterActionSheetInputFocus,
+  isActionSheetInputTarget,
+  observeActionSheetInputFocusGeometry,
+  shouldKeepActionSheetInputFocus,
+} from './actionSheetFocus';
 
 const EMPTY_SNAPSHOT = Object.freeze({ layers: [], topId: null, nextOrder: 1 });
 const EMPTY_SUBSCRIBE = () => () => {};
@@ -52,6 +60,7 @@ export default function ActionSheet({
   draggable = false,
   dragDisabled = false,
   initialSnap = ACTION_SHEET_SNAP_COMPACT,
+  restoreSnapAfterInput = false,
 }) {
   const parentScope = useOverlayScope();
   const sharedRegistryRef = useRef(null);
@@ -84,6 +93,11 @@ export default function ActionSheet({
   const wasTopRef = useRef(false);
   const dragGestureRef = useRef(null);
   const suppressHandleClickRef = useRef(false);
+  const inputFocusStateRef = useRef(null);
+  const pendingInputBlurRef = useRef(null);
+  if (inputFocusStateRef.current === null) {
+    inputFocusStateRef.current = createActionSheetInputFocusState();
+  }
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
   const id = useId();
@@ -118,6 +132,8 @@ export default function ActionSheet({
   useLayoutEffect(() => {
     if (!open || !draggable || typeof window === 'undefined') {
       setHasEntered(!draggable);
+      inputFocusStateRef.current = createActionSheetInputFocusState();
+      pendingInputBlurRef.current = null;
       return undefined;
     }
     setDragSnap(initialSnap);
@@ -125,6 +141,8 @@ export default function ActionSheet({
     setIsDragging(false);
     dragGestureRef.current = null;
     suppressHandleClickRef.current = false;
+    inputFocusStateRef.current = createActionSheetInputFocusState();
+    pendingInputBlurRef.current = null;
 
     if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
       setHasEntered(true);
@@ -137,7 +155,7 @@ export default function ActionSheet({
       window.cancelAnimationFrame(frameId);
       dragGestureRef.current = null;
     };
-  }, [draggable, initialSnap, open]);
+  }, [draggable, initialSnap, open, restoreSnapAfterInput]);
 
   useLayoutEffect(() => {
     if (!open || typeof document === 'undefined') return undefined;
@@ -231,6 +249,26 @@ export default function ActionSheet({
     if (!open || !isTop || !frameRef.current) return undefined;
     return installActionSheetGestureGuard(frameRef.current);
   }, [isTop, open]);
+
+  useLayoutEffect(() => {
+    if (!open || !draggable || !restoreSnapAfterInput) return undefined;
+    const transition = observeActionSheetInputFocusGeometry(
+      inputFocusStateRef.current,
+      geometry,
+    );
+    inputFocusStateRef.current = transition.state;
+    if (transition.shouldExpand) {
+      setDragSnap((current) => (
+        current === ACTION_SHEET_SNAP_EXPANDED ? current : ACTION_SHEET_SNAP_EXPANDED
+      ));
+    }
+    if (transition.restoreSnap) {
+      setDragSnap((current) => (
+        current === transition.restoreSnap ? current : transition.restoreSnap
+      ));
+    }
+    return undefined;
+  }, [draggable, geometry, open, restoreSnapAfterInput]);
 
   useLayoutEffect(() => {
     if (!open || !isTop) {
@@ -358,6 +396,67 @@ export default function ActionSheet({
         : ACTION_SHEET_SNAP_EXPANDED
     ));
   };
+  const finishInputFocus = () => {
+    pendingInputBlurRef.current = null;
+    const transition = endActionSheetInputFocus(inputFocusStateRef.current);
+    inputFocusStateRef.current = transition.state;
+    if (transition.restoreSnap) {
+      setDragSnap((current) => (
+        current === transition.restoreSnap ? current : transition.restoreSnap
+      ));
+    }
+  };
+  const scheduleInputFocusEnd = (scrollRoot, blurredTarget) => {
+    const pending = {};
+    pendingInputBlurRef.current = pending;
+    const run = () => {
+      if (pendingInputBlurRef.current !== pending || !dialogRef.current?.isConnected) return;
+      if (
+        document.activeElement !== blurredTarget
+        && shouldKeepActionSheetInputFocus({
+          activeElement: document.activeElement,
+          container: scrollRoot,
+        })
+      ) {
+        const entered = enterActionSheetInputFocus(inputFocusStateRef.current, {
+          currentSnap: dragSnap,
+          controlId: document.activeElement?.id || null,
+          geometry,
+        });
+        inputFocusStateRef.current = entered.state;
+        if (entered.shouldExpand) setDragSnap(ACTION_SHEET_SNAP_EXPANDED);
+        pendingInputBlurRef.current = null;
+        return;
+      }
+      finishInputFocus();
+    };
+    if (typeof queueMicrotask === 'function') queueMicrotask(run);
+    else Promise.resolve().then(run);
+  };
+  const handleInputFocus = (event) => {
+    if (!isActionSheetInputTarget(event.target)) return;
+    pendingInputBlurRef.current = null;
+    if (!restoreSnapAfterInput) {
+      setDragSnap(ACTION_SHEET_SNAP_EXPANDED);
+      return;
+    }
+    const entered = enterActionSheetInputFocus(inputFocusStateRef.current, {
+      currentSnap: dragSnap,
+      controlId: event.target.id || event.target.name || null,
+      geometry,
+    });
+    inputFocusStateRef.current = entered.state;
+    if (entered.shouldExpand) setDragSnap(ACTION_SHEET_SNAP_EXPANDED);
+  };
+  const handleInputBlur = (event) => {
+    if (!restoreSnapAfterInput || !isActionSheetInputTarget(event.target)) return;
+    const scrollRoot = event.currentTarget;
+    if (shouldKeepActionSheetInputFocus({
+      relatedTarget: event.relatedTarget,
+      container: scrollRoot,
+    })) return;
+    scheduleInputFocusEnd(scrollRoot, event.target);
+  };
   const closeControl = closeAction && !isValidElement(closeAction) ? (
     <button
       type="button"
@@ -394,6 +493,7 @@ export default function ActionSheet({
       data-action-sheet-scale={geometry.visual.scale}
       data-action-sheet-anchor={isViewportPortal ? 'viewport' : 'scope'}
       data-action-sheet-draggable={draggable ? 'true' : 'false'}
+      data-action-sheet-restore-input-snap={restoreSnapAfterInput ? 'true' : 'false'}
     >
       <div
         role="presentation"
@@ -482,11 +582,8 @@ export default function ActionSheet({
             className={`min-h-0 flex-1 overflow-y-auto overscroll-none ${appearance === 'auth' ? 'px-5 sm:px-6' : 'px-4'} ${hasFooter ? 'pb-2' : 'pb-[calc(1.25rem+env(safe-area-inset-bottom))]'}`}
             style={{ WebkitOverflowScrolling: 'touch' }}
             data-action-sheet-scroll="true"
-            onFocusCapture={draggable ? (event) => {
-              if (event.target.matches?.('input, textarea, select')) {
-                setDragSnap(ACTION_SHEET_SNAP_EXPANDED);
-              }
-            } : undefined}
+            onFocusCapture={draggable ? handleInputFocus : undefined}
+            onBlurCapture={draggable && restoreSnapAfterInput ? handleInputBlur : undefined}
           >
             {hasCustomContent && customContent}
 

@@ -43,6 +43,28 @@ Se conservan la pila top-only, `OverlayScope`, portales scoped, inert, retorno d
 - Los pans predominantemente horizontales no se interceptan, para conservar paletas y controles con scroll horizontal.
 - Los `input[type="range"]` quedan fuera de la intercepción para conservar su gesto nativo. Inputs de texto, selectores y file inputs conservan su comportamiento.
 
+## Foco editable y snap temporal
+
+El contrato opcional `restoreSnapAfterInput` se usa en el ActionSheet draggable de
+autenticación. Está desactivado por defecto para conservar el comportamiento de
+los consumidores existentes. Cuando está activo:
+
+- el foco en un control editable guarda el snap actual antes de expandir la hoja;
+- el cambio entre controles editables del mismo scroll root conserva una única
+  sesión y no restaura el snap entre ambos focos;
+- `blur` restaura el snap guardado;
+- si iOS oculta el teclado mientras conserva el foco DOM, la hoja observa el
+  snapshot compartido de `useEditorGeometry()` y restaura después de una
+  reducción vertical estable seguida de la recuperación del mismo viewport,
+  usando únicamente la tolerancia subpíxel de geometría;
+- una sesión iniciada estando `expanded` restaura `expanded` y el desmontaje
+  descarta el estado temporal.
+
+La reducción del VisualViewport no se etiqueta como teclado por sí sola: se
+considera únicamente dentro de una sesión de foco editable y se compara con el
+baseline de esa sesión. No se añade un listener paralelo de `visualViewport` al
+login ni se usa orientación o una altura fija como detector.
+
 Safari requiere una defensa adicional a CSS para este contrato. `actionSheetGestureGuard.js` instala `touchmove` no pasivo únicamente en el frame de la capa superior. Decide con `scrollTop`, `scrollHeight`, `clientHeight` y dirección del gesto; no se instala en `document` ni `window`, no bloquea todo movimiento y se elimina al perder top/unmount.
 
 ## Contrato de scroll lock

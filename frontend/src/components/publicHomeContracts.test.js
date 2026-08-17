@@ -82,13 +82,23 @@ test('la pantalla pública es fija, bloquea scroll y abre el ActionSheet draggab
   assert.match(login, /Iniciar sesión/);
 });
 
-test('Google conserva un solo componente/callback y la invitación precede a OAuth', async () => {
+test('Google conserva un solo componente/callback y precede al bloque de invitación', async () => {
   const login = await readComponent('./LoginScreen.jsx');
   assert.equal((login.match(/<GoogleLogin/g) || []).length, 1);
+  assert.equal((login.match(/<ActionSheet/g) || []).length, 1);
   assert.match(login, /onSuccess=\{handleGoogleSuccess\}/);
+  assert.match(login, /if \(authenticating\) return/);
+  assert.match(login, /onError\?\.\(\)/);
   assert.match(login, /autoComplete="one-time-code"/);
   assert.match(login, /autoCapitalize="characters"/);
-  assert.ok(login.indexOf('id="invite-code"') < login.indexOf('<GoogleLogin'));
+  assert.ok(login.indexOf('<GoogleLogin') < login.indexOf('id="invite-code"'));
+  assert.match(login, /restoreSnapAfterInput/);
+  assert.match(login, /useLayoutEffect/);
+  assert.match(login, /useState\(null\)/);
+  assert.match(login, /googleButtonWidth !== null/);
+  assert.match(login, /luaInviteCard/);
+  assert.match(login, /pointer-events-none/);
+  assert.match(login, /aria-hidden="true"/);
   assert.doesNotMatch(login, /border.*data-testid="google-login-button"/);
 });
 
@@ -98,6 +108,7 @@ test('ActionSheet mantiene draggable desactivado por defecto y limpia recursos',
     readComponent('./PublicHomeCarousel.jsx'),
   ]);
   assert.match(actionSheet, /draggable = false/);
+  assert.match(actionSheet, /restoreSnapAfterInput = false/);
   assert.match(actionSheet, /installActionSheetGestureGuard\(frameRef\.current\)/);
   assert.match(actionSheet, /cancelAnimationFrame\(frameId\)/);
   assert.match(actionSheet, /data-action-sheet-draggable=\{draggable \? 'true' : 'false'\}/);
