@@ -14,6 +14,7 @@ import useBottomGap from '../hooks/useBottomGap';
 import useQuickViewMaterias from './home/useQuickViewMaterias';
 import useOpenRouterBalance from './home/useOpenRouterBalance';
 import { DEFAULT_WIDGET_ORDER, normalizeWidgetOrder, serializeWidgetOrder } from './home/homeWidgetRegistry';
+import { perfLibraryProfile } from '../lib/perfLibraryProfile';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 const DOMAIN_PREVIEWS_TTL_MS = 15 * 60 * 1000; // 15 minutos
@@ -270,6 +271,7 @@ export default function HomeSection({
   adaptivePreviewBootstrap,
   onStableAdaptivePreview
 }) {
+  perfLibraryProfile.renderCount('HomeSection');
   const [homeVisibility, setHomeVisibility] = useState({
     globalStats: false,
     quickView: false,

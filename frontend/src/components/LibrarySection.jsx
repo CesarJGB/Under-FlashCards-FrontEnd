@@ -14,6 +14,7 @@ import SubtemasLevel from './library/SubtemasLevel';
 import AcademicFolderModal from './library/AcademicFolderModal';
 import SearchResults from './library/SearchResults';
 import { getJSON, setJSON, remove } from '../lib/safeLocalStorage';
+import { perfLibraryProfile } from '../lib/perfLibraryProfile';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
@@ -27,6 +28,7 @@ export default function LibrarySection({
   clearPendingNav,
   libraryFabHost,
 }) {
+  perfLibraryProfile.renderCount('LibrarySection');
   
   useEffect(() => {
     if (typeof loadDecks === 'function') loadDecks();

@@ -6,6 +6,7 @@ import ActionSheet from './common/ActionSheet';
 
 // Importamos la función de parseo unificada y centralizada
 import { parseCardStyles } from '../lib/utils';
+import { perfLibraryProfile } from '../lib/perfLibraryProfile';
 
 const ALIGN_CLASS = { left: 'text-left', center: 'text-center', right: 'text-right' };
 
@@ -108,6 +109,7 @@ function CardActionPreview({ card }) {
 }
 
 export default function FlashcardGrid({ cards, onEdit, onDelete }) {
+  perfLibraryProfile.renderCount('FlashcardGrid');
   const [imagePreview, setImagePreview] = useState(null);
   const [actionCard, setActionCard] = useState(null);
   

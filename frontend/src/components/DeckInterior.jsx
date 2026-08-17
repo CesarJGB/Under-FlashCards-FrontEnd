@@ -8,6 +8,7 @@ import SessionPlayer from './SessionPlayer';
 import usePdfExport from '../hooks/usePdfExport';
 import PdfExportOverlay from './PdfExportOverlay';
 import { extractAndResolveCards } from '../lib/imageDelivery';
+import { perfLibraryProfile } from '../lib/perfLibraryProfile';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
@@ -15,6 +16,7 @@ const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 const HEADERLESS_MODES = ['continuous-review', 'normal-review', 'fast-delete'];
 
 export default function DeckInterior({ deck, userId, authToken, onBack, initialMode = 'edit', onRefreshData, onExitToStudy, onInviteRequired }) {
+  perfLibraryProfile.renderCount('DeckInterior');
   const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(true);
   const [cardsLoaded, setCardsLoaded] = useState(false);

@@ -2,6 +2,7 @@ import { useDeferredValue, useMemo, useState } from 'react';
 import { Clock, History, Image, Loader2, RefreshCw } from 'lucide-react';
 import FlashcardGrid from './FlashcardGrid';
 import LibraryToolbar from './library/LibraryToolbar';
+import { perfLibraryProfile } from '../lib/perfLibraryProfile';
 
 const CARD_SORT_OPTIONS = [
   { id: 'recent', label: 'Más recientes', icon: Clock },
@@ -41,6 +42,7 @@ export default function FlashcardCollection({
   error = '',
   onRetry,
 }) {
+  perfLibraryProfile.renderCount('FlashcardCollection');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('recent');
   const deferredSearchQuery = useDeferredValue(searchQuery);
