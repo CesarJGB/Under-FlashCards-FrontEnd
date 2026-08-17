@@ -119,9 +119,9 @@ export default function LoginScreen({ onSuccess, onError, error }) {
         dragDisabled={authenticating}
         restoreSnapAfterInput
       >
-        <div className="mx-auto w-full max-w-md pb-1 text-slate-900">
+        <div className="mx-auto w-full max-w-md overflow-visible rounded-[2rem] border border-violet-100/90 bg-[#FBFAFF] px-4 pb-5 pt-4 text-slate-900 shadow-none sm:px-5">
           <div className="relative pr-11">
-            <h2 className="text-[clamp(1.75rem,7vw,2.25rem)] font-black leading-tight tracking-[-0.035em] text-slate-950">
+            <h2 className="text-[clamp(1.6rem,6vw,2rem)] font-black leading-tight tracking-[-0.025em] text-slate-950">
               Iniciar sesión
             </h2>
             <button
@@ -130,13 +130,13 @@ export default function LoginScreen({ onSuccess, onError, error }) {
               disabled={authenticating}
               aria-label="Cerrar inicio de sesión"
               data-action-sheet-no-drag="true"
-              className="absolute -right-1 -top-1 flex h-11 w-11 items-center justify-center rounded-full bg-violet-50 text-violet-500 transition-colors hover:bg-violet-100 hover:text-violet-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40"
+              className="absolute right-1 top-1 flex h-11 w-11 items-center justify-center rounded-full border border-slate-200/80 bg-slate-100/80 text-slate-500 transition-colors hover:bg-slate-200/80 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40"
             >
               <X className="h-5 w-5" aria-hidden="true" />
             </button>
           </div>
 
-          <div ref={googleContainerRef} className="mx-auto mt-6 flex min-h-14 w-full max-w-[400px] items-center justify-center" data-testid="google-login-button" aria-busy={authenticating || googleButtonWidth === null}>
+          <div ref={googleContainerRef} className="mx-auto mt-4 flex min-h-12 w-full max-w-[400px] items-center justify-center" data-testid="google-login-button" aria-busy={authenticating || googleButtonWidth === null}>
             {authenticating ? (
               <div className="flex min-h-10 w-full cursor-wait items-center justify-center text-sm font-bold text-slate-700" role="status">
                 <LoaderCircle className="mr-2 h-4 w-4 animate-spin motion-reduce:animate-none" />
@@ -164,16 +164,16 @@ export default function LoginScreen({ onSuccess, onError, error }) {
             </p>
           )}
 
-          <div className="my-6 h-px w-full bg-violet-100/80" aria-hidden="true" />
+          <div className="my-5 h-px w-full bg-slate-200/70" aria-hidden="true" />
 
           <div>
-            <label htmlFor="invite-code" className="block text-sm font-extrabold text-slate-900">
+            <label htmlFor="invite-code" className="block text-[0.95rem] font-extrabold text-slate-900">
               ¿Eres nuevo?
             </label>
-            <p className="mt-1 text-sm leading-snug text-slate-600">
+            <p className="mt-1 text-[0.8125rem] leading-snug text-slate-600">
               Ingresa tu código de invitación antes de continuar.
             </p>
-            <div className="relative mt-4 mb-3 overflow-visible">
+            <div className="relative mt-3 mb-4 overflow-visible">
               <input
                 id="invite-code"
                 name="code"
@@ -191,14 +191,14 @@ export default function LoginScreen({ onSuccess, onError, error }) {
                 aria-label="Código de invitación"
                 aria-describedby={inviteError ? 'invite-code-error' : 'invite-code-helper'}
                 data-action-sheet-no-drag="true"
-                className="min-h-[4.5rem] w-full rounded-[1.5rem] border border-violet-200 bg-white px-4 pr-28 text-base font-semibold tracking-wide text-slate-900 outline-none transition-[border-color,box-shadow] placeholder:font-normal placeholder:tracking-normal placeholder:text-slate-400 focus:border-violet-500 focus:ring-4 focus:ring-violet-100 disabled:opacity-60"
+                className="min-h-[4.75rem] w-full rounded-[1.5rem] border border-violet-200/90 bg-white px-4 pr-[clamp(7.5rem,31vw,9rem)] text-base font-semibold tracking-wide text-slate-900 outline-none transition-[border-color,box-shadow] placeholder:font-normal placeholder:tracking-normal placeholder:text-slate-400 focus:border-violet-500 focus:ring-4 focus:ring-violet-100 disabled:opacity-60"
               />
               <img
                 src={luaInviteCard}
                 alt=""
                 aria-hidden="true"
                 draggable="false"
-                className="pointer-events-none absolute -right-2 -bottom-3 z-10 h-[clamp(5rem,22vw,6.5rem)] w-[clamp(5rem,22vw,6.5rem)] object-contain"
+                className="pointer-events-none absolute -right-3 -bottom-6 z-10 h-[clamp(7rem,31vw,8.5rem)] w-[clamp(7rem,31vw,8.5rem)] object-contain"
               />
             </div>
             {inviteError ? (
@@ -206,7 +206,7 @@ export default function LoginScreen({ onSuccess, onError, error }) {
                 {inviteError}
               </p>
             ) : (
-              <p id="invite-code-helper" className="mt-1.5 text-xs leading-relaxed text-slate-500">
+              <p id="invite-code-helper" className="mt-1 text-xs leading-relaxed text-slate-500">
                 Si ya tienes acceso, puedes dejarlo vacío.
               </p>
             )}

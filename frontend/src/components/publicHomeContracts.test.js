@@ -99,6 +99,14 @@ test('Google conserva un solo componente/callback y precede al bloque de invitac
   assert.match(login, /luaInviteCard/);
   assert.match(login, /pointer-events-none/);
   assert.match(login, /aria-hidden="true"/);
+  assert.match(login, /overflow-visible rounded-\[2rem\] border border-violet-100\/90 bg-\[#FBFAFF\]/);
+  assert.match(login, /text-\[clamp\(1\.6rem,6vw,2rem\)\]/);
+  assert.match(login, /bg-slate-100\/80 text-slate-500/);
+  assert.match(login, /mx-auto mt-4 flex min-h-12/);
+  assert.match(login, /my-5 h-px w-full bg-slate-200\/70/);
+  assert.match(login, /min-h-\[4\.75rem\]/);
+  assert.match(login, /h-\[clamp\(7rem,31vw,8\.5rem\)\]/);
+  assert.match(login, /-right-3 -bottom-6/);
   assert.doesNotMatch(login, /border.*data-testid="google-login-button"/);
 });
 
