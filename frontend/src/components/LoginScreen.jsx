@@ -119,14 +119,9 @@ export default function LoginScreen({ onSuccess, onError, error }) {
         dragDisabled={authenticating}
         restoreSnapAfterInput
       >
-        {/*
-          La tarjeta se ensancha respecto al padding interno del ActionSheet y
-          sube detrás del handle. Así el borde interior envuelve visualmente el
-          handle, como en la referencia, sin tocar la lógica compartida del sheet.
-        */}
-        <div className="-mx-3 -mt-8 w-[calc(100%+1.5rem)] max-w-none overflow-visible rounded-[2.25rem] border border-[#DDD9EA] bg-[#FAF9FE] px-4 pb-5 pt-9 text-slate-900 sm:-mx-4 sm:w-[calc(100%+2rem)] sm:px-5">
-          <div className="relative flex min-h-12 items-start pr-14">
-            <h2 className="pt-0.5 text-[clamp(1.7rem,6.6vw,2rem)] font-black leading-[1.05] tracking-[-0.025em] text-slate-950">
+        <div className="mx-auto w-full max-w-md overflow-visible pb-1 text-slate-950">
+          <div className="relative flex min-h-11 items-start pr-12">
+            <h2 className="pt-0.5 text-[clamp(1.65rem,6.3vw,1.95rem)] font-black leading-[1.05] tracking-[-0.025em] text-[#080914]">
               Iniciar sesión
             </h2>
             <button
@@ -135,15 +130,15 @@ export default function LoginScreen({ onSuccess, onError, error }) {
               disabled={authenticating}
               aria-label="Cerrar inicio de sesión"
               data-action-sheet-no-drag="true"
-              className="absolute right-0 top-0 flex h-12 w-12 items-center justify-center rounded-full border border-[#DDE0E8] bg-[#F1F0F6] text-[#747A87] transition-colors hover:bg-[#EAE8F1] hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40"
+              className="absolute right-0 top-0 flex h-11 w-11 items-center justify-center rounded-full border border-[#D6D1DF] bg-[#E8E4F0] text-[#7D7A89] transition-colors hover:bg-[#E1DDEA] hover:text-[#666472] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A99ACB] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              <X className="h-6 w-6 stroke-[2.1]" aria-hidden="true" />
+              <X className="h-5 w-5 stroke-[2.1]" aria-hidden="true" />
             </button>
           </div>
 
           <div
             ref={googleContainerRef}
-            className="mx-auto mt-3.5 flex min-h-12 w-full max-w-[400px] items-center justify-center"
+            className="mx-auto mt-3 flex min-h-12 w-full max-w-[400px] items-center justify-center"
             data-testid="google-login-button"
             aria-busy={authenticating || googleButtonWidth === null}
           >
@@ -174,13 +169,13 @@ export default function LoginScreen({ onSuccess, onError, error }) {
             </p>
           )}
 
-          <div className="my-4 h-px w-full bg-[#DDDDE5]" aria-hidden="true" />
+          <div className="my-4 h-px w-full bg-[#CAC8D6]" aria-hidden="true" />
 
           <div>
-            <label htmlFor="invite-code" className="block text-base font-extrabold leading-tight text-slate-950">
+            <label htmlFor="invite-code" className="block text-base font-extrabold leading-tight text-[#080914]">
               ¿Eres nuevo?
             </label>
-            <p className="mt-1 text-[0.8125rem] leading-[1.35] text-slate-700">
+            <p className="mt-1 text-[0.8125rem] leading-[1.35] text-[#17171D]">
               Ingresa tu código de invitación antes de continuar.
             </p>
 
@@ -202,14 +197,14 @@ export default function LoginScreen({ onSuccess, onError, error }) {
                 aria-label="Código de invitación"
                 aria-describedby={inviteError ? 'invite-code-error' : 'invite-code-helper'}
                 data-action-sheet-no-drag="true"
-                className="min-h-[5rem] w-full rounded-[1.65rem] border border-[#D7CFF4] bg-white px-4 pr-[clamp(8.75rem,37vw,10rem)] text-[1.05rem] font-semibold tracking-wide text-slate-900 outline-none transition-[border-color,box-shadow] placeholder:font-normal placeholder:tracking-normal placeholder:text-slate-400 focus:border-violet-400 focus:ring-4 focus:ring-violet-100/80 disabled:opacity-60"
+                className="min-h-[4.9rem] w-full rounded-[1.6rem] border border-[#B9AEC8] bg-[#FFFEFF] px-4 pr-[clamp(8.5rem,36vw,9.75rem)] text-[1.05rem] font-semibold tracking-wide text-[#0D0E14] outline-none transition-[border-color,box-shadow] placeholder:font-normal placeholder:tracking-normal placeholder:text-[#B2B1BC] focus:border-[#9B8BBE] focus:ring-4 focus:ring-[#DED7EE]/80 disabled:opacity-60"
               />
               <img
                 src={luaInviteCard}
                 alt=""
                 aria-hidden="true"
                 draggable="false"
-                className="pointer-events-none absolute -bottom-8 -right-5 z-10 h-[clamp(8.75rem,38vw,10.25rem)] w-[clamp(8.75rem,38vw,10.25rem)] select-none object-contain"
+                className="pointer-events-none absolute -bottom-7 -right-4 z-10 h-[clamp(8.25rem,36vw,9.75rem)] w-[clamp(8.25rem,36vw,9.75rem)] select-none object-contain"
               />
             </div>
 
@@ -218,7 +213,7 @@ export default function LoginScreen({ onSuccess, onError, error }) {
                 {inviteError}
               </p>
             ) : (
-              <p id="invite-code-helper" className="mt-1 max-w-[calc(100%-4.5rem)] text-xs leading-relaxed text-slate-500">
+              <p id="invite-code-helper" className="mt-1 max-w-[calc(100%-4rem)] text-xs leading-relaxed text-[#17171D]">
                 Si ya tienes acceso, puedes dejarlo vacío.
               </p>
             )}
