@@ -158,6 +158,7 @@ export default function LoginScreen({ onSuccess, onError, error }) {
                 logo_alignment="left"
                 locale="es"
                 width={`${googleButtonWidth}`}
+                containerProps={{ className: 'w-full' }}
                 useOneTap={false}
               />
             ) : null}

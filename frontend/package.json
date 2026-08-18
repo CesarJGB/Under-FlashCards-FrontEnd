@@ -19,7 +19,11 @@
     "test:manual-editor:chromium": "playwright test tests/manual-editor/manual-editor-current.spec.js --project=chromium",
     "test:manual-editor:all": "npm run test:manual-editor:unit && npm run test:manual-editor",
     "qa:schedule-pdf": "node scripts/generateSchedulePdfSamples.mjs",
-    "test:public-home": "node --test src/components/publicHomeContracts.test.js"
+    "test:public-home": "node --test src/components/publicHomeContracts.test.js",
+    "test:login:harness": "vite --config tests/public-home/vite.login.config.js --strictPort",
+    "test:login": "playwright test --config=playwright.login.config.js",
+    "test:login:chromium": "playwright test --config=playwright.login.config.js --project=chromium",
+    "test:login:webkit": "playwright test --config=playwright.login.config.js --project=webkit"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.1",

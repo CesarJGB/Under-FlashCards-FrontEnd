@@ -96,17 +96,15 @@ test('Google conserva un solo componente/callback y precede al bloque de invitac
   assert.match(login, /useLayoutEffect/);
   assert.match(login, /useState\(null\)/);
   assert.match(login, /googleButtonWidth !== null/);
+  assert.match(login, /containerProps=\{\{ className: 'w-full' \}\}/);
   assert.match(login, /luaInviteCard/);
   assert.match(login, /pointer-events-none/);
   assert.match(login, /aria-hidden="true"/);
-  assert.match(login, /overflow-visible rounded-\[2rem\] border border-violet-100\/90 bg-\[#FBFAFF\]/);
-  assert.match(login, /text-\[clamp\(1\.6rem,6vw,2rem\)\]/);
-  assert.match(login, /bg-slate-100\/80 text-slate-500/);
-  assert.match(login, /mx-auto mt-4 flex min-h-12/);
-  assert.match(login, /my-5 h-px w-full bg-slate-200\/70/);
-  assert.match(login, /min-h-\[4\.75rem\]/);
-  assert.match(login, /h-\[clamp\(7rem,31vw,8\.5rem\)\]/);
-  assert.match(login, /-right-3 -bottom-6/);
+  assert.match(login, /className="mx-auto mt-3 flex min-h-12/);
+  assert.match(login, /my-4 h-px w-full bg-\[#CAC8D6\]/);
+  assert.match(login, /min-h-\[4\.9rem\]/);
+  assert.match(login, /h-\[clamp\(8\.25rem,36vw,9\.75rem\)\]/);
+  assert.match(login, /-bottom-7 -right-4/);
   assert.doesNotMatch(login, /border.*data-testid="google-login-button"/);
 });
 
@@ -121,6 +119,11 @@ test('ActionSheet mantiene draggable desactivado por defecto y limpia recursos',
   assert.match(actionSheet, /cancelAnimationFrame\(frameId\)/);
   assert.match(actionSheet, /data-action-sheet-draggable=\{draggable \? 'true' : 'false'\}/);
   assert.match(actionSheet, /prefers-reduced-motion: reduce/);
+  assert.match(actionSheet, /data-testid="login-auth-panel"/);
+  assert.match(actionSheet, /data-auth-surface=\{isAuthAppearance \? 'outer' : undefined\}/);
+  assert.match(actionSheet, /bg-\[#F8F6FB\]/);
+  assert.match(actionSheet, /bg-\[#EFECF5\]/);
+  assert.match(actionSheet, /border-\[#CBC5D5\]/);
   assert.match(carousel, /window\.clearTimeout\(timeoutId\)/);
   assert.match(carousel, /removeEventListener\?\.\('change'/);
   assert.match(carousel, /removeEventListener\('visibilitychange'/);

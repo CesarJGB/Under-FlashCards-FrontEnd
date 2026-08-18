@@ -481,6 +481,110 @@ export default function ActionSheet({
     dialogRef.current = node;
     layerProps.ref?.(node);
   };
+  const isAuthAppearance = appearance === 'auth';
+  const sheetHandle = draggable ? (
+    <div className="shrink-0 touch-none select-none px-4 pt-2" data-action-sheet-drag-region="true">
+      <button
+        type="button"
+        onClick={toggleDragSnap}
+        disabled={dragDisabled}
+        aria-label={dragSnap === ACTION_SHEET_SNAP_EXPANDED ? 'Contraer panel' : 'Expandir panel'}
+        className="mx-auto flex h-9 w-20 cursor-grab items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-600 disabled:cursor-not-allowed disabled:opacity-50 active:cursor-grabbing"
+        data-action-sheet-drag-region="true"
+        data-action-sheet-handle="true"
+      >
+        <span className={`h-1.5 w-12 rounded-full ${isAuthAppearance ? 'bg-[#B8B2C2]' : 'bg-slate-300'}`} aria-hidden="true" />
+      </button>
+    </div>
+  ) : (
+    <div className="flex touch-none select-none justify-center pb-4 pt-3" aria-hidden="true" data-action-sheet-handle="true">
+      <div className={`h-1 w-10 rounded-full ${isAuthAppearance ? 'bg-[#B8B2C2]' : 'bg-slate-300 dark:bg-slate-600'}`} />
+    </div>
+  );
+  const sheetTitle = title ? (
+    <h2 id={titleId} className="touch-none select-none px-4 pb-2 text-center text-sm font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500" data-action-sheet-title="true">
+      {title}
+    </h2>
+  ) : null;
+  const sheetScroll = (
+    <div
+      className={`min-h-0 flex-1 overflow-y-auto overscroll-none ${isAuthAppearance ? 'px-2 sm:px-3' : 'px-4'} ${hasFooter ? 'pb-2' : 'pb-[calc(1.25rem+env(safe-area-inset-bottom))]'}`}
+      style={{ WebkitOverflowScrolling: 'touch' }}
+      data-action-sheet-scroll="true"
+      onFocusCapture={draggable ? handleInputFocus : undefined}
+      onBlurCapture={draggable && restoreSnapAfterInput ? handleInputBlur : undefined}
+    >
+      {hasCustomContent && customContent}
+
+      {actionOptions.length > 0 && (
+        <div className={`flex flex-col gap-2.5 ${hasCustomContent ? 'mt-3' : ''}`}>
+          {actionOptions.map((option, index) => {
+            if (!option) return null;
+            const Icon = option.icon;
+            const isSelected = isSelectable && option.id === selectedId;
+            const isPrimary = isSelectable ? isSelected : index === 0;
+            const isDanger = Boolean(option.danger);
+            let optionClasses = 'bg-slate-50 border border-slate-200 hover:shadow-md dark:bg-slate-800 dark:border-slate-700';
+            if (isPrimary) {
+              optionClasses = 'bg-gradient-to-br from-indigo-100 to-violet-100 border-2 border-indigo-200 shadow-lg shadow-indigo-200/50 hover:shadow-xl dark:from-indigo-500/20 dark:to-violet-500/20 dark:border-indigo-400/40';
+            }
+            if (isDanger) {
+              optionClasses = 'bg-gradient-to-br from-red-50 to-rose-100 border-2 border-red-200 shadow-lg shadow-red-200/50 hover:shadow-xl dark:from-red-500/15 dark:to-rose-500/15 dark:border-red-400/40';
+            }
+            const iconColor = isDanger ? 'text-red-600 dark:text-red-300' : (isPrimary ? 'text-indigo-600 dark:text-indigo-300' : 'text-slate-700 dark:text-slate-200');
+            const descColor = isDanger ? 'text-red-700 dark:text-red-300' : (isPrimary ? 'text-slate-700 dark:text-slate-300' : 'text-slate-600 dark:text-slate-400');
+
+            return (
+              <button
+                key={option.id}
+                type="button"
+                disabled={option.disabled}
+                data-action-sheet-action="true"
+                onClick={() => {
+                  if (option.disabled || actionTriggeredRef.current) return;
+                  actionTriggeredRef.current = true;
+                  option.onSelect?.();
+                  if (typeof option.onAfterClose === 'function') {
+                    pendingTransitionRef.current = {
+                      token: layerTokenRef.current,
+                      run: option.onAfterClose,
+                    };
+                    if (!dismissSelf('option-transition')) {
+                      pendingTransitionRef.current = null;
+                    }
+                    return;
+                  }
+                  dismissSelf('option');
+                }}
+                className={`w-full min-h-11 rounded-3xl ${compact ? 'p-4' : 'p-5'} text-left active:scale-[0.98] transition-all duration-200 motion-reduce:transition-none disabled:opacity-50 ${optionClasses}`}
+                style={{ animation: `cardIn 0.35s cubic-bezier(0.32, 0.72, 0, 1) ${0.08 + index * 0.06}s both` }}
+              >
+                <div className="flex items-center gap-4">
+                  {Icon && (
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white shadow-sm dark:bg-slate-950">
+                      {isValidElement(Icon)
+                        ? Icon
+                        : <Icon className={`w-6 h-6 ${iconColor}`} aria-hidden="true" />}
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <h3 className={`${compact ? 'text-base' : 'text-lg'} mb-1 font-bold leading-tight text-slate-900 dark:text-white`}>{option.label}</h3>
+                    {option.description && <p className={`text-sm leading-snug ${descColor}`}>{option.description}</p>}
+                  </div>
+                  {isSelected && <Check className="w-5 h-5 text-indigo-600 stroke-[2.5] flex-shrink-0" aria-hidden="true" />}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+  const sheetFooter = hasFooter ? (
+    <div className="shrink-0 touch-none border-t border-slate-200/70 px-4 pt-2 pb-[calc(0.75rem+env(safe-area-inset-bottom))] dark:border-slate-700/70" data-action-sheet-footer="true">
+      {footer || closeControl}
+    </div>
+  ) : null;
 
   return createPortal(
     <div
@@ -528,8 +632,8 @@ export default function ActionSheet({
         onPointerUp={draggable ? (event) => handleDragPointerEnd(event) : undefined}
         onPointerCancel={draggable ? (event) => handleDragPointerEnd(event, true) : undefined}
         className={`absolute inset-x-0 bottom-0 z-10 flex flex-col overflow-hidden overscroll-none outline-none ${
-          appearance === 'auth'
-            ? 'rounded-t-[2rem] bg-white shadow-[0_-18px_60px_rgba(46,16,101,0.2)]'
+          isAuthAppearance
+            ? 'rounded-t-[2rem] bg-[#F8F6FB] shadow-[0_-18px_60px_rgba(46,16,101,0.2)]'
             : 'rounded-t-3xl bg-white shadow-2xl dark:bg-slate-900'
         } ${draggable ? `will-change-transform ${isDragging ? 'transition-none' : 'transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none'}` : ''}`}
         style={{
@@ -542,32 +646,10 @@ export default function ActionSheet({
         }}
         data-action-sheet-snap={draggable ? dragSnap : undefined}
         data-action-sheet-dragging={isDragging ? 'true' : 'false'}
+        data-auth-surface={isAuthAppearance ? 'outer' : undefined}
       >
-        {draggable ? (
-          <div className="shrink-0 touch-none select-none px-4 pt-2" data-action-sheet-drag-region="true">
-            <button
-              type="button"
-              onClick={toggleDragSnap}
-              disabled={dragDisabled}
-              aria-label={dragSnap === ACTION_SHEET_SNAP_EXPANDED ? 'Contraer panel' : 'Expandir panel'}
-              className="mx-auto flex h-9 w-20 cursor-grab items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-600 disabled:cursor-not-allowed disabled:opacity-50 active:cursor-grabbing"
-              data-action-sheet-drag-region="true"
-              data-action-sheet-handle="true"
-            >
-              <span className="h-1.5 w-12 rounded-full bg-slate-300" aria-hidden="true" />
-            </button>
-          </div>
-        ) : (
-          <div className="flex touch-none select-none justify-center pt-3 pb-4" aria-hidden="true" data-action-sheet-handle="true">
-            <div className="w-10 h-1 rounded-full bg-slate-300 dark:bg-slate-600" />
-          </div>
-        )}
-
-        {title && (
-          <h2 id={titleId} className="touch-none select-none px-4 pb-2 text-center text-sm font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500" data-action-sheet-title="true">
-            {title}
-          </h2>
-        )}
+        {!isAuthAppearance && sheetHandle}
+        {!isAuthAppearance && sheetTitle}
 
         <OverlayScope
           portalTarget={overlayRoot}
@@ -578,83 +660,22 @@ export default function ActionSheet({
           ownsModality
           modalContentRef={dialogRef}
         >
-          <div
-            className={`min-h-0 flex-1 overflow-y-auto overscroll-none ${appearance === 'auth' ? 'px-5 sm:px-6' : 'px-4'} ${hasFooter ? 'pb-2' : 'pb-[calc(1.25rem+env(safe-area-inset-bottom))]'}`}
-            style={{ WebkitOverflowScrolling: 'touch' }}
-            data-action-sheet-scroll="true"
-            onFocusCapture={draggable ? handleInputFocus : undefined}
-            onBlurCapture={draggable && restoreSnapAfterInput ? handleInputBlur : undefined}
-          >
-            {hasCustomContent && customContent}
-
-            {actionOptions.length > 0 && (
-              <div className={`flex flex-col gap-2.5 ${hasCustomContent ? 'mt-3' : ''}`}>
-                {actionOptions.map((option, index) => {
-                  if (!option) return null;
-                  const Icon = option.icon;
-                  const isSelected = isSelectable && option.id === selectedId;
-                  const isPrimary = isSelectable ? isSelected : index === 0;
-                  const isDanger = Boolean(option.danger);
-                  let optionClasses = 'bg-slate-50 border border-slate-200 hover:shadow-md dark:bg-slate-800 dark:border-slate-700';
-                  if (isPrimary) {
-                    optionClasses = 'bg-gradient-to-br from-indigo-100 to-violet-100 border-2 border-indigo-200 shadow-lg shadow-indigo-200/50 hover:shadow-xl dark:from-indigo-500/20 dark:to-violet-500/20 dark:border-indigo-400/40';
-                  }
-                  if (isDanger) {
-                    optionClasses = 'bg-gradient-to-br from-red-50 to-rose-100 border-2 border-red-200 shadow-lg shadow-red-200/50 hover:shadow-xl dark:from-red-500/15 dark:to-rose-500/15 dark:border-red-400/40';
-                  }
-                  const iconColor = isDanger ? 'text-red-600 dark:text-red-300' : (isPrimary ? 'text-indigo-600 dark:text-indigo-300' : 'text-slate-700 dark:text-slate-200');
-                  const descColor = isDanger ? 'text-red-700 dark:text-red-300' : (isPrimary ? 'text-slate-700 dark:text-slate-300' : 'text-slate-600 dark:text-slate-400');
-
-                  return (
-                    <button
-                      key={option.id}
-                      type="button"
-                      disabled={option.disabled}
-                      data-action-sheet-action="true"
-                      onClick={() => {
-                        if (option.disabled || actionTriggeredRef.current) return;
-                        actionTriggeredRef.current = true;
-                        option.onSelect?.();
-                        if (typeof option.onAfterClose === 'function') {
-                          pendingTransitionRef.current = {
-                            token: layerTokenRef.current,
-                            run: option.onAfterClose,
-                          };
-                          if (!dismissSelf('option-transition')) {
-                            pendingTransitionRef.current = null;
-                          }
-                          return;
-                        }
-                        dismissSelf('option');
-                      }}
-                      className={`w-full min-h-11 rounded-3xl ${compact ? 'p-4' : 'p-5'} text-left active:scale-[0.98] transition-all duration-200 motion-reduce:transition-none disabled:opacity-50 ${optionClasses}`}
-                      style={{ animation: `cardIn 0.35s cubic-bezier(0.32, 0.72, 0, 1) ${0.08 + index * 0.06}s both` }}
-                    >
-                      <div className="flex items-center gap-4">
-                        {Icon && (
-                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white shadow-sm dark:bg-slate-950">
-                            {isValidElement(Icon)
-                              ? Icon
-                              : <Icon className={`w-6 h-6 ${iconColor}`} aria-hidden="true" />}
-                          </div>
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <h3 className={`${compact ? 'text-base' : 'text-lg'} mb-1 font-bold leading-tight text-slate-900 dark:text-white`}>{option.label}</h3>
-                          {option.description && <p className={`text-sm leading-snug ${descColor}`}>{option.description}</p>}
-                        </div>
-                        {isSelected && <Check className="w-5 h-5 text-indigo-600 stroke-[2.5] flex-shrink-0" aria-hidden="true" />}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {hasFooter && (
-            <div className="shrink-0 touch-none border-t border-slate-200/70 px-4 pt-2 pb-[calc(0.75rem+env(safe-area-inset-bottom))] dark:border-slate-700/70" data-action-sheet-footer="true">
-              {footer || closeControl}
+          {isAuthAppearance ? (
+            <div
+              className="mx-3 mb-[calc(0.75rem+env(safe-area-inset-bottom))] mt-3 flex min-h-0 flex-1 flex-col overflow-hidden rounded-[1.75rem] border border-[#CBC5D5] bg-[#EFECF5]"
+              data-auth-surface="panel"
+              data-testid="login-auth-panel"
+            >
+              {sheetHandle}
+              {sheetTitle}
+              {sheetScroll}
+              {sheetFooter}
             </div>
+          ) : (
+            <>
+              {sheetScroll}
+              {sheetFooter}
+            </>
           )}
         </OverlayScope>
       </section>
