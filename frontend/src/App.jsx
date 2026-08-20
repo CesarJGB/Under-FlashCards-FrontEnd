@@ -20,14 +20,13 @@ import { getPublicMateriaShareId } from './lib/publicMateria';
 import { preloadStaticIllustrations } from './lib/staticIllustrations';
 import { sanitizeDeckSummaries } from './lib/imageDelivery';
 import { perfLibraryProfile } from './lib/perfLibraryProfile';
-import luaLoadingAnimation from '../media/svg/pantalla de secion/lua_loading_animation_60frames_5s.webp';
+import luaLoadingVideo from '../media/svg/pantalla de secion/lua_loading_animation_5s.mp4';
 
 const DebugPanel = lazy(() => import('./components/DebugPanel'));
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
-const INITIAL_APP_LOADING_DURATION = 5000;
-const APP_LOADING_IMAGE_SAFETY_TIMEOUT = 15000;
+const APP_LOADING_VIDEO_SAFETY_TIMEOUT = 12000;
 const APP_LOADING_PHRASES = [
   {
     dark: 'No hay atajos para volverse fuerte;',
@@ -39,29 +38,45 @@ const APP_LOADING_PHRASES = [
   },
 ];
 
-let luaLoadingPreloadImage = null;
+let luaLoadingPreloadVideo = null;
 let luaLoadingPreloadPromise = null;
 
-function preloadLuaLoadingAnimation() {
-  if (typeof Image === 'undefined') return Promise.resolve(false);
+function preloadLuaLoadingVideo() {
+  if (typeof document === 'undefined') return Promise.resolve(false);
   if (luaLoadingPreloadPromise) return luaLoadingPreloadPromise;
 
-  luaLoadingPreloadImage = new Image();
-  luaLoadingPreloadImage.decoding = 'async';
-  if ('fetchPriority' in luaLoadingPreloadImage) {
-    luaLoadingPreloadImage.fetchPriority = 'low';
-  }
+  luaLoadingPreloadVideo = document.createElement('video');
+  const preloadVideo = luaLoadingPreloadVideo;
+  preloadVideo.preload = 'auto';
+  preloadVideo.muted = true;
+  preloadVideo.defaultMuted = true;
+  preloadVideo.playsInline = true;
 
   luaLoadingPreloadPromise = new Promise((resolve) => {
+    let settled = false;
+
+    const cleanup = () => {
+      preloadVideo.removeEventListener('loadeddata', handleLoaded);
+      preloadVideo.removeEventListener('canplay', handleLoaded);
+      preloadVideo.removeEventListener('error', handleError);
+    };
+
     const settle = (loaded) => {
-      luaLoadingPreloadImage.onload = null;
-      luaLoadingPreloadImage.onerror = null;
+      if (settled) return;
+      settled = true;
+      cleanup();
       resolve(loaded);
     };
-    luaLoadingPreloadImage.onload = () => settle(true);
-    luaLoadingPreloadImage.onerror = () => settle(false);
+
+    const handleLoaded = () => settle(true);
+    const handleError = () => settle(false);
+
+    preloadVideo.addEventListener('loadeddata', handleLoaded);
+    preloadVideo.addEventListener('canplay', handleLoaded);
+    preloadVideo.addEventListener('error', handleError);
+    preloadVideo.src = luaLoadingVideo;
+    preloadVideo.load();
   });
-  luaLoadingPreloadImage.src = luaLoadingAnimation;
 
   return luaLoadingPreloadPromise;
 }
@@ -70,7 +85,8 @@ function AppLoadingScreen({ onComplete }) {
   const [phrase] = useState(
     () => APP_LOADING_PHRASES[Math.floor(Math.random() * APP_LOADING_PHRASES.length)]
   );
-  const completionTimerRef = useRef(null);
+  const luaLoadingVideoRef = useRef(null);
+  const playAttemptedRef = useRef(false);
   const safetyTimerRef = useRef(null);
   const completedRef = useRef(false);
   const onCompleteRef = useRef(onComplete);
@@ -79,11 +95,7 @@ function AppLoadingScreen({ onComplete }) {
     onCompleteRef.current = onComplete;
   }, [onComplete]);
 
-  const clearTimers = useCallback(() => {
-    if (completionTimerRef.current !== null) {
-      window.clearTimeout(completionTimerRef.current);
-      completionTimerRef.current = null;
-    }
+  const clearSafetyTimer = useCallback(() => {
     if (safetyTimerRef.current !== null) {
       window.clearTimeout(safetyTimerRef.current);
       safetyTimerRef.current = null;
@@ -93,27 +105,56 @@ function AppLoadingScreen({ onComplete }) {
   const finishLoading = useCallback(() => {
     if (completedRef.current) return;
     completedRef.current = true;
-    clearTimers();
+    clearSafetyTimer();
     onCompleteRef.current?.();
-  }, [clearTimers]);
+  }, [clearSafetyTimer]);
 
-  const startDisplayTimer = useCallback(() => {
-    if (completedRef.current || completionTimerRef.current !== null) return;
-    if (safetyTimerRef.current !== null) {
-      window.clearTimeout(safetyTimerRef.current);
-      safetyTimerRef.current = null;
+  const startLuaLoadingVideo = useCallback(() => {
+    if (completedRef.current || playAttemptedRef.current) return;
+
+    const video = luaLoadingVideoRef.current;
+    if (!video) return;
+
+    video.muted = true;
+    video.defaultMuted = true;
+    video.playsInline = true;
+    video.currentTime = 0;
+    playAttemptedRef.current = true;
+
+    try {
+      const playPromise = video.play();
+      if (playPromise && typeof playPromise.catch === 'function') {
+        playPromise.catch(() => {
+          playAttemptedRef.current = false;
+        });
+      }
+    } catch {
+      playAttemptedRef.current = false;
     }
-    completionTimerRef.current = window.setTimeout(finishLoading, INITIAL_APP_LOADING_DURATION);
-  }, [finishLoading]);
+  }, []);
 
   useEffect(() => {
-    safetyTimerRef.current = window.setTimeout(finishLoading, APP_LOADING_IMAGE_SAFETY_TIMEOUT);
+    const video = luaLoadingVideoRef.current;
+    if (!video) return;
+
+    video.muted = true;
+    video.defaultMuted = true;
+    video.playsInline = true;
+    video.currentTime = 0;
+
+    if (video.readyState >= 2) {
+      startLuaLoadingVideo();
+    }
+  }, [startLuaLoadingVideo]);
+
+  useEffect(() => {
+    safetyTimerRef.current = window.setTimeout(finishLoading, APP_LOADING_VIDEO_SAFETY_TIMEOUT);
     return () => {
       completedRef.current = true;
-      clearTimers();
+      clearSafetyTimer();
       onCompleteRef.current = null;
     };
-  }, [clearTimers, finishLoading]);
+  }, [clearSafetyTimer, finishLoading]);
 
   return (
     <div
@@ -123,15 +164,20 @@ function AppLoadingScreen({ onComplete }) {
       data-testid="app-loading-screen"
     >
       <div className="flex h-full min-h-0 w-full max-w-5xl flex-col items-center justify-center gap-[clamp(0.75rem,3vh,2rem)]">
-        <img
-          src={luaLoadingAnimation}
-          alt=""
+        <video
+          ref={luaLoadingVideoRef}
+          src={luaLoadingVideo}
+          muted
+          autoPlay
+          playsInline
+          preload="auto"
+          controls={false}
           aria-hidden="true"
-          loading="eager"
-          decoding="async"
-          onLoad={startDisplayTimer}
-          onError={startDisplayTimer}
-          className="h-auto max-h-[58vh] w-[min(90vw,40rem)] max-w-full object-contain"
+          onLoadedData={startLuaLoadingVideo}
+          onCanPlay={startLuaLoadingVideo}
+          onEnded={finishLoading}
+          onError={finishLoading}
+          className="aspect-square h-auto max-h-[58vh] w-[min(90vw,40rem)] max-w-full object-contain"
         />
         <p className="max-w-4xl text-center text-[clamp(1.25rem,4.5vw,2rem)] font-extrabold leading-[1.4]">
           <span className="text-slate-950">{phrase.dark}</span>{' '}
@@ -507,7 +553,7 @@ function FlashcardsApp() {
   const [pendingInvite, setPendingInvite] = useState(null);
 
   useEffect(() => {
-    void preloadLuaLoadingAnimation();
+    void preloadLuaLoadingVideo();
   }, []);
 
   const handleAppLoadingComplete = useCallback(() => {
