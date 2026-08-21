@@ -42,7 +42,7 @@ export default function LoginScreen({ onSuccess, onError, error }) {
 
   useLayoutEffect(() => {
     const container = googleContainerRef.current;
-    if (!isAuthOpen || !container) return undefined;
+    if (!container) return undefined;
     const updateWidth = () => {
       const nextWidth = readGoogleButtonWidth(container);
       if (nextWidth === null || nextWidth === googleButtonWidthRef.current) return;
@@ -54,18 +54,14 @@ export default function LoginScreen({ onSuccess, onError, error }) {
     const observer = new ResizeObserver(updateWidth);
     observer.observe(container);
     return () => observer.disconnect();
-  }, [isAuthOpen]);
+  }, []);
 
   const handleClose = () => {
     setIsAuthOpen(false);
     setInviteError('');
-    googleButtonWidthRef.current = null;
-    setGoogleButtonWidth(null);
   };
 
   const handleOpen = () => {
-    googleButtonWidthRef.current = null;
-    setGoogleButtonWidth(null);
     setIsAuthOpen(true);
   };
 
@@ -118,6 +114,7 @@ export default function LoginScreen({ onSuccess, onError, error }) {
         draggable
         dragDisabled={authenticating}
         restoreSnapAfterInput
+        keepMounted
       >
         <div className="mx-auto w-full max-w-md overflow-visible pb-1 text-slate-950">
           <div className="relative flex min-h-11 items-start pr-12">
