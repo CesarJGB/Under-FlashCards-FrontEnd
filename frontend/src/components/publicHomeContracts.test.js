@@ -132,12 +132,26 @@ test('ActionSheet mantiene draggable desactivado por defecto y limpia recursos',
 });
 
 test('la animación de carga conserva una caja cuadrada y recorta sus bordes', async () => {
-  const app = await readFile(new URL('../App.jsx', import.meta.url), 'utf8');
+  const [app, styles] = await Promise.all([
+    readFile(new URL('../App.jsx', import.meta.url), 'utf8'),
+    readFile(new URL('../app-loading.css', import.meta.url), 'utf8'),
+  ]);
   assert.match(app, /data-testid="lua-loading-video-frame"/);
   assert.match(app, /w-\[min\(90vw,40rem,58vh\)\]/);
   assert.match(app, /overflow-hidden bg-\[#FBFAFF\] leading-none/);
   assert.match(app, /data-testid="lua-loading-video"/);
   assert.match(app, /className="block h-full w-full max-w-full object-contain"/);
+  assert.match(app, /WebkitBackfaceVisibility: 'hidden'/);
+  assert.match(app, /WebkitMaskImage: '-webkit-radial-gradient\(white, black\)'/);
+  assert.match(app, /data-testid="lua-loading-video-edge-mask"/);
+  assert.match(app, /onEnded=\{showBrandSplash\}/);
+  assert.match(app, /onError=\{showBrandSplash\}/);
+  assert.match(app, /src="\/icons\/icon-512\.png"/);
+  assert.match(app, /src=\{underFlashcardsLogo\}/);
+  assert.match(styles, /translate3d\(0, -100%, 0\)/);
+  assert.match(styles, /transform 620ms cubic-bezier\(0\.76, 0, 0\.24, 1\)/);
+  assert.match(styles, /@media \(prefers-reduced-motion: reduce\)/);
+  assert.match(styles, /transition: opacity 120ms linear/);
 });
 
 test('la geometría define snaps compacta y expandida dentro del viewport', () => {

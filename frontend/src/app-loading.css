@@ -1,0 +1,128 @@
+.app-loading-curtain {
+  background-color: #fbfaff;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transition: background-color 180ms ease-out;
+}
+
+.app-loading-curtain[data-loading-phase='brand'],
+.app-loading-curtain[data-loading-phase='revealing'] {
+  background-color: #ede9fe;
+}
+
+.app-loading-curtain[data-loading-phase='revealing'] {
+  transform: translate3d(0, -100%, 0);
+  box-shadow: 0 14px 30px rgba(76, 60, 110, 0.08);
+  will-change: transform;
+  transition:
+    transform 620ms cubic-bezier(0.76, 0, 0.24, 1),
+    background-color 180ms ease-out;
+}
+
+.app-loading-video-stage {
+  opacity: 1;
+  transition: opacity 180ms ease-out;
+}
+
+.app-loading-curtain:not([data-loading-phase='video']) .app-loading-video-stage {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.app-loading-brand-stage {
+  box-sizing: border-box;
+  padding:
+    calc(1.5rem + env(safe-area-inset-top))
+    calc(1.5rem + env(safe-area-inset-right))
+    calc(1.5rem + env(safe-area-inset-bottom))
+    calc(1.5rem + env(safe-area-inset-left));
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 160ms ease-out;
+}
+
+.app-loading-curtain:not([data-loading-phase='video']) .app-loading-brand-stage {
+  opacity: 1;
+  visibility: visible;
+}
+
+.app-loading-brand-lockup {
+  gap: clamp(1.15rem, 3.2vh, 1.75rem);
+  width: min(100%, 28rem);
+}
+
+.app-loading-brand-icon {
+  width: clamp(6.25rem, 25vw, 7.5rem);
+  height: auto;
+  border-radius: clamp(1.4rem, 5.5vw, 1.9rem);
+  opacity: 0;
+  transform: scale(0.9);
+  box-shadow: 0 10px 28px rgba(91, 55, 180, 0.16);
+}
+
+.app-loading-brand-logo {
+  width: min(78vw, 23rem);
+  height: auto;
+  opacity: 0;
+  transform: translate3d(0, 8px, 0);
+}
+
+.app-loading-curtain:not([data-loading-phase='video']) .app-loading-brand-icon {
+  animation: app-loading-icon-in 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.app-loading-curtain:not([data-loading-phase='video']) .app-loading-brand-logo {
+  animation: app-loading-logo-in 260ms 110ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes app-loading-icon-in {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes app-loading-logo-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-loading-curtain {
+    transition: background-color 80ms linear;
+  }
+
+  .app-loading-curtain[data-loading-phase='revealing'] {
+    transform: none;
+    opacity: 0;
+    box-shadow: none;
+    will-change: opacity;
+    transition: opacity 120ms linear;
+  }
+
+  .app-loading-video-stage,
+  .app-loading-brand-stage {
+    transition-duration: 80ms;
+  }
+
+  .app-loading-curtain:not([data-loading-phase='video']) .app-loading-brand-icon,
+  .app-loading-curtain:not([data-loading-phase='video']) .app-loading-brand-logo {
+    opacity: 1;
+    transform: none;
+    animation: none;
+  }
+}

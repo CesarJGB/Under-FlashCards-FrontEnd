@@ -2,7 +2,7 @@ import appConfig from './playwright.app.config.js';
 
 export default {
   ...appConfig,
-  testMatch: 'loading-video-geometry.spec.js',
+  testMatch: ['loading-video-geometry.spec.js', 'app-loading-transition.spec.js'],
   outputDir: './test-results/lua-video',
   use: {
     ...appConfig.use,

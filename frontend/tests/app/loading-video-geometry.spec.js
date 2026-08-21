@@ -25,7 +25,7 @@ async function mountLoadingVideoProbe(page, source) {
     content.className = 'flex h-full min-h-0 w-full max-w-5xl flex-col items-center justify-center gap-[clamp(0.75rem,3vh,2rem)]';
 
     const videoFrame = document.createElement('div');
-    videoFrame.className = 'isolate aspect-square h-auto w-[min(90vw,40rem,58vh)] max-w-full shrink-0 overflow-hidden bg-[#FBFAFF] leading-none';
+    videoFrame.className = 'relative isolate aspect-square h-auto w-[min(90vw,40rem,58vh)] max-w-full shrink-0 overflow-hidden bg-[#FBFAFF] leading-none';
     videoFrame.dataset.testid = 'lua-video-frame';
 
     const video = document.createElement('video');
@@ -37,8 +37,18 @@ async function mountLoadingVideoProbe(page, source) {
     video.playsInline = true;
     video.preload = 'auto';
     video.setAttribute('aria-hidden', 'true');
+    video.style.isolation = 'isolate';
+    video.style.WebkitBackfaceVisibility = 'hidden';
+    video.style.backfaceVisibility = 'hidden';
+    video.style.WebkitMaskImage = '-webkit-radial-gradient(white, black)';
+
+    const edgeMask = document.createElement('div');
+    edgeMask.className = 'pointer-events-none absolute inset-0 z-10 border-2 border-[#FBFAFF]';
+    edgeMask.dataset.testid = 'lua-video-edge-mask';
+    edgeMask.setAttribute('aria-hidden', 'true');
 
     videoFrame.append(video);
+    videoFrame.append(edgeMask);
     content.append(videoFrame);
     const phrase = document.createElement('p');
     phrase.className = 'max-w-4xl text-center text-[clamp(1.25rem,4.5vw,2rem)] font-extrabold leading-[1.4]';
@@ -71,8 +81,10 @@ test.describe('Lua loading video geometry', () => {
         const overlay = document.querySelector('[data-testid="lua-video-probe"]');
         const frame = video?.parentElement;
         const content = frame?.parentElement;
+        const edgeMask = frame?.querySelector('[data-testid="lua-video-edge-mask"]');
         const videoRect = video?.getBoundingClientRect();
         const frameRect = frame?.getBoundingClientRect();
+        const edgeMaskRect = edgeMask?.getBoundingClientRect();
         const overlayRect = overlay?.getBoundingClientRect();
         const contentRect = content?.getBoundingClientRect();
         const videoStyle = video ? getComputedStyle(video) : null;
@@ -99,6 +111,7 @@ test.describe('Lua loading video geometry', () => {
           overlay: getRect(overlayRect),
           content: getRect(contentRect),
           frame: getRect(frameRect),
+          edgeMask: getRect(edgeMaskRect),
           video: getRect(videoRect),
           style: videoStyle ? {
             display: videoStyle.display,
@@ -114,6 +127,8 @@ test.describe('Lua loading video geometry', () => {
             opacity: videoStyle.opacity,
             transition: videoStyle.transition,
             filter: videoStyle.filter,
+            backfaceVisibility: videoStyle.backfaceVisibility,
+            webkitMaskImage: videoStyle.webkitMaskImage,
           } : null,
           frameStyle: frame ? {
             overflow: getComputedStyle(frame).overflow,
@@ -146,6 +161,9 @@ test.describe('Lua loading video geometry', () => {
       expect(geometry.video.height).toBeGreaterThan(0);
       expect(Math.abs(geometry.video.width - geometry.frame.width)).toBeLessThanOrEqual(0.5);
       expect(Math.abs(geometry.video.height - geometry.frame.height)).toBeLessThanOrEqual(0.5);
+      expect(Math.abs(geometry.edgeMask.width - geometry.frame.width)).toBeLessThanOrEqual(0.5);
+      expect(Math.abs(geometry.edgeMask.height - geometry.frame.height)).toBeLessThanOrEqual(0.5);
+      expect(geometry.style.backfaceVisibility).toBe('hidden');
     }
   });
 });

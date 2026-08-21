@@ -21,12 +21,22 @@ import { preloadStaticIllustrations } from './lib/staticIllustrations';
 import { sanitizeDeckSummaries } from './lib/imageDelivery';
 import { perfLibraryProfile } from './lib/perfLibraryProfile';
 import luaLoadingVideo from '../media/svg/pantalla de secion/lua_loading_animation_5s.mp4';
+import underFlashcardsLogo from '../media/svg/logo/under-flashcards-logo 2.svg';
+import './app-loading.css';
 
 const DebugPanel = lazy(() => import('./components/DebugPanel'));
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 const APP_LOADING_VIDEO_SAFETY_TIMEOUT = 12000;
+const APP_LOADING_BRAND_DURATION = 650;
+const APP_LOADING_REVEAL_FALLBACK_TIMEOUT = 900;
+const APP_LOADING_PHASE = Object.freeze({
+  VIDEO: 'video',
+  BRAND: 'brand',
+  REVEALING: 'revealing',
+  COMPLETE: 'complete',
+});
 const APP_LOADING_PHRASES = [
   {
     dark: 'No hay atajos para volverse fuerte;',
@@ -81,14 +91,18 @@ function preloadLuaLoadingVideo() {
   return luaLoadingPreloadPromise;
 }
 
-function AppLoadingScreen({ onComplete }) {
+function AppLoadingScreen({ onComplete, videoSource = luaLoadingVideo }) {
   const [phrase] = useState(
     () => APP_LOADING_PHRASES[Math.floor(Math.random() * APP_LOADING_PHRASES.length)]
   );
+  const [phase, setPhase] = useState(APP_LOADING_PHASE.VIDEO);
   const luaLoadingVideoRef = useRef(null);
   const playAttemptedRef = useRef(false);
   const safetyTimerRef = useRef(null);
+  const phaseTimerRef = useRef(null);
   const completedRef = useRef(false);
+  const mountedRef = useRef(true);
+  const phaseRef = useRef(APP_LOADING_PHASE.VIDEO);
   const onCompleteRef = useRef(onComplete);
 
   useEffect(() => {
@@ -102,15 +116,40 @@ function AppLoadingScreen({ onComplete }) {
     }
   }, []);
 
+  const clearPhaseTimer = useCallback(() => {
+    if (phaseTimerRef.current !== null) {
+      window.clearTimeout(phaseTimerRef.current);
+      phaseTimerRef.current = null;
+    }
+  }, []);
+
   const finishLoading = useCallback(() => {
-    if (completedRef.current) return;
+    if (completedRef.current || !mountedRef.current) return;
     completedRef.current = true;
+    phaseRef.current = APP_LOADING_PHASE.COMPLETE;
+    setPhase(APP_LOADING_PHASE.COMPLETE);
     clearSafetyTimer();
+    clearPhaseTimer();
     onCompleteRef.current?.();
-  }, [clearSafetyTimer]);
+  }, [clearPhaseTimer, clearSafetyTimer]);
+
+  const showBrandSplash = useCallback(() => {
+    if (
+      completedRef.current
+      || !mountedRef.current
+      || phaseRef.current !== APP_LOADING_PHASE.VIDEO
+    ) return;
+
+    phaseRef.current = APP_LOADING_PHASE.BRAND;
+    setPhase(APP_LOADING_PHASE.BRAND);
+  }, []);
 
   const startLuaLoadingVideo = useCallback(() => {
-    if (completedRef.current || playAttemptedRef.current) return;
+    if (
+      completedRef.current
+      || playAttemptedRef.current
+      || phaseRef.current !== APP_LOADING_PHASE.VIDEO
+    ) return;
 
     const video = luaLoadingVideoRef.current;
     if (!video) return;
@@ -148,58 +187,134 @@ function AppLoadingScreen({ onComplete }) {
   }, [startLuaLoadingVideo]);
 
   useEffect(() => {
+    clearPhaseTimer();
+
+    if (phase === APP_LOADING_PHASE.BRAND) {
+      phaseTimerRef.current = window.setTimeout(() => {
+        phaseTimerRef.current = null;
+        if (
+          completedRef.current
+          || !mountedRef.current
+          || phaseRef.current !== APP_LOADING_PHASE.BRAND
+        ) return;
+
+        phaseRef.current = APP_LOADING_PHASE.REVEALING;
+        setPhase(APP_LOADING_PHASE.REVEALING);
+      }, APP_LOADING_BRAND_DURATION);
+    } else if (phase === APP_LOADING_PHASE.REVEALING) {
+      phaseTimerRef.current = window.setTimeout(
+        finishLoading,
+        APP_LOADING_REVEAL_FALLBACK_TIMEOUT
+      );
+    }
+
+    return clearPhaseTimer;
+  }, [clearPhaseTimer, finishLoading, phase]);
+
+  useEffect(() => {
+    mountedRef.current = true;
     safetyTimerRef.current = window.setTimeout(finishLoading, APP_LOADING_VIDEO_SAFETY_TIMEOUT);
     return () => {
-      completedRef.current = true;
+      mountedRef.current = false;
       clearSafetyTimer();
+      clearPhaseTimer();
       onCompleteRef.current = null;
     };
-  }, [clearSafetyTimer, finishLoading]);
+  }, [clearPhaseTimer, clearSafetyTimer, finishLoading]);
+
+  const handleRevealTransitionEnd = useCallback((event) => {
+    if (
+      event.target !== event.currentTarget
+      || phaseRef.current !== APP_LOADING_PHASE.REVEALING
+      || !['transform', 'opacity'].includes(event.propertyName)
+    ) return;
+
+    finishLoading();
+  }, [finishLoading]);
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center overflow-hidden bg-[#FBFAFF] px-5 py-4 sm:px-8 sm:py-8"
+      className="fixed inset-0 z-[100] isolate overflow-hidden"
       role="status"
       aria-live="polite"
+      aria-atomic="true"
+      data-loading-phase={phase}
       data-testid="app-loading-screen"
     >
-      <div className="flex h-full min-h-0 w-full max-w-5xl flex-col items-center justify-center gap-[clamp(0.75rem,3vh,2rem)]">
+      <div
+        className="app-loading-curtain absolute inset-0 overflow-hidden"
+        data-loading-phase={phase}
+        data-testid="app-loading-curtain"
+        onTransitionEnd={handleRevealTransitionEnd}
+      >
         <div
-          className="relative isolate aspect-square h-auto w-[min(90vw,40rem,58vh)] max-w-full shrink-0 overflow-hidden bg-[#FBFAFF] leading-none"
-          data-testid="lua-loading-video-frame"
+          className="app-loading-video-stage absolute inset-0 flex items-center justify-center bg-[#FBFAFF] px-5 py-4 sm:px-8 sm:py-8"
+          aria-hidden={phase !== APP_LOADING_PHASE.VIDEO}
+          data-testid="app-loading-video-stage"
         >
-          <video
-            ref={luaLoadingVideoRef}
-            src={luaLoadingVideo}
-            muted
-            autoPlay
-            playsInline
-            preload="auto"
-            controls={false}
-            aria-hidden="true"
-            onLoadedData={startLuaLoadingVideo}
-            onCanPlay={startLuaLoadingVideo}
-            onEnded={finishLoading}
-            onError={finishLoading}
-            className="block h-full w-full max-w-full object-contain"
-            style={{
-              isolation: 'isolate',
-              WebkitBackfaceVisibility: 'hidden',
-              backfaceVisibility: 'hidden',
-              WebkitMaskImage: '-webkit-radial-gradient(white, black)',
-            }}
-            data-testid="lua-loading-video"
-          />
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-0 z-10 border-2 border-[#FBFAFF]"
-            data-testid="lua-loading-video-edge-mask"
-          />
+          <div className="flex h-full min-h-0 w-full max-w-5xl flex-col items-center justify-center gap-[clamp(0.75rem,3vh,2rem)]">
+            <div
+              className="relative isolate aspect-square h-auto w-[min(90vw,40rem,58vh)] max-w-full shrink-0 overflow-hidden bg-[#FBFAFF] leading-none"
+              data-testid="lua-loading-video-frame"
+            >
+              <video
+                ref={luaLoadingVideoRef}
+                src={videoSource || undefined}
+                muted
+                autoPlay
+                playsInline
+                preload="auto"
+                controls={false}
+                aria-hidden="true"
+                onLoadedData={startLuaLoadingVideo}
+                onCanPlay={startLuaLoadingVideo}
+                onEnded={showBrandSplash}
+                onError={showBrandSplash}
+                className="block h-full w-full max-w-full object-contain"
+                style={{
+                  isolation: 'isolate',
+                  WebkitBackfaceVisibility: 'hidden',
+                  backfaceVisibility: 'hidden',
+                  WebkitMaskImage: '-webkit-radial-gradient(white, black)',
+                }}
+                data-testid="lua-loading-video"
+              />
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-0 z-10 border-2 border-[#FBFAFF]"
+                data-testid="lua-loading-video-edge-mask"
+              />
+            </div>
+            <p className="max-w-4xl text-center text-[clamp(1.25rem,4.5vw,2rem)] font-extrabold leading-[1.4]">
+              <span className="text-slate-950">{phrase.dark}</span>{' '}
+              <span className="text-violet-600">{phrase.purple}</span>
+            </p>
+          </div>
         </div>
-        <p className="max-w-4xl text-center text-[clamp(1.25rem,4.5vw,2rem)] font-extrabold leading-[1.4]">
-          <span className="text-slate-950">{phrase.dark}</span>{' '}
-          <span className="text-violet-600">{phrase.purple}</span>
-        </p>
+
+        <div
+          className="app-loading-brand-stage absolute inset-0 flex items-center justify-center"
+          aria-hidden={phase === APP_LOADING_PHASE.VIDEO}
+          data-testid="app-loading-brand-splash"
+        >
+          <div className="app-loading-brand-lockup flex flex-col items-center justify-center">
+            <img
+              src="/icons/icon-512.png"
+              alt=""
+              aria-hidden="true"
+              draggable="false"
+              className="app-loading-brand-icon select-none"
+              data-testid="app-loading-brand-icon"
+            />
+            <img
+              src={underFlashcardsLogo}
+              alt="Under Flashcards"
+              draggable="false"
+              className="app-loading-brand-logo select-none"
+              data-testid="app-loading-brand-logo"
+            />
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -698,7 +813,6 @@ export default function App() {
   );
 }
 
-// Export nombrado mínimo para el harness de investigación de la Fase 2B
-// (frontend/tests/performance/library-browser). No altera el flujo normal:
-// el entry productivo sigue consumiendo el default export.
-export { DashboardScreen };
+// Exports nombrados mínimos para los harnesses locales de rendimiento y loading.
+// No alteran el flujo normal: el entry productivo sigue consumiendo el default export.
+export { AppLoadingScreen, DashboardScreen };
