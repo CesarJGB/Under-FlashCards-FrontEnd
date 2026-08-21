@@ -1,5 +1,5 @@
 // FILE: frontend/src/App.jsx
-import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
+import { useState, useEffect, useLayoutEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import { getJSON, setJSON } from './lib/safeLocalStorage';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
@@ -29,13 +29,40 @@ const DebugPanel = lazy(() => import('./components/DebugPanel'));
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 const APP_LOADING_VIDEO_SAFETY_TIMEOUT = 12000;
-const APP_LOADING_BRAND_DURATION = 650;
 const APP_LOADING_REVEAL_FALLBACK_TIMEOUT = 900;
 const APP_LOADING_PHASE = Object.freeze({
   VIDEO: 'video',
-  BRAND: 'brand',
+  BRAND_ICON: 'brand-icon',
+  BRAND_ICON_EXIT: 'brand-icon-exit',
+  BRAND_LOGO: 'brand-logo',
   REVEALING: 'revealing',
   COMPLETE: 'complete',
+});
+const APP_LOADING_TIMING = Object.freeze({
+  ICON_IN: 260,
+  ICON_HOLD: 650,
+  ICON_OUT: 180,
+  LOGO_IN: 260,
+  LOGO_HOLD: 1400,
+});
+const APP_LOADING_PHASE_TRANSITION = Object.freeze({
+  [APP_LOADING_PHASE.BRAND_ICON]: Object.freeze({
+    next: APP_LOADING_PHASE.BRAND_ICON_EXIT,
+    duration: APP_LOADING_TIMING.ICON_IN + APP_LOADING_TIMING.ICON_HOLD,
+  }),
+  [APP_LOADING_PHASE.BRAND_ICON_EXIT]: Object.freeze({
+    next: APP_LOADING_PHASE.BRAND_LOGO,
+    duration: APP_LOADING_TIMING.ICON_OUT,
+  }),
+  [APP_LOADING_PHASE.BRAND_LOGO]: Object.freeze({
+    next: APP_LOADING_PHASE.REVEALING,
+    duration: APP_LOADING_TIMING.LOGO_IN + APP_LOADING_TIMING.LOGO_HOLD,
+  }),
+});
+const APP_LOADING_BACKGROUND = Object.freeze({
+  VIDEO: '#FBFAFF',
+  BRAND: '#EDE9FE',
+  HOME: '#FFFFFF',
 });
 const APP_LOADING_PHRASES = [
   {
@@ -104,6 +131,7 @@ function AppLoadingScreen({ onComplete, videoSource = luaLoadingVideo }) {
   const mountedRef = useRef(true);
   const phaseRef = useRef(APP_LOADING_PHASE.VIDEO);
   const onCompleteRef = useRef(onComplete);
+  const documentBackgroundRef = useRef(null);
 
   useEffect(() => {
     onCompleteRef.current = onComplete;
@@ -133,16 +161,20 @@ function AppLoadingScreen({ onComplete, videoSource = luaLoadingVideo }) {
     onCompleteRef.current?.();
   }, [clearPhaseTimer, clearSafetyTimer]);
 
-  const showBrandSplash = useCallback(() => {
+  const advancePhase = useCallback((expectedPhase, nextPhase) => {
     if (
       completedRef.current
       || !mountedRef.current
-      || phaseRef.current !== APP_LOADING_PHASE.VIDEO
+      || phaseRef.current !== expectedPhase
     ) return;
 
-    phaseRef.current = APP_LOADING_PHASE.BRAND;
-    setPhase(APP_LOADING_PHASE.BRAND);
+    phaseRef.current = nextPhase;
+    setPhase(nextPhase);
   }, []);
+
+  const showBrandSplash = useCallback(() => {
+    advancePhase(APP_LOADING_PHASE.VIDEO, APP_LOADING_PHASE.BRAND_ICON);
+  }, [advancePhase]);
 
   const startLuaLoadingVideo = useCallback(() => {
     if (
@@ -189,18 +221,12 @@ function AppLoadingScreen({ onComplete, videoSource = luaLoadingVideo }) {
   useEffect(() => {
     clearPhaseTimer();
 
-    if (phase === APP_LOADING_PHASE.BRAND) {
+    const transition = APP_LOADING_PHASE_TRANSITION[phase];
+    if (transition) {
       phaseTimerRef.current = window.setTimeout(() => {
         phaseTimerRef.current = null;
-        if (
-          completedRef.current
-          || !mountedRef.current
-          || phaseRef.current !== APP_LOADING_PHASE.BRAND
-        ) return;
-
-        phaseRef.current = APP_LOADING_PHASE.REVEALING;
-        setPhase(APP_LOADING_PHASE.REVEALING);
-      }, APP_LOADING_BRAND_DURATION);
+        advancePhase(phase, transition.next);
+      }, transition.duration);
     } else if (phase === APP_LOADING_PHASE.REVEALING) {
       phaseTimerRef.current = window.setTimeout(
         finishLoading,
@@ -209,7 +235,39 @@ function AppLoadingScreen({ onComplete, videoSource = luaLoadingVideo }) {
     }
 
     return clearPhaseTimer;
-  }, [clearPhaseTimer, finishLoading, phase]);
+  }, [advancePhase, clearPhaseTimer, finishLoading, phase]);
+
+  useLayoutEffect(() => {
+    const targets = [document.documentElement, document.body];
+    documentBackgroundRef.current = targets.map((target) => ({
+      target,
+      value: target.style.getPropertyValue('background-color'),
+      priority: target.style.getPropertyPriority('background-color'),
+    }));
+
+    return () => {
+      documentBackgroundRef.current?.forEach(({ target, value, priority }) => {
+        if (value) {
+          target.style.setProperty('background-color', value, priority);
+        } else {
+          target.style.removeProperty('background-color');
+        }
+      });
+      documentBackgroundRef.current = null;
+    };
+  }, []);
+
+  useLayoutEffect(() => {
+    const backgroundColor = phase === APP_LOADING_PHASE.VIDEO
+      ? APP_LOADING_BACKGROUND.VIDEO
+      : phase === APP_LOADING_PHASE.REVEALING || phase === APP_LOADING_PHASE.COMPLETE
+        ? APP_LOADING_BACKGROUND.HOME
+        : APP_LOADING_BACKGROUND.BRAND;
+
+    documentBackgroundRef.current?.forEach(({ target }) => {
+      target.style.setProperty('background-color', backgroundColor);
+    });
+  }, [phase]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -240,6 +298,10 @@ function AppLoadingScreen({ onComplete, videoSource = luaLoadingVideo }) {
       aria-atomic="true"
       data-loading-phase={phase}
       data-testid="app-loading-screen"
+      style={{
+        '--app-loading-video-background': APP_LOADING_BACKGROUND.VIDEO,
+        '--app-loading-brand-background': APP_LOADING_BACKGROUND.BRAND,
+      }}
     >
       <div
         className="app-loading-curtain absolute inset-0 overflow-hidden"
@@ -298,21 +360,27 @@ function AppLoadingScreen({ onComplete, videoSource = luaLoadingVideo }) {
           data-testid="app-loading-brand-splash"
         >
           <div className="app-loading-brand-lockup flex flex-col items-center justify-center">
-            <img
-              src="/icons/icon-512.png"
-              alt=""
-              aria-hidden="true"
-              draggable="false"
-              className="app-loading-brand-icon select-none"
-              data-testid="app-loading-brand-icon"
-            />
-            <img
-              src={underFlashcardsLogo}
-              alt="Under Flashcards"
-              draggable="false"
-              className="app-loading-brand-logo select-none"
-              data-testid="app-loading-brand-logo"
-            />
+            {(phase === APP_LOADING_PHASE.BRAND_ICON
+              || phase === APP_LOADING_PHASE.BRAND_ICON_EXIT) && (
+              <img
+                src="/icons/icon-512.png"
+                alt=""
+                aria-hidden="true"
+                draggable="false"
+                className="app-loading-brand-icon select-none"
+                data-testid="app-loading-brand-icon"
+              />
+            )}
+            {(phase === APP_LOADING_PHASE.BRAND_LOGO
+              || phase === APP_LOADING_PHASE.REVEALING) && (
+              <img
+                src={underFlashcardsLogo}
+                alt="Under Flashcards"
+                draggable="false"
+                className="app-loading-brand-logo select-none"
+                data-testid="app-loading-brand-logo"
+              />
+            )}
           </div>
         </div>
       </div>

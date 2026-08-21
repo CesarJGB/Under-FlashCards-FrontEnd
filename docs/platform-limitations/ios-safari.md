@@ -61,6 +61,10 @@ El footer se porta a un shell y queda fijo al borde inferior con safe area. Debe
 
 `index.html` ya declara `viewport-fit=cover`; `App.jsx`, `index.css` y varios componentes aplican insets. Antes de cambiar padding hay que inspeccionar estilos calculados para evitar sumar el mismo inset en `body`, shell y footer. Esto es un riesgo de integración observado en la estructura, no un bug del navegador confirmado.
 
+La transición de carga mantiene `apple-mobile-web-app-status-bar-style=default` de forma intencional. Apple documenta que `black-translucent` extiende el contenido a toda la pantalla, pero también lo define como un estilo negro translúcido; no existe en este meta una variante equivalente que garantice iconos oscuros sobre el lila claro de Under Flashcards. Para no convertir la franja en negra ni perder contraste, `AppLoadingScreen` sincroniza temporalmente el `background-color` inline de `html` y `body`: `#FBFAFF` durante Lua, `#EDE9FE` durante las fases de marca y blanco desde el comienzo del reveal. Los valores y prioridades inline anteriores se restauran al desmontar, sin tocar los paddings de safe area. Esto se apoya en el contrato de WebKit según el cual las zonas inset se rellenan con el fondo de `body`/`html`, pero la composición final de la status bar standalone sigue requiriendo dispositivo físico.
+
+`theme-color` permanece sin cambios. Safari 15 documenta que puede colorear la status bar en iOS, pero no sustituye el modo Apple de status bar ni ofrece un contrato suficiente para una transición dinámica ya iniciada. La corrección no depende de él.
+
 ## Reglas específicas de iOS
 
 - Probar en Safari normal y, si se soporta instalación, como web app de pantalla de inicio. Apple documenta que una web app standalone se ejecuta sin UI de navegador y en un contexto separado en [WWDC23: Meet Web Push for Safari](https://developer.apple.com/videos/play/wwdc2023/10120/).
@@ -73,6 +77,8 @@ El footer se porta a un shell y queda fijo al borde inferior con safe area. Debe
 ## Fuentes principales
 
 - [Apple: Alternative Browser Engines](https://developer.apple.com/support/alternative-browser-engines/)
+- [Apple: meta tags de web apps y estilos de status bar](https://developer.apple.com/library/archive/documentation/AppleApplications/Reference/SafariHTMLRef/Articles/MetaTags.html)
+- [Apple: Safari 15 y `theme-color`](https://developer.apple.com/documentation/safari-release-notes/safari-15-release-notes)
 - [WebKit: Designing Websites for iPhone X](https://webkit.org/blog/7929/designing-websites-for-iphone-x/)
 - [WebKit: New WebKit Features in Safari 15.5](https://webkit.org/blog/12669/new-webkit-features-in-safari-15-5/)
 - [WebKit bug 141832: viewport units and browser UI](https://bugs.webkit.org/show_bug.cgi?id=141832)
