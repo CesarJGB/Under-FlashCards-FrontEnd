@@ -27,6 +27,8 @@ const DebugPanel = lazy(() => import('./components/DebugPanel'));
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 const APP_LOADING_VIDEO_SAFETY_TIMEOUT = 12000;
+const APP_LOADING_EXIT_TRANSITION_DURATION = 460;
+const APP_LOADING_REDUCED_EXIT_TRANSITION_DURATION = 80;
 const APP_LOADING_PHRASES = [
   {
     dark: 'No hay atajos para volverse fuerte;',
@@ -85,9 +87,12 @@ function AppLoadingScreen({ onComplete }) {
   const [phrase] = useState(
     () => APP_LOADING_PHRASES[Math.floor(Math.random() * APP_LOADING_PHRASES.length)]
   );
+  const [isExiting, setIsExiting] = useState(false);
   const luaLoadingVideoRef = useRef(null);
   const playAttemptedRef = useRef(false);
   const safetyTimerRef = useRef(null);
+  const exitTimerRef = useRef(null);
+  const exitStartedRef = useRef(false);
   const completedRef = useRef(false);
   const onCompleteRef = useRef(onComplete);
 
@@ -95,19 +100,40 @@ function AppLoadingScreen({ onComplete }) {
     onCompleteRef.current = onComplete;
   }, [onComplete]);
 
-  const clearSafetyTimer = useCallback(() => {
+  const clearLoadingTimers = useCallback(() => {
     if (safetyTimerRef.current !== null) {
       window.clearTimeout(safetyTimerRef.current);
       safetyTimerRef.current = null;
+    }
+    if (exitTimerRef.current !== null) {
+      window.clearTimeout(exitTimerRef.current);
+      exitTimerRef.current = null;
     }
   }, []);
 
   const finishLoading = useCallback(() => {
     if (completedRef.current) return;
     completedRef.current = true;
-    clearSafetyTimer();
+    clearLoadingTimers();
     onCompleteRef.current?.();
-  }, [clearSafetyTimer]);
+  }, [clearLoadingTimers]);
+
+  const beginExitTransition = useCallback(() => {
+    if (completedRef.current || exitStartedRef.current) return;
+
+    exitStartedRef.current = true;
+    setIsExiting(true);
+
+    const prefersReducedMotion =
+      typeof window !== 'undefined' &&
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const exitDuration = prefersReducedMotion
+      ? APP_LOADING_REDUCED_EXIT_TRANSITION_DURATION
+      : APP_LOADING_EXIT_TRANSITION_DURATION;
+
+    exitTimerRef.current = window.setTimeout(finishLoading, exitDuration);
+  }, [finishLoading]);
 
   const startLuaLoadingVideo = useCallback(() => {
     if (completedRef.current || playAttemptedRef.current) return;
@@ -151,34 +177,44 @@ function AppLoadingScreen({ onComplete }) {
     safetyTimerRef.current = window.setTimeout(finishLoading, APP_LOADING_VIDEO_SAFETY_TIMEOUT);
     return () => {
       completedRef.current = true;
-      clearSafetyTimer();
+      clearLoadingTimers();
       onCompleteRef.current = null;
     };
-  }, [clearSafetyTimer, finishLoading]);
+  }, [clearLoadingTimers, finishLoading]);
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center overflow-hidden bg-[#FBFAFF] px-5 py-4 sm:px-8 sm:py-8"
+      className={`fixed inset-0 z-[100] flex items-center justify-center overflow-hidden bg-[#FBFAFF] px-5 py-4 transition-opacity duration-[260ms] ease-out motion-reduce:duration-[80ms] motion-reduce:delay-0 sm:px-8 sm:py-8 ${
+        isExiting ? 'opacity-0 delay-[180ms]' : 'opacity-100 delay-0'
+      }`}
       role="status"
       aria-live="polite"
       data-testid="app-loading-screen"
     >
-      <div className="flex h-full min-h-0 w-full max-w-5xl flex-col items-center justify-center gap-[clamp(0.75rem,3vh,2rem)]">
-        <video
-          ref={luaLoadingVideoRef}
-          src={luaLoadingVideo}
-          muted
-          autoPlay
-          playsInline
-          preload="auto"
-          controls={false}
-          aria-hidden="true"
-          onLoadedData={startLuaLoadingVideo}
-          onCanPlay={startLuaLoadingVideo}
-          onEnded={finishLoading}
-          onError={finishLoading}
-          className="aspect-square h-auto max-h-[58vh] w-[min(90vw,40rem)] max-w-full object-contain"
-        />
+      <div
+        className={`flex h-full min-h-0 w-full max-w-5xl flex-col items-center justify-center gap-[clamp(0.75rem,3vh,2rem)] transition-[opacity,transform] duration-[260ms] ease-out motion-reduce:transition-opacity motion-reduce:duration-[80ms] motion-reduce:delay-0 motion-reduce:transform-none ${
+          isExiting
+            ? 'opacity-0 delay-[80ms] -translate-y-2 scale-[1.01]'
+            : 'opacity-100 delay-0 transform-none'
+        }`}
+      >
+        <div className="w-[min(90vw,40rem)] max-w-full max-h-[58vh] overflow-hidden bg-[#FBFAFF]">
+          <video
+            ref={luaLoadingVideoRef}
+            src={luaLoadingVideo}
+            muted
+            autoPlay
+            playsInline
+            preload="auto"
+            controls={false}
+            aria-hidden="true"
+            onLoadedData={startLuaLoadingVideo}
+            onCanPlay={startLuaLoadingVideo}
+            onEnded={beginExitTransition}
+            onError={finishLoading}
+            className="block h-auto max-h-[58vh] w-full max-w-full border-0 bg-[#FBFAFF] object-contain outline-none shadow-none"
+          />
+        </div>
         <p className="max-w-4xl text-center text-[clamp(1.25rem,4.5vw,2rem)] font-extrabold leading-[1.4]">
           <span className="text-slate-950">{phrase.dark}</span>{' '}
           <span className="text-violet-600">{phrase.purple}</span>
@@ -516,16 +552,23 @@ function DashboardScreen({ user, onLogout, onInviteRequired }) {
                 aria-current={isActive ? 'page' : undefined}
                 className={`flex h-[3.25rem] items-center justify-center rounded-full text-black transition-all duration-200 cursor-pointer active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 ${
                   isActive
-                    ? 'gap-2 bg-[linear-gradient(135deg,#E4DCFA_0%,#D6CAF3_100%)] px-[clamp(0.75rem,4vw,1.125rem)] shadow-[0_6px_16px_rgba(96,78,140,0.12)] ring-1 ring-inset ring-[#B8A8DF]'
+                    ? 'mobile-nav-active-cat gap-2 px-[clamp(0.75rem,4vw,1.125rem)]'
                     : 'w-[clamp(3rem,14.5vw,3.25rem)] bg-slate-100 hover:bg-slate-200'
                 }`}
                 title={item.title}
               >
-                <IconComponent aria-hidden="true" className={`shrink-0 transition-all duration-200 ${
+                {isActive && (
+                  <span aria-hidden="true" className="mobile-nav-active-cat__shape">
+                    <span className="mobile-nav-active-cat__ear mobile-nav-active-cat__ear--left" />
+                    <span className="mobile-nav-active-cat__ear mobile-nav-active-cat__ear--right" />
+                    <span className="mobile-nav-active-cat__body" />
+                  </span>
+                )}
+                <IconComponent aria-hidden="true" className={`relative z-10 shrink-0 transition-all duration-200 ${
                   isActive ? 'h-6 w-6 stroke-[2.5]' : 'h-6 w-6 stroke-[1.8]'
                 }`} />
                 {isActive && (
-                  <span className="whitespace-nowrap text-sm font-bold leading-none">
+                  <span className="relative z-10 whitespace-nowrap text-sm font-bold leading-none">
                     {item.title}
                   </span>
                 )}

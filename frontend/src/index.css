@@ -90,3 +90,74 @@ body {
     opacity: 1;
   }
 }
+
+/* Navbar móvil: la cápsula activa adopta sutilmente la silueta de Lua. */
+.mobile-nav-active-cat {
+  position: relative;
+  isolation: isolate;
+  overflow: visible;
+  background-color: transparent;
+}
+
+.mobile-nav-active-cat__shape {
+  position: absolute;
+  top: -0.375rem;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 0;
+  pointer-events: none;
+  animation: mobile-nav-cat-shape-in 220ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+.mobile-nav-active-cat__body,
+.mobile-nav-active-cat__ear {
+  position: absolute;
+  background: linear-gradient(135deg, #E4DCFA 0%, #D6CAF3 100%);
+  border: 1px solid #B8A8DF;
+}
+
+.mobile-nav-active-cat__body {
+  inset: 0;
+  z-index: 1;
+  border-radius: 9999px;
+  box-shadow: 0 6px 16px rgba(96, 78, 140, 0.12);
+}
+
+.mobile-nav-active-cat__ear {
+  top: -0.45rem;
+  z-index: 0;
+  width: 0.95rem;
+  height: 1.05rem;
+  border-radius: 70% 70% 38% 38% / 86% 86% 28% 28%;
+  clip-path: polygon(14% 100%, 17% 28%, 50% 0%, 83% 28%, 86% 100%);
+}
+
+.mobile-nav-active-cat__ear--left {
+  left: 18%;
+  transform: rotate(-12deg);
+  transform-origin: bottom center;
+}
+
+.mobile-nav-active-cat__ear--right {
+  right: 18%;
+  transform: rotate(12deg);
+  transform-origin: bottom center;
+}
+
+@keyframes mobile-nav-cat-shape-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.2rem) scale(0.97, 0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1, 1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mobile-nav-active-cat__shape {
+    animation: none;
+  }
+}
