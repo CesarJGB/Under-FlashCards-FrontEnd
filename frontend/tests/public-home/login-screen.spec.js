@@ -263,11 +263,163 @@ async function waitForSheetTransformToSettle(page) {
   }));
 }
 
+async function installRepeatedLoginProbe(page) {
+  await page.evaluate(() => {
+    const containerSelector = '[data-testid="google-login-button"]';
+    const probe = {
+      mutations: [],
+      samples: [],
+      iframeAdds: 0,
+      iframeRemovals: 0,
+      iframeReplacements: 0,
+      containerMounts: 0,
+      containerUnmounts: 0,
+      previousIframe: null,
+    };
+    const isContainer = (node) => node?.nodeType === 1
+      && (node.matches?.(containerSelector) || node.querySelector?.(containerSelector));
+    const isGsiIframe = (node) => node?.nodeType === 1
+      && node.tagName === 'IFRAME'
+      && (node.src || '').includes('accounts.google.com/gsi');
+    const describe = (node) => ({
+      tag: node?.tagName || '#text',
+      container: Boolean(node?.matches?.(containerSelector)),
+      iframe: node?.tagName === 'IFRAME',
+      gsi: isGsiIframe(node),
+    });
+    const observer = new MutationObserver((records) => {
+      for (const record of records) {
+        const added = Array.from(record.addedNodes);
+        const removed = Array.from(record.removedNodes);
+        if (!added.some(isContainer) && !removed.some(isContainer)
+          && !isContainer(record.target)
+          && !added.some(isGsiIframe) && !removed.some(isGsiIframe)) continue;
+        const container = document.querySelector(containerSelector);
+        const iframe = container?.querySelector('iframe') || null;
+        if (!probe.previousIframe && iframe) probe.iframeAdds += 1;
+        if (probe.previousIframe && !iframe) probe.iframeRemovals += 1;
+        if (probe.previousIframe && iframe && probe.previousIframe !== iframe) {
+          probe.iframeReplacements += 1;
+        }
+        probe.previousIframe = iframe;
+        if (added.some(isContainer)) probe.containerMounts += 1;
+        if (removed.some(isContainer)) probe.containerUnmounts += 1;
+        probe.mutations.push({
+          t: Math.round(performance.now()),
+          target: record.target?.tagName || '#text',
+          added: added.map(describe),
+          removed: removed.map(describe),
+          containerPresent: Boolean(container),
+          childCount: container?.childElementCount ?? 0,
+          iframeCount: container?.querySelectorAll('iframe').length || 0,
+        });
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'width', 'height', 'src'] });
+    window.__ufRepeatedLoginProbe = probe;
+    window.__ufRepeatedLoginProbeStop = () => observer.disconnect();
+  });
+}
+
+async function sampleLoginOpening(page, cycle, sampleMs = 900) {
+  return page.evaluate(async ({ cycle, sampleMs }) => new Promise((resolve) => {
+    const samples = [];
+    const startedAt = performance.now();
+    const sample = (now) => {
+      const container = document.querySelector('[data-testid="google-login-button"]');
+      const sheet = document.querySelector('[data-auth-surface="outer"]');
+      const iframe = container?.querySelector('iframe');
+      const rect = container?.getBoundingClientRect();
+      const sheetRect = sheet?.getBoundingClientRect();
+      const style = container ? getComputedStyle(container) : null;
+      samples.push({
+        cycle,
+        t: Math.round(now - startedAt),
+        containerPresent: Boolean(container),
+        childCount: container?.childElementCount || 0,
+        iframeCount: container?.querySelectorAll('iframe').length || 0,
+        iframeConnected: Boolean(iframe?.isConnected),
+        width: rect ? Math.round(rect.width * 10) / 10 : null,
+        height: rect ? Math.round(rect.height * 10) / 10 : null,
+        sheetTop: sheetRect ? Math.round(sheetRect.top * 10) / 10 : null,
+        display: style?.display || null,
+        visibility: style?.visibility || null,
+        opacity: style?.opacity || null,
+      });
+      if (now - startedAt < sampleMs) requestAnimationFrame(sample);
+      else resolve(samples);
+    };
+    requestAnimationFrame(sample);
+  }), { cycle, sampleMs });
+}
+
+async function readAuthGeometry(page, { trialAutoHeight = false } = {}) {
+  return page.evaluate(({ trialAutoHeight }) => {
+    const viewport = { width: window.innerWidth, height: window.innerHeight };
+    const sheet = document.querySelector('[data-auth-surface="outer"]');
+    const panel = document.querySelector('[data-testid="login-auth-panel"]');
+    const scroll = panel?.querySelector('[data-action-sheet-scroll="true"]');
+    const helper = document.querySelector('#invite-code-helper, #invite-code-error');
+    const input = document.querySelector('#invite-code');
+    const lua = panel?.querySelector('img[aria-hidden="true"]');
+    const rect = (node) => {
+      const value = node?.getBoundingClientRect?.();
+      return value ? {
+        top: value.top,
+        bottom: value.bottom,
+        height: value.height,
+        left: value.left,
+        right: value.right,
+        width: value.width,
+      } : null;
+    };
+    const base = {
+      viewport,
+      visualViewport: window.visualViewport ? {
+        width: window.visualViewport.width,
+        height: window.visualViewport.height,
+        offsetTop: window.visualViewport.offsetTop,
+        offsetLeft: window.visualViewport.offsetLeft,
+      } : null,
+      sheet: rect(sheet),
+      panel: rect(panel),
+      scroll: rect(scroll),
+      input: rect(input),
+      lua: rect(lua),
+      lastContent: rect(helper),
+      scrollHeight: scroll?.scrollHeight || 0,
+      clientHeight: scroll?.clientHeight || 0,
+      sheetComputedHeight: sheet ? getComputedStyle(sheet).height : null,
+      sheetTransform: sheet ? getComputedStyle(sheet).transform : null,
+    };
+    const visibleBottom = Math.min(base.sheet?.bottom || viewport.height, viewport.height);
+    base.visibleSheetBottom = visibleBottom;
+    base.emptySpaceAfterLastContent = base.lastContent
+      ? Math.max(0, visibleBottom - base.lastContent.bottom)
+      : null;
+    if (!trialAutoHeight || !sheet) return base;
+    const originalHeight = sheet.style.height;
+    const originalTransform = sheet.style.transform;
+    sheet.style.height = 'auto';
+    sheet.style.transform = 'none';
+    const natural = {
+      sheet: rect(sheet),
+      panel: rect(panel),
+      scroll: rect(scroll),
+      scrollHeight: scroll?.scrollHeight || 0,
+      clientHeight: scroll?.clientHeight || 0,
+    };
+    sheet.style.height = originalHeight;
+    sheet.style.transform = originalTransform;
+    return { ...base, naturalAutoHeight: natural };
+  }, { trialAutoHeight });
+}
+
 // ---------------------------------------------------------------------------
-// FASE A: reproduccion del comportamiento actual (BEFORE) sin editar produccion.
+// Contratos de ciclo de vida, geometría y retorno de foco de la superficie de auth.
 // ---------------------------------------------------------------------------
 test.describe('login google lifecycle', () => {
-  test('probe: ciclo de vida DOM del boton de Google al abrir (BEFORE)', async ({ page }, testInfo) => {
+  test('probe: ciclo de vida DOM del botón de Google al abrir', async ({ page }, testInfo) => {
     await openPublicScreen(page);
     await page.screenshot({ path: path.join(EVIDENCE_DIR, 'login-before-open.png') });
 
@@ -278,15 +430,18 @@ test.describe('login google lifecycle', () => {
     const evidence = await probePromise;
 
     const summary = summarizeProbe(evidence);
-    const file = await saveEvidence('evidence-google-before.json', evidence, summary);
+    const file = await saveEvidence('evidence-google-after.json', evidence, summary);
 
     await page.screenshot({ path: path.join(EVIDENCE_DIR, 'login-stable.png') });
     testInfo.attach('google-evidence-summary', { body: JSON.stringify(summary, null, 2), contentType: 'application/json' });
     testInfo.attach('google-evidence-path', { body: file, contentType: 'text/plain' });
 
-    console.log('GOOGLE PROBE SUMMARY (BEFORE):');
+    console.log('GOOGLE PROBE SUMMARY (AFTER):');
     console.log(JSON.stringify(summary, null, 2));
     expect(summary).toBeTruthy();
+    expect(summary.iframeRemovals).toBe(0);
+    expect(summary.iframeReplacementCount).toBe(0);
+    expect(summary.iframeCounts).toContain(1);
   });
 
   test('regresión: GIS recibe un contenedor con ancho estable antes de renderButton', async ({ page }) => {
@@ -367,7 +522,7 @@ test.describe('login google lifecycle', () => {
 
       await page.screenshot({ path: path.join(EVIDENCE_DIR, `login-${width}.png`) });
       await page.getByRole('button', { name: 'Cerrar inicio de sesión' }).click();
-      await expect(page.getByTestId('login-auth-panel')).toHaveCount(0);
+      await expect(page.getByTestId('login-auth-panel')).toBeHidden();
     }
   });
 
@@ -391,5 +546,107 @@ test.describe('login google lifecycle', () => {
     await input.focus();
     await input.blur();
     await expect(snap).toHaveAttribute('data-action-sheet-snap', 'expanded');
+  });
+
+  test('regresión: ciclos repetidos sin recrear Google y sheet compacto', async ({ page }, testInfo) => {
+    await openPublicScreen(page);
+    await installRepeatedLoginProbe(page);
+    const cycles = [];
+
+    for (let cycle = 1; cycle <= 3; cycle += 1) {
+      const samplesPromise = sampleLoginOpening(page, cycle);
+      await page.getByRole('button', { name: 'Iniciar sesión' }).click();
+      if (cycle === 1) {
+        await page.screenshot({ path: path.join(EVIDENCE_DIR, 'login-after-during-open.png') });
+      }
+      const samples = await samplesPromise;
+      await expect(page.getByTestId('login-auth-panel')).toBeVisible();
+      await page.waitForFunction(() => document.querySelector('[data-testid="google-login-button"] iframe'));
+      if (cycle === 1) {
+        await page.screenshot({ path: path.join(EVIDENCE_DIR, 'login-repeated-cycle-1.png') });
+      }
+      const cycleEvidence = {
+        cycle,
+        samples,
+        geometry: await readAuthGeometry(page, { trialAutoHeight: cycle === 1 }),
+      };
+      if (cycle === 1) {
+        await page.locator('#invite-code').focus();
+        await expect(page.locator('[data-action-sheet-snap]')).toHaveAttribute('data-action-sheet-snap', 'expanded');
+        await waitForSheetTransformToSettle(page);
+        cycleEvidence.focusedGeometry = await readAuthGeometry(page);
+        await page.locator('#invite-code').blur();
+        await expect(page.locator('[data-action-sheet-snap]')).toHaveAttribute('data-action-sheet-snap', 'compact');
+        await waitForSheetTransformToSettle(page);
+        cycleEvidence.blurredGeometry = await readAuthGeometry(page);
+      }
+      cycles.push(cycleEvidence);
+      await page.getByRole('button', { name: 'Cerrar inicio de sesión' }).click();
+      await expect(page.getByTestId('login-auth-panel')).toBeHidden();
+    }
+
+    const lifecycle = await page.evaluate(() => {
+      const probe = window.__ufRepeatedLoginProbe;
+      window.__ufRepeatedLoginProbeStop?.();
+      return {
+        mutations: probe?.mutations || [],
+        iframeAdds: probe?.iframeAdds || 0,
+        iframeRemovals: probe?.iframeRemovals || 0,
+        iframeReplacements: probe?.iframeReplacements || 0,
+        containerMounts: probe?.containerMounts || 0,
+        containerUnmounts: probe?.containerUnmounts || 0,
+      };
+    });
+    const visibleSamples = cycles.flatMap(({ samples }) => samples)
+      .filter((sample) => sample.visibility === 'visible');
+    expect(visibleSamples.length).toBeGreaterThan(0);
+    expect(visibleSamples.every((sample) => (
+      sample.containerPresent && sample.childCount > 0 && sample.iframeCount === 1
+    ))).toBe(true);
+    expect(lifecycle.iframeRemovals).toBe(0);
+    expect(lifecycle.iframeReplacements).toBe(0);
+    expect(lifecycle.containerUnmounts).toBe(0);
+    for (const { geometry, focusedGeometry, blurredGeometry } of cycles) {
+      expect(geometry.sheet.height).toBeLessThan(geometry.viewport.height * 0.75);
+      expect(geometry.emptySpaceAfterLastContent).toBeLessThan(geometry.viewport.height * 0.15);
+      if (focusedGeometry && blurredGeometry) {
+        expect(focusedGeometry.sheet.height).toBeGreaterThan(geometry.sheet.height + 100);
+        expect(blurredGeometry.sheet.height).toBeCloseTo(geometry.sheet.height, 0);
+        expect(blurredGeometry.emptySpaceAfterLastContent).toBeLessThan(geometry.viewport.height * 0.15);
+      }
+    }
+    const evidence = { cycles, lifecycle };
+    const file = await saveEvidence('evidence-login-repeated-after.json', evidence, {
+      iframeAdds: lifecycle.iframeAdds,
+      iframeRemovals: lifecycle.iframeRemovals,
+      iframeReplacements: lifecycle.iframeReplacements,
+      containerMounts: lifecycle.containerMounts,
+      containerUnmounts: lifecycle.containerUnmounts,
+      geometry: cycles.map(({ cycle, geometry }) => ({
+        cycle,
+        viewport: geometry.viewport,
+        sheet: geometry.sheet,
+        naturalAutoHeight: geometry.naturalAutoHeight,
+        scrollHeight: geometry.scrollHeight,
+        clientHeight: geometry.clientHeight,
+        emptySpaceAfterLastContent: geometry.emptySpaceAfterLastContent,
+      })),
+    });
+    testInfo.attach('login-repeated-after-evidence', { body: JSON.stringify(evidence, null, 2), contentType: 'application/json' });
+    testInfo.attach('login-repeated-after-path', { body: file, contentType: 'text/plain' });
+    console.log('LOGIN REPEATED PROBE (AFTER):');
+    console.log(JSON.stringify({
+      lifecycle,
+      geometry: cycles.map(({ cycle, geometry }) => ({
+        cycle,
+        viewport: geometry.viewport,
+        sheet: geometry.sheet,
+        panel: geometry.panel,
+        scrollHeight: geometry.scrollHeight,
+        clientHeight: geometry.clientHeight,
+        emptySpaceAfterLastContent: geometry.emptySpaceAfterLastContent,
+        naturalAutoHeight: geometry.naturalAutoHeight,
+      })),
+    }, null, 2));
   });
 });

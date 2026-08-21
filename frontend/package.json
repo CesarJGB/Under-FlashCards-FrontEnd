@@ -29,6 +29,7 @@
     "test:playwright:smoke": "playwright test --config=playwright.smoke.config.js",
     "test:app:harness": "vite --config tests/app/vite.app.config.js",
     "test:app:smoke": "playwright test --config=playwright.app.config.js",
+    "test:lua-video": "playwright test --config=playwright.lua-video.config.js",
     "test:app:chromium": "playwright test --config=playwright.app.config.js --project=chromium",
     "test:app:firefox": "playwright test --config=playwright.app.config.js --project=firefox",
     "test:app:webkit": "playwright test --config=playwright.app.config.js --project=webkit",

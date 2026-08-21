@@ -164,21 +164,27 @@ function AppLoadingScreen({ onComplete }) {
       data-testid="app-loading-screen"
     >
       <div className="flex h-full min-h-0 w-full max-w-5xl flex-col items-center justify-center gap-[clamp(0.75rem,3vh,2rem)]">
-        <video
-          ref={luaLoadingVideoRef}
-          src={luaLoadingVideo}
-          muted
-          autoPlay
-          playsInline
-          preload="auto"
-          controls={false}
-          aria-hidden="true"
-          onLoadedData={startLuaLoadingVideo}
-          onCanPlay={startLuaLoadingVideo}
-          onEnded={finishLoading}
-          onError={finishLoading}
-          className="aspect-square h-auto max-h-[58vh] w-[min(90vw,40rem)] max-w-full object-contain"
-        />
+        <div
+          className="isolate aspect-square h-auto w-[min(90vw,40rem,58vh)] max-w-full shrink-0 overflow-hidden bg-[#FBFAFF] leading-none"
+          data-testid="lua-loading-video-frame"
+        >
+          <video
+            ref={luaLoadingVideoRef}
+            src={luaLoadingVideo}
+            muted
+            autoPlay
+            playsInline
+            preload="auto"
+            controls={false}
+            aria-hidden="true"
+            onLoadedData={startLuaLoadingVideo}
+            onCanPlay={startLuaLoadingVideo}
+            onEnded={finishLoading}
+            onError={finishLoading}
+            className="block h-full w-full max-w-full object-contain"
+            data-testid="lua-loading-video"
+          />
+        </div>
         <p className="max-w-4xl text-center text-[clamp(1.25rem,4.5vw,2rem)] font-extrabold leading-[1.4]">
           <span className="text-slate-950">{phrase.dark}</span>{' '}
           <span className="text-violet-600">{phrase.purple}</span>
@@ -685,4 +691,3 @@ export default function App() {
 // (frontend/tests/performance/library-browser). No altera el flujo normal:
 // el entry productivo sigue consumiendo el default export.
 export { DashboardScreen };
-

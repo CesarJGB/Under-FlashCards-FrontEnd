@@ -21,6 +21,14 @@ La política de motor también debe tratarse con precisión. Apple mantiene prog
 
 ## Impacto directo en el repositorio
 
+### Animación MP4 de carga
+
+La metadata inspeccionada del recurso actual (`lua_loading_animation_5s.mp4`) describe una pista de vídeo H.264 `avc1` cuadrada de `1068 × 1068` y aproximadamente `5.08 s`. En la implementación anterior, el `<video>` medía `350 × 350` en portrait, pero podía medir `640 × 226.19` en landscape por combinar `aspect-square`, `max-height: 58vh` y `object-fit: contain`. Esa caja no compartía la relación de aspecto del recurso y dejaba un límite de composición innecesario.
+
+La mitigación actual usa un frame cuadrado cuyo lado es el menor entre el ancho disponible y `58vh`, con `overflow: hidden`, fondo igual al overlay y aislamiento de pintura; el vídeo es un bloque que ocupa exactamente ese frame. Esto elimina el letterboxing de la caja y cualquier separación de layout en sus bordes sin recodificar ni sustituir el MP4. No demuestra que Safari haya corregido un artefacto de su compositor ni descarta una línea codificada en un frame.
+
+Chromium y WebKit Linux no pudieron decodificar este recurso durante la investigación (`MEDIA_ERR_DECODE`), aunque sí permitieron medir la caja CSS. La ausencia de una línea en esas capturas no es evidencia de ausencia en Safari iPhone. La validación de portrait/landscape, Safari normal y Home Screen queda **PENDING — DEVICE REQUIRED**.
+
 ### `ManualCardEditorModal`
 
 El componente escucha `visualViewport.resize`/`scroll`, conserva una altura de layout inicial y considera probable el teclado cuando la altura visible cae más de 100 px. Esa regla es una **heurística local**, no una API de teclado. Es razonable como degradación porque iOS carece de VirtualKeyboard API, pero debe tolerar:
@@ -69,5 +77,5 @@ El footer se porta a un shell y queda fijo al borde inferior con safe area. Debe
 - [WebKit: New WebKit Features in Safari 15.5](https://webkit.org/blog/12669/new-webkit-features-in-safari-15-5/)
 - [WebKit bug 141832: viewport units and browser UI](https://bugs.webkit.org/show_bug.cgi?id=141832)
 - [CSSOM View: VisualViewport](https://drafts.csswg.org/cssom-view/#the-visualviewport-interface)
+- [CSS Images 4: `object-fit`](https://drafts.csswg.org/css-images-4/#the-object-fit)
 - [MDN: `<meta name="viewport">`](https://developer.mozilla.org/docs/Web/HTML/Reference/Elements/meta/name/viewport)
-

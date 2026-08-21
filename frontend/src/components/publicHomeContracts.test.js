@@ -93,6 +93,7 @@ test('Google conserva un solo componente/callback y precede al bloque de invitac
   assert.match(login, /autoCapitalize="characters"/);
   assert.ok(login.indexOf('<GoogleLogin') < login.indexOf('id="invite-code"'));
   assert.match(login, /restoreSnapAfterInput/);
+  assert.match(login, /keepMounted/);
   assert.match(login, /useLayoutEffect/);
   assert.match(login, /useState\(null\)/);
   assert.match(login, /googleButtonWidth !== null/);
@@ -115,6 +116,7 @@ test('ActionSheet mantiene draggable desactivado por defecto y limpia recursos',
   ]);
   assert.match(actionSheet, /draggable = false/);
   assert.match(actionSheet, /restoreSnapAfterInput = false/);
+  assert.match(actionSheet, /keepMounted = false/);
   assert.match(actionSheet, /installActionSheetGestureGuard\(frameRef\.current\)/);
   assert.match(actionSheet, /cancelAnimationFrame\(frameId\)/);
   assert.match(actionSheet, /data-action-sheet-draggable=\{draggable \? 'true' : 'false'\}/);
@@ -127,6 +129,15 @@ test('ActionSheet mantiene draggable desactivado por defecto y limpia recursos',
   assert.match(carousel, /window\.clearTimeout\(timeoutId\)/);
   assert.match(carousel, /removeEventListener\?\.\('change'/);
   assert.match(carousel, /removeEventListener\('visibilitychange'/);
+});
+
+test('la animación de carga conserva una caja cuadrada y recorta sus bordes', async () => {
+  const app = await readFile(new URL('../App.jsx', import.meta.url), 'utf8');
+  assert.match(app, /data-testid="lua-loading-video-frame"/);
+  assert.match(app, /w-\[min\(90vw,40rem,58vh\)\]/);
+  assert.match(app, /overflow-hidden bg-\[#FBFAFF\] leading-none/);
+  assert.match(app, /data-testid="lua-loading-video"/);
+  assert.match(app, /className="block h-full w-full max-w-full object-contain"/);
 });
 
 test('la geometría define snaps compacta y expandida dentro del viewport', () => {

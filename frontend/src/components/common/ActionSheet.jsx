@@ -61,6 +61,7 @@ export default function ActionSheet({
   dragDisabled = false,
   initialSnap = ACTION_SHEET_SNAP_COMPACT,
   restoreSnapAfterInput = false,
+  keepMounted = false,
 }) {
   const parentScope = useOverlayScope();
   const sharedRegistryRef = useRef(null);
@@ -285,7 +286,7 @@ export default function ActionSheet({
     focusConnectedTarget(firstAction);
   }, [consumePendingFocus, isTop, layerId, open]);
 
-  if (!open || typeof document === 'undefined') return null;
+  if ((!open && !keepMounted) || typeof document === 'undefined') return null;
 
   if (!portalTarget) return null;
   const actionOptions = Array.isArray(options) ? options : [];
@@ -293,6 +294,8 @@ export default function ActionSheet({
   const customContent = children ?? content;
   const hasCustomContent = customContent !== undefined && customContent !== null;
   const hasFooter = Boolean(footer || closeAction);
+  const isAuthAppearance = appearance === 'auth';
+  const fitAuthCompactContent = isAuthAppearance && draggable;
   const dismissSelf = (reason) => {
     if (!isTop) return false;
     return dismissLayer?.(layerId, layerTokenRef.current, reason)
@@ -303,9 +306,11 @@ export default function ActionSheet({
     ? Math.min(720, window.innerHeight || 720)
     : geometry.visual.height;
   const dragGeometry = getActionSheetSnapGeometry(availableSurfaceHeight);
-  const settledTranslation = dragSnap === ACTION_SHEET_SNAP_EXPANDED
-    ? dragGeometry.expandedOffset
-    : dragGeometry.compactOffset;
+  const settledTranslation = fitAuthCompactContent
+    ? 0
+    : dragSnap === ACTION_SHEET_SNAP_EXPANDED
+      ? dragGeometry.expandedOffset
+      : dragGeometry.compactOffset;
   const currentTranslation = hasEntered
     ? (dragTranslation ?? settledTranslation)
     : dragGeometry.closedOffset;
@@ -481,7 +486,6 @@ export default function ActionSheet({
     dialogRef.current = node;
     layerProps.ref?.(node);
   };
-  const isAuthAppearance = appearance === 'auth';
   const sheetHandle = draggable ? (
     <div className="shrink-0 touch-none select-none px-4 pt-2" data-action-sheet-drag-region="true">
       <button
@@ -590,7 +594,8 @@ export default function ActionSheet({
     <div
       ref={frameRef}
       className={`${isViewportPortal ? 'fixed' : 'absolute'} z-[90] isolate overflow-hidden overscroll-none ${isTop ? 'pointer-events-auto' : 'pointer-events-none'}`}
-      style={frameStyle}
+      style={{ ...frameStyle, visibility: open ? undefined : 'hidden' }}
+      aria-hidden={open ? undefined : 'true'}
       data-action-sheet-layer={layerId}
       data-action-sheet-top={isTop ? 'true' : 'false'}
       data-action-sheet-geometry={geometry.source}
@@ -639,7 +644,11 @@ export default function ActionSheet({
         style={{
           animation: draggable ? undefined : 'slideUp 0.4s cubic-bezier(0.32, 0.72, 0, 1)',
           maxHeight: maxSurfaceHeight,
-          height: draggable ? `${dragGeometry.expandedHeight}px` : undefined,
+          height: draggable
+            ? (fitAuthCompactContent && dragSnap !== ACTION_SHEET_SNAP_EXPANDED
+              ? 'auto'
+              : `${dragGeometry.expandedHeight}px`)
+            : undefined,
           transform: draggable ? `translate3d(0, ${currentTranslation}px, 0)` : undefined,
           left: 'env(safe-area-inset-left, 0px)',
           right: 'env(safe-area-inset-right, 0px)',
