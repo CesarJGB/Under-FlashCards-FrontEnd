@@ -165,7 +165,7 @@ function AppLoadingScreen({ onComplete }) {
     >
       <div className="flex h-full min-h-0 w-full max-w-5xl flex-col items-center justify-center gap-[clamp(0.75rem,3vh,2rem)]">
         <div
-          className="isolate aspect-square h-auto w-[min(90vw,40rem,58vh)] max-w-full shrink-0 overflow-hidden bg-[#FBFAFF] leading-none"
+          className="relative isolate aspect-square h-auto w-[min(90vw,40rem,58vh)] max-w-full shrink-0 overflow-hidden bg-[#FBFAFF] leading-none"
           data-testid="lua-loading-video-frame"
         >
           <video
@@ -182,7 +182,18 @@ function AppLoadingScreen({ onComplete }) {
             onEnded={finishLoading}
             onError={finishLoading}
             className="block h-full w-full max-w-full object-contain"
+            style={{
+              isolation: 'isolate',
+              WebkitBackfaceVisibility: 'hidden',
+              backfaceVisibility: 'hidden',
+              WebkitMaskImage: '-webkit-radial-gradient(white, black)',
+            }}
             data-testid="lua-loading-video"
+          />
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 z-10 border-2 border-[#FBFAFF]"
+            data-testid="lua-loading-video-edge-mask"
           />
         </div>
         <p className="max-w-4xl text-center text-[clamp(1.25rem,4.5vw,2rem)] font-extrabold leading-[1.4]">
@@ -208,7 +219,7 @@ function DashboardScreen({ user, onLogout, onInviteRequired }) {
   const handleCalendarImmersiveChange = useCallback((immersive) => {
     setIsCalendarImmersive(Boolean(immersive));
   }, []);
-  
+
   // Estado puente para navegación Home → Library
   const [pendingLibraryNav, setPendingLibraryNav] = useState(null);
 
@@ -307,7 +318,7 @@ function DashboardScreen({ user, onLogout, onInviteRequired }) {
       setInitialMode('edit');
       setPendingLibraryNav(null);
     }
-    
+
     if (id === 'home') {
       contentScrollRef.current?.scrollTo({ top: 0, left: 0, behavior: 'auto' });
       if (typeof window !== 'undefined') {
@@ -319,7 +330,7 @@ function DashboardScreen({ user, onLogout, onInviteRequired }) {
     if (id === 'study') {
       setStudyKey(prev => prev + 1);
     }
-    
+
     setTab(id);
   };
 
