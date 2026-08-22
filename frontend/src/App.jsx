@@ -15,6 +15,7 @@ import SettingsSection from './components/SettingsSection';
 import UserSection from './components/UserSection';
 import InviteCodeManager from './components/InviteCodeManager';
 import InviteGateScreen from './components/InviteGateScreen';
+import DashboardBottomDock from './components/layout/DashboardBottomDock';
 import PublicMateriaPage from './components/PublicMateriaPage';
 import { getPublicMateriaShareId } from './lib/publicMateria';
 import { preloadStaticIllustrations } from './lib/staticIllustrations';
@@ -435,7 +436,7 @@ function DashboardScreen({ user, onLogout, onInviteRequired }) {
   const contentScrollRef = useRef(null);
   const homeAdaptivePreviewRef = useRef(null);
   const [dashboardShell, setDashboardShell] = useState(null);
-  const [libraryFabHost, setLibraryFabHost] = useState(null);
+  const [dashboardFloatingHost, setDashboardFloatingHost] = useState(null);
   const [isCalendarImmersive, setIsCalendarImmersive] = useState(false);
   const handleCalendarImmersiveChange = useCallback((immersive) => {
     setIsCalendarImmersive(Boolean(immersive));
@@ -635,11 +636,6 @@ function DashboardScreen({ user, onLogout, onInviteRequired }) {
       </aside>
 
       <main ref={contentScrollRef} data-app-scroll-root className="relative flex-1 min-h-0 min-w-0 overflow-y-auto overscroll-contain md:min-h-[100dvh] md:overflow-visible">
-        <div
-          ref={setLibraryFabHost}
-          className="sticky z-50 h-0 pointer-events-none"
-          style={{ top: 'calc(100dvh - env(safe-area-inset-bottom) - 9.5rem)' }}
-        />
         {/* 💡 Si se está editando un mazo, pb-0 remueve el padding inferior reservado para la barra móvil */}
         <div className={`max-w-5xl mx-auto px-4 pt-4 ${tab === 'home' || isEditingDeck || isCalendarImmersive ? 'pb-0' : 'pb-[calc(env(safe-area-inset-bottom)+6rem)]'} md:px-6 md:pt-8 md:pb-8`}>
           {tab === 'home' && (
@@ -668,7 +664,7 @@ function DashboardScreen({ user, onLogout, onInviteRequired }) {
               userId={user.id}
               userEmail={user.email}
               onOpenReview={handleOpenReviewFromStudy}
-              dashboardShell={dashboardShell}
+              floatingControlsHost={dashboardFloatingHost}
             />
           )}
 
@@ -692,7 +688,7 @@ function DashboardScreen({ user, onLogout, onInviteRequired }) {
               onInviteRequired={onInviteRequired}
               pendingNav={pendingLibraryNav}
               clearPendingNav={() => setPendingLibraryNav(null)}
-              libraryFabHost={libraryFabHost}
+              floatingControlsHost={dashboardFloatingHost}
             />
           )}
 
@@ -735,7 +731,7 @@ function DashboardScreen({ user, onLogout, onInviteRequired }) {
 
       {/* 👇 MENÚ DE NAVEGACIÓN MÓVIL OPTIMIZADO (Se oculta en modo edición de mazo) 👇 */}
       {!isEditingDeck && !isCalendarImmersive && (
-        <div ref={mobileNavRef} className="md:hidden absolute inset-x-0 mx-auto flex h-[4.25rem] w-fit max-w-[calc(100%_-_1rem)] items-center gap-[clamp(0.375rem,2vw,0.5rem)] rounded-full border border-slate-200 bg-white px-[clamp(0.375rem,2vw,0.5rem)] shadow-[0_8px_32px_rgba(15,23,42,0.12)] backdrop-blur-xl z-40 animate-[slideUp_0.2s_ease-out]" style={{ bottom: 'calc(env(safe-area-inset-bottom) + 0.75rem)' }}>
+        <DashboardBottomDock ref={mobileNavRef} floatingHostRef={setDashboardFloatingHost}>
           {[
             { id: 'home', title: 'Inicio', Icon: Home },
             { id: 'study', title: 'Estudio', Icon: BookOpen },
@@ -770,7 +766,7 @@ function DashboardScreen({ user, onLogout, onInviteRequired }) {
               </button>
             );
           })}
-        </div>
+        </DashboardBottomDock>
       )}
 
       {/* DebugPanel (lazy-loaded) - rendered only when ?debug=true or in DEV */}

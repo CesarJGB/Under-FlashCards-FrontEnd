@@ -26,7 +26,7 @@ export default function LibrarySection({
   onInviteRequired,
   pendingNav,       
   clearPendingNav,
-  libraryFabHost,
+  floatingControlsHost,
 }) {
   perfLibraryProfile.renderCount('LibrarySection');
   
@@ -533,7 +533,7 @@ export default function LibrarySection({
               importing={importing}
               academicModal={academicModal}
               modal={modal}
-              libraryFabHost={libraryFabHost}
+              floatingControlsHost={floatingControlsHost}
             />
           )}
     </div>

@@ -113,7 +113,7 @@ function formatAnswerForExport(question) {
   return question.expectedAnswer || 'Sin respuesta configurada';
 }
 
-export default function ExamFoldersView({ userId, onBack, dashboardShell, decks = [], materias = [] }) {
+export default function ExamFoldersView({ userId, onBack, floatingControlsHost, decks = [], materias = [] }) {
   const foldersCacheKey = `examFolders_${userId}`;
   const examsCacheKey = `exams_${userId}`;
   const cachedFolders = getJSON(foldersCacheKey);
@@ -445,6 +445,7 @@ export default function ExamFoldersView({ userId, onBack, dashboardShell, decks 
         sourceType={creationSourceType}
         decks={decks.filter((deck) => normalizeId(deck.userId) === normalizeId(userId))}
         materias={materias}
+        floatingControlsHost={floatingControlsHost}
         onClose={() => setCreationSourceType(null)}
         onCreated={(exam, options = {}) => {
           updateExamInState(exam);
@@ -759,7 +760,7 @@ export default function ExamFoldersView({ userId, onBack, dashboardShell, decks 
         onCreateFolder={openCreateFolder}
         onCreateScratch={() => setCreationSourceType('scratch')}
         onCreateFromDecks={() => setCreationSourceType('from_deck')}
-        dashboardShell={dashboardShell}
+        floatingControlsHost={floatingControlsHost}
       />
     </div>
   );

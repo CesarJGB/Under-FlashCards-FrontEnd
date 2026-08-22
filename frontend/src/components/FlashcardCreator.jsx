@@ -168,6 +168,7 @@ export default function FlashcardCreator({
 
   // Estado para saber si el modal a pantalla completa está activo
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
+  const [floatingControlsHost, setFloatingControlsHost] = useState(null);
 
   const [isAi, setIsAi] = useState(false);
   const [aiText, setAiText] = useState('');
@@ -479,6 +480,7 @@ export default function FlashcardCreator({
             textAlign={textAlign}
             setTextAlign={setTextAlign}
             onModalStateChange={handleManualModalStateChange}
+            floatingControlsHost={floatingControlsHost}
           />
         </div>
 
@@ -504,11 +506,18 @@ export default function FlashcardCreator({
         {error && <p className="text-xs text-red-600 font-semibold bg-red-50 border border-red-100 px-4 py-2.5 rounded-2xl">{error}</p>}
       </div>
 
-      <footer
-        className="fixed bottom-0 inset-x-0 z-30 bg-white border-t border-slate-200 p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] shadow-lg"
-      >
-        <div className="flex items-center justify-between max-w-2xl mx-auto w-full gap-2">
-          <div className="flex min-w-0 items-center gap-0.5 sm:gap-1">
+      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 flex flex-col gap-4 md:gap-6">
+        <div
+          ref={setFloatingControlsHost}
+          className="relative h-14 w-full shrink-0"
+          data-testid="creator-floating-controls-host"
+        />
+
+        <footer
+          className="pointer-events-auto relative bg-white border-t border-slate-200 p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] shadow-lg"
+        >
+          <div className="flex items-center justify-between max-w-2xl mx-auto w-full gap-2">
+            <div className="flex min-w-0 items-center gap-0.5 sm:gap-1">
             <button
               type="button"
               onPointerDown={(event) => event.preventDefault()}
@@ -560,43 +569,44 @@ export default function FlashcardCreator({
                 <span className="text-[10px] font-bold">Cartas</span>
               </button>
             )}
-          </div>
+            </div>
 
-          {activeTab === 'ai' ? (
-            <MagicAiButton
-              type="submit"
-              disabled={submitDisabled}
-              loading={saving || aiSaving}
-              selected
-              className="flex-1 sm:flex-initial sm:min-w-[200px]"
-            >
-              Generar
-            </MagicAiButton>
-          ) : (
-            <button
-              type="submit"
-              disabled={submitDisabled}
-              className="flex h-12 min-w-0 flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-2xl bg-slate-900 px-3 text-sm font-bold text-white shadow-md transition-all hover:bg-slate-800 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 sm:flex-initial sm:min-w-[200px] sm:gap-2 sm:px-8"
-            >
-              {saving || aiSaving ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : editingId ? (
-                <Check className="w-4 h-4 shrink-0" />
-              ) : activeTab === 'bulk' ? (
-                <Layers className="w-4 h-4 shrink-0" />
-              ) : (
-                <Plus className="w-4 h-4 shrink-0" />
-              )}
-              <span className="truncate sm:hidden">
-                {editingId ? 'Guardar' : activeTab === 'bulk' ? 'Crear' : 'Agregar'}
-              </span>
-              <span className="hidden truncate sm:inline">
-                {editingId ? 'Guardar' : activeTab === 'bulk' ? 'Crear Lote' : 'Agregar Tarjeta'}
-              </span>
-            </button>
-          )}
-        </div>
-      </footer>
+            {activeTab === 'ai' ? (
+              <MagicAiButton
+                type="submit"
+                disabled={submitDisabled}
+                loading={saving || aiSaving}
+                selected
+                className="flex-1 sm:flex-initial sm:min-w-[200px]"
+              >
+                Generar
+              </MagicAiButton>
+            ) : (
+              <button
+                type="submit"
+                disabled={submitDisabled}
+                className="flex h-12 min-w-0 flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-2xl bg-slate-900 px-3 text-sm font-bold text-white shadow-md transition-all hover:bg-slate-800 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 sm:flex-initial sm:min-w-[200px] sm:gap-2 sm:px-8"
+              >
+                {saving || aiSaving ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : editingId ? (
+                  <Check className="w-4 h-4 shrink-0" />
+                ) : activeTab === 'bulk' ? (
+                  <Layers className="w-4 h-4 shrink-0" />
+                ) : (
+                  <Plus className="w-4 h-4 shrink-0" />
+                )}
+                <span className="truncate sm:hidden">
+                  {editingId ? 'Guardar' : activeTab === 'bulk' ? 'Crear' : 'Agregar'}
+                </span>
+                <span className="hidden truncate sm:inline">
+                  {editingId ? 'Guardar' : activeTab === 'bulk' ? 'Crear Lote' : 'Agregar Tarjeta'}
+                </span>
+              </button>
+            )}
+          </div>
+        </footer>
+      </div>
 
       <ActionSheet
         open={showStyles && !isManualModalOpen}

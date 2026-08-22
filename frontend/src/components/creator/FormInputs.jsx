@@ -107,6 +107,7 @@ export default function FormInputs({
   setTextAlign,
   onModalStateChange,
   onPdfExtractionComplete,
+  floatingControlsHost,
 }) {
   const [customCardCount, setCustomCardCount] = useState('');
   const [manualEditorSide, setManualEditorSide] = useState(null);
@@ -224,7 +225,7 @@ export default function FormInputs({
     return (
       <div className="flex animate-[fadeIn_0.2s_ease] flex-col gap-3">
         <Suspense fallback={null}>
-          <PdfExtractor onTextExtracted={handlePdfTextExtracted} />
+          <PdfExtractor onTextExtracted={handlePdfTextExtracted} floatingControlsHost={floatingControlsHost} />
         </Suspense>
 
         {pdfSource && !showPdfTextEditor ? (

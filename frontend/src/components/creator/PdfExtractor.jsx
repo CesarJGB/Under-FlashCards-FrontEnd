@@ -1,6 +1,7 @@
 // FILE: frontend/src/components/creator/PdfExtractor.jsx
 // Entrega v3. Guardar este archivo con extensión .jsx.
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   AlertTriangle,
   FileText,
@@ -169,7 +170,7 @@ function createCompletionSnapshot(result) {
   };
 }
 
-export default function PdfExtractor({ onTextExtracted, onExtractionComplete, ocrProvider }) {
+export default function PdfExtractor({ onTextExtracted, onExtractionComplete, ocrProvider, floatingControlsHost }) {
   const [pdfDoc, setPdfDoc] = useState(null);
   const [fileName, setFileName] = useState('');
   const [completedFileName, setCompletedFileName] = useState('');
@@ -502,17 +503,16 @@ export default function PdfExtractor({ onTextExtracted, onExtractionComplete, oc
         tabIndex={-1}
       />
 
-      <button
+      {floatingControlsHost && createPortal(<button
         type="button"
         onClick={handleFabClick}
         disabled={loading}
         aria-label="Agregar PDF"
         title="Agregar PDF"
-        className="fixed right-6 z-50 flex h-14 w-14 cursor-pointer items-center justify-center rounded-[1.3rem] border border-white/50 bg-white/10 shadow-[0_10px_30px_-6px_rgba(0,0,0,0.35),0_4px_10px_-2px_rgba(0,0,0,0.15),inset_0_1.5px_0.5px_0_rgba(255,255,255,0.9),inset_0_-1.5px_1px_-0.5px_rgba(0,0,0,0.18),inset_1px_0_1px_-0.5px_rgba(255,255,255,0.4),inset_-1px_0_1px_-0.5px_rgba(0,0,0,0.12)] ring-1 ring-inset ring-white/30 backdrop-blur-[3px] backdrop-saturate-100 transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] hover:scale-105 hover:bg-white/15 active:scale-95 before:pointer-events-none before:absolute before:inset-0 before:rounded-[1.3rem] before:bg-[radial-gradient(80%_60%_at_50%_-5%,rgba(255,255,255,0.45)_0%,rgba(255,255,255,0.08)_35%,transparent_70%)] before:opacity-90 after:pointer-events-none after:absolute after:inset-[1px] after:rounded-[1.2rem] after:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.18)] after:mix-blend-overlay disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/25 dark:bg-white/5 dark:ring-white/10 dark:hover:bg-white/10"
-        style={{ bottom: 'calc(env(safe-area-inset-bottom) + 6rem)' }}
+        className="pointer-events-auto absolute top-0 right-6 z-50 flex h-14 w-14 cursor-pointer items-center justify-center rounded-[1.3rem] border border-white/50 bg-white/10 shadow-[0_10px_30px_-6px_rgba(0,0,0,0.35),0_4px_10px_-2px_rgba(0,0,0,0.15),inset_0_1.5px_0.5px_0_rgba(255,255,255,0.9),inset_0_-1.5px_1px_-0.5px_rgba(0,0,0,0.18),inset_1px_0_1px_-0.5px_rgba(255,255,255,0.4),inset_-1px_0_1px_-0.5px_rgba(0,0,0,0.12)] ring-1 ring-inset ring-white/30 backdrop-blur-[3px] backdrop-saturate-100 transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] hover:scale-105 hover:bg-white/15 active:scale-95 before:pointer-events-none before:absolute before:inset-0 before:rounded-[1.3rem] before:bg-[radial-gradient(80%_60%_at_50%_-5%,rgba(255,255,255,0.45)_0%,rgba(255,255,255,0.08)_35%,transparent_70%)] before:opacity-90 after:pointer-events-none after:absolute after:inset-[1px] after:rounded-[1.2rem] after:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.18)] after:mix-blend-overlay disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/25 dark:bg-white/5 dark:ring-white/10 dark:hover:bg-white/10"
       >
         <Plus className="relative h-7 w-7 stroke-[3] text-slate-800 drop-shadow-[0_1px_1px_rgba(255,255,255,0.8)] dark:text-white dark:drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
-      </button>
+      </button>, floatingControlsHost)}
 
       <ActionSheet
         open={isImportSheetOpen}

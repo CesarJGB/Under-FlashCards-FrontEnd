@@ -52,6 +52,7 @@ export default function ExamCreationWizard({
   sourceType,
   decks,
   materias,
+  floatingControlsHost,
   onClose,
   onCreated,
 }) {
@@ -288,6 +289,7 @@ export default function ExamCreationWizard({
             setError('');
             setStage('allocate');
           }}
+          floatingControlsHost={floatingControlsHost}
         />
       </div>
     );

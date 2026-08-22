@@ -66,6 +66,10 @@ El footer se porta al shell de dashboard. `bottom:0` y safe area son correctos c
 
 `App.jsx` ya usa un shell fijo con `main` desplazable. Cambiar overflow global puede alterar sticky headers, restauración de scroll y todos los portales: revisar la aplicación completa.
 
+Los controles que conviven con la navegación global no se anclan individualmente al viewport. `DashboardBottomDock` posee el inset inferior y compone en flujo el host flotante, la separación y la navbar real. Esta relación evita que un cambio de altura del navbar, orientación o estabilización tardía de unidades dinámicas deje al FAB en una coordenada distinta. Un control de una pantalla inmersiva solo debe usar otro propietario cuando la navbar global esté realmente oculta.
+
+El editor de mazo aplica el mismo principio localmente: `FlashcardCreator` compone el host de `PdfExtractor` y su footer fijo en un solo flujo. El inset sigue perteneciendo al footer; el FAB solo ocupa el host y no repite su altura ni el inset.
+
 ## Checklist de revisión de un overlay
 
 - ¿Qué nodo crea el containing block?
@@ -86,4 +90,3 @@ El footer se porta al shell de dashboard. `bottom:0` y safe area son correctos c
 - [Chrome: `overscroll-behavior`](https://developer.chrome.com/blog/overscroll-behavior/)
 - [WebKit bug 240860](https://bugs.webkit.org/show_bug.cgi?id=240860)
 - [WebKit bug 202120](https://bugs.webkit.org/show_bug.cgi?id=202120)
-

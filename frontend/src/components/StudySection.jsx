@@ -13,7 +13,7 @@ import { extractAndResolveCards } from '../lib/imageDelivery';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
-export default function StudySection({ decks, materias, userId, userEmail, onOpenReview, dashboardShell }) {
+export default function StudySection({ decks, materias, userId, userEmail, onOpenReview, floatingControlsHost }) {
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [selectedMethod, setSelectedMethod] = useState(null);
   const [selectedFeature, setSelectedFeature] = useState(null);
@@ -114,7 +114,7 @@ export default function StudySection({ decks, materias, userId, userEmail, onOpe
         decks={decks}
         materias={materias}
         onBack={() => setSelectedCategory(null)}
-        dashboardShell={dashboardShell}
+        floatingControlsHost={floatingControlsHost}
       />
     );
   }
@@ -148,6 +148,7 @@ export default function StudySection({ decks, materias, userId, userEmail, onOpe
           processingMessage={pdfExport.progress.message}
           errorMessage={pdfExport.error}
           warnings={pdfExport.warnings}
+          floatingControlsHost={floatingControlsHost}
         />
         <PdfExportOverlay
           isOpen={pdfExport.isExporting}
@@ -175,6 +176,7 @@ export default function StudySection({ decks, materias, userId, userEmail, onOpe
       modeLabel={currentMethodObj?.title}
       onBack={() => setSelectedMethod(null)}
       onSelectDeck={(deck) => onOpenReview(deck, currentMethodObj?.modeMapping)}
+      floatingControlsHost={floatingControlsHost}
     />
   );
 }

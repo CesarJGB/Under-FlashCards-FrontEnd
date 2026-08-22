@@ -8,7 +8,7 @@ export default function ExamFAB({
   onCreateFolder,
   onCreateScratch,
   onCreateFromDecks,
-  dashboardShell,
+  floatingControlsHost,
 }) {
   const [open, setOpen] = useState(false);
   const folderLabel = isInsideFolder ? 'Crear subcarpeta' : 'Crear carpeta';
@@ -17,8 +17,7 @@ export default function ExamFAB({
     <button
       type="button"
       onClick={() => setOpen(true)}
-      className="absolute right-6 w-14 h-14 rounded-2xl bg-slate-900 text-white shadow-lg flex items-center justify-center z-50 hover:bg-slate-800 hover:scale-105 active:scale-90 transition-all duration-200 cursor-pointer md:fixed"
-      style={{ bottom: 'calc(env(safe-area-inset-bottom) + 6rem)' }}
+      className="pointer-events-auto absolute top-0 right-6 w-14 h-14 rounded-2xl bg-slate-900 text-white shadow-lg flex items-center justify-center z-50 hover:bg-slate-800 hover:scale-105 active:scale-90 transition-all duration-200 cursor-pointer"
       aria-label="Abrir acciones de exámenes"
     >
       <Plus className="w-6 h-6 stroke-[2.5]" />
@@ -102,7 +101,7 @@ export default function ExamFAB({
 
   return (
     <>
-      {dashboardShell ? createPortal(fabButton, dashboardShell) : fabButton}
+      {floatingControlsHost ? createPortal(fabButton, floatingControlsHost) : null}
       {actionSheet}
     </>
   );

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { ArrowLeft, Bookmark, BookOpen, ChevronRight, Folder, Loader2, Search } from 'lucide-react';
 import DeckCard from '../DeckCard';
 
@@ -184,6 +185,7 @@ export default function StudyDeckSelector({
   selectedDecks,
   onToggleDeck,
   onConfirmSelection,
+  floatingControlsHost,
 }) {
   const [currentPath, setCurrentPath] = useState({
     materiaId: null,
@@ -677,8 +679,8 @@ export default function StudyDeckSelector({
         {content}
       </div>
 
-      {selectionMode && selectedDeckCount > 0 && (
-        <div className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+5rem)] z-50 px-3 md:bottom-6 md:left-auto md:right-6 md:w-auto md:px-0">
+      {selectionMode && selectedDeckCount > 0 && floatingControlsHost && createPortal(
+        <div className="pointer-events-auto absolute inset-x-0 bottom-0 z-50 px-3 md:left-auto md:right-6 md:w-auto md:px-0">
           <button
             type="button"
             onClick={() => onConfirmSelection?.()}
@@ -688,7 +690,8 @@ export default function StudyDeckSelector({
             <span>{selectedDeckCount} mazo(s) seleccionado(s) · Continuar</span>
             <ChevronRight className="h-4 w-4 shrink-0" aria-hidden="true" />
           </button>
-        </div>
+        </div>,
+        floatingControlsHost,
       )}
     </>
   );

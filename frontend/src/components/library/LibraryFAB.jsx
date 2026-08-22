@@ -9,7 +9,7 @@ export default function LibraryFAB({
   setAcademicModal,
   fileInputRef, 
   importing,
-  libraryFabHost
+  floatingControlsHost
 }) {
   const [fabOpen, setFabOpen] = useState(false);
 
@@ -181,7 +181,7 @@ export default function LibraryFAB({
 
   return (
     <>
-      {libraryFabHost ? createPortal(fabButton, libraryFabHost) : null}
+      {floatingControlsHost ? createPortal(fabButton, floatingControlsHost) : null}
       {fabOverlays}
     </>
   );

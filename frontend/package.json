@@ -14,6 +14,8 @@
     "test:manual-editor:unit": "node --test src/components/creator/manual-editor/manualEditorSession.test.js src/components/creator/manual-editor/editorGeometry.test.js src/components/creator/manual-editor/editorLayerStack.test.js src/components/creator/manual-editor/editorActivation.test.js src/components/creator/manual-editor/colorUtils.test.js src/components/common/actionSheetGestureGuard.test.js src/components/common/actionSheetFocus.test.js src/components/common/overlays/overlayRegistry.test.js tests/manual-editor/manual-editor-contracts.test.js",
     "test:image-delivery": "node --test tests/image-delivery/image-delivery-contracts.test.js tests/image-delivery/cover-thumbnail.test.js",
     "test:library-browser": "node --test tests/performance/library-browser/library-browser-profile.test.js",
+    "test:mobile-floating:unit": "node --test src/components/layout/dashboardBottomDock.contract.test.js",
+    "test:mobile-floating": "npm run test:mobile-floating:unit && playwright test --config=playwright.mobile-floating.config.js",
     "perf:library-browser": "node tests/performance/library-browser/run-browser-profile.mjs",
     "test:manual-editor": "playwright test tests/manual-editor/manual-editor-current.spec.js",
     "test:manual-editor:chromium": "playwright test tests/manual-editor/manual-editor-current.spec.js --project=chromium",
