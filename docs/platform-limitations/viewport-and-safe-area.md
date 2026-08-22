@@ -48,6 +48,12 @@ Reglas:
 
 Que varios niveles usen `env()` no prueba que hoy exista un defecto visual; identifica una obligación de inspeccionar estilos calculados y rectángulos antes de cambiar la cascada.
 
+### Altura del root en una PWA instalada
+
+WebKit mantiene abierto el [bug 254868](https://bugs.webkit.org/show_bug.cgi?id=254868): con `viewport-fit=cover` en una web app instalada, `100svh`, `-webkit-fill-available` y `visualViewport.height` pueden excluir la safe area. Under Flashcards conserva `-webkit-fill-available` como fallback de Safari normal, pero en `display-mode: standalone` eleva el `min-height` de `html`, `body` y `#root` a `100vh`. La regla solo extiende la superficie raíz; no añade padding, no mueve la navbar y no sustituye los insets de los controles.
+
+El shell móvil de `App.jsx` sigue siendo `fixed inset-0` con fondo `slate-50`, `main` sigue siendo su scroll owner y la navbar conserva su offset `bottom: calc(env(safe-area-inset-bottom) + 0.75rem)`. El `padding-bottom` de `body` y los insets de esos elementos no se suman dentro del shell fijo: protegen niveles distintos. No se elimina ninguno sin una reproducción de padding acumulado en estilos calculados.
+
 ## VisualViewport en la práctica
 
 Para una superficie que debe seguir el área visible se leen conjuntamente:
@@ -90,6 +96,8 @@ Una degradación razonable declara el fallback primero:
 ```
 
 Esto aporta soporte sintáctico; no resuelve por sí solo teclado, scroll ni bugs de safe area. Cualquier variable JavaScript de altura debe tener una razón más específica que “móvil”.
+
+La excepción del root standalone es deliberadamente inversa al patrón general anterior: `100vh` se usa allí porque WebKit 254868 documenta que las alternativas pequeñas/fill omiten precisamente el área que el fondo debe pintar. No se usa para detectar el teclado ni para dimensionar overlays.
 
 ## Fuentes
 

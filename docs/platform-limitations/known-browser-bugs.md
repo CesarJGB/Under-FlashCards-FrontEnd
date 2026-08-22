@@ -15,6 +15,15 @@ No se agrupan bugs solo porque “se parecen”. Safari, WKWebView, Chrome Andro
 
 ## iOS / WebKit compartido
 
+### WK-254868 — alturas incorrectas con `viewport-fit=cover` en web apps instaladas
+
+- **Descripción:** en una PWA instalada con `viewport-fit=cover`, `100svh`, `-webkit-fill-available` y `visualViewport.height` pueden devolver el espacio disponible menos la safe area. El root puede terminar antes del borde físico y revelar una franja inferior; el propio reporte corrige su workaround para usar `100vh` en standalone.
+- **Fuente oficial:** [WebKit bug 254868](https://bugs.webkit.org/show_bug.cgi?id=254868), relacionado con [WebKit bug 237961](https://bugs.webkit.org/show_bug.cgi?id=237961).
+- **Estado:** `NEW`, P2, Safari 16 en el reporte; última modificación visible 2026-06-07.
+- **Workaround recomendado:** conservar los fallbacks pequeños/dinámicos donde modelan Safari normal y sobrescribir solo `min-height` de `html`, `body` y `#root` con `100vh` dentro de `@media (display-mode: standalone)`. El fondo puede ocupar el área física y los controles de borde mantienen un propietario independiente de `env(safe-area-inset-bottom)`.
+- **Componentes afectados:** `frontend/src/index.css` y el shell global de `App.jsx`. Los overlays con geometría propia no deben heredar este workaround como detector de teclado.
+- **Condición de retirada:** issue resuelto y pruebas físicas de Safari normal/Home Screen con Home Indicator, apertura/cierre de OSK y comparación de rectángulos aprobadas en la versión mínima iOS del proyecto.
+
 ### WK-217754 — `safe-area-inset-bottom` permanece con el teclado
 
 - **Descripción:** al aparecer el teclado, `env(safe-area-inset-bottom)` puede seguir siendo distinto de cero aunque el área sobre el OSK ya sea rectangular, dejando un hueco adicional.
