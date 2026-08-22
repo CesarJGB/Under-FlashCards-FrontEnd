@@ -15,11 +15,29 @@ const readDebugQuery = (windowLike) => {
   }
 };
 
+const setDebugPreference = (windowLike) => {
+  try {
+    windowLike.localStorage.setItem(DEBUG_QUERY_PARAM, '1');
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const removeDebugPreference = (windowLike) => {
+  try {
+    windowLike.localStorage.removeItem(DEBUG_QUERY_PARAM);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 const persistDebugPreference = (windowLike, queryValue) => {
   try {
     const storage = windowLike.localStorage;
-    if (queryValue === '1') storage.setItem(DEBUG_QUERY_PARAM, '1');
-    if (queryValue === '0') storage.removeItem(DEBUG_QUERY_PARAM);
+    if (queryValue === '1') setDebugPreference(windowLike);
+    if (queryValue === '0') removeDebugPreference(windowLike);
     return storage.getItem(DEBUG_QUERY_PARAM) === '1';
   } catch {
     // Safari puede bloquear localStorage en algunos contextos; la query sigue
@@ -533,6 +551,7 @@ function createViewportDebug(windowLike) {
     toJSON,
     copy,
     stop: () => {
+      removeDebugPreference(windowLike);
       cleanup();
       if (windowLike.__viewportDebug === api) delete windowLike.__viewportDebug;
     },
@@ -708,7 +727,7 @@ function createViewportDebug(windowLike) {
 
   const stopButton = documentLike.createElement('button');
   stopButton.type = 'button';
-  stopButton.textContent = 'Detener';
+  stopButton.textContent = 'Desactivar debug';
   stopButton.style.font = 'inherit';
   stopButton.style.padding = '3px 6px';
   stopButton.addEventListener('click', () => api.stop());
@@ -736,6 +755,24 @@ export function startViewportDebug(windowLike = typeof window !== 'undefined' ? 
   const enabled = queryValue === '1' || storedPreference === true;
   if (!enabled) return null;
   return createViewportDebug(windowLike);
+}
+
+export function toggleViewportDebugFromGesture(
+  windowLike = typeof window !== 'undefined' ? window : null,
+) {
+  if (!windowLike?.document) return false;
+
+  if (windowLike.__viewportDebug?.enabled) {
+    windowLike.__viewportDebug.stop?.();
+    return false;
+  }
+
+  // El gesto se ejecuta dentro de la PWA, por lo que esta escritura usa el
+  // almacenamiento propio de esa instalación y no el de Safari.
+  if (readDebugQuery(windowLike) === '0') return false;
+  setDebugPreference(windowLike);
+  createViewportDebug(windowLike);
+  return Boolean(windowLike.__viewportDebug?.enabled);
 }
 
 export function markViewportDebugMounted(windowLike = typeof window !== 'undefined' ? window : null) {

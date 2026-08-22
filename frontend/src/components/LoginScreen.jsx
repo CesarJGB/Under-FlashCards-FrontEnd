@@ -6,10 +6,13 @@ import luaInviteCard from '../../media/svg/pantalla de secion/lua-invite-card.we
 import ActionSheet from './common/ActionSheet';
 import PublicHomeCarousel from './PublicHomeCarousel';
 import { lockBodyScroll, unlockBodyScroll } from '../lib/scrollLock';
+import { toggleViewportDebugFromGesture } from '../lib/viewportDebug';
 
 const LOGIN_SCROLL_OWNER = 'LoginScreen';
 const GOOGLE_MIN_BUTTON_WIDTH = 220;
 const GOOGLE_MAX_BUTTON_WIDTH = 400;
+const VIEWPORT_DEBUG_TAP_COUNT = 5;
+const VIEWPORT_DEBUG_TAP_WINDOW_MS = 1200;
 
 const readGoogleButtonWidth = (container) => {
   const measuredWidth = Math.round(container?.getBoundingClientRect?.().width || 0);
@@ -26,6 +29,7 @@ export default function LoginScreen({ onSuccess, onError, error }) {
   const loginTriggerRef = useRef(null);
   const googleContainerRef = useRef(null);
   const googleButtonWidthRef = useRef(null);
+  const viewportDebugTapTimesRef = useRef([]);
 
   useLayoutEffect(() => {
     const originalPaddingTop = document.body.style.paddingTop;
@@ -79,12 +83,29 @@ export default function LoginScreen({ onSuccess, onError, error }) {
     onError?.();
   };
 
+  const handleViewportDebugTap = () => {
+    const now = Date.now();
+    const recentTaps = viewportDebugTapTimesRef.current.filter(
+      (timestamp) => now - timestamp <= VIEWPORT_DEBUG_TAP_WINDOW_MS,
+    );
+    recentTaps.push(now);
+
+    if (recentTaps.length >= VIEWPORT_DEBUG_TAP_COUNT) {
+      viewportDebugTapTimesRef.current = [];
+      toggleViewportDebugFromGesture();
+      return;
+    }
+
+    viewportDebugTapTimesRef.current = recentTaps;
+  };
+
   return (
     <main className="fixed inset-0 grid h-[100dvh] w-full grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden overscroll-none bg-[#FBFAFF] px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-[calc(0.65rem+env(safe-area-inset-top))] text-slate-900 dark:bg-slate-950 dark:text-white sm:px-8 sm:pb-[calc(1rem+env(safe-area-inset-bottom))] sm:pt-[calc(1rem+env(safe-area-inset-top))]">
       <header className="mx-auto flex w-full max-w-5xl shrink-0 items-center justify-center py-0.5 sm:justify-start">
         <img
           src={underFlashcardsLogo}
           alt="Under Flashcards"
+          onClick={handleViewportDebugTap}
           className="h-[clamp(3rem,7.5vw,3.75rem)] w-auto max-w-full object-contain [@media(max-height:600px)]:h-[clamp(2.75rem,7vw,3.25rem)]"
         />
       </header>
