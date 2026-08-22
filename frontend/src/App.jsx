@@ -20,6 +20,7 @@ import { getPublicMateriaShareId } from './lib/publicMateria';
 import { preloadStaticIllustrations } from './lib/staticIllustrations';
 import { sanitizeDeckSummaries } from './lib/imageDelivery';
 import { perfLibraryProfile } from './lib/perfLibraryProfile';
+import { markViewportDebugMounted } from './lib/viewportDebug';
 import luaLoadingVideo from '../media/svg/pantalla de secion/lua_loading_animation_5s.mp4';
 import underFlashcardsLogo from '../media/svg/logo/under-flashcards-logo 2.svg';
 import './app-loading.css';
@@ -904,6 +905,11 @@ function FlashcardsApp() {
 }
 
 export default function App() {
+  useLayoutEffect(() => {
+    // El helper no hace nada mientras la activación temporal no esté vigente.
+    markViewportDebugMounted();
+  }, []);
+
   const publicMateriaShareId = getPublicMateriaShareId();
 
   if (publicMateriaShareId) {
