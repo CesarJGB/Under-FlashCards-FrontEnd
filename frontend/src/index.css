@@ -55,6 +55,19 @@ body {
   }
 }
 
+.login-viewport-surface {
+  height: 100dvh;
+}
+
+/* En el arranque standalone de WebKit, 100dvh puede estabilizarse después que el documento. */
+@supports (-webkit-touch-callout: none) {
+  @media (display-mode: standalone) {
+    .login-viewport-surface {
+      height: 100vh;
+    }
+  }
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import postcss from 'postcss';
 import {
   PUBLIC_HOME_AUTOPLAY_MS,
   canAutoplayPublicHome,
@@ -18,6 +19,28 @@ import {
 } from './common/actionSheetDrag.js';
 
 const readComponent = (name) => readFile(new URL(name, import.meta.url), 'utf8');
+
+const getRuleContexts = (rule) => {
+  const contexts = [];
+  let current = rule.parent;
+  while (current) {
+    if (current.type === 'atrule') contexts.push({ name: current.name, params: current.params });
+    current = current.parent;
+  }
+  return contexts;
+};
+
+const getLoginSurfaceHeights = (stylesheet) => {
+  const heights = [];
+  postcss.parse(stylesheet).walkRules((rule) => {
+    const selectors = rule.selectors?.map((selector) => selector.trim()) || [];
+    if (!selectors.includes('.login-viewport-surface')) return;
+    rule.walkDecls('height', (declaration) => {
+      heights.push({ value: declaration.value, contexts: getRuleContexts(rule) });
+    });
+  });
+  return heights;
+};
 
 const EXPECTED_SLIDES = [
   ['Crea flashcards en segundos con IA.', 'Convierte tus apuntes en material listo para estudiar.'],
@@ -68,8 +91,12 @@ test('los cuatro slides usan solo WebP v2 transparentes y conservan textos y én
 });
 
 test('la pantalla pública es fija, bloquea scroll y abre el ActionSheet draggable', async () => {
-  const login = await readComponent('./LoginScreen.jsx');
-  assert.match(login, /className="fixed inset-0 grid h-\[100dvh\]/);
+  const [login, styles] = await Promise.all([
+    readComponent('./LoginScreen.jsx'),
+    readFile(new URL('../index.css', import.meta.url), 'utf8'),
+  ]);
+  assert.match(login, /className="login-viewport-surface fixed inset-0 grid/);
+  assert.doesNotMatch(login, /h-\[100dvh\]/);
   assert.match(login, /overflow-hidden overscroll-none/);
   assert.doesNotMatch(login, /overflow-y-auto|sticky bottom-0/);
   assert.match(login, /lockBodyScroll\(LOGIN_SCROLL_OWNER\)/);
@@ -82,6 +109,16 @@ test('la pantalla pública es fija, bloquea scroll y abre el ActionSheet draggab
   assert.match(login, /draggable/);
   assert.match(login, /dragDisabled=\{authenticating\}/);
   assert.match(login, /Iniciar sesión/);
+
+  const surfaceHeights = getLoginSurfaceHeights(styles);
+  assert.ok(surfaceHeights.some(({ value, contexts }) => (
+    value === '100dvh' && contexts.length === 0
+  )), 'Login debe conservar 100dvh como altura general');
+  assert.ok(surfaceHeights.some(({ value, contexts }) => (
+    value === '100vh'
+    && contexts.some(({ name, params }) => name === 'media' && /display-mode\s*:\s*standalone/.test(params))
+    && contexts.some(({ name, params }) => name === 'supports' && /-webkit-touch-callout\s*:\s*none/.test(params))
+  )), 'Login standalone en WebKit debe usar 100vh sin depender del 100dvh tardío');
 });
 
 test('Google conserva un solo componente/callback y precede al bloque de invitación', async () => {

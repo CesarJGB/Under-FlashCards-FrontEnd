@@ -12,6 +12,8 @@ Esta política es global al documento. Añadir `interactive-widget=resizes-conte
 
 Chrome también aclara que las unidades dinámicas de viewport no se reducen necesariamente por el teclado bajo la política predeterminada ([Chrome 108](https://developer.chrome.com/blog/new-in-chrome-108/)). Por ello `100dvh` no es detector ni solución completa para OSK.
 
+La mitigación de cold launch de Login no cambia este contrato: `height: 100vh` está anidado bajo la detección de capacidad WebKit y `display-mode: standalone`. Chrome/Android, incluida una PWA instalada, conserva el `height: 100dvh` general; no se modifica el meta viewport ni se introduce una fuente JavaScript de altura.
+
 ## VirtualKeyboard API
 
 Chromium implementa la [VirtualKeyboard API](https://developer.chrome.com/docs/web-platform/virtual-keyboard/) como capacidad experimental/progresiva. La especificación permite `navigator.virtualKeyboard.overlaysContent`, `geometrychange`, `boundingRect` y variables `keyboard-inset-*`, pero exige secure context y no tiene soporte en iOS ([W3C Working Draft](https://www.w3.org/TR/virtual-keyboard/)).

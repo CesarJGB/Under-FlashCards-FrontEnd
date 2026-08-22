@@ -57,6 +57,8 @@ El shell móvil de `App.jsx` sigue siendo `fixed inset-0` con fondo `slate-50`, 
 
 `LoginScreen` es una excepción explícita: su `<main>` ya protege contenido con `env(safe-area-inset-top/bottom)`, por lo que neutraliza temporalmente los paddings globales de `body`. Esa escritura y el scroll lock se preparan en `useLayoutEffect`, antes de que el navegador repinte. El cleanup restaura los valores inline exactos; el ciclo adicional `setup → cleanup → setup` de StrictMode ocurre antes del primer paint visible y termina de nuevo con padding cero.
 
+La superficie fija de Login conserva `height: 100dvh` en navegador normal, Chromium standalone y desktop. Solo bajo la detección CSS ya usada por el proyecto (`@supports (-webkit-touch-callout: none)`) combinada con `display-mode: standalone` cambia a `height: 100vh`. La excepción responde a una secuencia reproducida en un iPhone físico: durante 61–272 ms, según el lanzamiento, `html`/`body`/`#root` y `100vh` ya medían 812 px mientras `100dvh`, VisualViewport y Login seguían en 759 px. No se atribuyen esos números a otros modelos; el contrato es que la superficie use la unidad que WebKit sincroniza con el documento en ese contexto. Los paddings con `env()` siguen siendo propietarios de la protección del contenido y no se duplican.
+
 ## VisualViewport en la práctica
 
 Para una superficie que debe seguir el área visible se leen conjuntamente:
@@ -100,7 +102,7 @@ Una degradación razonable declara el fallback primero:
 
 Esto aporta soporte sintáctico; no resuelve por sí solo teclado, scroll ni bugs de safe area. Cualquier variable JavaScript de altura debe tener una razón más específica que “móvil”.
 
-La excepción del root standalone es deliberadamente inversa al patrón general anterior: `100vh` se usa allí porque WebKit 254868 documenta que las alternativas pequeñas/fill omiten precisamente el área que el fondo debe pintar. No se usa para detectar el teclado ni para dimensionar overlays.
+Las excepciones del root y de la superficie Login en WebKit standalone son deliberadamente inversas al patrón general anterior: `100vh` se usa allí porque WebKit 254868 y la reproducción física muestran que las alternativas pequeñas, fill o dinámicas pueden omitir temporalmente el área que el fondo debe pintar. No se usa para detectar el teclado ni se propaga a otros overlays.
 
 ## Fuentes
 

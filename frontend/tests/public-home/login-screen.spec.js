@@ -419,6 +419,45 @@ async function readAuthGeometry(page, { trialAutoHeight = false } = {}) {
 // Contratos de ciclo de vida, geometría y retorno de foco de la superficie de auth.
 // ---------------------------------------------------------------------------
 test.describe('login google lifecycle', () => {
+  test('la superficie fullscreen sigue portrait, landscape y portrait sin guardar altura', async ({ page }) => {
+    const viewports = [
+      { width: 390, height: 844 },
+      { width: 844, height: 390 },
+      { width: 390, height: 844 },
+    ];
+    await page.setViewportSize(viewports[0]);
+    await openPublicScreen(page);
+
+    for (const viewport of viewports) {
+      await page.setViewportSize(viewport);
+      await page.evaluate(() => new Promise((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(resolve));
+      }));
+
+      const geometry = await page.evaluate(() => {
+        const surface = document.querySelector('.login-viewport-surface');
+        const surfaceRect = surface?.getBoundingClientRect();
+        const rootRect = document.getElementById('root')?.getBoundingClientRect();
+        return {
+          innerWidth: window.innerWidth,
+          innerHeight: window.innerHeight,
+          surfaceWidth: surfaceRect?.width ?? null,
+          surfaceHeight: surfaceRect?.height ?? null,
+          rootHeight: rootRect?.height ?? null,
+          horizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth
+            || document.body.scrollWidth > document.body.clientWidth,
+        };
+      });
+
+      expect(geometry.innerWidth).toBe(viewport.width);
+      expect(geometry.innerHeight).toBe(viewport.height);
+      expect(geometry.surfaceWidth).toBeCloseTo(geometry.innerWidth, 0);
+      expect(geometry.surfaceHeight).toBeCloseTo(geometry.rootHeight, 0);
+      expect(geometry.surfaceHeight).toBeCloseTo(geometry.innerHeight, 0);
+      expect(geometry.horizontalOverflow).toBe(false);
+    }
+  });
+
   test('probe: ciclo de vida DOM del botón de Google al abrir', async ({ page }, testInfo) => {
     await openPublicScreen(page);
     await page.screenshot({ path: path.join(EVIDENCE_DIR, 'login-before-open.png') });
