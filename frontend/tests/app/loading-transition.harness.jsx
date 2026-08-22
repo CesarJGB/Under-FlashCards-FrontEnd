@@ -63,6 +63,14 @@ function LoadingTransitionHarness() {
           videoSource={null}
         />
       )}
+      <button
+        type="button"
+        className="sr-only"
+        data-testid="unmount-app-loading"
+        onClick={() => setIsLoading(false)}
+      >
+        Desmontar loading
+      </button>
       <output className="sr-only" data-testid="loading-complete-count">
         {completeCount}
       </output>

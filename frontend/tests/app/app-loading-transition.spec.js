@@ -49,11 +49,20 @@ async function expectNoSimultaneousBrandAssets(page) {
   ).toBe(false);
 }
 
-async function expectDocumentBackground(page, expectedColor) {
+async function expectDocumentSurface(page, expectedColor, expectedThemeColor) {
   await expect.poll(() => page.evaluate(() => ({
     html: getComputedStyle(document.documentElement).backgroundColor,
     body: getComputedStyle(document.body).backgroundColor,
-  }))).toEqual({ html: expectedColor, body: expectedColor });
+    root: getComputedStyle(document.getElementById('root')).backgroundColor,
+    themeColor: document.head.querySelector('meta[name="theme-color"]')?.getAttribute('content'),
+    themeColorCount: document.head.querySelectorAll('meta[name="theme-color"]').length,
+  }))).toEqual({
+    html: expectedColor,
+    body: expectedColor,
+    root: expectedColor,
+    themeColor: expectedThemeColor,
+    themeColorCount: 1,
+  });
 }
 
 async function startPhaseRecorder(page) {
@@ -264,31 +273,55 @@ test('reduced motion conserva la secuencia exclusiva y sustituye el desplazamien
   await expect(page.getByTestId('dashboard-screen')).toBeVisible();
 });
 
-test('sincroniza y restaura el fondo real de html/body sin alterar los metadatos PWA', async ({ page }) => {
+test('sincroniza la superficie y theme-color durante el lila y restaura ambos al llegar a Home', async ({ page }) => {
   const indexHtml = await readFile(new URL('../../index.html', import.meta.url), 'utf8');
+  const manifest = JSON.parse(await readFile(
+    new URL('../../public/manifest.webmanifest', import.meta.url),
+    'utf8',
+  ));
   expect(indexHtml).toMatch(/name="viewport"[^>]+content="[^"]*viewport-fit=cover[^"]*"/);
-  expect(indexHtml).toMatch(/name="apple-mobile-web-app-status-bar-style"\s+content="default"/);
+  expect(indexHtml).toMatch(/name="apple-mobile-web-app-status-bar-style"\s+content="black-translucent"/);
   expect(indexHtml).toMatch(/name="theme-color"\s+content="#7c3aed"/);
+  expect(manifest).toMatchObject({ background_color: '#FBFAFF', theme_color: '#7C3AED' });
 
   await openHarness(page);
   await holdRevealTransition(page);
-  await expectDocumentBackground(page, 'rgb(251, 250, 255)');
+  await expectDocumentSurface(page, 'rgb(251, 250, 255)', '#7c3aed');
 
   await page.getByTestId('lua-loading-video').dispatchEvent('ended');
   await waitForPhase(page, 'brand-icon');
-  await expectDocumentBackground(page, 'rgb(237, 233, 254)');
+  await expectDocumentSurface(page, 'rgb(237, 233, 254)', '#EDE9FE');
   await waitForPhase(page, 'brand-logo');
-  await expectDocumentBackground(page, 'rgb(237, 233, 254)');
+  await expectDocumentSurface(page, 'rgb(237, 233, 254)', '#EDE9FE');
   await waitForPhase(page, 'revealing');
-  await expectDocumentBackground(page, 'rgb(255, 255, 255)');
+  await expectDocumentSurface(page, 'rgb(237, 233, 254)', '#EDE9FE');
 
   await dispatchTransitionEnd(page, 'transform');
   await expect(page.getByTestId('app-loading-screen')).toHaveCount(0);
-  await expectDocumentBackground(page, 'rgb(255, 255, 255)');
+  await expectDocumentSurface(page, 'rgb(255, 255, 255)', '#7c3aed');
   await expect.poll(() => page.evaluate(() => ({
     html: document.documentElement.style.backgroundColor,
     body: document.body.style.backgroundColor,
-  }))).toEqual({ html: '', body: '' });
+    root: document.getElementById('root').style.backgroundColor,
+  }))).toEqual({ html: '', body: '', root: '' });
+});
+
+test('restaura la superficie y theme-color original si el loading se desmonta durante el lila', async ({ page }) => {
+  await openHarness(page);
+  await page.getByTestId('lua-loading-video').dispatchEvent('ended');
+  await waitForPhase(page, 'brand-icon');
+  await expectDocumentSurface(page, 'rgb(237, 233, 254)', '#EDE9FE');
+
+  await page.getByTestId('unmount-app-loading').evaluate((button) => button.click());
+
+  await expect(page.getByTestId('app-loading-screen')).toHaveCount(0);
+  await expect(page.getByTestId('loading-complete-count')).toHaveText('0');
+  await expectDocumentSurface(page, 'rgb(255, 255, 255)', '#7c3aed');
+  await expect.poll(() => page.evaluate(() => ({
+    html: document.documentElement.style.backgroundColor,
+    body: document.body.style.backgroundColor,
+    root: document.getElementById('root').style.backgroundColor,
+  }))).toEqual({ html: '', body: '', root: '' });
 });
 
 test('el safety timeout completa una sola vez y también restaura el fondo del documento', async ({ page }) => {
@@ -305,11 +338,12 @@ test('el safety timeout completa una sola vez y también restaura el fondo del d
   await expect(page.getByTestId('app-loading-screen')).toHaveCount(0);
   await expect(page.getByTestId('loading-complete-count')).toHaveText('1');
   await expect(page.getByTestId('dashboard-screen')).toBeVisible();
-  await expectDocumentBackground(page, 'rgb(255, 255, 255)');
+  await expectDocumentSurface(page, 'rgb(255, 255, 255)', '#7c3aed');
   await expect.poll(() => page.evaluate(() => ({
     html: document.documentElement.style.backgroundColor,
     body: document.body.style.backgroundColor,
-  }))).toEqual({ html: '', body: '' });
+    root: document.getElementById('root').style.backgroundColor,
+  }))).toEqual({ html: '', body: '', root: '' });
 });
 
 test('captura icono, logo exclusivo, reveal y Home en móvil y desktop', async ({ page }, testInfo) => {

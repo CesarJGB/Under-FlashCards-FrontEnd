@@ -131,7 +131,7 @@ function AppLoadingScreen({ onComplete, videoSource = luaLoadingVideo }) {
   const mountedRef = useRef(true);
   const phaseRef = useRef(APP_LOADING_PHASE.VIDEO);
   const onCompleteRef = useRef(onComplete);
-  const documentBackgroundRef = useRef(null);
+  const documentSurfaceRef = useRef(null);
 
   useEffect(() => {
     onCompleteRef.current = onComplete;
@@ -238,35 +238,72 @@ function AppLoadingScreen({ onComplete, videoSource = luaLoadingVideo }) {
   }, [advancePhase, clearPhaseTimer, finishLoading, phase]);
 
   useLayoutEffect(() => {
-    const targets = [document.documentElement, document.body];
-    documentBackgroundRef.current = targets.map((target) => ({
-      target,
-      value: target.style.getPropertyValue('background-color'),
-      priority: target.style.getPropertyPriority('background-color'),
-    }));
+    const backgroundTargets = [
+      document.documentElement,
+      document.body,
+      document.getElementById('root'),
+    ].filter(Boolean);
+    const themeColorMeta = document.head.querySelector('meta[name="theme-color"]');
+
+    documentSurfaceRef.current = {
+      backgrounds: backgroundTargets.map((target) => ({
+        target,
+        value: target.style.getPropertyValue('background-color'),
+        priority: target.style.getPropertyPriority('background-color'),
+      })),
+      themeColor: themeColorMeta
+        ? {
+            target: themeColorMeta,
+            value: themeColorMeta.getAttribute('content'),
+          }
+        : null,
+    };
 
     return () => {
-      documentBackgroundRef.current?.forEach(({ target, value, priority }) => {
+      documentSurfaceRef.current?.backgrounds.forEach(({ target, value, priority }) => {
         if (value) {
           target.style.setProperty('background-color', value, priority);
         } else {
           target.style.removeProperty('background-color');
         }
       });
-      documentBackgroundRef.current = null;
+
+      const originalThemeColor = documentSurfaceRef.current?.themeColor;
+      if (originalThemeColor) {
+        if (originalThemeColor.value === null) {
+          originalThemeColor.target.removeAttribute('content');
+        } else {
+          originalThemeColor.target.setAttribute('content', originalThemeColor.value);
+        }
+      }
+
+      documentSurfaceRef.current = null;
     };
   }, []);
 
   useLayoutEffect(() => {
     const backgroundColor = phase === APP_LOADING_PHASE.VIDEO
       ? APP_LOADING_BACKGROUND.VIDEO
-      : phase === APP_LOADING_PHASE.REVEALING || phase === APP_LOADING_PHASE.COMPLETE
+      : phase === APP_LOADING_PHASE.COMPLETE
         ? APP_LOADING_BACKGROUND.HOME
         : APP_LOADING_BACKGROUND.BRAND;
 
-    documentBackgroundRef.current?.forEach(({ target }) => {
+    documentSurfaceRef.current?.backgrounds.forEach(({ target }) => {
       target.style.setProperty('background-color', backgroundColor);
     });
+
+    const originalThemeColor = documentSurfaceRef.current?.themeColor;
+    if (!originalThemeColor) return;
+
+    if (phase === APP_LOADING_PHASE.VIDEO || phase === APP_LOADING_PHASE.COMPLETE) {
+      if (originalThemeColor.value === null) {
+        originalThemeColor.target.removeAttribute('content');
+      } else {
+        originalThemeColor.target.setAttribute('content', originalThemeColor.value);
+      }
+    } else {
+      originalThemeColor.target.setAttribute('content', APP_LOADING_BACKGROUND.BRAND);
+    }
   }, [phase]);
 
   useEffect(() => {
