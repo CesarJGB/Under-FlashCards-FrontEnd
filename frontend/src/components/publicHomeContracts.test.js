@@ -74,6 +74,8 @@ test('la pantalla pública es fija, bloquea scroll y abre el ActionSheet draggab
   assert.doesNotMatch(login, /overflow-y-auto|sticky bottom-0/);
   assert.match(login, /lockBodyScroll\(LOGIN_SCROLL_OWNER\)/);
   assert.match(login, /unlockBodyScroll\(LOGIN_SCROLL_OWNER\)/);
+  assert.match(login, /useLayoutEffect\(\(\) => \{\s+const originalPaddingTop/);
+  assert.doesNotMatch(login, /useEffect\(\(\) => \{\s+const originalPaddingTop/);
   assert.match(login, /document\.body\.style\.paddingTop = '0px'/);
   assert.match(login, /document\.body\.style\.paddingBottom = '0px'/);
   assert.match(login, /<ActionSheet/);

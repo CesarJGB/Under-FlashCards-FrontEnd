@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
 import { LoaderCircle, X } from 'lucide-react';
 import underFlashcardsLogo from '../../media/svg/logo/under-flashcards-logo 2.svg';
@@ -27,7 +27,7 @@ export default function LoginScreen({ onSuccess, onError, error }) {
   const googleContainerRef = useRef(null);
   const googleButtonWidthRef = useRef(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const originalPaddingTop = document.body.style.paddingTop;
     const originalPaddingBottom = document.body.style.paddingBottom;
     document.body.style.paddingTop = '0px';

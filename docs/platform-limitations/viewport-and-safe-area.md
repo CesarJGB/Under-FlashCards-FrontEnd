@@ -39,6 +39,7 @@ Reglas:
 | Nivel | Uso actual | Riesgo a revisar antes de editar |
 |---|---|---|
 | `index.css` / `body` | Altura completa, insets superior e inferior, fallback WebKit | El inset global puede propagarse a shells que ya reservan espacio |
+| `LoginScreen` | Superficie fija con insets propios; neutraliza los paddings globales de `body` antes del primer paint | La preparación debe permanecer en `useLayoutEffect` para que el primer frame y el estado estable compartan geometría |
 | `App.jsx` | Shell fijo, inset superior y navegación móvil inferior | `fixed inset-0` sigue layout viewport; navegación puede competir con OSK |
 | `ManualCardEditorModal` | Superficie fija dimensionada con VisualViewport; safe area inferior condicionado por teclado probable | Evento tardío, heurística errónea o doble padding |
 | `ActionSheet` | `max-height: min(90dvh, 720px)` y padding inferior seguro | `dvh` no evita OSK; el contenido interno debe desplazarse |
@@ -53,6 +54,8 @@ Que varios niveles usen `env()` no prueba que hoy exista un defecto visual; iden
 WebKit mantiene abierto el [bug 254868](https://bugs.webkit.org/show_bug.cgi?id=254868): con `viewport-fit=cover` en una web app instalada, `100svh`, `-webkit-fill-available` y `visualViewport.height` pueden excluir la safe area. Under Flashcards conserva `-webkit-fill-available` como fallback de Safari normal, pero en `display-mode: standalone` eleva el `min-height` de `html`, `body` y `#root` a `100vh`. La regla solo extiende la superficie raíz; no añade padding, no mueve la navbar y no sustituye los insets de los controles.
 
 El shell móvil de `App.jsx` sigue siendo `fixed inset-0` con fondo `slate-50`, `main` sigue siendo su scroll owner y la navbar conserva su offset `bottom: calc(env(safe-area-inset-bottom) + 0.75rem)`. El `padding-bottom` de `body` y los insets de esos elementos no se suman dentro del shell fijo: protegen niveles distintos. No se elimina ninguno sin una reproducción de padding acumulado en estilos calculados.
+
+`LoginScreen` es una excepción explícita: su `<main>` ya protege contenido con `env(safe-area-inset-top/bottom)`, por lo que neutraliza temporalmente los paddings globales de `body`. Esa escritura y el scroll lock se preparan en `useLayoutEffect`, antes de que el navegador repinte. El cleanup restaura los valores inline exactos; el ciclo adicional `setup → cleanup → setup` de StrictMode ocurre antes del primer paint visible y termina de nuevo con padding cero.
 
 ## VisualViewport en la práctica
 
